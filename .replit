@@ -7,7 +7,7 @@ integrations = ["javascript_mem_db==1.0.0"]
 channel = "stable-25_05"
 
 [workflows]
-runButton = "Project"
+runButton = "Start Bot"
 
 [[workflows.workflow]]
 name = "Project"
@@ -40,3 +40,12 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm install @whiskeysockets/baileys @hapi/boom chalk qrcode-terminal fs-extra winston node-cache moment-timezone dotenv && node index.js"
+
+[[workflows.workflow]]
+name = "Start Bot"
+author = 47125375
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"

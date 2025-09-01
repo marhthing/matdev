@@ -63,6 +63,9 @@ class MATDEV {
             // Display banner
             this.displayBanner();
             
+            // Check and install dependencies
+            await this.checkDependencies();
+            
             // Ensure required directories exist
             await this.ensureDirectories();
             
@@ -75,6 +78,47 @@ class MATDEV {
         } catch (error) {
             logger.error('Failed to start MATDEV:', error);
             process.exit(1);
+        }
+    }
+
+    /**
+     * Check and install required dependencies
+     */
+    async checkDependencies() {
+        try {
+            logger.info('📦 Checking dependencies...');
+            
+            const requiredPackages = [
+                '@whiskeysockets/baileys',
+                '@hapi/boom', 
+                'chalk',
+                'qrcode-terminal',
+                'fs-extra',
+                'winston',
+                'node-cache',
+                'moment-timezone',
+                'dotenv'
+            ];
+            
+            const { execSync } = require('child_process');
+            const packageJson = require('./package.json');
+            const installedDeps = {
+                ...packageJson.dependencies || {},
+                ...packageJson.devDependencies || {}
+            };
+            
+            const missingPackages = requiredPackages.filter(pkg => !installedDeps[pkg]);
+            
+            if (missingPackages.length > 0) {
+                logger.info(`📥 Installing missing packages: ${missingPackages.join(', ')}`);
+                execSync(`npm install ${missingPackages.join(' ')}`, { stdio: 'inherit' });
+                logger.success('✅ Dependencies installed successfully');
+            } else {
+                logger.success('✅ All dependencies are available');
+            }
+            
+        } catch (error) {
+            logger.warn('⚠️ Dependency check failed, continuing anyway:', error.message);
         }
     }
 
@@ -238,9 +282,17 @@ class MATDEV {
             this.isConnected = false;
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             
-            // Only exit on actual logout, not on connection errors
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut && 
-                                  statusCode !== DisconnectReason.multideviceMismatch;
+            // Handle different status codes properly
+            let shouldReconnect = true;
+            
+            if (statusCode === DisconnectReason.loggedOut) {
+                shouldReconnect = false;
+            } else if (statusCode === 401) {
+                // 401 usually means bad session, try to clear and reconnect
+                logger.warn('🔄 Bad session detected, clearing session...');
+                await this.clearBadSession();
+                shouldReconnect = true;
+            }
             
             logger.warn(`Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
             
@@ -369,6 +421,21 @@ class MATDEV {
                     logger.error('Failed to view status:', error);
                 }
             }
+        }
+    }
+
+    /**
+     * Clear bad session files
+     */
+    async clearBadSession() {
+        try {
+            const sessionPath = path.join(__dirname, 'session');
+            if (await fs.pathExists(sessionPath)) {
+                await fs.emptyDir(sessionPath);
+                logger.info('🗑️ Cleared bad session files');
+            }
+        } catch (error) {
+            logger.error('Failed to clear session:', error);
         }
     }
 
