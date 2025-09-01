@@ -34,7 +34,7 @@ class MATDEV {
         this.sock = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
+        this.maxReconnectAttempts = 50;
         this.startTime = Date.now();
         this.initialConnection = true; // Track if this is initial connection
         this.messageStats = {
@@ -286,23 +286,35 @@ class MATDEV {
             // Handle different disconnect reasons properly
             let shouldReconnect = true;
             let clearSession = false;
-            let reconnectDelay = 3000; // Default 3 seconds
+            let reconnectDelay = Math.min(3000 + (this.reconnectAttempts * 1000), 15000); // Progressive delay
             
             switch (statusCode) {
                 case DisconnectReason.badSession:
-                    logger.warn('🔴 Bad session detected - clearing corrupted session...');
-                    clearSession = true;
-                    shouldReconnect = true;
+                    // Only clear session after many attempts
+                    if (this.reconnectAttempts >= 20) {
+                        logger.warn('🔴 Persistent bad session after 20 attempts - clearing session...');
+                        clearSession = true;
+                        shouldReconnect = false;
+                    } else {
+                        logger.warn(`🔄 Bad session detected - retrying (${this.reconnectAttempts + 1}/20)...`);
+                        shouldReconnect = true;
+                    }
                     break;
                     
                 case DisconnectReason.loggedOut:
-                    logger.warn('🚪 Device logged out remotely - manual authentication required');
-                    clearSession = true;
-                    shouldReconnect = false; // Don't auto-reconnect, needs QR scan
+                    // Only clear session after many attempts
+                    if (this.reconnectAttempts >= 25) {
+                        logger.warn('🚪 Persistent logout after 25 attempts - clearing session...');
+                        clearSession = true;
+                        shouldReconnect = false;
+                    } else {
+                        logger.warn(`🔄 Device logged out - retrying (${this.reconnectAttempts + 1}/25)...`);
+                        shouldReconnect = true;
+                    }
                     break;
                     
                 case DisconnectReason.connectionClosed:
-                    logger.warn('🔄 Connection closed by server - reconnecting with existing session...');
+                    logger.warn('🔄 Connection closed by server - reconnecting...');
                     shouldReconnect = true;
                     reconnectDelay = 2000;
                     break;
@@ -328,21 +340,19 @@ class MATDEV {
                 case DisconnectReason.restartRequired:
                     logger.warn('🔄 WhatsApp restart required - preserving session...');
                     shouldReconnect = true;
-                    reconnectDelay = 1000; // Quick restart
+                    reconnectDelay = 1000;
                     break;
                     
-                case 401: // Unauthorized - Only clear session if truly needed
-                    // For 401 errors, preserve session and retry multiple times before giving up
-                    if (this.reconnectAttempts < 15) { // Increased from 8 to 15 attempts
-                        logger.warn(`🔄 Authentication issue (401) - preserving session and retrying... (attempt ${this.reconnectAttempts + 1}/15)`);
-                        shouldReconnect = true;
-                        reconnectDelay = Math.min(5000 + (this.reconnectAttempts * 2000), 30000); // Progressive delay
-                    } else {
-                        // After 15 failed attempts, it's likely a real auth issue
-                        logger.warn('🔴 Persistent authentication failed after 15 attempts - requiring QR rescan...');
+                case 401: // Unauthorized - Only clear session after many attempts
+                    if (this.reconnectAttempts >= 30) {
+                        logger.warn('🔴 Persistent authentication failed after 30 attempts - clearing session...');
                         clearSession = true;
-                        shouldReconnect = false; // Don't auto-reconnect, need QR scan
+                        shouldReconnect = false;
                         this.reconnectAttempts = 0;
+                    } else {
+                        logger.warn(`🔄 Authentication issue (401) - preserving session and retrying (${this.reconnectAttempts + 1}/30)...`);
+                        shouldReconnect = true;
+                        reconnectDelay = Math.min(3000 + (this.reconnectAttempts * 1000), 20000);
                     }
                     break;
                     
@@ -356,7 +366,7 @@ class MATDEV {
             
             // Clear session only if necessary
             if (clearSession) {
-                await this.clearBadSession();
+                await this.clearSession();
             }
             
             // Handle reconnection
@@ -367,7 +377,6 @@ class MATDEV {
                 }, reconnectDelay);
             } else {
                 logger.error('❌ Connection terminated. Please scan QR code to reconnect.');
-                // For logged out case, show QR code again
                 setTimeout(() => {
                     this.connect();
                 }, 5000);
@@ -536,24 +545,13 @@ class MATDEV {
     }
 
     /**
-     * Clear session files ONLY when absolutely necessary
+     * Clear session files when absolutely necessary
      */
-    async clearBadSession() {
+    async clearSession() {
         try {
             const sessionPath = path.join(__dirname, 'session');
             if (await fs.pathExists(sessionPath)) {
-                // Get list of files before clearing for logging
                 const files = await fs.readdir(sessionPath);
-                
-                // Create backup before clearing (just in case)
-                const backupPath = `${sessionPath}_backup_${Date.now()}`;
-                try {
-                    await fs.copy(sessionPath, backupPath);
-                    logger.info(`💾 Session backup created at: ${backupPath}`);
-                } catch (backupError) {
-                    logger.warn('Could not create session backup:', backupError.message);
-                }
-                
                 await fs.emptyDir(sessionPath);
                 logger.info(`🗑️ Cleared ${files.length} session files for fresh authentication`);
             } else {
@@ -567,7 +565,6 @@ class MATDEV {
             
         } catch (error) {
             logger.error('Failed to clear session:', error);
-            // If we can't clear session files, try to remove the entire directory and recreate it
             try {
                 const sessionPath = path.join(__dirname, 'session');
                 await fs.remove(sessionPath);
@@ -583,23 +580,18 @@ class MATDEV {
      * Handle reconnection with intelligent session preservation
      */
     async handleReconnection() {
-        // NEVER clear session in general reconnection - only specific disconnect reasons should clear
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
             logger.warn('❌ Maximum reconnection attempts reached. Resetting attempt counter and continuing...');
-            
-            // Reset attempts but DON'T clear session - preserve it!
             this.reconnectAttempts = 0;
-            
-            // Wait longer before retrying (2 minutes)
-            logger.info('🔄 Waiting 2 minutes before next reconnection cycle...');
+            logger.info('🔄 Waiting 5 minutes before next reconnection cycle...');
             setTimeout(() => {
                 this.connect();
-            }, 120000); // 2 minutes
+            }, 300000); // 5 minutes
             return;
         }
 
         this.reconnectAttempts++;
-        const delay = Math.min(3000 * Math.pow(1.2, this.reconnectAttempts), 60000); // Gentler backoff
+        const delay = Math.min(2000 + (this.reconnectAttempts * 1000), 30000); // Progressive backoff
         
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
         
