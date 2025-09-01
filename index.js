@@ -36,6 +36,7 @@ class MATDEV {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 10;
         this.startTime = Date.now();
+        this.initialConnection = true; // Track if this is initial connection
         this.messageStats = {
             sent: 0,
             received: 0,
@@ -331,15 +332,19 @@ class MATDEV {
                     break;
                     
                 case 401: // Unauthorized
-                    if (this.reconnectAttempts >= 5) {
-                        logger.warn('🔴 Persistent authentication failed - clearing session...');
+                    if (this.initialConnection && this.reconnectAttempts < 3) {
+                        logger.warn('🔄 Initial connection failed (401) - retrying with existing session...');
+                        shouldReconnect = true;
+                        reconnectDelay = 10000; // Longer delay for initial attempts
+                    } else if (this.reconnectAttempts >= 8) {
+                        logger.warn('🔴 Persistent authentication failed after multiple attempts - clearing session...');
                         clearSession = true;
                         this.reconnectAttempts = 0;
                     } else {
-                        logger.warn('🔄 Authentication issue - retrying without clearing session...');
+                        logger.warn(`🔄 Authentication issue (401) - retrying without clearing session... (attempt ${this.reconnectAttempts + 1})`);
+                        shouldReconnect = true;
+                        reconnectDelay = 8000; // Longer delay for auth issues
                     }
-                    shouldReconnect = true;
-                    reconnectDelay = 6000;
                     break;
                     
                 default:
@@ -371,6 +376,7 @@ class MATDEV {
         } else if (connection === 'open') {
             this.isConnected = true;
             this.reconnectAttempts = 0;
+            this.initialConnection = false; // Mark as no longer initial connection
             logger.info('🟢 Session established successfully - preserving authentication');
             
             logger.success('✅ Successfully connected to WhatsApp!');
