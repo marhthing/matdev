@@ -63,6 +63,20 @@ MATDEV stands out from other WhatsApp bots with:
 - Git
 - WhatsApp account
 
+### Environment Configuration
+Create a `.env` file to customize your bot:
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit with your preferences
+BOT_NAME=YourBotName
+PREFIX=.                    # Command prefix (can be ., !, #, etc.)
+OWNER_NUMBER=              # Will be auto-set when you scan QR
+PUBLIC_MODE=false          # Allow public access to commands
+AUTO_TYPING=true           # Show typing indicator
+```
+
 ### 1. Fork & Clone
 ```bash
 # Fork this repository first, then clone your fork

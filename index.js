@@ -286,22 +286,26 @@ class MATDEV {
             let shouldReconnect = true;
             
             if (statusCode === DisconnectReason.loggedOut) {
-                logger.warn('🚪 Bot was properly logged out');
-                shouldReconnect = false;
+                logger.warn('🚪 Bot was properly logged out - authentication required');
+                // Only clear session if actually logged out, not on restart
+                await this.clearBadSession();
+                shouldReconnect = true;
             } else if (statusCode === 401) {
-                // Only clear session for 401 if we haven't just scanned QR code
-                if (this.reconnectAttempts > 0) {
-                    logger.warn('🔄 Authentication failed (401), clearing session and restarting...');
+                // Only clear session for persistent 401 errors (not first attempt)
+                if (this.reconnectAttempts >= 3) {
+                    logger.warn('🔄 Persistent authentication failed (401), clearing session...');
                     await this.clearBadSession();
-                    // Reset reconnect attempts for fresh start
                     this.reconnectAttempts = 0;
                 } else {
-                    logger.warn('🔄 Authentication issue (401), attempting reconnect without clearing session...');
+                    logger.warn('🔄 Authentication issue (401), retrying without clearing session...');
                 }
                 shouldReconnect = true;
             } else if (statusCode === DisconnectReason.restartRequired) {
-                logger.warn('🔄 Restart required by WhatsApp...');
-                // Don't clear session for restart required - just reconnect
+                logger.warn('🔄 Restart required by WhatsApp - preserving session...');
+                // Never clear session for restart required - just reconnect
+                shouldReconnect = true;
+            } else if (statusCode === DisconnectReason.connectionReplaced) {
+                logger.warn('🔄 Connection replaced - preserving session...');
                 shouldReconnect = true;
             }
             
@@ -311,10 +315,8 @@ class MATDEV {
                 logger.info('🔄 Attempting to reconnect...');
                 await this.handleReconnection();
             } else {
-                logger.error('❌ Bot was logged out cleanly. Please scan QR code again.');
-                // For clean logout, clear session and allow restart instead of exit
-                await this.clearBadSession();
-                logger.info('🔄 Session cleared. Attempting fresh connection...');
+                logger.error('❌ Connection terminated. Manual QR scan may be required.');
+                // Don't auto-clear session - let user decide
                 setTimeout(() => {
                     this.connect();
                 }, 2000);
@@ -365,12 +367,8 @@ class MATDEV {
         for (const message of messages) {
             if (!message) continue;
             
-            // Allow processing of bot's own messages for commands
-            // Skip only if it's not a command message from the bot
-            const messageText = message.message?.conversation || 
-                              message.message?.extendedTextMessage?.text || '';
-            
-            if (message.key.fromMe && !messageText.startsWith(config.PREFIX)) {
+            // Skip bot's own messages completely to avoid confusion
+            if (message.key.fromMe) {
                 continue;
             }
             
