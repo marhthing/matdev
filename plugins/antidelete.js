@@ -20,13 +20,39 @@ class AntiDeletePlugin {
     async init(bot) {
         this.bot = bot;
         
-        // Listen for message updates (includes deletions)
-        this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
-        
-        // Register commands
+        // Register commands immediately
         this.registerCommands();
         
+        // Set up event listener when socket becomes available
+        this.setupEventListeners();
+        
         console.log('✅ Anti-delete plugin loaded');
+    }
+
+    /**
+     * Setup event listeners when socket is available
+     */
+    setupEventListeners() {
+        // Check if socket is available now
+        if (this.bot.sock && this.bot.sock.ev) {
+            this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
+            console.log('✅ Anti-delete event listeners attached');
+            return;
+        }
+        
+        // Wait for socket to be available
+        const checkSocket = () => {
+            if (this.bot.sock && this.bot.sock.ev) {
+                this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
+                console.log('✅ Anti-delete event listeners attached');
+            } else {
+                // Check again in 1 second
+                setTimeout(checkSocket, 1000);
+            }
+        };
+        
+        // Start checking for socket availability
+        setTimeout(checkSocket, 100);
     }
 
     /**
