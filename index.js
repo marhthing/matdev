@@ -426,64 +426,79 @@ class MATDEV {
         if (type !== 'notify') return;
 
         for (const message of messages) {
-            if (!message) continue;
+            if (!message || !message.message) continue;
             
             try {
-                // Update statistics
-                this.messageStats.received++;
-                
-                // Cache message
-                cache.cacheMessage(message);
-                
-                // PERSONAL ASSISTANT: Only process messages from owner
+                // FIRST: Check if it's from the bot itself - skip immediately
                 const sender = message.key.remoteJid;
                 const isGroup = sender.endsWith('@g.us');
                 const participant = isGroup ? message.key.participant : sender;
                 
-                // Skip messages from the bot itself to prevent loops
                 const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
                 if (participant === botJid || sender === botJid) {
                     logger.debug(`Skipping message from bot itself: ${participant}`);
                     continue;
                 }
                 
-                // WhatsApp JIDs can have suffixes like :0, :1, etc. We need to handle this
+                // SECOND: Check message type and extract text
+                const messageType = Object.keys(message.message)[0];
+                
+                // Skip system messages, receipts, reactions, etc.
+                const ignoredTypes = ['protocolMessage', 'reactionMessage', 'pollUpdateMessage', 'receiptMessage'];
+                if (ignoredTypes.includes(messageType)) {
+                    logger.debug(`Skipping system message type: ${messageType}`);
+                    continue;
+                }
+                
+                const content = message.message[messageType];
+                const text = content?.text || content?.caption || '';
+                
+                // THIRD: Only process messages with actual text content
+                if (!text || !text.trim()) {
+                    logger.debug(`Skipping message without text content, type: ${messageType}`);
+                    continue;
+                }
+                
+                // FOURTH: Check if it starts with prefix (for command processing)
+                const hasPrefix = text.trim().startsWith(config.PREFIX);
+                
+                // FIFTH: Owner verification (personal assistant mode)
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
                 
-                logger.debug(`🔍 Checking ownership: participant="${participant}", ownerJid="${ownerJid}", isFromOwner=${isFromOwner}`);
-                
-                // Only process messages from the owner (personal assistant mode)
                 if (!isFromOwner) {
                     logger.debug(`Ignoring message from non-owner: ${participant}`);
                     continue;
                 }
                 
-                // Only process actual text messages, ignore system messages, receipts, etc.
-                const messageType = Object.keys(message.message || {})[0];
-                const content = message.message[messageType];
-                const text = content?.text || content?.caption || '';
-                
-                // Skip non-text messages (receipts, status updates, etc.)
-                if (!text || !text.trim()) {
-                    logger.debug(`Skipping non-text message type: ${messageType}`);
+                // SIXTH: Only process if it's a command (starts with prefix)
+                if (!hasPrefix) {
+                    logger.debug(`Ignoring non-command message: "${text.substring(0, 50)}..."`);
                     continue;
                 }
                 
-                logger.info(`📨 Processing text message from owner: ${participant}`);
-                logger.info(`📝 Message content: "${text}"`);
+                // Update statistics only for processed messages
+                this.messageStats.received++;
+                
+                // Cache message
+                cache.cacheMessage(message);
+                
+                logger.info(`📨 Processing command from owner: ${participant}`);
+                logger.info(`📝 Command text: "${text}"`);
                 
                 // Security checks
                 if (await security.isBlocked(message.key.remoteJid)) {
+                    logger.debug(`Message blocked by security: ${message.key.remoteJid}`);
                     continue;
                 }
                 
                 // Rate limiting
                 if (await security.isRateLimited(message.key.remoteJid)) {
+                    logger.debug(`Message rate limited: ${message.key.remoteJid}`);
                     continue;
                 }
                 
-                // Process message
+                // Process the command message
                 await this.messageHandler.process(message);
                 
             } catch (error) {
