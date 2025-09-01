@@ -49,6 +49,7 @@ class MATDEV {
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
         this.database = database;
+        this.database.bot = this; // Pass bot instance to database
         this.messageHandler = new MessageHandler(this, cache, security, database);
         
         // Bind methods
@@ -479,9 +480,6 @@ class MATDEV {
                     const revokedKey = message.message.protocolMessage.key;
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
                 }
-                
-                // Check message type
-                const messageType = Object.keys(message.message)[0];
                 
                 // Skip system messages, receipts, reactions, etc. for COMMAND processing only
                 const ignoredTypes = ['protocolMessage', 'reactionMessage', 'pollUpdateMessage', 'receiptMessage'];
