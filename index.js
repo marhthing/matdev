@@ -459,34 +459,27 @@ class MATDEV {
             if (!message || !message.message) continue;
             
             try {
-                // FIRST: Check if this is our own outgoing message 
-                // Special case: If bot number = owner number, we need to process those messages
+                // Process outgoing messages from bot (since bot = owner in this setup)
                 const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 
+                // Since bot and owner are the same, process outgoing messages as commands
                 if (message.key.fromMe) {
-                    // If bot is the owner, we still want to process their commands
-                    if (botJid !== ownerJid) {
-                        logger.debug(`Skipping outgoing message from bot`);
-                        continue;
-                    }
-                    logger.info(`📤 Processing command from bot/owner (special case)`);
-                }
-                
-                // SECOND: Get the actual sender 
-                const sender = message.key.remoteJid;
-                const isGroup = sender.endsWith('@g.us');
-                let participant;
-                
-                if (message.key.fromMe && botJid === ownerJid) {
-                    // Special case: bot/owner sending to someone else, treat as command from owner
-                    participant = botJid;
-                    logger.info(`📤 Outgoing message to: ${sender} (from bot/owner: ${participant})`);
+                    logger.info(`📤 Processing outgoing message from bot/owner`);
+                    // For outgoing messages, the participant is the bot itself
+                    const participant = botJid;
+                    const sender = message.key.remoteJid;
+                    
+                    logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
                 } else {
-                    // Normal case: someone sending to the bot
-                    participant = isGroup ? message.key.participant : sender;
-                    logger.info(`📲 Incoming message from: ${participant} (chat: ${sender})`);
+                    // Skip incoming messages since bot = owner setup
+                    logger.debug(`Skipping incoming message (bot=owner setup)`);
+                    continue;
                 }
+                
+                // Set participant for further processing
+                const participant = botJid;
+                const sender = message.key.remoteJid;
                 
                 logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
                 logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
