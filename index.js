@@ -331,19 +331,18 @@ class MATDEV {
                     reconnectDelay = 1000; // Quick restart
                     break;
                     
-                case 401: // Unauthorized
-                    if (this.initialConnection && this.reconnectAttempts < 3) {
-                        logger.warn('🔄 Initial connection failed (401) - retrying with existing session...');
+                case 401: // Unauthorized - Only clear session if truly needed
+                    // For 401 errors, preserve session and retry multiple times before giving up
+                    if (this.reconnectAttempts < 15) { // Increased from 8 to 15 attempts
+                        logger.warn(`🔄 Authentication issue (401) - preserving session and retrying... (attempt ${this.reconnectAttempts + 1}/15)`);
                         shouldReconnect = true;
-                        reconnectDelay = 10000; // Longer delay for initial attempts
-                    } else if (this.reconnectAttempts >= 8) {
-                        logger.warn('🔴 Persistent authentication failed after multiple attempts - clearing session...');
-                        clearSession = true;
-                        this.reconnectAttempts = 0;
+                        reconnectDelay = Math.min(5000 + (this.reconnectAttempts * 2000), 30000); // Progressive delay
                     } else {
-                        logger.warn(`🔄 Authentication issue (401) - retrying without clearing session... (attempt ${this.reconnectAttempts + 1})`);
-                        shouldReconnect = true;
-                        reconnectDelay = 8000; // Longer delay for auth issues
+                        // After 15 failed attempts, it's likely a real auth issue
+                        logger.warn('🔴 Persistent authentication failed after 15 attempts - requiring QR rescan...');
+                        clearSession = true;
+                        shouldReconnect = false; // Don't auto-reconnect, need QR scan
+                        this.reconnectAttempts = 0;
                     }
                     break;
                     
@@ -513,7 +512,7 @@ class MATDEV {
     }
 
     /**
-     * Clear bad session files
+     * Clear session files ONLY when absolutely necessary
      */
     async clearBadSession() {
         try {
@@ -521,6 +520,16 @@ class MATDEV {
             if (await fs.pathExists(sessionPath)) {
                 // Get list of files before clearing for logging
                 const files = await fs.readdir(sessionPath);
+                
+                // Create backup before clearing (just in case)
+                const backupPath = `${sessionPath}_backup_${Date.now()}`;
+                try {
+                    await fs.copy(sessionPath, backupPath);
+                    logger.info(`💾 Session backup created at: ${backupPath}`);
+                } catch (backupError) {
+                    logger.warn('Could not create session backup:', backupError.message);
+                }
+                
                 await fs.emptyDir(sessionPath);
                 logger.info(`🗑️ Cleared ${files.length} session files for fresh authentication`);
             } else {
@@ -547,22 +556,26 @@ class MATDEV {
     }
 
     /**
-     * Handle reconnection with exponential backoff
+     * Handle reconnection with intelligent session preservation
      */
     async handleReconnection() {
+        // NEVER clear session in general reconnection - only specific disconnect reasons should clear
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            logger.error('❌ Maximum reconnection attempts reached. Clearing session and retrying...');
-            await this.clearBadSession();
+            logger.warn('❌ Maximum reconnection attempts reached. Resetting attempt counter and continuing...');
+            
+            // Reset attempts but DON'T clear session - preserve it!
             this.reconnectAttempts = 0;
-            // Wait 30 seconds before starting fresh
+            
+            // Wait longer before retrying (2 minutes)
+            logger.info('🔄 Waiting 2 minutes before next reconnection cycle...');
             setTimeout(() => {
                 this.connect();
-            }, 30000);
+            }, 120000); // 2 minutes
             return;
         }
 
         this.reconnectAttempts++;
-        const delay = Math.min(2000 * Math.pow(1.5, this.reconnectAttempts), 60000); // Less aggressive backoff
+        const delay = Math.min(3000 * Math.pow(1.2, this.reconnectAttempts), 60000); // Gentler backoff
         
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
         
