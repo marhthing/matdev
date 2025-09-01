@@ -21,11 +21,13 @@ const SessionManager = require('./lib/session');
 const MessageHandler = require('./lib/message');
 const SecurityManager = require('./lib/security');
 const CacheManager = require('./lib/cache');
+const DatabaseManager = require('./lib/database');
 const Utils = require('./lib/utils');
 
 // Initialize components
 const logger = new Logger();
 const cache = new CacheManager();
+const database = new DatabaseManager();
 const security = new SecurityManager(cache);
 const utils = new Utils();
 
@@ -46,7 +48,8 @@ class MATDEV {
         // Initialize managers
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
-        this.messageHandler = new MessageHandler(this, cache, security);
+        this.database = database;
+        this.messageHandler = new MessageHandler(this, cache, security, database);
         
         // Bind methods
         this.connect = this.connect.bind(this);
@@ -69,6 +72,9 @@ class MATDEV {
             
             // Ensure required directories exist
             await this.ensureDirectories();
+            
+            // Initialize database
+            await this.database.initialize();
             
             // Load plugins
             await this.loadPlugins();
@@ -505,6 +511,9 @@ class MATDEV {
                 // Cache message
                 cache.cacheMessage(message);
                 
+                // Archive message for anti-delete feature
+                await this.database.archiveMessage(message);
+                
                 logger.info(`📨 Processing command from owner: ${participant}`);
                 logger.info(`📝 Command text: "${text}"`);
                 
@@ -777,6 +786,11 @@ class MATDEV {
         logger.info('🛑 Shutting down MATDEV...');
         
         try {
+            // Close database connection
+            if (this.database) {
+                await this.database.close();
+            }
+            
             // Don't logout, just close the connection to preserve session
             if (this.sock && this.isConnected) {
                 logger.info('🔄 Preserving session during shutdown...');
