@@ -325,8 +325,19 @@ class MATDEV {
             logger.info('🟢 Session established successfully - preserving authentication');
             
             logger.success('✅ Successfully connected to WhatsApp!');
-            logger.info(`📱 Bot Number: ${this.sock.user?.id?.split(':')[0] || 'Unknown'}`);
+            const botNumber = this.sock.user?.id?.split(':')[0] || 'Unknown';
+            logger.info(`📱 Bot Number: ${botNumber}`);
             logger.info(`👤 Bot Name: ${this.sock.user?.name || config.BOT_NAME}`);
+            
+            // Auto-set owner number if not configured
+            if (!config.OWNER_NUMBER && botNumber !== 'Unknown') {
+                config.OWNER_NUMBER = botNumber;
+                process.env.OWNER_NUMBER = botNumber;
+                logger.success(`🤖 Auto-configured owner number: ${botNumber}`);
+                
+                // Update .env file if it exists
+                await this.updateEnvFile('OWNER_NUMBER', botNumber);
+            }
             
             // Initialize security features
             await security.initialize(this.sock);
@@ -500,8 +511,13 @@ class MATDEV {
     async sendStartupNotification() {
         try {
             const uptime = utils.formatUptime(Date.now() - this.startTime);
+            const botNumber = this.sock.user?.id?.split(':')[0] || 'Unknown';
+            const autoConfigured = config.OWNER_NUMBER === botNumber ? '\n🤖 Owner auto-configured from bot number' : '';
+            
             const notification = `🚀 *MATDEV Bot Started*\n\n` +
                 `⏰ Started at: ${new Date().toLocaleString()}\n` +
+                `📱 Bot Number: ${botNumber}\n` +
+                `👤 Owner: ${config.OWNER_NUMBER}${autoConfigured}\n` +
                 `⚡ Performance Mode: Active\n` +
                 `🛡️ Security Features: Enabled\n` +
                 `📊 Status: All systems operational\n\n` +
@@ -561,6 +577,45 @@ class MATDEV {
             });
         } catch (error) {
             logger.error('Failed to send status report:', error);
+        }
+    }
+
+    /**
+     * Update environment file with new values
+     */
+    async updateEnvFile(key, value) {
+        try {
+            const envPath = path.join(__dirname, '.env');
+            let envContent = '';
+            
+            // Read existing .env file if it exists
+            if (await fs.pathExists(envPath)) {
+                envContent = await fs.readFile(envPath, 'utf8');
+            }
+            
+            // Check if key already exists
+            const lines = envContent.split('\n');
+            let keyExists = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith(`${key}=`)) {
+                    lines[i] = `${key}=${value}`;
+                    keyExists = true;
+                    break;
+                }
+            }
+            
+            // Add new key if it doesn't exist
+            if (!keyExists) {
+                lines.push(`${key}=${value}`);
+            }
+            
+            // Write back to file
+            await fs.writeFile(envPath, lines.join('\n'));
+            logger.info(`📝 Updated .env file: ${key}=${value}`);
+            
+        } catch (error) {
+            logger.warn(`⚠️ Failed to update .env file: ${error.message}`);
         }
     }
 
