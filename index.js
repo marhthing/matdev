@@ -453,6 +453,8 @@ class MATDEV {
     async handleMessages({ messages, type }) {
         if (type !== 'notify') return;
 
+        logger.info(`📬 Received ${messages.length} messages of type: ${type}`);
+
         for (const message of messages) {
             if (!message || !message.message) continue;
             
@@ -461,6 +463,8 @@ class MATDEV {
                 const sender = message.key.remoteJid;
                 const isGroup = sender.endsWith('@g.us');
                 const participant = isGroup ? message.key.participant : sender;
+                
+                logger.info(`📲 Message from: ${participant} (sender: ${sender})`);
                 
                 const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
                 if (participant === botJid || sender === botJid) {
