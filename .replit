@@ -10,19 +10,6 @@ channel = "stable-25_05"
 runButton = "Start Bot"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "MATDEV Bot"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "install_and_run"
-
-[[workflows.workflow]]
 name = "MATDEV Bot"
 author = "agent"
 
