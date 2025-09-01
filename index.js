@@ -286,10 +286,17 @@ class MATDEV {
             let shouldReconnect = true;
             
             if (statusCode === DisconnectReason.loggedOut) {
+                logger.warn('🚪 Bot was properly logged out');
                 shouldReconnect = false;
             } else if (statusCode === 401) {
-                // 401 usually means bad session, try to clear and reconnect
-                logger.warn('🔄 Bad session detected, clearing session...');
+                // 401 means authentication failed - clear session and restart
+                logger.warn('🔄 Authentication failed (401), clearing session and restarting...');
+                await this.clearBadSession();
+                // Reset reconnect attempts for fresh start
+                this.reconnectAttempts = 0;
+                shouldReconnect = true;
+            } else if (statusCode === DisconnectReason.restartRequired) {
+                logger.warn('🔄 Restart required, clearing session...');
                 await this.clearBadSession();
                 shouldReconnect = true;
             }
@@ -300,8 +307,13 @@ class MATDEV {
                 logger.info('🔄 Attempting to reconnect...');
                 await this.handleReconnection();
             } else {
-                logger.error('Bot was logged out. Please delete session and restart.');
-                process.exit(1);
+                logger.error('❌ Bot was logged out cleanly. Please scan QR code again.');
+                // For clean logout, clear session and allow restart instead of exit
+                await this.clearBadSession();
+                logger.info('🔄 Session cleared. Attempting fresh connection...');
+                setTimeout(() => {
+                    this.connect();
+                }, 2000);
             }
         } else if (connection === 'open') {
             this.isConnected = true;
@@ -431,11 +443,30 @@ class MATDEV {
         try {
             const sessionPath = path.join(__dirname, 'session');
             if (await fs.pathExists(sessionPath)) {
+                // Get list of files before clearing for logging
+                const files = await fs.readdir(sessionPath);
                 await fs.emptyDir(sessionPath);
-                logger.info('🗑️ Cleared bad session files');
+                logger.info(`🗑️ Cleared ${files.length} session files for fresh authentication`);
+            } else {
+                logger.info('🗑️ No session files to clear');
             }
+            
+            // Clear any cached authentication state
+            if (this.sock) {
+                this.sock = null;
+            }
+            
         } catch (error) {
             logger.error('Failed to clear session:', error);
+            // If we can't clear session files, try to remove the entire directory and recreate it
+            try {
+                const sessionPath = path.join(__dirname, 'session');
+                await fs.remove(sessionPath);
+                await fs.ensureDir(sessionPath);
+                logger.info('🗑️ Force cleared session directory');
+            } catch (forceError) {
+                logger.error('Failed to force clear session:', forceError);
+            }
         }
     }
 
