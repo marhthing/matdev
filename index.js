@@ -502,7 +502,23 @@ class MATDEV {
                 } else {
                     logger.info(`📥 Processing incoming message`);
                     const isGroup = sender.endsWith('@g.us');
-                    participant = isGroup ? message.key.participant : sender;
+                    
+                    if (isGroup && message.key.participant) {
+                        // Handle new WhatsApp LID format in groups
+                        if (message.key.participant.includes('@lid')) {
+                            const lidMatch = message.key.participant.match(/(\d+)@lid/);
+                            if (lidMatch) {
+                                participant = `${lidMatch[1]}@s.whatsapp.net`;
+                            } else {
+                                participant = message.key.participant;
+                            }
+                        } else {
+                            participant = message.key.participant;
+                        }
+                    } else {
+                        participant = isGroup ? message.key.participant : sender;
+                    }
+                    
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
                 }
                 
