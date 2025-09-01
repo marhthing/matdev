@@ -306,27 +306,27 @@ class MATDEV {
             
             switch (statusCode) {
                 case DisconnectReason.badSession:
-                    // Clear session faster - bad session usually means corrupted files
-                    if (this.initialConnection || this.reconnectAttempts >= 3) {
-                        logger.warn('🔴 Bad session detected - clearing session...');
+                    // Try to recover first, clear session only after multiple failures
+                    if (this.reconnectAttempts >= 5) {
+                        logger.warn('🔴 Bad session detected - clearing session after multiple failures...');
                         clearSession = true;
                         shouldReconnect = true;
                         this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Bad session detected - retrying (${this.reconnectAttempts + 1}/3)...`);
+                        logger.warn(`🔄 Bad session detected - retrying without clearing (${this.reconnectAttempts + 1}/5)...`);
                         shouldReconnect = true;
                     }
                     break;
                     
                 case DisconnectReason.loggedOut:
-                    // Clear session faster on logout
-                    if (this.initialConnection || this.reconnectAttempts >= 3) {
-                        logger.warn('🚪 Device logged out - clearing session for fresh authentication...');
+                    // Try to recover first on startup, clear session only after multiple failures
+                    if (this.reconnectAttempts >= 5) {
+                        logger.warn('🚪 Device logged out - clearing session after multiple failures...');
                         clearSession = true;
                         shouldReconnect = true;
                         this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Device logged out - retrying (${this.reconnectAttempts + 1}/3)...`);
+                        logger.warn(`🔄 Device logged out - retrying without clearing (${this.reconnectAttempts + 1}/5)...`);
                         shouldReconnect = true;
                     }
                     break;
@@ -361,16 +361,16 @@ class MATDEV {
                     reconnectDelay = 1000;
                     break;
                     
-                case 401: // Unauthorized - Clear session faster on startup failures
-                    if (this.initialConnection || this.reconnectAttempts >= 5) {
-                        logger.warn('🔴 Authentication failed - clearing session for fresh start...');
+                case 401: // Unauthorized - Try recovery first, then clear session
+                    if (this.reconnectAttempts >= 8) {
+                        logger.warn('🔴 Authentication failed - clearing session after multiple attempts...');
                         clearSession = true;
-                        shouldReconnect = true; // Continue trying after clearing
+                        shouldReconnect = true;
                         this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Authentication issue (401) - retrying (${this.reconnectAttempts + 1}/5)...`);
+                        logger.warn(`🔄 Authentication issue (401) - retrying (${this.reconnectAttempts + 1}/8)...`);
                         shouldReconnect = true;
-                        reconnectDelay = Math.min(2000 + (this.reconnectAttempts * 1000), 10000);
+                        reconnectDelay = Math.min(1000 + (this.reconnectAttempts * 500), 8000);
                     }
                     break;
                     
@@ -620,17 +620,36 @@ class MATDEV {
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
             logger.warn('❌ Maximum reconnection attempts reached. Resetting attempt counter and continuing...');
             this.reconnectAttempts = 0;
-            logger.info('🔄 Waiting 5 minutes before next reconnection cycle...');
+            logger.info('🔄 Waiting 2 minutes before next reconnection cycle...');
             setTimeout(() => {
                 this.connect();
-            }, 300000); // 5 minutes
+            }, 120000); // 2 minutes instead of 5
             return;
         }
 
         this.reconnectAttempts++;
-        const delay = Math.min(2000 + (this.reconnectAttempts * 1000), 30000); // Progressive backoff
+        
+        // More aggressive reconnection for startup issues
+        let delay;
+        if (this.initialConnection) {
+            // Faster reconnects on startup
+            delay = Math.min(1000 + (this.reconnectAttempts * 500), 10000); 
+        } else {
+            // Normal reconnects during runtime
+            delay = Math.min(2000 + (this.reconnectAttempts * 1000), 30000);
+        }
         
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
+        
+        // Clear any existing socket before reconnecting
+        if (this.sock) {
+            try {
+                this.sock.end();
+                this.sock = null;
+            } catch (error) {
+                // Ignore cleanup errors
+            }
+        }
         
         setTimeout(() => {
             this.connect();
@@ -758,14 +777,21 @@ class MATDEV {
         logger.info('🛑 Shutting down MATDEV...');
         
         try {
+            // Don't logout, just close the connection to preserve session
             if (this.sock && this.isConnected) {
-                await this.sock.logout();
+                logger.info('🔄 Preserving session during shutdown...');
+                this.sock.end();
+                this.sock = null;
+                this.isConnected = false;
+                
+                // Give time for cleanup
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } catch (error) {
             logger.error('Error during shutdown:', error);
         }
         
-        logger.success('✅ MATDEV shutdown complete');
+        logger.success('✅ MATDEV shutdown complete - session preserved');
         process.exit(0);
     }
 }
