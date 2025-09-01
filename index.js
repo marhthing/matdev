@@ -431,6 +431,13 @@ class MATDEV {
                 const isGroup = sender.endsWith('@g.us');
                 const participant = isGroup ? message.key.participant : sender;
                 
+                // Skip messages from the bot itself to prevent loops
+                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
+                if (participant === botJid || sender === botJid) {
+                    logger.debug(`Skipping message from bot itself: ${participant}`);
+                    continue;
+                }
+                
                 // WhatsApp JIDs can have suffixes like :0, :1, etc. We need to handle this
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
