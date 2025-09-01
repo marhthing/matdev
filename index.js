@@ -473,6 +473,13 @@ class MATDEV {
                 // Cache all messages
                 cache.cacheMessage(message);
                 
+                // Check for deletion events and log them
+                const messageType = Object.keys(message.message || {})[0];
+                if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
+                    const revokedKey = message.message.protocolMessage.key;
+                    logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
+                }
+                
                 // Check message type
                 const messageType = Object.keys(message.message)[0];
                 

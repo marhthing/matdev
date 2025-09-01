@@ -108,13 +108,25 @@ class AntiDeletePlugin {
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
 
             if (originalMessage && config.OWNER_NUMBER) {
-                // Only alert for incoming messages (fromMe: false)
-                if (!originalMessage.fromMe) {
-                    await this.sendDeletedMessageAlert(originalMessage, chatJid);
+                console.log('📋 Original message found:', {
+                    id: originalMessage.id,
+                    sender: originalMessage.sender_jid,
+                    participant: originalMessage.participant_jid,
+                    content: originalMessage.content?.substring(0, 50)
+                });
 
-                    // Mark message as deleted in database
+                // Alert for ALL incoming messages (fromMe should be stored correctly)
+                const isIncoming = originalMessage.sender_jid !== `${this.bot.user.id.split(':')[0]}@s.whatsapp.net`;
+                
+                if (isIncoming) {
+                    await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.bot.database.markMessageDeleted(messageId, chatJid);
+                    console.log('✅ Anti-delete alert sent for message:', messageId);
+                } else {
+                    console.log('ℹ️ Skipping own message deletion:', messageId);
                 }
+            } else {
+                console.log('❌ Original message not found in database:', messageId);
             }
         } catch (error) {
             console.error('Error handling message deletion:', error);
