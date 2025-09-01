@@ -430,15 +430,32 @@ class MATDEV {
                 const sender = message.key.remoteJid;
                 const isGroup = sender.endsWith('@g.us');
                 const participant = isGroup ? message.key.participant : sender;
+                
+                // WhatsApp JIDs can have suffixes like :0, :1, etc. We need to handle this
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
+                
+                logger.debug(`🔍 Checking ownership: participant="${participant}", ownerJid="${ownerJid}", isFromOwner=${isFromOwner}`);
                 
                 // Only process messages from the owner (personal assistant mode)
-                if (participant !== ownerJid) {
+                if (!isFromOwner) {
                     logger.debug(`Ignoring message from non-owner: ${participant}`);
                     continue;
                 }
                 
-                logger.info(`📨 Processing message from owner: ${participant}`);
+                // Only process actual text messages, ignore system messages, receipts, etc.
+                const messageType = Object.keys(message.message || {})[0];
+                const content = message.message[messageType];
+                const text = content?.text || content?.caption || '';
+                
+                // Skip non-text messages (receipts, status updates, etc.)
+                if (!text || !text.trim()) {
+                    logger.debug(`Skipping non-text message type: ${messageType}`);
+                    continue;
+                }
+                
+                logger.info(`📨 Processing text message from owner: ${participant}`);
+                logger.info(`📝 Message content: "${text}"`);
                 
                 // Security checks
                 if (await security.isBlocked(message.key.remoteJid)) {
