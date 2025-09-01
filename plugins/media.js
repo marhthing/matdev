@@ -5,7 +5,7 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage } = require('baileys');
 const config = require('../config');
 const Utils = require('../lib/utils');
 

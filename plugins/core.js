@@ -242,7 +242,7 @@ class CorePlugin {
                 `• Comprehensive security features\n` +
                 `• Auto session management\n\n` +
                 `*🔧 Technical Details:*\n` +
-                `• Built with @whiskeysockets/baileys\n` +
+                `• Built with baileys\n` +
                 `• In-memory database for speed\n` +
                 `• Advanced error recovery\n` +
                 `• Smart rate limiting\n` +

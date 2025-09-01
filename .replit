@@ -6,6 +6,7 @@ integrations = ["javascript_mem_db==1.0.0"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["ffmpeg", "python3"]
 
 [workflows]
 runButton = "Project"
@@ -19,7 +20,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install && node index.js"
+args = "node index.js"
 
 [[workflows.workflow]]
 name = "MATDEV Bot"
