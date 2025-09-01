@@ -24,7 +24,7 @@ class SystemPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        
+
         console.log('✅ System plugin loaded');
     }
 
@@ -315,7 +315,7 @@ class SystemPlugin {
                         const recentLogs = await this.bot.logger.getRecentLogs(10);
                         const logsText = `*📝 RECENT LOGS*\n\n` +
                             recentLogs.slice(-5).join('\n') || 'No recent logs available';
-                        
+
                         await this.bot.messageHandler.reply(messageInfo, logsText);
                     } else {
                         const logsText = `*📝 LOGGING STATUS*\n\n` +
@@ -323,7 +323,7 @@ class SystemPlugin {
                             `• Log Level: ${config.LOG_LEVEL}\n` +
                             `• Console Logging: ✅ Enabled\n\n` +
                             `_Enable file logging to view recent logs_`;
-                        
+
                         await this.bot.messageHandler.reply(messageInfo, logsText);
                     }
                     break;
@@ -383,11 +383,11 @@ class SystemPlugin {
             switch (action) {
                 case 'reload':
                     await this.bot.messageHandler.reply(messageInfo, '🔄 Reloading plugins...');
-                    
+
                     // Clear require cache for plugins
                     const pluginsDir = path.join(process.cwd(), 'plugins');
                     const pluginFiles = await fs.readdir(pluginsDir).catch(() => []);
-                    
+
                     for (const file of pluginFiles) {
                         if (file.endsWith('.js')) {
                             const pluginPath = path.join(pluginsDir, file);
@@ -457,7 +457,7 @@ class SystemPlugin {
             await this.bot.messageHandler.reply(messageInfo, '🏥 Running health check...');
 
             const healthReport = await this.runHealthCheck();
-            
+
             await this.bot.messageHandler.reply(messageInfo, healthReport);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during health check.');

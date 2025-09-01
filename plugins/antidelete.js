@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Anti-Delete Plugin
  * Detects deleted messages and forwards them to bot owner
@@ -19,13 +18,13 @@ class AntiDeletePlugin {
      */
     async init(bot) {
         this.bot = bot;
-        
+
         // Register commands immediately
         this.registerCommands();
-        
+
         // Set up event listener when socket becomes available
         this.setupEventListeners();
-        
+
         console.log('✅ Anti-delete plugin loaded');
     }
 
@@ -39,7 +38,7 @@ class AntiDeletePlugin {
             console.log('✅ Anti-delete event listeners attached');
             return;
         }
-        
+
         // Wait for socket to be available
         const checkSocket = () => {
             if (this.bot.sock && this.bot.sock.ev) {
@@ -50,7 +49,7 @@ class AntiDeletePlugin {
                 setTimeout(checkSocket, 1000);
             }
         };
-        
+
         // Start checking for socket availability
         setTimeout(checkSocket, 100);
     }
@@ -92,23 +91,23 @@ class AntiDeletePlugin {
         try {
             const messageId = update.key.id;
             const chatJid = update.key.remoteJid;
-            
+
             // Try to get the original message from database
             const archivedMessage = await this.bot.database.getArchivedMessage(messageId);
-            
+
             if (archivedMessage && config.OWNER_NUMBER) {
                 // Mark as deleted in database
                 await this.bot.database.markMessageDeleted(messageId, chatJid);
-                
+
                 // Format the anti-delete notification
                 const chatName = chatJid.endsWith('@g.us') ? 
                     chatJid.split('@')[0] : 
                     archivedMessage.sender_jid.split('@')[0];
-                
+
                 const senderName = archivedMessage.participant_jid ? 
                     archivedMessage.participant_jid.split('@')[0] : 
                     archivedMessage.sender_jid.split('@')[0];
-                
+
                 const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
                     `👤 *Sender:* ${senderName}\n` +
                     `💬 *Chat:* ${chatName}\n` +
@@ -116,15 +115,56 @@ class AntiDeletePlugin {
                     `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
                     `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
                     `_Anti-delete detection by MATDEV_`;
-                
+
                 // Send to owner
                 await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                     text: deleteNotification
                 });
-                
+
+                // If message had media, try to recover and send it
+                if (archivedMessage.media_url) {
+                    const mediaData = await this.bot.database.getArchivedMedia(messageId);
+
+                    if (mediaData) {
+                        const mediaMessage = {
+                            caption: `📎 *Recovered Media*\n\nThis ${archivedMessage.message_type.replace('Message', '')} was deleted from the above message.`
+                        };
+
+                        // Send media based on type
+                        switch (archivedMessage.message_type) {
+                            case 'imageMessage':
+                                mediaMessage.image = mediaData.buffer;
+                                break;
+                            case 'videoMessage':
+                                mediaMessage.video = mediaData.buffer;
+                                break;
+                            case 'audioMessage':
+                                mediaMessage.audio = mediaData.buffer;
+                                mediaMessage.mimetype = archivedMessage.media_type || 'audio/mpeg';
+                                break;
+                            case 'documentMessage':
+                                mediaMessage.document = mediaData.buffer;
+                                mediaMessage.fileName = mediaData.filename;
+                                mediaMessage.mimetype = archivedMessage.media_type || 'application/octet-stream';
+                                break;
+                            case 'stickerMessage':
+                                mediaMessage.sticker = mediaData.buffer;
+                                delete mediaMessage.caption; // Stickers don't have captions
+                                break;
+                        }
+
+                        await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
+                        this.bot.logger.success(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
+                    } else {
+                        await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                            text: `❌ Media file could not be recovered (file may have been corrupted or deleted from disk)`
+                        });
+                    }
+                }
+
                 this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
             }
-            
+
         } catch (error) {
             this.bot.logger.error('Error handling deleted message:', error);
         }
@@ -137,7 +177,7 @@ class AntiDeletePlugin {
         try {
             const { args } = messageInfo;
             const status = args[0]?.toLowerCase();
-            
+
             if (status === 'on') {
                 config.ANTI_DELETE = true;
                 await this.bot.messageHandler.reply(messageInfo, '✅ Anti-delete monitoring enabled');
@@ -150,7 +190,7 @@ class AntiDeletePlugin {
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
                     `Use \`${config.PREFIX}antidelete on\` or \`${config.PREFIX}antidelete off\` to toggle.`);
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling anti-delete.');
         }
@@ -163,12 +203,12 @@ class AntiDeletePlugin {
         try {
             const { args } = messageInfo;
             const limit = parseInt(args[0]) || 10;
-            
+
             if (!this.bot.database.db) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Database not available');
                 return;
             }
-            
+
             const sql = `
                 SELECT d.*, m.content 
                 FROM deleted_messages d
@@ -176,34 +216,34 @@ class AntiDeletePlugin {
                 ORDER BY d.deleted_at DESC 
                 LIMIT ?
             `;
-            
+
             this.bot.database.db.all(sql, [limit], async (error, rows) => {
                 if (error) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving deleted messages');
                     return;
                 }
-                
+
                 if (rows.length === 0) {
                     await this.bot.messageHandler.reply(messageInfo, '📭 No deleted messages found');
                     return;
                 }
-                
+
                 let report = `🗑️ *RECENT DELETED MESSAGES*\n\n`;
-                
+
                 rows.forEach((row, index) => {
                     const sender = row.sender_jid.split('@')[0];
                     const chat = row.chat_jid.split('@')[0];
                     const deletedAt = new Date(row.deleted_at * 1000).toLocaleString();
                     const content = row.content || 'No content';
-                    
+
                     report += `*${index + 1}.* ${sender} in ${chat}\n`;
                     report += `🕐 ${deletedAt}\n`;
                     report += `📝 ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}\n\n`;
                 });
-                
+
                 await this.bot.messageHandler.reply(messageInfo, report);
             });
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving deleted messages.');
         }
