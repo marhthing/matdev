@@ -372,6 +372,12 @@ class MATDEV {
                 continue;
             }
             
+            // Additional check - skip if message is from bot's own number
+            const botNumber = this.sock.user?.id?.split(':')[0];
+            if (botNumber && message.key.remoteJid === `${botNumber}@s.whatsapp.net`) {
+                continue;
+            }
+            
             try {
                 // Update statistics
                 this.messageStats.received++;
