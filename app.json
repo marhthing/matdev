@@ -1,0 +1,192 @@
+{
+  "name": "MATDEV",
+  "description": "High-Performance WhatsApp Bot - Built for Performance, Security & Reliability",
+  "keywords": ["whatsapp", "bot", "baileys", "nodejs", "automation", "high-performance"],
+  "website": "https://github.com/YOUR_USERNAME/MATDEV",
+  "repository": "https://github.com/YOUR_USERNAME/MATDEV",
+  "logo": "https://raw.githubusercontent.com/YOUR_USERNAME/MATDEV/main/.github/logo.png",
+  "success_url": "/",
+  "stack": "heroku-22",
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    },
+    {
+      "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"
+    }
+  ],
+  "env": {
+    "BOT_NAME": {
+      "description": "Name of your WhatsApp bot",
+      "value": "MATDEV",
+      "required": false
+    },
+    "SESSION_ID": {
+      "description": "Session ID for WhatsApp authentication (get from pairing)",
+      "value": "",
+      "required": true
+    },
+    "OWNER_NUMBER": {
+      "description": "Bot owner's WhatsApp number (with country code, without + or spaces)",
+      "value": "",
+      "required": true
+    },
+    "PREFIX": {
+      "description": "Command prefix",
+      "value": ".",
+      "required": false
+    },
+    "PUBLIC_MODE": {
+      "description": "Allow public access to bot commands",
+      "value": "false",
+      "required": false
+    },
+    "AUTO_TYPING": {
+      "description": "Enable automatic typing indicator",
+      "value": "true",
+      "required": false
+    },
+    "AUTO_READ": {
+      "description": "Enable automatic message reading",
+      "value": "true",
+      "required": false
+    },
+    "AUTO_STATUS_VIEW": {
+      "description": "Automatically view WhatsApp status updates",
+      "value": "true",
+      "required": false
+    },
+    "REJECT_CALLS": {
+      "description": "Automatically reject incoming calls",
+      "value": "true",
+      "required": false
+    },
+    "MAX_CONCURRENT_MESSAGES": {
+      "description": "Maximum concurrent messages to process",
+      "value": "5",
+      "required": false
+    },
+    "MESSAGE_TIMEOUT": {
+      "description": "Message processing timeout in milliseconds",
+      "value": "30000",
+      "required": false
+    },
+    "CACHE_TTL": {
+      "description": "Cache time-to-live in seconds",
+      "value": "3600",
+      "required": false
+    },
+    "ANTI_BAN": {
+      "description": "Enable anti-ban protection",
+      "value": "true",
+      "required": false
+    },
+    "RATE_LIMIT_WINDOW": {
+      "description": "Rate limiting window in milliseconds",
+      "value": "60000",
+      "required": false
+    },
+    "RATE_LIMIT_MAX_REQUESTS": {
+      "description": "Maximum requests per rate limit window",
+      "value": "20",
+      "required": false
+    },
+    "MAX_MEDIA_SIZE": {
+      "description": "Maximum media file size in bytes",
+      "value": "104857600",
+      "required": false
+    },
+    "ALLOWED_MEDIA_TYPES": {
+      "description": "Allowed media types (comma-separated)",
+      "value": "image,video,audio,document",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level (error, warn, info, debug)",
+      "value": "info",
+      "required": false
+    },
+    "LOG_TO_FILE": {
+      "description": "Enable file logging",
+      "value": "false",
+      "required": false
+    },
+    "PLUGIN_AUTO_LOAD": {
+      "description": "Automatically load plugins",
+      "value": "true",
+      "required": false
+    },
+    "STARTUP_MESSAGE": {
+      "description": "Send startup message to owner",
+      "value": "true",
+      "required": false
+    },
+    "STATUS_REPORTS": {
+      "description": "Send periodic status reports",
+      "value": "true",
+      "required": false
+    },
+    "WEATHER_API_KEY": {
+      "description": "OpenWeatherMap API key (optional)",
+      "value": "",
+      "required": false
+    },
+    "NEWS_API_KEY": {
+      "description": "NewsAPI key (optional)",
+      "value": "",
+      "required": false
+    },
+    "REMOVE_BG_API_KEY": {
+      "description": "Remove.bg API key (optional)",
+      "value": "",
+      "required": false
+    },
+    "DATABASE_URL": {
+      "description": "Database URL (optional)",
+      "value": "",
+      "required": false
+    },
+    "REDIS_URL": {
+      "description": "Redis URL (optional)",
+      "value": "",
+      "required": false
+    },
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production",
+      "required": false
+    },
+    "TIMEZONE": {
+      "description": "Bot timezone",
+      "value": "UTC",
+      "required": false
+    },
+    "LANGUAGE": {
+      "description": "Bot language",
+      "value": "en",
+      "required": false
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-redis:mini",
+      "as": "REDIS"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "echo 'MATDEV deployed successfully! Check the logs to see the QR code for authentication.'"
+  },
+  "environments": {
+    "test": {
+      "scripts": {
+        "test": "npm test"
+      }
+    }
+  }
+}
