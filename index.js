@@ -289,15 +289,19 @@ class MATDEV {
                 logger.warn('🚪 Bot was properly logged out');
                 shouldReconnect = false;
             } else if (statusCode === 401) {
-                // 401 means authentication failed - clear session and restart
-                logger.warn('🔄 Authentication failed (401), clearing session and restarting...');
-                await this.clearBadSession();
-                // Reset reconnect attempts for fresh start
-                this.reconnectAttempts = 0;
+                // Only clear session for 401 if we haven't just scanned QR code
+                if (this.reconnectAttempts > 0) {
+                    logger.warn('🔄 Authentication failed (401), clearing session and restarting...');
+                    await this.clearBadSession();
+                    // Reset reconnect attempts for fresh start
+                    this.reconnectAttempts = 0;
+                } else {
+                    logger.warn('🔄 Authentication issue (401), attempting reconnect without clearing session...');
+                }
                 shouldReconnect = true;
             } else if (statusCode === DisconnectReason.restartRequired) {
-                logger.warn('🔄 Restart required, clearing session...');
-                await this.clearBadSession();
+                logger.warn('🔄 Restart required by WhatsApp...');
+                // Don't clear session for restart required - just reconnect
                 shouldReconnect = true;
             }
             
@@ -318,6 +322,7 @@ class MATDEV {
         } else if (connection === 'open') {
             this.isConnected = true;
             this.reconnectAttempts = 0;
+            logger.info('🟢 Session established successfully - preserving authentication');
             
             logger.success('✅ Successfully connected to WhatsApp!');
             logger.info(`📱 Bot Number: ${this.sock.user?.id?.split(':')[0] || 'Unknown'}`);
