@@ -74,124 +74,125 @@ class AntiDeletePlugin {
     }
 
     /**
-     * Handle message updates (deletions)
+     * Handle message update events (for deletions)
      */
     async handleMessageUpdates(updates) {
-        for (const update of updates) {
-            // Check for different types of message deletion indicators
-            if (update.update?.messageStubType === 68 || // Message deleted (legacy)
-                update.update?.message?.protocolMessage?.type === 'REVOKE' || // Message revoked
-                (update.key && update.update?.message === null)) { // Message removed
-                await this.handleDeletedMessage(update);
+        try {
+            for (const update of updates) {
+                // Handle direct revoke type
+                if (update.update.messageStubType === 'REVOKE') {
+                    await this.handleMessageDeletion(update.key.id, update.key.remoteJid);
+                }
+
+                // Handle protocol message revoke (more common)
+                if (update.update.message?.protocolMessage?.type === 'REVOKE') {
+                    const revokedKey = update.update.message.protocolMessage.key;
+                    if (revokedKey && revokedKey.id) {
+                        await this.handleMessageDeletion(revokedKey.id, revokedKey.remoteJid || update.key.remoteJid);
+                    }
+                }
             }
+        } catch (error) {
+            console.error('Error handling message updates:', error);
         }
     }
 
     /**
-     * Handle deleted message
+     * Handle individual message deletion
      */
-    async handleDeletedMessage(update) {
+    async handleMessageDeletion(messageId, chatJid) {
         try {
-            let messageId, chatJid;
-            
-            // Handle different update formats
-            if (update.key) {
-                messageId = update.key.id;
-                chatJid = update.key.remoteJid;
-            } else if (update.update?.message?.protocolMessage?.key) {
-                messageId = update.update.message.protocolMessage.key.id;
-                chatJid = update.update.message.protocolMessage.key.remoteJid;
-            } else {
-                this.bot.logger.warn('Unknown delete message format:', JSON.stringify(update, null, 2));
-                return;
-            }
+            console.log('🗑️ Detected deleted message:', messageId, 'in chat:', chatJid);
 
-            // Try to get the original message from database
-            const archivedMessage = await this.bot.database.getArchivedMessage(messageId);
+            // Get the original message from our database
+            const originalMessage = await this.bot.database.getArchivedMessage(messageId);
 
-            if (archivedMessage && config.OWNER_NUMBER) {
-                // Mark as deleted in database
-                await this.bot.database.markMessageDeleted(messageId, chatJid);
+            if (originalMessage && config.OWNER_NUMBER) {
+                // Only alert for incoming messages (fromMe: false)
+                if (!originalMessage.fromMe) {
+                    await this.sendDeletedMessageAlert(originalMessage, chatJid);
 
-                // Only notify for incoming messages (fromMe: false)
-                const isIncomingMessage = !update.key?.fromMe && 
-                    archivedMessage.sender_jid !== `${this.bot.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
-
-                if (!isIncomingMessage) {
-                    this.bot.logger.debug(`Skipping anti-delete notification for outgoing message: ${messageId}`);
-                    return;
+                    // Mark message as deleted in database
+                    await this.bot.database.markMessageDeleted(messageId, chatJid);
                 }
+            }
+        } catch (error) {
+            console.error('Error handling message deletion:', error);
+        }
+    }
 
-                // Format the anti-delete notification
-                const chatName = chatJid.endsWith('@g.us') ? 
-                    `Group: ${chatJid.split('@')[0]}` : 
-                    `Private: ${archivedMessage.sender_jid.split('@')[0]}`;
+    /**
+     * Send alert about deleted message to the owner
+     */
+    async sendDeletedMessageAlert(archivedMessage, chatJid) {
+        try {
+            // Format the anti-delete notification
+            const chatName = chatJid.endsWith('@g.us') ?
+                `Group: ${chatJid.split('@')[0]}` :
+                `Private: ${archivedMessage.sender_jid.split('@')[0]}`;
 
-                const senderName = archivedMessage.participant_jid ? 
-                    archivedMessage.participant_jid.split('@')[0] : 
-                    archivedMessage.sender_jid.split('@')[0];
+            const senderName = archivedMessage.participant_jid ?
+                archivedMessage.participant_jid.split('@')[0] :
+                archivedMessage.sender_jid.split('@')[0];
 
-                const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
-                    `👤 *Sender:* ${senderName}\n` +
-                    `💬 *Chat:* ${chatName}\n` +
-                    `📅 *Original Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n` +
-                    `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
-                    `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
-                    `_Anti-delete detection by MATDEV_`;
+            const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
+                `👤 *Sender:* ${senderName}\n` +
+                `💬 *Chat:* ${chatName}\n` +
+                `📅 *Original Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n` +
+                `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
+                `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
+                `_Anti-delete detection by MATDEV_`;
 
-                // Send to owner
-                await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                    text: deleteNotification
-                });
+            // Send to owner
+            await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                text: deleteNotification
+            });
 
-                // If message had media, try to recover and send it
-                if (archivedMessage.media_url) {
-                    const mediaData = await this.bot.database.getArchivedMedia(messageId);
+            // If message had media, try to recover and send it
+            if (archivedMessage.media_url) {
+                const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
 
-                    if (mediaData) {
-                        const mediaMessage = {
-                            caption: `📎 *Recovered Media*\n\nThis ${archivedMessage.message_type.replace('Message', '')} was deleted from the above message.`
-                        };
+                if (mediaData) {
+                    const mediaMessage = {
+                        caption: `📎 *Recovered Media*\n\nThis ${archivedMessage.message_type.replace('Message', '')} was deleted from the above message.`
+                    };
 
-                        // Send media based on type
-                        switch (archivedMessage.message_type) {
-                            case 'imageMessage':
-                                mediaMessage.image = mediaData.buffer;
-                                break;
-                            case 'videoMessage':
-                                mediaMessage.video = mediaData.buffer;
-                                break;
-                            case 'audioMessage':
-                                mediaMessage.audio = mediaData.buffer;
-                                mediaMessage.mimetype = archivedMessage.media_type || 'audio/mpeg';
-                                break;
-                            case 'documentMessage':
-                                mediaMessage.document = mediaData.buffer;
-                                mediaMessage.fileName = mediaData.filename;
-                                mediaMessage.mimetype = archivedMessage.media_type || 'application/octet-stream';
-                                break;
-                            case 'stickerMessage':
-                                mediaMessage.sticker = mediaData.buffer;
-                                delete mediaMessage.caption; // Stickers don't have captions
-                                break;
-                        }
-
-                        await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
-                        this.bot.logger.success(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
-                    } else {
-                        await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                            text: `❌ Media file could not be recovered (file may have been corrupted or deleted from disk)`
-                        });
+                    // Send media based on type
+                    switch (archivedMessage.message_type) {
+                        case 'imageMessage':
+                            mediaMessage.image = mediaData.buffer;
+                            break;
+                        case 'videoMessage':
+                            mediaMessage.video = mediaData.buffer;
+                            break;
+                        case 'audioMessage':
+                            mediaMessage.audio = mediaData.buffer;
+                            mediaMessage.mimetype = archivedMessage.media_type || 'audio/mpeg';
+                            break;
+                        case 'documentMessage':
+                            mediaMessage.document = mediaData.buffer;
+                            mediaMessage.fileName = mediaData.filename;
+                            mediaMessage.mimetype = archivedMessage.media_type || 'application/octet-stream';
+                            break;
+                        case 'stickerMessage':
+                            mediaMessage.sticker = mediaData.buffer;
+                            delete mediaMessage.caption; // Stickers don't have captions
+                            break;
                     }
-                }
 
-                this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
-            } else {
-                this.bot.logger.debug(`No archived message found for deletion: ${messageId}`);
+                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
+                    this.bot.logger.success(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
+                } else {
+                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                        text: `❌ Media file could not be recovered (file may have been corrupted or deleted from disk)`
+                    });
+                }
             }
+
+            this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
 
         } catch (error) {
-            this.bot.logger.error('Error handling deleted message:', error);
+            this.bot.logger.error('Error sending deleted message alert:', error);
         }
     }
 
@@ -211,7 +212,7 @@ class AntiDeletePlugin {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Anti-delete monitoring disabled');
             } else {
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
                     `Use \`${config.PREFIX}antidelete on\` or \`${config.PREFIX}antidelete off\` to toggle.`);
             }
