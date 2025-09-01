@@ -204,45 +204,27 @@ class AntiDeletePlugin {
             const { args } = messageInfo;
             const limit = parseInt(args[0]) || 10;
 
-            if (!this.bot.database.db) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Database not available');
+            const deletedMessages = await this.bot.database.getRecentDeletedMessages(limit);
+
+            if (deletedMessages.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '📭 No deleted messages found');
                 return;
             }
 
-            const sql = `
-                SELECT d.*, m.content 
-                FROM deleted_messages d
-                LEFT JOIN messages m ON d.original_id = m.id
-                ORDER BY d.deleted_at DESC 
-                LIMIT ?
-            `;
+            let report = `🗑️ *RECENT DELETED MESSAGES*\n\n`;
 
-            this.bot.database.db.all(sql, [limit], async (error, rows) => {
-                if (error) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving deleted messages');
-                    return;
-                }
+            deletedMessages.forEach((row, index) => {
+                const sender = row.sender_jid.split('@')[0];
+                const chat = row.chat_jid.split('@')[0];
+                const deletedAt = new Date(row.deleted_at * 1000).toLocaleString();
+                const content = row.content || 'No content';
 
-                if (rows.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, '📭 No deleted messages found');
-                    return;
-                }
-
-                let report = `🗑️ *RECENT DELETED MESSAGES*\n\n`;
-
-                rows.forEach((row, index) => {
-                    const sender = row.sender_jid.split('@')[0];
-                    const chat = row.chat_jid.split('@')[0];
-                    const deletedAt = new Date(row.deleted_at * 1000).toLocaleString();
-                    const content = row.content || 'No content';
-
-                    report += `*${index + 1}.* ${sender} in ${chat}\n`;
-                    report += `🕐 ${deletedAt}\n`;
-                    report += `📝 ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}\n\n`;
-                });
-
-                await this.bot.messageHandler.reply(messageInfo, report);
+                report += `*${index + 1}.* ${sender} in ${chat}\n`;
+                report += `🕐 ${deletedAt}\n`;
+                report += `📝 ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}\n\n`;
             });
+
+            await this.bot.messageHandler.reply(messageInfo, report);
 
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving deleted messages.');

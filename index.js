@@ -21,13 +21,13 @@ const SessionManager = require('./lib/session');
 const MessageHandler = require('./lib/message');
 const SecurityManager = require('./lib/security');
 const CacheManager = require('./lib/cache');
-const DatabaseManager = require('./lib/database');
+const JSONStorageManager = require('./lib/json-storage');
 const Utils = require('./lib/utils');
 
 // Initialize components
 const logger = new Logger();
 const cache = new CacheManager();
-const database = new DatabaseManager();
+const database = new JSONStorageManager();
 const security = new SecurityManager(cache);
 const utils = new Utils();
 
@@ -73,7 +73,7 @@ class MATDEV {
             // Ensure required directories exist
             await this.ensureDirectories();
             
-            // Initialize database
+            // Initialize JSON storage
             await this.database.initialize();
             
             // Load plugins
@@ -495,7 +495,18 @@ class MATDEV {
                 }
                 
                 const content = message.message[messageType];
-                const text = content?.text || content?.caption || content || '';
+                let text = '';
+                
+                // Extract text based on message type
+                if (typeof content === 'string') {
+                    text = content;
+                } else if (content?.text) {
+                    text = content.text;
+                } else if (content?.caption) {
+                    text = content.caption;
+                } else {
+                    text = ''; // For media messages without text/caption
+                }
                 
                 // THIRD: Only process messages with actual text content
                 if (!text || !text.trim()) {
