@@ -731,6 +731,16 @@ class MATDEV {
             logger.debug('🛡️ Security cleanup completed');
         }, 60 * 60 * 1000);
         
+        // Storage cleanup every 2 hours
+        setInterval(async () => {
+            try {
+                await this.database.cleanupOldMessages();
+                logger.debug('🗑️ Storage cleanup completed');
+            } catch (error) {
+                logger.error('Error during storage cleanup:', error);
+            }
+        }, 2 * 60 * 60 * 1000);
+        
         // Status report every 6 hours
         if (config.OWNER_NUMBER) {
             setInterval(() => {

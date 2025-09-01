@@ -78,7 +78,10 @@ class AntiDeletePlugin {
      */
     async handleMessageUpdates(updates) {
         for (const update of updates) {
-            if (update.update?.messageStubType === 68) { // Message deleted
+            // Check for different types of message deletion indicators
+            if (update.update?.messageStubType === 68 || // Message deleted (legacy)
+                update.update?.message?.protocolMessage?.type === 'REVOKE' || // Message revoked
+                (update.key && update.update?.message === null)) { // Message removed
                 await this.handleDeletedMessage(update);
             }
         }
@@ -89,8 +92,19 @@ class AntiDeletePlugin {
      */
     async handleDeletedMessage(update) {
         try {
-            const messageId = update.key.id;
-            const chatJid = update.key.remoteJid;
+            let messageId, chatJid;
+            
+            // Handle different update formats
+            if (update.key) {
+                messageId = update.key.id;
+                chatJid = update.key.remoteJid;
+            } else if (update.update?.message?.protocolMessage?.key) {
+                messageId = update.update.message.protocolMessage.key.id;
+                chatJid = update.update.message.protocolMessage.key.remoteJid;
+            } else {
+                this.bot.logger.warn('Unknown delete message format:', JSON.stringify(update, null, 2));
+                return;
+            }
 
             // Try to get the original message from database
             const archivedMessage = await this.bot.database.getArchivedMessage(messageId);
@@ -99,10 +113,19 @@ class AntiDeletePlugin {
                 // Mark as deleted in database
                 await this.bot.database.markMessageDeleted(messageId, chatJid);
 
+                // Only notify for incoming messages (fromMe: false)
+                const isIncomingMessage = !update.key?.fromMe && 
+                    archivedMessage.sender_jid !== `${this.bot.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
+
+                if (!isIncomingMessage) {
+                    this.bot.logger.debug(`Skipping anti-delete notification for outgoing message: ${messageId}`);
+                    return;
+                }
+
                 // Format the anti-delete notification
                 const chatName = chatJid.endsWith('@g.us') ? 
-                    chatJid.split('@')[0] : 
-                    archivedMessage.sender_jid.split('@')[0];
+                    `Group: ${chatJid.split('@')[0]}` : 
+                    `Private: ${archivedMessage.sender_jid.split('@')[0]}`;
 
                 const senderName = archivedMessage.participant_jid ? 
                     archivedMessage.participant_jid.split('@')[0] : 
@@ -111,7 +134,7 @@ class AntiDeletePlugin {
                 const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
                     `👤 *Sender:* ${senderName}\n` +
                     `💬 *Chat:* ${chatName}\n` +
-                    `📅 *Original Time:* ${new Date(archivedMessage.timestamp).toLocaleString()}\n` +
+                    `📅 *Original Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n` +
                     `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
                     `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
                     `_Anti-delete detection by MATDEV_`;
@@ -163,6 +186,8 @@ class AntiDeletePlugin {
                 }
 
                 this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
+            } else {
+                this.bot.logger.debug(`No archived message found for deletion: ${messageId}`);
             }
 
         } catch (error) {

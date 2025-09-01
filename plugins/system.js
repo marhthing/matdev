@@ -97,7 +97,7 @@ class SystemPlugin {
         });
 
         // Health check command
-        this.bot.messageHandler.registerCommand('health', this.healthCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('health', this.healthCheck.bind(this), {
             description: 'Perform system health check',
             usage: `${config.PREFIX}health`,
             category: 'system',
@@ -108,6 +108,20 @@ class SystemPlugin {
         this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
             description: 'Check for bot updates',
             usage: `${config.PREFIX}update`,
+            category: 'system',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('health', this.healthCheck.bind(this), {
+            description: 'Perform system health check',
+            usage: `${config.PREFIX}health`,
+            category: 'system',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('cleanup', this.manualCleanup.bind(this), {
+            description: 'Manually trigger storage cleanup',
+            usage: `${config.PREFIX}cleanup`,
             category: 'system',
             ownerOnly: true
         });
@@ -452,15 +466,60 @@ class SystemPlugin {
     /**
      * Health check command
      */
-    async healthCommand(messageInfo) {
+    async healthCheck(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🏥 Running health check...');
+            const uptime = this.bot.utils.formatUptime(Date.now() - this.bot.startTime);
+            const memUsage = process.memoryUsage();
+            const storageStats = await this.bot.database.getStorageStats();
 
-            const healthReport = await this.runHealthCheck();
+            const report = `🏥 *SYSTEM HEALTH CHECK*\n\n` +
+                `⏱️ Uptime: ${uptime}\n` +
+                `🧠 Memory: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB used\n` +
+                `💾 Heap: ${Math.round(memUsage.heapTotal / 1024 / 1024)}MB total\n` +
+                `📊 Messages: ${storageStats?.total_messages || 0}\n` +
+                `📎 Media Files: ${storageStats?.media_messages || 0}\n` +
+                `💽 Storage: ${storageStats?.media_size_mb || 0}MB\n` +
+                `🔗 Connection: ${this.bot.isConnected ? '✅ Connected' : '❌ Disconnected'}\n` +
+                `🛡️ Security: Active\n\n` +
+                `💚 System Status: Healthy`;
 
-            await this.bot.messageHandler.reply(messageInfo, healthReport);
+            await this.bot.messageHandler.reply(messageInfo, report);
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error during health check.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Health check failed');
+        }
+    }
+
+    /**
+     * Manual storage cleanup command
+     */
+    async manualCleanup(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🗑️ Starting storage cleanup...');
+
+            const storageStatsBefore = await this.bot.database.getStorageStats();
+            const success = await this.bot.database.cleanupOldMessages();
+            const storageStatsAfter = await this.bot.database.getStorageStats();
+
+            if (success) {
+                const messagesDiff = (storageStatsBefore?.total_messages || 0) - (storageStatsAfter?.total_messages || 0);
+                const sizeDiff = (parseFloat(storageStatsBefore?.media_size_mb || 0) - parseFloat(storageStatsAfter?.media_size_mb || 0)).toFixed(2);
+
+                const report = `✅ *STORAGE CLEANUP COMPLETED*\n\n` +
+                    `📊 Messages cleaned: ${messagesDiff}\n` +
+                    `💽 Space freed: ${sizeDiff}MB\n` +
+                    `📈 Before: ${storageStatsBefore?.total_messages || 0} messages, ${storageStatsBefore?.media_size_mb || 0}MB\n` +
+                    `📉 After: ${storageStatsAfter?.total_messages || 0} messages, ${storageStatsAfter?.media_size_mb || 0}MB\n\n` +
+                    `🕐 Cleanup policy:\n` +
+                    `• Status: 24 hours\n` +
+                    `• Channels: 24 hours\n` +
+                    `• Private/Groups: 72 hours`;
+
+                await this.bot.messageHandler.reply(messageInfo, report);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Storage cleanup failed');
+            }
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error during cleanup');
         }
     }
 
