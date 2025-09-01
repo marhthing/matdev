@@ -495,7 +495,7 @@ class MATDEV {
                 }
                 
                 const content = message.message[messageType];
-                const text = content?.text || content?.caption || '';
+                const text = content?.text || content?.caption || content || '';
                 
                 // THIRD: Only process messages with actual text content
                 if (!text || !text.trim()) {
