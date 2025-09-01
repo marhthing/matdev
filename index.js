@@ -200,6 +200,22 @@ class MATDEV {
         try {
             logger.info('🔌 Establishing WhatsApp connection...');
             
+            // Check if we should validate/clear old session files on startup issues
+            if (this.reconnectAttempts > 0 && this.initialConnection) {
+                logger.info('🔍 Validating session files after startup issues...');
+                const sessionPath = path.join(__dirname, 'session');
+                const sessionExists = await fs.pathExists(sessionPath);
+                
+                if (sessionExists) {
+                    const files = await fs.readdir(sessionPath);
+                    if (files.length === 0) {
+                        logger.info('📁 Empty session directory detected');
+                    } else {
+                        logger.info(`📁 Found ${files.length} session files`);
+                    }
+                }
+            }
+            
             // Initialize auth state
             const { state, saveCreds } = await useMultiFileAuthState(
                 path.join(__dirname, 'session')
@@ -290,25 +306,27 @@ class MATDEV {
             
             switch (statusCode) {
                 case DisconnectReason.badSession:
-                    // Only clear session after many attempts
-                    if (this.reconnectAttempts >= 20) {
-                        logger.warn('🔴 Persistent bad session after 20 attempts - clearing session...');
+                    // Clear session faster - bad session usually means corrupted files
+                    if (this.initialConnection || this.reconnectAttempts >= 3) {
+                        logger.warn('🔴 Bad session detected - clearing session...');
                         clearSession = true;
-                        shouldReconnect = false;
+                        shouldReconnect = true;
+                        this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Bad session detected - retrying (${this.reconnectAttempts + 1}/20)...`);
+                        logger.warn(`🔄 Bad session detected - retrying (${this.reconnectAttempts + 1}/3)...`);
                         shouldReconnect = true;
                     }
                     break;
                     
                 case DisconnectReason.loggedOut:
-                    // Only clear session after many attempts
-                    if (this.reconnectAttempts >= 25) {
-                        logger.warn('🚪 Persistent logout after 25 attempts - clearing session...');
+                    // Clear session faster on logout
+                    if (this.initialConnection || this.reconnectAttempts >= 3) {
+                        logger.warn('🚪 Device logged out - clearing session for fresh authentication...');
                         clearSession = true;
-                        shouldReconnect = false;
+                        shouldReconnect = true;
+                        this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Device logged out - retrying (${this.reconnectAttempts + 1}/25)...`);
+                        logger.warn(`🔄 Device logged out - retrying (${this.reconnectAttempts + 1}/3)...`);
                         shouldReconnect = true;
                     }
                     break;
@@ -343,16 +361,16 @@ class MATDEV {
                     reconnectDelay = 1000;
                     break;
                     
-                case 401: // Unauthorized - Only clear session after many attempts
-                    if (this.reconnectAttempts >= 30) {
-                        logger.warn('🔴 Persistent authentication failed after 30 attempts - clearing session...');
+                case 401: // Unauthorized - Clear session faster on startup failures
+                    if (this.initialConnection || this.reconnectAttempts >= 5) {
+                        logger.warn('🔴 Authentication failed - clearing session for fresh start...');
                         clearSession = true;
-                        shouldReconnect = false;
+                        shouldReconnect = true; // Continue trying after clearing
                         this.reconnectAttempts = 0;
                     } else {
-                        logger.warn(`🔄 Authentication issue (401) - preserving session and retrying (${this.reconnectAttempts + 1}/30)...`);
+                        logger.warn(`🔄 Authentication issue (401) - retrying (${this.reconnectAttempts + 1}/5)...`);
                         shouldReconnect = true;
-                        reconnectDelay = Math.min(3000 + (this.reconnectAttempts * 1000), 20000);
+                        reconnectDelay = Math.min(2000 + (this.reconnectAttempts * 1000), 10000);
                     }
                     break;
                     
@@ -364,13 +382,17 @@ class MATDEV {
             
             logger.warn(`Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
             
-            // Clear session only if necessary
+            // Clear session if necessary
             if (clearSession) {
                 await this.clearSession();
-            }
-            
-            // Handle reconnection
-            if (shouldReconnect) {
+                // After clearing session, wait a bit then try to reconnect
+                if (shouldReconnect) {
+                    logger.info('🔄 Session cleared, reconnecting in 3s for fresh authentication...');
+                    setTimeout(() => {
+                        this.connect();
+                    }, 3000);
+                }
+            } else if (shouldReconnect) {
                 logger.info(`🔄 Reconnecting in ${reconnectDelay/1000}s... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
                 setTimeout(() => {
                     this.handleReconnection();
