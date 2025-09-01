@@ -282,44 +282,91 @@ class MATDEV {
             this.isConnected = false;
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             
-            // Handle different status codes properly
+            // Handle different disconnect reasons properly
             let shouldReconnect = true;
+            let clearSession = false;
+            let reconnectDelay = 3000; // Default 3 seconds
             
-            if (statusCode === DisconnectReason.loggedOut) {
-                logger.warn('🚪 Bot was properly logged out - authentication required');
-                // Only clear session if actually logged out, not on restart
-                await this.clearBadSession();
-                shouldReconnect = true;
-            } else if (statusCode === 401) {
-                // Only clear session for persistent 401 errors (not first attempt)
-                if (this.reconnectAttempts >= 3) {
-                    logger.warn('🔄 Persistent authentication failed (401), clearing session...');
-                    await this.clearBadSession();
-                    this.reconnectAttempts = 0;
-                } else {
-                    logger.warn('🔄 Authentication issue (401), retrying without clearing session...');
-                }
-                shouldReconnect = true;
-            } else if (statusCode === DisconnectReason.restartRequired) {
-                logger.warn('🔄 Restart required by WhatsApp - preserving session...');
-                // Never clear session for restart required - just reconnect
-                shouldReconnect = true;
-            } else if (statusCode === DisconnectReason.connectionReplaced) {
-                logger.warn('🔄 Connection replaced - preserving session...');
-                shouldReconnect = true;
+            switch (statusCode) {
+                case DisconnectReason.badSession:
+                    logger.warn('🔴 Bad session detected - clearing corrupted session...');
+                    clearSession = true;
+                    shouldReconnect = true;
+                    break;
+                    
+                case DisconnectReason.loggedOut:
+                    logger.warn('🚪 Device logged out remotely - manual authentication required');
+                    clearSession = true;
+                    shouldReconnect = false; // Don't auto-reconnect, needs QR scan
+                    break;
+                    
+                case DisconnectReason.connectionClosed:
+                    logger.warn('🔄 Connection closed by server - reconnecting with existing session...');
+                    shouldReconnect = true;
+                    reconnectDelay = 2000;
+                    break;
+                    
+                case DisconnectReason.connectionLost:
+                    logger.warn('📡 Connection lost - attempting reconnection...');
+                    shouldReconnect = true;
+                    reconnectDelay = 5000;
+                    break;
+                    
+                case DisconnectReason.connectionReplaced:
+                    logger.warn('🔄 Connection replaced by another device - reconnecting...');
+                    shouldReconnect = true;
+                    reconnectDelay = 3000;
+                    break;
+                    
+                case DisconnectReason.timedOut:
+                    logger.warn('⏰ Connection timed out - retrying...');
+                    shouldReconnect = true;
+                    reconnectDelay = 4000;
+                    break;
+                    
+                case DisconnectReason.restartRequired:
+                    logger.warn('🔄 WhatsApp restart required - preserving session...');
+                    shouldReconnect = true;
+                    reconnectDelay = 1000; // Quick restart
+                    break;
+                    
+                case 401: // Unauthorized
+                    if (this.reconnectAttempts >= 5) {
+                        logger.warn('🔴 Persistent authentication failed - clearing session...');
+                        clearSession = true;
+                        this.reconnectAttempts = 0;
+                    } else {
+                        logger.warn('🔄 Authentication issue - retrying without clearing session...');
+                    }
+                    shouldReconnect = true;
+                    reconnectDelay = 6000;
+                    break;
+                    
+                default:
+                    logger.warn(`🔄 Unknown disconnect reason (${statusCode}) - attempting reconnection...`);
+                    shouldReconnect = true;
+                    reconnectDelay = 5000;
             }
             
             logger.warn(`Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
             
+            // Clear session only if necessary
+            if (clearSession) {
+                await this.clearBadSession();
+            }
+            
+            // Handle reconnection
             if (shouldReconnect) {
-                logger.info('🔄 Attempting to reconnect...');
-                await this.handleReconnection();
+                logger.info(`🔄 Reconnecting in ${reconnectDelay/1000}s... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+                setTimeout(() => {
+                    this.handleReconnection();
+                }, reconnectDelay);
             } else {
-                logger.error('❌ Connection terminated. Manual QR scan may be required.');
-                // Don't auto-clear session - let user decide
+                logger.error('❌ Connection terminated. Please scan QR code to reconnect.');
+                // For logged out case, show QR code again
                 setTimeout(() => {
                     this.connect();
-                }, 2000);
+                }, 5000);
             }
         } else if (connection === 'open') {
             this.isConnected = true;
@@ -484,12 +531,18 @@ class MATDEV {
      */
     async handleReconnection() {
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            logger.error('❌ Maximum reconnection attempts reached. Exiting...');
-            process.exit(1);
+            logger.error('❌ Maximum reconnection attempts reached. Clearing session and retrying...');
+            await this.clearBadSession();
+            this.reconnectAttempts = 0;
+            // Wait 30 seconds before starting fresh
+            setTimeout(() => {
+                this.connect();
+            }, 30000);
+            return;
         }
 
         this.reconnectAttempts++;
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+        const delay = Math.min(2000 * Math.pow(1.5, this.reconnectAttempts), 60000); // Less aggressive backoff
         
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
         
