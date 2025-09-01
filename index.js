@@ -465,8 +465,11 @@ class MATDEV {
                 const participant = isGroup ? message.key.participant : sender;
                 
                 logger.info(`📲 Message from: ${participant} (sender: ${sender})`);
+                logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
+                logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
                 
                 const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
+                logger.info(`🤖 Bot JID: ${botJid}`);
                 if (participant === botJid || sender === botJid) {
                     logger.debug(`Skipping message from bot itself: ${participant}`);
                     continue;
