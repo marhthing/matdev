@@ -459,18 +459,35 @@ class MATDEV {
             if (!message || !message.message) continue;
             
             try {
-                // FIRST: Check if this is our own outgoing message - skip it
+                // FIRST: Check if this is our own outgoing message 
+                // Special case: If bot number = owner number, we need to process those messages
+                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
+                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                
                 if (message.key.fromMe) {
-                    logger.debug(`Skipping outgoing message from bot`);
-                    continue;
+                    // If bot is the owner, we still want to process their commands
+                    if (botJid !== ownerJid) {
+                        logger.debug(`Skipping outgoing message from bot`);
+                        continue;
+                    }
+                    logger.info(`📤 Processing command from bot/owner (special case)`);
                 }
                 
-                // SECOND: Get the actual sender (who sent TO the bot)
+                // SECOND: Get the actual sender 
                 const sender = message.key.remoteJid;
                 const isGroup = sender.endsWith('@g.us');
-                const participant = isGroup ? message.key.participant : sender;
+                let participant;
                 
-                logger.info(`📲 Incoming message from: ${participant} (chat: ${sender})`);
+                if (message.key.fromMe && botJid === ownerJid) {
+                    // Special case: bot/owner sending to someone else, treat as command from owner
+                    participant = botJid;
+                    logger.info(`📤 Outgoing message to: ${sender} (from bot/owner: ${participant})`);
+                } else {
+                    // Normal case: someone sending to the bot
+                    participant = isGroup ? message.key.participant : sender;
+                    logger.info(`📲 Incoming message from: ${participant} (chat: ${sender})`);
+                }
+                
                 logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
                 logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
                 
@@ -497,7 +514,6 @@ class MATDEV {
                 const hasPrefix = text.trim().startsWith(config.PREFIX);
                 
                 // FIFTH: Owner verification (personal assistant mode)
-                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
                 
                 if (!isFromOwner) {
