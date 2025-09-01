@@ -459,45 +459,52 @@ class MATDEV {
             if (!message || !message.message) continue;
             
             try {
-                // Process outgoing messages from bot (since bot = owner in this setup)
-                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
-                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
+                logger.info(`📂 Archiving message for anti-delete...`);
+                await this.database.archiveMessage(message);
                 
-                // Since bot and owner are the same, process outgoing messages as commands
-                if (message.key.fromMe) {
-                    logger.info(`📤 Processing outgoing message from bot/owner`);
-                    // For outgoing messages, the participant is the bot itself
-                    const participant = botJid;
-                    const sender = message.key.remoteJid;
-                    
-                    logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
-                } else {
-                    // Skip incoming messages since bot = owner setup
-                    logger.debug(`Skipping incoming message (bot=owner setup)`);
-                    continue;
-                }
-                
-                // Set participant for further processing
-                const participant = botJid;
-                const sender = message.key.remoteJid;
-                
+                // Log all message details for debugging
                 logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
                 logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
                 
-                // SECOND: Check message type and extract text
+                // Update statistics for all messages
+                this.messageStats.received++;
+                
+                // Cache all messages
+                cache.cacheMessage(message);
+                
+                // Check message type
                 const messageType = Object.keys(message.message)[0];
                 
-                // Skip system messages, receipts, reactions, etc.
+                // Skip system messages, receipts, reactions, etc. for COMMAND processing only
                 const ignoredTypes = ['protocolMessage', 'reactionMessage', 'pollUpdateMessage', 'receiptMessage'];
                 if (ignoredTypes.includes(messageType)) {
-                    logger.debug(`Skipping system message type: ${messageType}`);
+                    logger.debug(`Archived system message type: ${messageType}, skipping command processing`);
                     continue;
                 }
                 
+                // For COMMAND processing, determine participant
+                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
+                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                
+                let participant;
+                const sender = message.key.remoteJid;
+                
+                if (message.key.fromMe) {
+                    logger.info(`📤 Processing outgoing message from bot/owner`);
+                    participant = botJid;
+                    logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
+                } else {
+                    logger.info(`📥 Processing incoming message`);
+                    const isGroup = sender.endsWith('@g.us');
+                    participant = isGroup ? message.key.participant : sender;
+                    logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
+                }
+                
+                // Extract text for command processing
                 const content = message.message[messageType];
                 let text = '';
                 
-                // Extract text based on message type
                 if (typeof content === 'string') {
                     text = content;
                 } else if (content?.text) {
@@ -508,50 +515,41 @@ class MATDEV {
                     text = ''; // For media messages without text/caption
                 }
                 
-                // THIRD: Only process messages with actual text content
+                // Only continue with command processing if there's text
                 if (!text || !text.trim()) {
-                    logger.debug(`Skipping message without text content, type: ${messageType}`);
+                    logger.debug(`Archived message without text content, type: ${messageType}`);
                     continue;
                 }
                 
-                // FOURTH: Check if it starts with prefix (for command processing)
+                // Check if it's a command (starts with prefix)
                 const hasPrefix = text.trim().startsWith(config.PREFIX);
                 
-                // FIFTH: Owner verification (personal assistant mode)
+                // Owner verification for command processing
                 const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
                 
                 if (!isFromOwner) {
-                    logger.debug(`Ignoring message from non-owner: ${participant}`);
+                    logger.debug(`Archived message from non-owner: ${participant}`);
                     continue;
                 }
                 
-                // SIXTH: Only process if it's a command (starts with prefix)
+                // Only process commands
                 if (!hasPrefix) {
-                    logger.debug(`Ignoring non-command message: "${text.substring(0, 50)}..."`);
+                    logger.debug(`Archived non-command message: "${text.substring(0, 50)}..."`);
                     continue;
                 }
-                
-                // Update statistics only for processed messages
-                this.messageStats.received++;
-                
-                // Cache message
-                cache.cacheMessage(message);
-                
-                // Archive message for anti-delete feature
-                await this.database.archiveMessage(message);
                 
                 logger.info(`📨 Processing command from owner: ${participant}`);
                 logger.info(`📝 Command text: "${text}"`);
                 
-                // Security checks
+                // Security checks for commands
                 if (await security.isBlocked(message.key.remoteJid)) {
-                    logger.debug(`Message blocked by security: ${message.key.remoteJid}`);
+                    logger.debug(`Command blocked by security: ${message.key.remoteJid}`);
                     continue;
                 }
                 
-                // Rate limiting
+                // Rate limiting for commands
                 if (await security.isRateLimited(message.key.remoteJid)) {
-                    logger.debug(`Message rate limited: ${message.key.remoteJid}`);
+                    logger.debug(`Command rate limited: ${message.key.remoteJid}`);
                     continue;
                 }
                 
