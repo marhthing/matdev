@@ -236,11 +236,16 @@ class MATDEV {
 
         if (connection === 'close') {
             this.isConnected = false;
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
             
-            logger.warn(`Connection closed. Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
+            // Only exit on actual logout, not on connection errors
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut && 
+                                  statusCode !== DisconnectReason.multideviceMismatch;
+            
+            logger.warn(`Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
             
             if (shouldReconnect) {
+                logger.info('🔄 Attempting to reconnect...');
                 await this.handleReconnection();
             } else {
                 logger.error('Bot was logged out. Please delete session and restart.');
@@ -278,7 +283,16 @@ class MATDEV {
         if (type !== 'notify') return;
 
         for (const message of messages) {
-            if (!message || message.key.fromMe) continue;
+            if (!message) continue;
+            
+            // Allow processing of bot's own messages for commands
+            // Skip only if it's not a command message from the bot
+            const messageText = message.message?.conversation || 
+                              message.message?.extendedTextMessage?.text || '';
+            
+            if (message.key.fromMe && !messageText.startsWith(config.PREFIX)) {
+                continue;
+            }
             
             try {
                 // Update statistics
