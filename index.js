@@ -459,21 +459,20 @@ class MATDEV {
             if (!message || !message.message) continue;
             
             try {
-                // FIRST: Check if it's from the bot itself - skip immediately
+                // FIRST: Check if this is our own outgoing message - skip it
+                if (message.key.fromMe) {
+                    logger.debug(`Skipping outgoing message from bot`);
+                    continue;
+                }
+                
+                // SECOND: Get the actual sender (who sent TO the bot)
                 const sender = message.key.remoteJid;
                 const isGroup = sender.endsWith('@g.us');
                 const participant = isGroup ? message.key.participant : sender;
                 
-                logger.info(`📲 Message from: ${participant} (sender: ${sender})`);
+                logger.info(`📲 Incoming message from: ${participant} (chat: ${sender})`);
                 logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
                 logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
-                
-                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
-                logger.info(`🤖 Bot JID: ${botJid}`);
-                if (participant === botJid || sender === botJid) {
-                    logger.debug(`Skipping message from bot itself: ${participant}`);
-                    continue;
-                }
                 
                 // SECOND: Check message type and extract text
                 const messageType = Object.keys(message.message)[0];
