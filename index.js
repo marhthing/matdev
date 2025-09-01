@@ -427,6 +427,20 @@ class MATDEV {
                 // Cache message
                 cache.cacheMessage(message);
                 
+                // PERSONAL ASSISTANT: Only process messages from owner
+                const sender = message.key.remoteJid;
+                const isGroup = sender.endsWith('@g.us');
+                const participant = isGroup ? message.key.participant : sender;
+                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                
+                // Only process messages from the owner (personal assistant mode)
+                if (participant !== ownerJid) {
+                    logger.debug(`Ignoring message from non-owner: ${participant}`);
+                    continue;
+                }
+                
+                logger.info(`📨 Processing message from owner: ${participant}`);
+                
                 // Security checks
                 if (await security.isBlocked(message.key.remoteJid)) {
                     continue;
