@@ -45,6 +45,9 @@ class MATDEV {
             commands: 0
         };
         
+        // Store owner's group JID (LID format) when detected
+        this.ownerGroupJid = null;
+        
         // Initialize managers
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
@@ -504,17 +507,8 @@ class MATDEV {
                     const isGroup = sender.endsWith('@g.us');
                     
                     if (isGroup && message.key.participant) {
-                        // Handle new WhatsApp LID format in groups
-                        if (message.key.participant.includes('@lid')) {
-                            const lidMatch = message.key.participant.match(/(\d+)@lid/);
-                            if (lidMatch) {
-                                participant = `${lidMatch[1]}@s.whatsapp.net`;
-                            } else {
-                                participant = message.key.participant;
-                            }
-                        } else {
-                            participant = message.key.participant;
-                        }
+                        // Preserve original participant format (including @lid)
+                        participant = message.key.participant;
                     } else {
                         participant = isGroup ? message.key.participant : sender;
                     }
@@ -545,8 +539,11 @@ class MATDEV {
                 // Check if it's a command (starts with prefix)
                 const hasPrefix = text.trim().startsWith(config.PREFIX);
                 
-                // Owner verification for command processing
-                const isFromOwner = participant === ownerJid || participant.startsWith(`${config.OWNER_NUMBER}:`);
+                // Owner verification for command processing (support both regular and LID JIDs)
+                const isFromOwner = participant === ownerJid || 
+                                  participant.startsWith(`${config.OWNER_NUMBER}:`) ||
+                                  (this.ownerGroupJid && participant === this.ownerGroupJid) ||
+                                  participant.includes(`${config.OWNER_NUMBER}@lid`);
                 
                 if (!isFromOwner) {
                     logger.debug(`Archived message from non-owner: ${participant}`);
