@@ -116,11 +116,15 @@ class AntiDeletePlugin {
                     id: originalMessage.id,
                     sender: originalMessage.sender_jid,
                     participant: originalMessage.participant_jid,
-                    content: originalMessage.content?.substring(0, 50)
+                    content: originalMessage.content?.substring(0, 50),
+                    fromMe: originalMessage.from_me
                 });
 
-                // Alert for ALL incoming messages (fromMe should be stored correctly)
-                const isIncoming = originalMessage.sender_jid !== `${this.bot.sock.user.id.split(':')[0]}@s.whatsapp.net`;
+                // Check if this was actually an incoming message (not from bot/owner)
+                // Use the stored from_me field from when the message was originally received
+                const isIncoming = !originalMessage.from_me;
+                
+                console.log(`📊 Message analysis: isIncoming=${isIncoming}, from_me=${originalMessage.from_me}`);
                 
                 if (isIncoming) {
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
@@ -131,8 +135,13 @@ class AntiDeletePlugin {
                 }
             } else {
                 console.log('❌ Original message not found in database:', messageId);
-                // Send a generic notification about deletion detection
-                if (config.OWNER_NUMBER) {
+                // Only send notification if we're sure it wasn't our own message
+                // Check if the chat is with someone else (not status or our own number)
+                const isOtherPersonChat = chatJid !== 'status@broadcast' && 
+                                        !chatJid.startsWith(config.OWNER_NUMBER) &&
+                                        chatJid.includes('@s.whatsapp.net');
+                
+                if (config.OWNER_NUMBER && isOtherPersonChat) {
                     const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
                         `⚠️ *Warning:* A message was deleted but could not be recovered\n` +
                         `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
