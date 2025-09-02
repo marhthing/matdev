@@ -44,20 +44,20 @@ class MATDEV {
             received: 0,
             commands: 0
         };
-        
+
         // Store plugin instances
         this.plugins = {};
-        
+
         // Store owner's group JID (LID format) when detected
         this.ownerGroupJid = null;
-        
+
         // Initialize managers
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
         this.database = database;
         this.database.bot = this; // Pass bot instance to database
         this.messageHandler = new MessageHandler(this, cache, security, database);
-        
+
         // Bind methods
         this.connect = this.connect.bind(this);
         this.handleConnection = this.handleConnection.bind(this);
@@ -70,25 +70,25 @@ class MATDEV {
     async start() {
         try {
             logger.info('🚀 Starting MATDEV WhatsApp Bot...');
-            
+
             // Display banner
             this.displayBanner();
-            
+
             // Check and install dependencies
             await this.checkDependencies();
-            
+
             // Ensure required directories exist
             await this.ensureDirectories();
-            
+
             // Initialize JSON storage
             await this.database.initialize();
-            
+
             // Load plugins
             await this.loadPlugins();
-            
+
             // Start connection
             await this.connect();
-            
+
         } catch (error) {
             logger.error('Failed to start MATDEV:', error);
             process.exit(1);
@@ -101,7 +101,7 @@ class MATDEV {
     async checkDependencies() {
         try {
             logger.info('📦 Checking dependencies...');
-            
+
             const requiredPackages = [
                 'baileys',
                 '@hapi/boom', 
@@ -113,16 +113,16 @@ class MATDEV {
                 'moment-timezone',
                 'dotenv'
             ];
-            
+
             const { execSync } = require('child_process');
             const packageJson = require('./package.json');
             const installedDeps = {
                 ...packageJson.dependencies || {},
                 ...packageJson.devDependencies || {}
             };
-            
+
             const missingPackages = requiredPackages.filter(pkg => !installedDeps[pkg]);
-            
+
             if (missingPackages.length > 0) {
                 logger.info(`📥 Installing missing packages: ${missingPackages.join(', ')}`);
                 execSync(`npm install ${missingPackages.join(' ')}`, { stdio: 'inherit' });
@@ -130,7 +130,7 @@ class MATDEV {
             } else {
                 logger.success('✅ All dependencies are available');
             }
-            
+
         } catch (error) {
             logger.warn('⚠️ Dependency check failed, continuing anyway:', error.message);
         }
@@ -151,7 +151,7 @@ class MATDEV {
 ║ Platform: ${process.platform} ${process.arch}                                                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
         `));
-        
+
         logger.info('Bot Configuration:');
         logger.info(`- Bot Name: ${config.BOT_NAME}`);
         logger.info(`- Session ID: ${config.SESSION_ID ? 'Configured' : 'Not Set'}`);
@@ -167,7 +167,7 @@ class MATDEV {
      */
     async ensureDirectories() {
         const dirs = ['session', 'tmp', 'plugins'];
-        
+
         for (const dir of dirs) {
             await fs.ensureDir(path.join(__dirname, dir));
         }
@@ -178,13 +178,13 @@ class MATDEV {
      */
     async loadPlugins() {
         logger.info('📦 Loading plugins...');
-        
+
         try {
             const pluginsDir = path.join(__dirname, 'plugins');
             const pluginFiles = await fs.readdir(pluginsDir);
-            
+
             let loadedCount = 0;
-            
+
             for (const file of pluginFiles) {
                 if (file.endsWith('.js')) {
                     try {
@@ -199,7 +199,7 @@ class MATDEV {
                     }
                 }
             }
-            
+
             logger.success(`✅ Loaded ${loadedCount} plugins successfully`);
         } catch (error) {
             logger.error('Failed to load plugins:', error);
@@ -212,13 +212,13 @@ class MATDEV {
     async connect() {
         try {
             logger.info('🔌 Establishing WhatsApp connection...');
-            
+
             // Check if we should validate/clear old session files on startup issues
             if (this.reconnectAttempts > 0 && this.initialConnection) {
                 logger.info('🔍 Validating session files after startup issues...');
                 const sessionPath = path.join(__dirname, 'session');
                 const sessionExists = await fs.pathExists(sessionPath);
-                
+
                 if (sessionExists) {
                     const files = await fs.readdir(sessionPath);
                     if (files.length === 0) {
@@ -228,7 +228,7 @@ class MATDEV {
                     }
                 }
             }
-            
+
             // Initialize auth state
             const { state, saveCreds } = await useMultiFileAuthState(
                 path.join(__dirname, 'session')
@@ -264,7 +264,7 @@ class MATDEV {
 
             // Set up event handlers
             this.setupEventHandlers(saveCreds);
-            
+
         } catch (error) {
             logger.error('Connection failed:', error);
             await this.handleReconnection();
@@ -277,19 +277,19 @@ class MATDEV {
     setupEventHandlers(saveCreds) {
         // Connection state handler
         this.sock.ev.on('connection.update', this.handleConnection);
-        
+
         // Credentials update handler
         this.sock.ev.on('creds.update', saveCreds);
-        
+
         // Message handler
         this.sock.ev.on('messages.upsert', this.handleMessages);
-        
+
         // Call handler
         this.sock.ev.on('call', this.handleCall.bind(this));
-        
+
         // Group updates handler
         this.sock.ev.on('groups.update', this.handleGroupUpdates.bind(this));
-        
+
         // Status updates handler
         if (config.AUTO_STATUS_VIEW) {
             this.sock.ev.on('messages.upsert', this.handleStatusView.bind(this));
@@ -311,12 +311,12 @@ class MATDEV {
         if (connection === 'close') {
             this.isConnected = false;
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            
+
             // Handle different disconnect reasons properly
             let shouldReconnect = true;
             let clearSession = false;
             let reconnectDelay = Math.min(3000 + (this.reconnectAttempts * 1000), 15000); // Progressive delay
-            
+
             switch (statusCode) {
                 case DisconnectReason.badSession:
                     // Try to recover first, clear session only after multiple failures
@@ -330,7 +330,7 @@ class MATDEV {
                         shouldReconnect = true;
                     }
                     break;
-                    
+
                 case DisconnectReason.loggedOut:
                     // Try to recover first on startup, clear session only after multiple failures
                     if (this.reconnectAttempts >= 5) {
@@ -343,37 +343,37 @@ class MATDEV {
                         shouldReconnect = true;
                     }
                     break;
-                    
+
                 case DisconnectReason.connectionClosed:
                     logger.warn('🔄 Connection closed by server - reconnecting...');
                     shouldReconnect = true;
                     reconnectDelay = 2000;
                     break;
-                    
+
                 case DisconnectReason.connectionLost:
                     logger.warn('📡 Connection lost - attempting reconnection...');
                     shouldReconnect = true;
                     reconnectDelay = 5000;
                     break;
-                    
+
                 case DisconnectReason.connectionReplaced:
                     logger.warn('🔄 Connection replaced by another device - reconnecting...');
                     shouldReconnect = true;
                     reconnectDelay = 3000;
                     break;
-                    
+
                 case DisconnectReason.timedOut:
                     logger.warn('⏰ Connection timed out - retrying...');
                     shouldReconnect = true;
                     reconnectDelay = 4000;
                     break;
-                    
+
                 case DisconnectReason.restartRequired:
                     logger.warn('🔄 WhatsApp restart required - preserving session...');
                     shouldReconnect = true;
                     reconnectDelay = 1000;
                     break;
-                    
+
                 case 401: // Unauthorized - Try recovery first, then clear session
                     if (this.reconnectAttempts >= 8) {
                         logger.warn('🔴 Authentication failed - clearing session after multiple attempts...');
@@ -386,15 +386,15 @@ class MATDEV {
                         reconnectDelay = Math.min(1000 + (this.reconnectAttempts * 500), 8000);
                     }
                     break;
-                    
+
                 default:
                     logger.warn(`🔄 Unknown disconnect reason (${statusCode}) - attempting reconnection...`);
                     shouldReconnect = true;
                     reconnectDelay = 5000;
             }
-            
+
             logger.warn(`Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message || 'Unknown'}`);
-            
+
             // Clear session if necessary
             if (clearSession) {
                 await this.clearSession();
@@ -421,33 +421,33 @@ class MATDEV {
             this.reconnectAttempts = 0;
             this.initialConnection = false; // Mark as no longer initial connection
             logger.info('🟢 Session established successfully - preserving authentication');
-            
+
             logger.success('✅ Successfully connected to WhatsApp!');
             const botNumber = this.sock.user?.id?.split(':')[0] || 'Unknown';
             logger.info(`📱 Bot Number: ${botNumber}`);
             logger.info(`👤 Bot Name: ${this.sock.user?.name || config.BOT_NAME}`);
-            
+
             // Auto-set owner number if not configured
             if (!config.OWNER_NUMBER && botNumber !== 'Unknown') {
                 config.OWNER_NUMBER = botNumber;
                 process.env.OWNER_NUMBER = botNumber;
                 logger.success(`🤖 Auto-configured owner number: ${botNumber}`);
-                
+
                 // Update .env file if it exists
                 await this.updateEnvFile('OWNER_NUMBER', botNumber);
             }
-            
+
             // Initialize security features
             await security.initialize(this.sock);
-            
+
             // Send startup notification if configured
             if (config.OWNER_NUMBER && config.STARTUP_MESSAGE) {
                 await this.sendStartupNotification();
             }
-            
+
             // Start periodic tasks
             this.startPeriodicTasks();
-            
+
             console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
         } else if (connection === 'connecting') {
             logger.info('⏳ Connecting to WhatsApp...');
@@ -464,46 +464,46 @@ class MATDEV {
 
         for (const message of messages) {
             if (!message || !message.message) continue;
-            
+
             try {
                 // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
                 logger.info(`📂 Archiving message for anti-delete...`);
                 await this.database.archiveMessage(message);
-                
+
                 // Log all message details for debugging
                 logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
                 logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
-                
+
                 // Update statistics for all messages
                 this.messageStats.received++;
-                
+
                 // Cache all messages
                 cache.cacheMessage(message);
-                
+
                 // Check for deletion events and trigger anti-delete
                 const messageType = Object.keys(message.message || {})[0];
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
                     const revokedKey = message.message.protocolMessage.key;
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
-                    
+
                     // Trigger anti-delete handling directly
                     await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid);
                 }
-                
+
                 // Skip system messages, receipts, reactions, etc. for COMMAND processing only
                 const ignoredTypes = ['protocolMessage', 'reactionMessage', 'pollUpdateMessage', 'receiptMessage'];
                 if (ignoredTypes.includes(messageType)) {
                     logger.debug(`Archived system message type: ${messageType}, skipping command processing`);
                     continue;
                 }
-                
+
                 // For COMMAND processing, determine participant
                 const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                
+
                 let participant;
                 const sender = message.key.remoteJid;
-                
+
                 if (message.key.fromMe) {
                     logger.info(`📤 Processing outgoing message from bot/owner`);
                     participant = botJid;
@@ -511,21 +511,21 @@ class MATDEV {
                 } else {
                     logger.info(`📥 Processing incoming message`);
                     const isGroup = sender.endsWith('@g.us');
-                    
+
                     if (isGroup && message.key.participant) {
                         // Preserve original participant format (including @lid)
                         participant = message.key.participant;
                     } else {
                         participant = isGroup ? message.key.participant : sender;
                     }
-                    
+
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
                 }
-                
+
                 // Extract text for command processing
                 const content = message.message[messageType];
                 let text = '';
-                
+
                 if (typeof content === 'string') {
                     text = content;
                 } else if (content?.text) {
@@ -535,58 +535,58 @@ class MATDEV {
                 } else {
                     text = ''; // For media messages without text/caption
                 }
-                
+
                 // Only continue with command processing if there's text
                 if (!text || !text.trim()) {
                     logger.debug(`Archived message without text content, type: ${messageType}`);
                     continue;
                 }
-                
+
                 // Check if it's a command (starts with prefix) - skip non-commands early
                 const hasPrefix = text.trim().startsWith(config.PREFIX);
                 if (!hasPrefix) {
                     logger.debug(`Archived non-command message: "${text.substring(0, 50)}..."`);
                     continue;
                 }
-                
+
                 // Permission verification for command processing (support both regular and LID JIDs)
                 const isFromOwner = participant === ownerJid || 
                                   participant.startsWith(`${config.OWNER_NUMBER}:`) ||
                                   (this.ownerGroupJid && participant === this.ownerGroupJid) ||
                                   participant.includes(`${config.OWNER_NUMBER}@lid`);
-                
+
                 // Check if user has any permissions (for non-owners)
                 let hasAnyPermissions = false;
                 if (!isFromOwner) {
                     const userPermissions = this.database.getUserPermissions(participant);
                     hasAnyPermissions = userPermissions.length > 0;
                 }
-                
+
                 // Allow command processing if user is owner OR has any permissions
                 if (!isFromOwner && !hasAnyPermissions) {
                     logger.debug(`Archived command from unauthorized user: ${participant}`);
                     continue;
                 }
-                
+
                 const userType = isFromOwner ? 'owner' : 'permitted user';
                 logger.info(`📨 Processing command from ${userType}: ${participant}`);
                 logger.info(`📝 Command text: "${text}"`);
-                
+
                 // Security checks for commands
                 if (await security.isBlocked(message.key.remoteJid)) {
                     logger.debug(`Command blocked by security: ${message.key.remoteJid}`);
                     continue;
                 }
-                
+
                 // Rate limiting for commands
                 if (await security.isRateLimited(message.key.remoteJid)) {
                     logger.debug(`Command rate limited: ${message.key.remoteJid}`);
                     continue;
                 }
-                
+
                 // Process the command message
                 await this.messageHandler.process(message);
-                
+
             } catch (error) {
                 logger.error('Error processing message:', error);
                 // Don't let one message error crash the bot
@@ -632,7 +632,7 @@ class MATDEV {
      */
     async handleStatusView({ messages }) {
         if (!config.AUTO_STATUS_VIEW) return;
-        
+
         for (const message of messages) {
             if (message.key.remoteJid === 'status@broadcast') {
                 try {
@@ -658,12 +658,12 @@ class MATDEV {
             } else {
                 logger.info('🗑️ No session files to clear');
             }
-            
+
             // Clear any cached authentication state
             if (this.sock) {
                 this.sock = null;
             }
-            
+
         } catch (error) {
             logger.error('Failed to clear session:', error);
             try {
@@ -692,7 +692,7 @@ class MATDEV {
         }
 
         this.reconnectAttempts++;
-        
+
         // More aggressive reconnection for startup issues
         let delay;
         if (this.initialConnection) {
@@ -702,9 +702,9 @@ class MATDEV {
             // Normal reconnects during runtime
             delay = Math.min(2000 + (this.reconnectAttempts * 1000), 30000);
         }
-        
+
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
-        
+
         // Clear any existing socket before reconnecting
         if (this.sock) {
             try {
@@ -714,7 +714,7 @@ class MATDEV {
                 // Ignore cleanup errors
             }
         }
-        
+
         setTimeout(() => {
             this.connect();
         }, delay);
@@ -728,7 +728,7 @@ class MATDEV {
             const uptime = utils.formatUptime(Date.now() - this.startTime);
             const botNumber = this.sock.user?.id?.split(':')[0] || 'Unknown';
             const autoConfigured = config.OWNER_NUMBER === botNumber ? '\n🤖 Owner auto-configured from bot number' : '';
-            
+
             const notification = `🚀 *MATDEV Bot Started*\n\n` +
                 `⏰ Started at: ${new Date().toLocaleString()}\n` +
                 `📱 Bot Number: ${botNumber}\n` +
@@ -737,7 +737,7 @@ class MATDEV {
                 `🛡️ Security Features: Enabled\n` +
                 `📊 Status: All systems operational\n\n` +
                 `Type ${config.PREFIX}help for commands`;
-            
+
             await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                 text: notification
             });
@@ -755,13 +755,13 @@ class MATDEV {
             cache.cleanup();
             logger.debug('🧹 Cache cleanup completed');
         }, 30 * 60 * 1000);
-        
+
         // Security cleanup every hour
         setInterval(() => {
             security.cleanup();
             logger.debug('🛡️ Security cleanup completed');
         }, 60 * 60 * 1000);
-        
+
         // Storage cleanup every 2 hours
         setInterval(async () => {
             try {
@@ -771,7 +771,7 @@ class MATDEV {
                 logger.error('Error during storage cleanup:', error);
             }
         }, 2 * 60 * 60 * 1000);
-        
+
         // Status report every 6 hours
         if (config.OWNER_NUMBER) {
             setInterval(() => {
@@ -787,7 +787,7 @@ class MATDEV {
         try {
             const uptime = utils.formatUptime(Date.now() - this.startTime);
             const memUsage = process.memoryUsage();
-            
+
             const report = `📊 *MATDEV Status Report*\n\n` +
                 `⏱️ Uptime: ${uptime}\n` +
                 `📨 Messages Received: ${this.messageStats.received}\n` +
@@ -796,7 +796,7 @@ class MATDEV {
                 `🧠 Memory Usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB\n` +
                 `🔒 Security Events: ${security.getSecurityStats().blocked}\n` +
                 `🏃‍♂️ Status: Running optimally`;
-            
+
             await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                 text: report
             });
@@ -812,16 +812,16 @@ class MATDEV {
         try {
             const envPath = path.join(__dirname, '.env');
             let envContent = '';
-            
+
             // Read existing .env file if it exists
             if (await fs.pathExists(envPath)) {
                 envContent = await fs.readFile(envPath, 'utf8');
             }
-            
+
             // Check if key already exists
             const lines = envContent.split('\n');
             let keyExists = false;
-            
+
             for (let i = 0; i < lines.length; i++) {
                 if (lines[i].startsWith(`${key}=`)) {
                     lines[i] = `${key}=${value}`;
@@ -829,16 +829,16 @@ class MATDEV {
                     break;
                 }
             }
-            
+
             // Add new key if it doesn't exist
             if (!keyExists) {
                 lines.push(`${key}=${value}`);
             }
-            
+
             // Write back to file
             await fs.writeFile(envPath, lines.join('\n'));
             logger.info(`📝 Updated .env file: ${key}=${value}`);
-            
+
         } catch (error) {
             logger.warn(`⚠️ Failed to update .env file: ${error.message}`);
         }
@@ -850,7 +850,7 @@ class MATDEV {
     async handleAntiDelete(messageId, chatJid) {
         try {
             console.log('🗑️ Detected deleted message:', messageId, 'in chat:', chatJid);
-            
+
             // Add delay to ensure message is properly stored before checking
             await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -867,7 +867,7 @@ class MATDEV {
 
                 // Alert for ALL incoming messages (fromMe should be stored correctly)
                 const isIncoming = originalMessage.sender_jid !== `${this.user.id.split(':')[0]}@s.whatsapp.net`;
-                
+
                 if (isIncoming) {
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.database.markMessageDeleted(messageId, chatJid);
@@ -885,7 +885,7 @@ class MATDEV {
                         `🆔 *Message ID:* ${messageId}\n` +
                         `🕐 *Detected At:* ${new Date().toLocaleString()}\n\n` +
                         `_This might be due to the message being sent before the bot started monitoring._`;
-                    
+
                     await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                         text: unknownDeleteNotification
                     });
@@ -894,6 +894,24 @@ class MATDEV {
             }
         } catch (error) {
             console.error('Error handling anti-delete:', error);
+        }
+    }
+
+    /**
+     * Handle message updates, specifically for detecting deleted messages
+     */
+    async handleMessageUpdates(messages) {
+        for (const message of messages) {
+            // Check if the message has been deleted
+            if (message.update.messageStubType === 6) { // 6 indicates message deletion
+                const messageId = message.key.id;
+                const chatJid = message.key.remoteJid;
+
+                logger.warn(`🗑️ DELETION DETECTED VIA UPDATE - ID: ${messageId}, Chat: ${chatJid}`);
+
+                // Trigger anti-delete handling
+                await this.handleAntiDelete(messageId, chatJid);
+            }
         }
     }
 
@@ -957,27 +975,27 @@ class MATDEV {
      */
     async shutdown() {
         logger.info('🛑 Shutting down MATDEV...');
-        
+
         try {
             // Close database connection
             if (this.database) {
                 await this.database.close();
             }
-            
+
             // Don't logout, just close the connection to preserve session
             if (this.sock && this.isConnected) {
                 logger.info('🔄 Preserving session during shutdown...');
                 this.sock.end();
                 this.sock = null;
                 this.isConnected = false;
-                
+
                 // Give time for cleanup
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         } catch (error) {
             logger.error('Error during shutdown:', error);
         }
-        
+
         logger.success('✅ MATDEV shutdown complete - session preserved');
         process.exit(0);
     }
