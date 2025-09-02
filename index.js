@@ -496,20 +496,21 @@ class MATDEV {
                 const messageType = Object.keys(message.message || {})[0];
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
                     const revokedKey = message.message.protocolMessage.key;
-                    logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
+                    const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
+                    logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${actualChatJid}`);
 
                     // Always process deletions - we'll determine ownership in the anti-delete handler
-                    // The fromMe flag in protocol messages can be unreliable
+                    // The fromMe flag and remoteJid in protocol messages can be unreliable
                     try {
                         // Trigger anti-delete handling directly through the plugin if available
                         if (this.plugins.antidelete && this.plugins.antidelete.handleMessageDeletion) {
                             logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
-                            await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                            await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, actualChatJid);
                             logger.info(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
                         } else {
                             // Fallback to built-in handler
                             logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
-                            await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                            await this.handleAntiDelete(revokedKey.id, actualChatJid);
                             logger.info(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
                         }
                     } catch (error) {
