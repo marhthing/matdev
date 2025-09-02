@@ -536,27 +536,34 @@ class MATDEV {
                     continue;
                 }
                 
-                // Check if it's a command (starts with prefix)
+                // Check if it's a command (starts with prefix) - skip non-commands early
                 const hasPrefix = text.trim().startsWith(config.PREFIX);
-                
-                // Owner verification for command processing (support both regular and LID JIDs)
-                const isFromOwner = participant === ownerJid || 
-                                  participant.startsWith(`${config.OWNER_NUMBER}:`) ||
-                                  (this.ownerGroupJid && participant === this.ownerGroupJid) ||
-                                  participant.includes(`${config.OWNER_NUMBER}@lid`);
-                
-                if (!isFromOwner) {
-                    logger.debug(`Archived message from non-owner: ${participant}`);
-                    continue;
-                }
-                
-                // Only process commands
                 if (!hasPrefix) {
                     logger.debug(`Archived non-command message: "${text.substring(0, 50)}..."`);
                     continue;
                 }
                 
-                logger.info(`📨 Processing command from owner: ${participant}`);
+                // Permission verification for command processing (support both regular and LID JIDs)
+                const isFromOwner = participant === ownerJid || 
+                                  participant.startsWith(`${config.OWNER_NUMBER}:`) ||
+                                  (this.ownerGroupJid && participant === this.ownerGroupJid) ||
+                                  participant.includes(`${config.OWNER_NUMBER}@lid`);
+                
+                // Check if user has any permissions (for non-owners)
+                let hasAnyPermissions = false;
+                if (!isFromOwner) {
+                    const userPermissions = this.database.getUserPermissions(participant);
+                    hasAnyPermissions = userPermissions.length > 0;
+                }
+                
+                // Allow command processing if user is owner OR has any permissions
+                if (!isFromOwner && !hasAnyPermissions) {
+                    logger.debug(`Archived command from unauthorized user: ${participant}`);
+                    continue;
+                }
+                
+                const userType = isFromOwner ? 'owner' : 'permitted user';
+                logger.info(`📨 Processing command from ${userType}: ${participant}`);
                 logger.info(`📝 Command text: "${text}"`);
                 
                 // Security checks for commands

@@ -92,6 +92,28 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Permission management commands (owner only)
+        this.bot.messageHandler.registerCommand('allow', this.allowCommand.bind(this), {
+            description: 'Allow a user to use specific commands',
+            usage: `${config.PREFIX}allow <jid|cmd> [cmd]`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('disallow', this.disallowCommand.bind(this), {
+            description: 'Remove permission for a user to use specific commands',
+            usage: `${config.PREFIX}disallow <jid|cmd> [cmd]`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('permissions', this.permissionsCommand.bind(this), {
+            description: 'View all user permissions',
+            usage: `${config.PREFIX}permissions [jid]`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -347,6 +369,168 @@ class CorePlugin {
             
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during broadcast.');
+        }
+    }
+
+    /**
+     * Allow command handler (owner only)
+     * Usage: .allow <jid> <cmd> OR when in chat: .allow <cmd>
+     */
+    async allowCommand(messageInfo) {
+        try {
+            const { args, sender } = messageInfo;
+            
+            if (args.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Usage: `.allow <jid> <cmd>` or when in their chat: `.allow <cmd>`');
+                return;
+            }
+
+            let jid, command;
+            
+            if (args.length === 1) {
+                // When in their chat: .allow <cmd>
+                jid = sender;
+                command = args[0];
+            } else {
+                // .allow <jid> <cmd>
+                jid = args[0];
+                command = args[1];
+            }
+
+            // Normalize JID format
+            if (!jid.includes('@')) {
+                jid = `${jid}@s.whatsapp.net`;
+            }
+
+            // Validate command exists
+            const commands = this.bot.messageHandler.getCommands();
+            const commandExists = commands.some(cmd => cmd.name === command);
+            
+            if (!commandExists) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Command "${command}" does not exist. Use \`.help\` to see available commands.`);
+                return;
+            }
+
+            // Add permission using database
+            const success = await this.bot.database.addPermission(jid, command);
+            
+            if (success) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ Permission granted! User ${jid} can now use \`.${command}\``);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to add permission. Please try again.');
+            }
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing allow command.');
+        }
+    }
+
+    /**
+     * Disallow command handler (owner only)
+     * Usage: .disallow <jid> <cmd> OR when in chat: .disallow <cmd>
+     */
+    async disallowCommand(messageInfo) {
+        try {
+            const { args, sender } = messageInfo;
+            
+            if (args.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Usage: `.disallow <jid> <cmd>` or when in their chat: `.disallow <cmd>`');
+                return;
+            }
+
+            let jid, command;
+            
+            if (args.length === 1) {
+                // When in their chat: .disallow <cmd>
+                jid = sender;
+                command = args[0];
+            } else {
+                // .disallow <jid> <cmd>
+                jid = args[0];
+                command = args[1];
+            }
+
+            // Normalize JID format
+            if (!jid.includes('@')) {
+                jid = `${jid}@s.whatsapp.net`;
+            }
+
+            // Remove permission using database
+            const success = await this.bot.database.removePermission(jid, command);
+            
+            if (success) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Permission removed! User ${jid} can no longer use \`.${command}\``);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ User ${jid} did not have permission for \`.${command}\``);
+            }
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing disallow command.');
+        }
+    }
+
+    /**
+     * Permissions command handler (owner only)
+     * Usage: .permissions [jid] - shows all permissions or permissions for specific user
+     */
+    async permissionsCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            
+            if (args.length === 0) {
+                // Show all permissions
+                const allPermissions = this.bot.database.getAllPermissions();
+                
+                if (Object.keys(allPermissions).length === 0) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '📋 No permissions have been granted yet.');
+                    return;
+                }
+                
+                let permissionsText = '*📋 USER PERMISSIONS*\n\n';
+                for (const [jid, commands] of Object.entries(allPermissions)) {
+                    const displayJid = jid.split('@')[0]; // Show just the number
+                    permissionsText += `👤 *${displayJid}:*\n`;
+                    commands.forEach(cmd => {
+                        permissionsText += `   • .${cmd}\n`;
+                    });
+                    permissionsText += '\n';
+                }
+                
+                await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
+                
+            } else {
+                // Show permissions for specific user
+                let jid = args[0];
+                if (!jid.includes('@')) {
+                    jid = `${jid}@s.whatsapp.net`;
+                }
+                
+                const userPermissions = this.bot.database.getUserPermissions(jid);
+                const displayJid = jid.split('@')[0];
+                
+                if (userPermissions.length === 0) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `📋 User ${displayJid} has no permissions.`);
+                } else {
+                    let permissionsText = `*📋 PERMISSIONS FOR ${displayJid}*\n\n`;
+                    userPermissions.forEach(cmd => {
+                        permissionsText += `• .${cmd}\n`;
+                    });
+                    
+                    await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
+                }
+            }
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving permissions.');
         }
     }
 }
