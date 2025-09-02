@@ -181,18 +181,20 @@ class CorePlugin {
         try {
             const start = Date.now();
             
-            const reply = await this.bot.messageHandler.reply(messageInfo, '🏓 Pinging...', { quote: false });
+            // Send initial response with quote
+            const reply = await this.bot.messageHandler.reply(messageInfo, '🏓 Pinging...');
             
             const latency = Date.now() - start;
             
-            // Edit the message with actual ping
+            // Edit the message with actual ping results
             const pingText = `🏓 *Pong!*\n\n` +
                 `⚡ *Response Time:* ${latency}ms\n` +
                 `🕐 *Timestamp:* ${utils.getFormattedDate()}`;
             
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 text: pingText,
-                edit: reply.key
+                edit: reply.key,
+                quoted: messageInfo.message
             });
             
         } catch (error) {
