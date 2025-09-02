@@ -152,10 +152,9 @@ class AntiDeletePlugin {
      */
     async sendDeletedMessageAlert(archivedMessage, chatJid) {
         try {
-            // Get sender name (just the number without @s.whatsapp.net)
-            const senderName = archivedMessage.participant_jid ?
-                archivedMessage.participant_jid.split('@')[0] :
-                archivedMessage.sender_jid.split('@')[0];
+            // Get the actual sender JID from the archived message
+            const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
+            const senderName = senderJid.split('@')[0];
 
             // Create a simple quoted message format
             const quotedMessage = {
@@ -164,7 +163,7 @@ class AntiDeletePlugin {
                     quotedMessage: {
                         conversation: ''  // Empty quoted message
                     },
-                    participant: `${senderName}@s.whatsapp.net`,  // This will show the sender's name
+                    participant: senderJid,  // Use the actual sender JID from archived message
                     stanzaId: archivedMessage.id
                 }
             };
@@ -213,7 +212,7 @@ class AntiDeletePlugin {
                 }
             }
 
-            console.log(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
+            console.log(`🗑️ Detected deleted message from ${senderName}`);
 
         } catch (error) {
             console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
