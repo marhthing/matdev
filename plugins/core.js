@@ -194,7 +194,10 @@ class CorePlugin {
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 text: pingText,
                 edit: reply.key,
-                quoted: messageInfo.message
+                quoted: {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                }
             });
             
         } catch (error) {
