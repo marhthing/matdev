@@ -498,6 +498,7 @@ class MATDEV {
                 logger.info(`🔍 Message type detected: ${messageType}`);
                 
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
+                    logger.warn(`🗑️ REVOKE MESSAGE DETECTED! Processing deletion...`);
                     try {
                         const revokedKey = message.message.protocolMessage.key;
                         const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
