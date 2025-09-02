@@ -156,8 +156,8 @@ class AntiDeletePlugin {
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
 
-            // Create the alert message with proper tagging format
-            const alertText = `🗑️ *DELETED MESSAGE*\n\n${archivedMessage.content || 'No content'}\n\n_From: @${senderNumber}_`;
+            // Create clean notification format with tagging
+            const alertText = `${archivedMessage.content || 'No content'}\n\n@${senderNumber}`;
             
             const alertMessage = {
                 text: alertText,
