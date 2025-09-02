@@ -494,56 +494,70 @@ class MATDEV {
 
                 // Check for deletion events and trigger anti-delete via plugin
                 const messageType = Object.keys(message.message || {})[0];
+                
+                logger.info(`🔍 Message type detected: ${messageType}`);
+                
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
-                    const revokedKey = message.message.protocolMessage.key;
-                    const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
-                    logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${actualChatJid}`);
-                    
-                    logger.info(`🔍 Protocol message details:`, JSON.stringify(message.message.protocolMessage, null, 2));
-                    logger.info(`🔍 Plugin availability check:`);
-                    logger.info(`   - this.plugins: ${typeof this.plugins}`);
-                    logger.info(`   - this.plugins.antidelete: ${typeof this.plugins.antidelete}`);
-                    if (this.plugins.antidelete) {
-                        logger.info(`   - handleMessageDeletion method: ${typeof this.plugins.antidelete.handleMessageDeletion}`);
-                    }
-
-                    // Always process deletions - we'll determine ownership in the anti-delete handler
-                    // The fromMe flag and remoteJid in protocol messages can be unreliable
                     try {
-                        // Trigger anti-delete handling directly through the plugin if available
-                        if (this.plugins.antidelete && typeof this.plugins.antidelete.handleMessageDeletion === 'function') {
-                            logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
-                            await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, actualChatJid);
-                            logger.success(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
-                        } else {
-                            // Fallback to built-in handler
-                            logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
-                            logger.info(`🔍 Built-in handler available: ${typeof this.handleAntiDelete}`);
-                            await this.handleAntiDelete(revokedKey.id, actualChatJid);
-                            logger.success(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
-                        }
-                    } catch (error) {
-                        logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
-                        logger.error(`❌ Error stack:`, error.stack);
+                        const revokedKey = message.message.protocolMessage.key;
+                        const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
+                        logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${actualChatJid}`);
                         
-                        // Send error notification to owner
-                        try {
-                            if (config.OWNER_NUMBER) {
-                                const errorNotification = `🚨 *ANTI-DELETE ERROR*\n\n` +
-                                    `⚠️ Failed to process deleted message\n` +
-                                    `📱 Chat: ${actualChatJid.split('@')[0]}\n` +
-                                    `🆔 Message ID: ${revokedKey.id}\n` +
-                                    `❌ Error: ${error.message}\n` +
-                                    `🕐 Time: ${new Date().toLocaleString()}`;
-                                
-                                await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                                    text: errorNotification
-                                });
-                                logger.info(`✅ Error notification sent to owner`);
-                            }
-                        } catch (notifyError) {
-                            logger.error(`❌ Failed to send error notification:`, notifyError);
+                        logger.info(`🔍 Protocol message details:`, JSON.stringify(message.message.protocolMessage, null, 2));
+                        logger.info(`🔍 Plugin availability check:`);
+                        logger.info(`   - this.plugins: ${typeof this.plugins}`);
+                        logger.info(`   - this.plugins.antidelete: ${typeof this.plugins.antidelete}`);
+                        if (this.plugins.antidelete) {
+                            logger.info(`   - handleMessageDeletion method: ${typeof this.plugins.antidelete.handleMessageDeletion}`);
                         }
+
+                        // Validate we have a proper message ID to process
+                        if (!revokedKey?.id) {
+                            logger.error(`❌ Invalid revoked key - no message ID found`);
+                            return; // Skip processing this deletion
+                        }
+
+                        // Always process deletions - we'll determine ownership in the anti-delete handler
+                        // The fromMe flag and remoteJid in protocol messages can be unreliable
+                        try {
+                            // Trigger anti-delete handling directly through the plugin if available
+                            if (this.plugins.antidelete && typeof this.plugins.antidelete.handleMessageDeletion === 'function') {
+                                logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
+                                await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, actualChatJid);
+                                logger.success(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
+                            } else {
+                                // Fallback to built-in handler
+                                logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
+                                logger.info(`🔍 Built-in handler available: ${typeof this.handleAntiDelete}`);
+                                await this.handleAntiDelete(revokedKey.id, actualChatJid);
+                                logger.success(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
+                            }
+                        } catch (error) {
+                            logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
+                            logger.error(`❌ Error stack:`, error.stack);
+                            
+                            // Send error notification to owner
+                            try {
+                                if (config.OWNER_NUMBER) {
+                                    const errorNotification = `🚨 *ANTI-DELETE ERROR*\n\n` +
+                                        `⚠️ Failed to process deleted message\n` +
+                                        `📱 Chat: ${actualChatJid.split('@')[0]}\n` +
+                                        `🆔 Message ID: ${revokedKey.id}\n` +
+                                        `❌ Error: ${error.message}\n` +
+                                        `🕐 Time: ${new Date().toLocaleString()}`;
+                                    
+                                    await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                                        text: errorNotification
+                                    });
+                                    logger.info(`✅ Error notification sent to owner`);
+                                }
+                            } catch (notifyError) {
+                                logger.error(`❌ Failed to send error notification:`, notifyError);
+                            }
+                        }
+                    } catch (protocolError) {
+                        logger.error(`❌ Error processing protocol message:`, protocolError);
+                        logger.error(`❌ Protocol error stack:`, protocolError.stack);
                     }
                 }
 
