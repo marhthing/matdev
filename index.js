@@ -487,7 +487,7 @@ class MATDEV {
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
 
                     // Trigger anti-delete handling directly
-                    await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid);
+                    await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
                 }
 
                 // Skip system messages, receipts, reactions, etc. for COMMAND processing only
@@ -866,7 +866,7 @@ class MATDEV {
                 });
 
                 // Alert for ALL incoming messages (fromMe should be stored correctly)
-                const isIncoming = originalMessage.sender_jid !== `${this.user.id.split(':')[0]}@s.whatsapp.net`;
+                const isIncoming = originalMessage.sender_jid !== `${this.sock.user.id.split(':')[0]}@s.whatsapp.net`;
 
                 if (isIncoming) {
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
