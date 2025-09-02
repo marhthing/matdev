@@ -164,7 +164,7 @@ class AntiDeletePlugin {
             const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
                 `👤 *Sender:* ${senderName}\n` +
                 `💬 *Chat:* ${chatName}\n` +
-                `📅 *Original Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n` +
+                `📅 *Original Time:* ${archivedMessage.timestamp ? new Date(archivedMessage.timestamp * 1000).toLocaleString() : 'Unknown'}\n` +
                 `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
                 `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
                 `_Anti-delete detection by MATDEV_`;
@@ -218,7 +218,7 @@ class AntiDeletePlugin {
             this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
 
         } catch (error) {
-            this.bot.logger.error('Error sending deleted message alert:', error);
+            console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
         }
     }
 
