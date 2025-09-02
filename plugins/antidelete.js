@@ -180,7 +180,7 @@ class AntiDeletePlugin {
 
                 if (mediaData) {
                     const mediaMessage = {
-                        caption: `📎 *Recovered Media*\n\nThis ${archivedMessage.message_type.replace('Message', '')} was deleted from the above message.`
+                        caption: `📎 *Recovered Media*\n\nThis ${(archivedMessage.message_type || 'media').replace('Message', '')} was deleted from the above message.`
                     };
 
                     // Send media based on type
