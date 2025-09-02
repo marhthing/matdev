@@ -497,6 +497,11 @@ class MATDEV {
                 
                 logger.info(`🔍 Message type detected: ${messageType}`);
                 
+                // Debug protocol message types
+                if (messageType === 'protocolMessage') {
+                    logger.warn(`🔍 PROTOCOL MESSAGE DEBUG: type = ${message.message.protocolMessage?.type}`);
+                }
+                
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
                     logger.warn(`🗑️ REVOKE MESSAGE DETECTED! Processing deletion...`);
                     try {
