@@ -156,22 +156,25 @@ class AntiDeletePlugin {
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
 
-            // Create clean notification with the actual message content as main text
+            // Send the actual message content as main text with proper sender info
             const alertMessage = {
-                text: archivedMessage.content || 'Deleted message',
-                mentions: [senderJid],
-                contextInfo: {
-                    mentionedJid: [senderJid],
-                    quotedMessage: {
-                        conversation: '' // Empty quoted message for clean tagging
-                    },
-                    participant: senderJid, // This shows the actual sender in the quote
-                    stanzaId: archivedMessage.id
-                }
+                text: archivedMessage.content || 'Deleted message'
             };
 
             // Send to owner
             await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
+
+            // Send a follow-up message with sender details
+            const senderInfo = `From: @${senderNumber}`;
+            const infoMessage = {
+                text: senderInfo,
+                mentions: [senderJid],
+                contextInfo: {
+                    mentionedJid: [senderJid]
+                }
+            };
+
+            await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, infoMessage);
 
             // If message had media, try to recover and send it
             if (archivedMessage.media_url) {
