@@ -120,7 +120,7 @@ class AntiDeletePlugin {
                 });
 
                 // Alert for ALL incoming messages (fromMe should be stored correctly)
-                const isIncoming = originalMessage.sender_jid !== `${this.bot.user.id.split(':')[0]}@s.whatsapp.net`;
+                const isIncoming = originalMessage.sender_jid !== `${this.bot.sock.user.id.split(':')[0]}@s.whatsapp.net`;
                 
                 if (isIncoming) {
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
