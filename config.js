@@ -15,8 +15,8 @@ const config = {
     PREFIX: process.env.PREFIX || '.',
     PUBLIC_MODE: process.env.PUBLIC_MODE === 'true',
     // Feature flags
-    AUTO_TYPING: process.env.AUTO_TYPING === 'true' || true,
-    AUTO_READ: process.env.AUTO_READ === 'true' || true,
+    AUTO_TYPING: process.env.AUTO_TYPING === 'true' || false,
+    AUTO_READ: process.env.AUTO_READ === 'true' || false,
     AUTO_STATUS_VIEW: process.env.AUTO_STATUS_VIEW === 'true' || false,
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
 
