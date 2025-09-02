@@ -152,27 +152,25 @@ class AntiDeletePlugin {
      */
     async sendDeletedMessageAlert(archivedMessage, chatJid) {
         try {
-            // Format the anti-delete notification
-            const chatName = chatJid.endsWith('@g.us') ?
-                `Group: ${chatJid.split('@')[0]}` :
-                `Private: ${archivedMessage.sender_jid.split('@')[0]}`;
-
+            // Get sender name (just the number without @s.whatsapp.net)
             const senderName = archivedMessage.participant_jid ?
                 archivedMessage.participant_jid.split('@')[0] :
                 archivedMessage.sender_jid.split('@')[0];
 
-            const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
-                `👤 *Sender:* ${senderName}\n` +
-                `💬 *Chat:* ${chatName}\n` +
-                `📅 *Original Time:* ${archivedMessage.timestamp ? new Date(archivedMessage.timestamp * 1000).toLocaleString() : 'Unknown'}\n` +
-                `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
-                `📝 *Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
-                `_Anti-delete detection by MATDEV_`;
+            // Create a simple quoted message format
+            const quotedMessage = {
+                text: archivedMessage.content || 'No text content',
+                contextInfo: {
+                    quotedMessage: {
+                        conversation: ''  // Empty quoted message
+                    },
+                    participant: `${senderName}@s.whatsapp.net`,  // This will show the sender's name
+                    stanzaId: archivedMessage.id
+                }
+            };
 
             // Send to owner
-            await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                text: deleteNotification
-            });
+            await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, quotedMessage);
 
             // If message had media, try to recover and send it
             if (archivedMessage.media_url) {
