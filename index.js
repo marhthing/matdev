@@ -190,7 +190,19 @@ class MATDEV {
                     try {
                         const plugin = require(path.join(pluginsDir, file));
                         if (plugin && typeof plugin.init === 'function') {
-                            await plugin.init(this);
+                            const pluginInstance = await plugin.init(this);
+                            
+                            // Store plugin reference for direct access
+                            const pluginName = file.replace('.js', '');
+                            if (pluginInstance && pluginInstance.name) {
+                                this.plugins[pluginInstance.name] = pluginInstance;
+                                logger.info(`📌 Stored plugin reference: ${pluginInstance.name}`);
+                            } else if (pluginName === 'antidelete') {
+                                // Special handling for antidelete plugin
+                                this.plugins.antidelete = pluginInstance || plugin;
+                                logger.info(`📌 Stored antidelete plugin reference`);
+                            }
+                            
                             loadedCount++;
                             logger.success(`Loaded plugin: ${file}`);
                         }
@@ -480,19 +492,31 @@ class MATDEV {
                 // Cache all messages
                 cache.cacheMessage(message);
 
-                // Check for deletion events and trigger anti-delete
+                // Check for deletion events and trigger anti-delete via plugin
                 const messageType = Object.keys(message.message || {})[0];
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
                     const revokedKey = message.message.protocolMessage.key;
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
 
-                    try {
-                        // Trigger anti-delete handling directly
-                        logger.info(`🔍 Triggering anti-delete for message: ${revokedKey.id}`);
-                        await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
-                        logger.info(`✅ Anti-delete handling completed for: ${revokedKey.id}`);
-                    } catch (error) {
-                        logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
+                    // Check if this is someone else's message (not our own)
+                    if (!revokedKey.fromMe) {
+                        try {
+                            // Trigger anti-delete handling directly through the plugin if available
+                            if (this.plugins.antidelete && this.plugins.antidelete.handleMessageDeletion) {
+                                logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
+                                await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                                logger.info(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
+                            } else {
+                                // Fallback to built-in handler
+                                logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
+                                await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                                logger.info(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
+                            }
+                        } catch (error) {
+                            logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
+                        }
+                    } else {
+                        logger.info(`ℹ️ Skipping own message deletion: ${revokedKey.id} (fromMe: true)`);
                     }
                 }
 

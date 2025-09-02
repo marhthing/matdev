@@ -35,7 +35,7 @@ class AntiDeletePlugin {
         // Check if socket is available now
         if (this.bot.sock && this.bot.sock.ev) {
             this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
-            console.log('✅ Anti-delete event listeners attached');
+            console.log('✅ Anti-delete event listeners attached to messages.update');
             return;
         }
 
@@ -43,9 +43,10 @@ class AntiDeletePlugin {
         const checkSocket = () => {
             if (this.bot.sock && this.bot.sock.ev) {
                 this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
-                console.log('✅ Anti-delete event listeners attached');
+                console.log('✅ Anti-delete event listeners attached to messages.update');
             } else {
                 // Check again in 1 second
+                console.log('🔄 Waiting for socket to be available for anti-delete...');
                 setTimeout(checkSocket, 1000);
             }
         };
@@ -292,5 +293,6 @@ module.exports = {
     init: async (bot) => {
         const plugin = new AntiDeletePlugin();
         await plugin.init(bot);
+        return plugin; // Return the plugin instance so it can be referenced
     }
 };
