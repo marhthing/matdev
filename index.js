@@ -502,7 +502,7 @@ class MATDEV {
                     logger.warn(`🔍 PROTOCOL MESSAGE DEBUG: type = ${message.message.protocolMessage?.type}`);
                 }
                 
-                if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 'REVOKE') {
+                if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 0) {
                     logger.warn(`🗑️ REVOKE MESSAGE DETECTED! Processing deletion...`);
                     try {
                         const revokedKey = message.message.protocolMessage.key;
