@@ -207,7 +207,7 @@ class AntiDeletePlugin {
                     }
 
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
-                    this.bot.logger.success(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
+                    console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
                 } else {
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                         text: `❌ Media file could not be recovered (file may have been corrupted or deleted from disk)`
@@ -215,7 +215,7 @@ class AntiDeletePlugin {
                 }
             }
 
-            this.bot.logger.info(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
+            console.log(`🗑️ Detected deleted message from ${senderName} in ${chatName}`);
 
         } catch (error) {
             console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
