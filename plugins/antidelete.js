@@ -154,17 +154,19 @@ class AntiDeletePlugin {
         try {
             // Get the actual sender JID from the archived message
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
-            const senderName = senderJid.split('@')[0];
+            const senderNumber = senderJid.split('@')[0];
 
-            // Create proper notification message with correct sender info
+            // Create notification with tagging style
             const alertMessage = {
                 text: `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
-                      `👤 *From:* ${senderName}\n` +
+                      `👤 *From:* @${senderNumber}\n` +
                       `💬 *Content:* ${archivedMessage.content || 'No text content'}\n` +
                       `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
                       `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
                       `_Original message recovered from archive_`,
+                mentions: [senderJid],
                 contextInfo: {
+                    mentionedJid: [senderJid],
                     quotedMessage: {
                         conversation: archivedMessage.content || 'Deleted message'
                     },
