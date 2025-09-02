@@ -32,27 +32,9 @@ class AntiDeletePlugin {
      * Setup event listeners when socket is available
      */
     setupEventListeners() {
-        // Check if socket is available now
-        if (this.bot.sock && this.bot.sock.ev) {
-            this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
-            console.log('✅ Anti-delete event listeners attached to messages.update');
-            return;
-        }
-
-        // Wait for socket to be available
-        const checkSocket = () => {
-            if (this.bot.sock && this.bot.sock.ev) {
-                this.bot.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
-                console.log('✅ Anti-delete event listeners attached to messages.update');
-            } else {
-                // Check again in 1 second
-                console.log('🔄 Waiting for socket to be available for anti-delete...');
-                setTimeout(checkSocket, 1000);
-            }
-        };
-
-        // Start checking for socket availability
-        setTimeout(checkSocket, 100);
+        // No need for event listeners - the main bot handles REVOKE messages
+        // and calls our handleMessageDeletion method directly
+        console.log('✅ Anti-delete plugin ready to handle deletions via direct calls');
     }
 
     /**
@@ -103,7 +85,7 @@ class AntiDeletePlugin {
      */
     async handleMessageDeletion(messageId, chatJid) {
         try {
-            console.log('🗑️ Detected deleted message:', messageId, 'in chat:', chatJid);
+            console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
             
             // Add delay to ensure message is properly stored before checking
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -111,30 +93,34 @@ class AntiDeletePlugin {
             // Get the original message from our database
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
 
-            if (originalMessage && config.OWNER_NUMBER) {
-                console.log('📋 Original message found:', {
+            if (originalMessage) {
+                console.log('📋 ANTI-DELETE: Original message found:', {
                     id: originalMessage.id,
                     sender: originalMessage.sender_jid,
                     participant: originalMessage.participant_jid,
                     content: originalMessage.content?.substring(0, 50),
-                    fromMe: originalMessage.from_me
+                    fromMe: originalMessage.from_me,
+                    chatJid: originalMessage.chat_jid
                 });
 
                 // Check if this was actually an incoming message (not from bot/owner)
                 // Use the stored from_me field from when the message was originally received
                 const isIncoming = !originalMessage.from_me;
                 
-                console.log(`📊 Message analysis: isIncoming=${isIncoming}, from_me=${originalMessage.from_me}`);
+                console.log(`📊 ANTI-DELETE: Message analysis: isIncoming=${isIncoming}, from_me=${originalMessage.from_me}`);
                 
-                if (isIncoming) {
+                if (isIncoming && config.OWNER_NUMBER) {
+                    console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion');
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.bot.database.markMessageDeleted(messageId, chatJid);
-                    console.log('✅ Anti-delete alert sent for message:', messageId);
+                    console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
+                } else if (!isIncoming) {
+                    console.log('ℹ️ ANTI-DELETE: Skipping own message deletion:', messageId);
                 } else {
-                    console.log('ℹ️ Skipping own message deletion:', messageId);
+                    console.log('⚠️ ANTI-DELETE: No owner number configured, skipping alert');
                 }
             } else {
-                console.log('❌ Original message not found in database:', messageId);
+                console.log('❌ ANTI-DELETE: Original message not found in database:', messageId);
                 // Only send notification if we're sure it wasn't our own message
                 // Check if the chat is with someone else (not status or our own number)
                 const isOtherPersonChat = chatJid !== 'status@broadcast' && 
@@ -142,6 +128,7 @@ class AntiDeletePlugin {
                                         chatJid.includes('@s.whatsapp.net');
                 
                 if (config.OWNER_NUMBER && isOtherPersonChat) {
+                    console.log('🚨 ANTI-DELETE: Sending unknown deletion alert');
                     const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
                         `⚠️ *Warning:* A message was deleted but could not be recovered\n` +
                         `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
@@ -152,11 +139,11 @@ class AntiDeletePlugin {
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                         text: unknownDeleteNotification
                     });
-                    console.log('✅ Unknown deletion alert sent');
+                    console.log('✅ ANTI-DELETE: Unknown deletion alert sent');
                 }
             }
         } catch (error) {
-            console.error('Error handling message deletion:', error);
+            console.error('❌ ANTI-DELETE: Error handling message deletion:', error);
         }
     }
 
