@@ -156,21 +156,16 @@ class AntiDeletePlugin {
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
 
-            // Create notification with tagging style
+            // Create clean notification with the actual message content as main text
             const alertMessage = {
-                text: `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
-                      `👤 *From:* @${senderNumber}\n` +
-                      `💬 *Content:* ${archivedMessage.content || 'No text content'}\n` +
-                      `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
-                      `🕐 *Deleted At:* ${new Date().toLocaleString()}\n\n` +
-                      `_Original message recovered from archive_`,
+                text: archivedMessage.content || 'Deleted message',
                 mentions: [senderJid],
                 contextInfo: {
                     mentionedJid: [senderJid],
                     quotedMessage: {
-                        conversation: archivedMessage.content || 'Deleted message'
+                        conversation: '' // Empty quoted message for clean tagging
                     },
-                    participant: senderJid,
+                    participant: senderJid, // This shows the actual sender in the quote
                     stanzaId: archivedMessage.id
                 }
             };
@@ -219,7 +214,7 @@ class AntiDeletePlugin {
                 }
             }
 
-            console.log(`🗑️ Detected deleted message from ${senderName}`);
+            console.log(`🗑️ Detected deleted message from ${senderNumber}`);
 
         } catch (error) {
             console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
