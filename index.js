@@ -498,25 +498,22 @@ class MATDEV {
                     const revokedKey = message.message.protocolMessage.key;
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
 
-                    // Check if this is someone else's message (not our own)
-                    if (!revokedKey.fromMe) {
-                        try {
-                            // Trigger anti-delete handling directly through the plugin if available
-                            if (this.plugins.antidelete && this.plugins.antidelete.handleMessageDeletion) {
-                                logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
-                                await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
-                                logger.info(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
-                            } else {
-                                // Fallback to built-in handler
-                                logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
-                                await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
-                                logger.info(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
-                            }
-                        } catch (error) {
-                            logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
+                    // Always process deletions - we'll determine ownership in the anti-delete handler
+                    // The fromMe flag in protocol messages can be unreliable
+                    try {
+                        // Trigger anti-delete handling directly through the plugin if available
+                        if (this.plugins.antidelete && this.plugins.antidelete.handleMessageDeletion) {
+                            logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
+                            await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                            logger.info(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
+                        } else {
+                            // Fallback to built-in handler
+                            logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
+                            await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                            logger.info(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
                         }
-                    } else {
-                        logger.info(`ℹ️ Skipping own message deletion: ${revokedKey.id} (fromMe: true)`);
+                    } catch (error) {
+                        logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
                     }
                 }
 
