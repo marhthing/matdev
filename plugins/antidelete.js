@@ -155,11 +155,11 @@ class AntiDeletePlugin {
             // Format the anti-delete notification
             const chatName = chatJid.endsWith('@g.us') ?
                 `Group: ${chatJid.split('@')[0]}` :
-                `Private: ${archivedMessage.sender_jid.split('@')[0]}`;
+                `Private: ${archivedMessage.sender.split('@')[0]}`;
 
-            const senderName = archivedMessage.participant_jid ?
-                archivedMessage.participant_jid.split('@')[0] :
-                archivedMessage.sender_jid.split('@')[0];
+            const senderName = archivedMessage.participant ?
+                archivedMessage.participant.split('@')[0] :
+                archivedMessage.sender.split('@')[0];
 
             const deleteNotification = `🗑️ *DELETED MESSAGE DETECTED*\n\n` +
                 `👤 *Sender:* ${senderName}\n` +
