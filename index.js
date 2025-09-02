@@ -486,8 +486,14 @@ class MATDEV {
                     const revokedKey = message.message.protocolMessage.key;
                     logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${revokedKey?.remoteJid}`);
 
-                    // Trigger anti-delete handling directly
-                    await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                    try {
+                        // Trigger anti-delete handling directly
+                        logger.info(`🔍 Triggering anti-delete for message: ${revokedKey.id}`);
+                        await this.handleAntiDelete(revokedKey.id, revokedKey.remoteJid || message.key.remoteJid);
+                        logger.info(`✅ Anti-delete handling completed for: ${revokedKey.id}`);
+                    } catch (error) {
+                        logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
+                    }
                 }
 
                 // Skip system messages, receipts, reactions, etc. for COMMAND processing only
@@ -849,36 +855,43 @@ class MATDEV {
      */
     async handleAntiDelete(messageId, chatJid) {
         try {
-            console.log('🗑️ Detected deleted message:', messageId, 'in chat:', chatJid);
+            logger.info(`🗑️ Starting anti-delete processing for message: ${messageId} in chat: ${chatJid}`);
 
             // Add delay to ensure message is properly stored before checking
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Get the original message from our database
+            logger.info(`🔍 Searching for archived message: ${messageId}`);
             const originalMessage = await this.database.getArchivedMessage(messageId);
 
             if (originalMessage && config.OWNER_NUMBER) {
-                console.log('📋 Original message found:', {
+                logger.info('📋 Original message found:', {
                     id: originalMessage.id,
                     sender: originalMessage.sender_jid,
                     participant: originalMessage.participant_jid,
-                    content: originalMessage.content?.substring(0, 50)
+                    content: originalMessage.content?.substring(0, 50),
+                    timestamp: originalMessage.timestamp
                 });
 
                 // Alert for ALL incoming messages (fromMe should be stored correctly)
-                const isIncoming = originalMessage.sender_jid !== `${this.sock.user.id.split(':')[0]}@s.whatsapp.net`;
+                const botJid = `${this.sock.user.id.split(':')[0]}@s.whatsapp.net`;
+                const isIncoming = originalMessage.sender_jid !== botJid;
+
+                logger.info(`🔍 Message analysis - Bot JID: ${botJid}, Sender: ${originalMessage.sender_jid}, Is incoming: ${isIncoming}`);
 
                 if (isIncoming) {
+                    logger.info(`📤 Sending anti-delete alert for incoming message: ${messageId}`);
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.database.markMessageDeleted(messageId, chatJid);
-                    console.log('✅ Anti-delete alert sent for message:', messageId);
+                    logger.success(`✅ Anti-delete alert sent successfully for message: ${messageId}`);
                 } else {
-                    console.log('ℹ️ Skipping own message deletion:', messageId);
+                    logger.info(`ℹ️ Skipping own message deletion: ${messageId} (fromMe: true)`);
                 }
             } else {
-                console.log('❌ Original message not found in database:', messageId);
+                logger.warn(`❌ Original message not found in database: ${messageId}`);
                 // Send a generic notification about deletion detection
                 if (config.OWNER_NUMBER) {
+                    logger.info(`📤 Sending unknown deletion notification for: ${messageId}`);
                     const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
                         `⚠️ *Warning:* A message was deleted but could not be recovered\n` +
                         `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
@@ -889,11 +902,12 @@ class MATDEV {
                     await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                         text: unknownDeleteNotification
                     });
-                    console.log('✅ Unknown deletion alert sent');
+                    logger.success('✅ Unknown deletion alert sent successfully');
                 }
             }
         } catch (error) {
-            console.error('Error handling anti-delete:', error);
+            logger.error('❌ Error in handleAntiDelete:', error);
+            throw error; // Re-throw to see the error in the calling function
         }
     }
 
