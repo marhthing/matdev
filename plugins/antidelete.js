@@ -103,6 +103,9 @@ class AntiDeletePlugin {
     async handleMessageDeletion(messageId, chatJid) {
         try {
             console.log('🗑️ Detected deleted message:', messageId, 'in chat:', chatJid);
+            
+            // Add delay to ensure message is properly stored before checking
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Get the original message from our database
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
@@ -127,6 +130,20 @@ class AntiDeletePlugin {
                 }
             } else {
                 console.log('❌ Original message not found in database:', messageId);
+                // Send a generic notification about deletion detection
+                if (config.OWNER_NUMBER) {
+                    const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
+                        `⚠️ *Warning:* A message was deleted but could not be recovered\n` +
+                        `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
+                        `🆔 *Message ID:* ${messageId}\n` +
+                        `🕐 *Detected At:* ${new Date().toLocaleString()}\n\n` +
+                        `_This might be due to the message being sent before the bot started monitoring._`;
+                    
+                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                        text: unknownDeleteNotification
+                    });
+                    console.log('✅ Unknown deletion alert sent');
+                }
             }
         } catch (error) {
             console.error('Error handling message deletion:', error);
