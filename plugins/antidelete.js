@@ -161,17 +161,13 @@ class AntiDeletePlugin {
                 const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
 
                 if (mediaData) {
-                    // Create media message with tagged format
+                    // Create media message with tagged format - sender name in header
                     const mediaMessage = {
                         caption: archivedMessage.content || '',
                         contextInfo: {
-                            quotedMessage: {
-                                conversation: archivedMessage.content || 'Media'
-                            },
                             participant: senderJid,
                             remoteJid: senderJid,
-                            fromMe: false,
-                            quotedMessageId: archivedMessage.id
+                            fromMe: false
                         }
                     };
 
