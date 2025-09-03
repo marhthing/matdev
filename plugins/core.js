@@ -432,6 +432,7 @@ class CorePlugin {
             }
             
         } catch (error) {
+            this.bot.logger.error('Allow command error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing allow command.');
         }
     }
