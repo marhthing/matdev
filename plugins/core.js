@@ -395,9 +395,9 @@ class CorePlugin {
             
             if (args.length === 1) {
                 // When in their chat: .allow <cmd>
-                // Grant permission to the person you're chatting with (sender = chat_jid)
-                this.bot.logger.info(`🔧 DEBUG .allow - sender: ${messageInfo.sender}, participant: ${messageInfo.participant}`);
-                jid = messageInfo.sender;
+                // Grant permission to the person you're chatting with (chat_jid)
+                this.bot.logger.info(`🔧 DEBUG .allow - sender: ${messageInfo.sender}, participant: ${messageInfo.participant}, chat_jid: ${messageInfo.chat_jid}`);
+                jid = messageInfo.chat_jid;  // Grant permission to the person you're chatting with
                 command = args[0];
             } else {
                 // .allow <jid> <cmd>
@@ -431,8 +431,8 @@ class CorePlugin {
                     '❌ Failed to add permission. Please try again.');
             }
             
-        } catch (error) {
-            this.bot.logger.error('Allow command error:', error);
+        } catch (err) {
+            this.bot.logger.error('Allow command error:', err);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing allow command.');
         }
     }
