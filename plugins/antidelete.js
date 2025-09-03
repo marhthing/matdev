@@ -85,6 +85,12 @@ class AntiDeletePlugin {
      */
     async handleMessageDeletion(messageId, chatJid) {
         try {
+            // Filter out status and newsletter messages
+            if (this.shouldIgnoreChat(chatJid)) {
+                console.log('ℹ️ ANTI-DELETE: Ignoring deletion from filtered chat:', chatJid);
+                return;
+            }
+
             console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
 
             // Add delay to ensure message is properly stored before checking
@@ -243,6 +249,27 @@ class AntiDeletePlugin {
         } catch (error) {
             console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
         }
+    }
+
+    /**
+     * Check if chat should be ignored by anti-delete monitoring
+     */
+    shouldIgnoreChat(chatJid) {
+        // Ignore status messages
+        if (chatJid === 'status@broadcast' || chatJid.includes('status@broadcast')) {
+            return true;
+        }
+        
+        // Ignore newsletters and channels
+        if (chatJid.includes('@newsletter') || chatJid.includes('@broadcast') || chatJid.includes('channel')) {
+            return true;
+        }
+        
+        // Only monitor groups (@g.us) and private chats (@s.whatsapp.net)
+        const isGroup = chatJid.endsWith('@g.us');
+        const isPrivateChat = chatJid.endsWith('@s.whatsapp.net');
+        
+        return !(isGroup || isPrivateChat);
     }
 
     /**
