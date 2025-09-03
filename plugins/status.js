@@ -143,11 +143,6 @@ class StatusPlugin {
                 // Send media to bot private chat
                 await this.bot.sock.sendMessage(botPrivateChat, mediaData);
                 
-                // Confirm to user
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '✅ Status media saved to bot private chat'
-                });
-                
                 console.log(`💾 Saved status media to bot private chat`);
             } else {
                 // Handle text status
@@ -155,10 +150,6 @@ class StatusPlugin {
                 if (textContent) {
                     await this.bot.sock.sendMessage(botPrivateChat, {
                         text: `📝 Saved Status Text:\n\n${textContent}`
-                    });
-                    
-                    await this.bot.sock.sendMessage(jids.chat_jid, {
-                        text: '✅ Status text saved to bot private chat'
                     });
                     
                     console.log(`💾 Saved status text to bot private chat`);
