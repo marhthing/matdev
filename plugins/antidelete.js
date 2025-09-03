@@ -94,7 +94,7 @@ class AntiDeletePlugin {
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
 
             if (originalMessage) {
-                this.bot.logger.info(`📋 Original message found in database:`, {
+                console.log('📋 ANTI-DELETE: Original message found in database:', {
                     id: originalMessage.id,
                     sender: originalMessage.sender_jid,
                     participant: originalMessage.participant_jid,

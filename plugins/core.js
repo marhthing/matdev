@@ -71,6 +71,13 @@ class CorePlugin {
             category: 'core'
         });
 
+        // JID command
+        this.bot.messageHandler.registerCommand('jid', this.jidCommand.bind(this), {
+            description: 'Get chat JID information',
+            usage: `${config.PREFIX}jid`,
+            category: 'core'
+        });
+
         // Owner only commands
         this.bot.messageHandler.registerCommand('restart', this.restartCommand.bind(this), {
             description: 'Restart the bot',
@@ -279,6 +286,28 @@ class CorePlugin {
             await this.bot.messageHandler.reply(messageInfo, aboutText);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying about information.');
+        }
+    }
+
+    /**
+     * JID command handler
+     */
+    async jidCommand(messageInfo) {
+        try {
+            const jidInfo = `*📋 Chat JID Information*\n\n` +
+                `*Chat JID:* \`${messageInfo.chat_jid}\`\n` +
+                `*Sender JID:* \`${messageInfo.sender_jid}\`\n` +
+                `*Participant JID:* \`${messageInfo.participant_jid}\`\n\n` +
+                `*Details:*\n` +
+                `• Is Group: ${messageInfo.is_group ? 'Yes' : 'No'}\n` +
+                `• Is Business: ${messageInfo.is_business ? 'Yes' : 'No'}\n` +
+                `• From Me: ${messageInfo.from_me ? 'Yes' : 'No'}\n` +
+                `• Message Type: ${messageInfo.messageType}\n\n` +
+                `_This information is useful for debugging and development._`;
+            
+            await this.bot.messageHandler.reply(messageInfo, jidInfo);
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving JID information.');
         }
     }
 
