@@ -249,4 +249,11 @@ class StatusPlugin {
     }
 }
 
-module.exports = StatusPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new StatusPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
