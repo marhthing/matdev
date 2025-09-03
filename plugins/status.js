@@ -16,6 +16,9 @@ class StatusPlugin {
         this.logger = bot.logger;
         this.registerCommands();
         
+        // Register message handler for auto-send functionality
+        this.bot.on('message', this.handleMessage.bind(this));
+        
         console.log('✅ Status plugin loaded');
         return this;
     }
@@ -34,15 +37,31 @@ class StatusPlugin {
 
     async handleMessage(message) {
         try {
-            const messageInfo = this.bot.extractMessageInfo(message);
-            
+            // Extract JID information using centralized JID utils
+            const jids = this.bot.jidUtils.extractJIDs(message);
+            if (!jids) return;
+
+            // Get message text
+            const messageType = Object.keys(message.message || {})[0];
+            const content = message.message[messageType];
+            let text = '';
+
+            if (typeof content === 'string') {
+                text = content;
+            } else if (content?.text) {
+                text = content.text;
+            }
+
+            if (!text) return;
+
             // Check if this is a reply to a status
-            if (this.isStatusReply(messageInfo)) {
-                const text = messageInfo.body?.toLowerCase() || '';
-                
-                // Handle auto-send functionality for user's status
-                if (this.shouldAutoSend(text, messageInfo)) {
-                    await this.handleAutoSend(messageInfo);
+            const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            const contextInfo = message.message?.extendedTextMessage?.contextInfo;
+            
+            if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
+                // Handle auto-send functionality for bot owner's status
+                if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
+                    await this.handleAutoSend(quotedMessage, jids.chat_jid);
                 }
             }
         } catch (error) {
@@ -71,15 +90,27 @@ class StatusPlugin {
     /**
      * Check if user wants auto-send (contains 'send' keyword)
      */
-    shouldAutoSend(text, messageInfo) {
+    shouldAutoSend(text, contextInfo, jids) {
         // Only auto-send if replying to bot owner's status
-        const isReplyingToBotOwner = messageInfo.quotedMessage?.key?.participant === `${config.OWNER_NUMBER}@s.whatsapp.net` ||
-                                    messageInfo.quotedMessage?.contextInfo?.participant === `${config.OWNER_NUMBER}@s.whatsapp.net`;
+        const botOwnerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+        const isReplyingToBotOwner = contextInfo?.participant === botOwnerJid;
         
-        // Check for 'send' keyword variations
+        // Don't auto-send to the bot owner themselves
+        if (jids.participant_jid === botOwnerJid) {
+            return false;
+        }
+        
+        // Check for 'send' keyword variations (more comprehensive)
         const hasSendKeyword = text.includes('send') || 
                               text.includes('please send') || 
-                              text.includes('send please');
+                              text.includes('send please') ||
+                              text.includes('pls send') ||
+                              text.includes('send pls') ||
+                              text.includes('plz send') ||
+                              text.includes('send plz') ||
+                              text.match(/\bsend\b/);
+        
+        console.log(`🔍 Auto-send check: Bot owner status: ${isReplyingToBotOwner}, Has send keyword: ${hasSendKeyword}, Text: "${text}"`);
         
         return isReplyingToBotOwner && hasSendKeyword;
     }
@@ -87,11 +118,8 @@ class StatusPlugin {
     /**
      * Auto-send status media to user who replied with 'send'
      */
-    async handleAutoSend(messageInfo) {
+    async handleAutoSend(quotedMessage, userJid) {
         try {
-            const quotedMessage = messageInfo.quotedMessage;
-            const userJid = messageInfo.sender;
-            
             // Extract media from quoted status
             const mediaData = await this.extractStatusMedia(quotedMessage);
             
