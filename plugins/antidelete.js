@@ -156,35 +156,26 @@ class AntiDeletePlugin {
             const isGroup = chatJid.includes('@g.us');
             const chatName = isGroup ? 'Group Chat' : 'Private Chat';
             
-            // Format exactly like WhatsApp tagged/forwarded message
-            const alertText = archivedMessage.content || 'deletedMessage';
-
-            const alertMessage = {
-                text: alertText,
-                contextInfo: {
-                    quotedMessage: {
-                        conversation: archivedMessage.content || 'deletedMessage'
-                    },
-                    participant: senderJid,
-                    remoteJid: senderJid,
-                    fromMe: false,
-                    quotedMessageId: archivedMessage.id
-                }
-            };
-
-            // Send to owner
-            await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
-
-            // If message had media, try to recover and send it
+            // Check if it's a media message first
             if (archivedMessage.media_url) {
                 const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
 
                 if (mediaData) {
+                    // Create media message with tagged format
                     const mediaMessage = {
-                        caption: `📎 *Recovered Media*\n\nThis ${(archivedMessage.message_type || 'media').replace('Message', '')} was deleted from the above message.`
+                        caption: archivedMessage.content || '',
+                        contextInfo: {
+                            quotedMessage: {
+                                conversation: archivedMessage.content || 'Media'
+                            },
+                            participant: senderJid,
+                            remoteJid: senderJid,
+                            fromMe: false,
+                            quotedMessageId: archivedMessage.id
+                        }
                     };
 
-                    // Send media based on type
+                    // Add media based on type
                     switch (archivedMessage.message_type) {
                         case 'imageMessage':
                             mediaMessage.image = mediaData.buffer;
@@ -195,6 +186,7 @@ class AntiDeletePlugin {
                         case 'audioMessage':
                             mediaMessage.audio = mediaData.buffer;
                             mediaMessage.mimetype = archivedMessage.media_type || 'audio/mpeg';
+                            delete mediaMessage.caption; // Audio doesn't show captions well
                             break;
                         case 'documentMessage':
                             mediaMessage.document = mediaData.buffer;
@@ -204,16 +196,46 @@ class AntiDeletePlugin {
                         case 'stickerMessage':
                             mediaMessage.sticker = mediaData.buffer;
                             delete mediaMessage.caption; // Stickers don't have captions
+                            delete mediaMessage.contextInfo; // Stickers look better without quotes
                             break;
                     }
 
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
                 } else {
-                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                        text: `❌ Media file could not be recovered (file may have been corrupted or deleted from disk)`
-                    });
+                    // If media couldn't be recovered, send text notification
+                    const alertMessage = {
+                        text: `❌ Deleted ${(archivedMessage.message_type || 'media').replace('Message', '')} could not be recovered`,
+                        contextInfo: {
+                            quotedMessage: {
+                                conversation: 'Deleted Media'
+                            },
+                            participant: senderJid,
+                            remoteJid: senderJid,
+                            fromMe: false,
+                            quotedMessageId: archivedMessage.id
+                        }
+                    };
+                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
                 }
+            } else {
+                // For text messages, use the original format
+                const alertText = archivedMessage.content || 'deletedMessage';
+
+                const alertMessage = {
+                    text: alertText,
+                    contextInfo: {
+                        quotedMessage: {
+                            conversation: archivedMessage.content || 'deletedMessage'
+                        },
+                        participant: senderJid,
+                        remoteJid: senderJid,
+                        fromMe: false,
+                        quotedMessageId: archivedMessage.id
+                    }
+                };
+
+                await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
             }
 
             console.log(`🗑️ Detected deleted message from ${senderNumber}`);
