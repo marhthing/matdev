@@ -16,14 +16,48 @@ class StatusPlugin {
         this.logger = bot.logger;
         this.registerCommands();
         
-        // Register message handler for auto-send functionality
-        this.bot.sock.ev.on('messages.upsert', this.handleMessagesUpsert.bind(this));
-        
-        // Monitor status updates for auto-saving
-        this.bot.sock.ev.on('messages.upsert', this.handleStatusMonitoring.bind(this));
+        // Setup event listeners when socket becomes available
+        this.setupEventListeners();
         
         console.log('✅ Status plugin loaded');
         return this;
+    }
+
+    /**
+     * Setup event listeners when socket is available
+     */
+    setupEventListeners() {
+        // Check if socket is already available
+        if (this.bot.sock && this.bot.sock.ev) {
+            this.registerSocketEvents();
+        } else {
+            // Wait for socket to be available
+            const checkSocket = () => {
+                if (this.bot.sock && this.bot.sock.ev) {
+                    this.registerSocketEvents();
+                } else {
+                    setTimeout(checkSocket, 100);
+                }
+            };
+            checkSocket();
+        }
+    }
+
+    /**
+     * Register socket events
+     */
+    registerSocketEvents() {
+        try {
+            // Register message handler for auto-send functionality
+            this.bot.sock.ev.on('messages.upsert', this.handleMessagesUpsert.bind(this));
+            
+            // Monitor status updates for auto-saving
+            this.bot.sock.ev.on('messages.upsert', this.handleStatusMonitoring.bind(this));
+            
+            console.log('✅ Status plugin socket events registered');
+        } catch (error) {
+            console.error('Error registering status plugin events:', error);
+        }
     }
 
     /**
