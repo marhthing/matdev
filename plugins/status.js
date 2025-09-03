@@ -1,22 +1,36 @@
+
 const config = require('../config');
 
-const StatusPlugin = {
-    name: 'status',
+class StatusPlugin {
+    constructor() {
+        this.name = 'status';
+        this.description = 'WhatsApp status saving and auto-send functionality';
+        this.version = '1.0.0';
+    }
 
+    /**
+     * Initialize plugin
+     */
     async init(bot) {
         this.bot = bot;
         this.logger = bot.logger;
+        this.registerCommands();
+        
+        console.log('✅ Status plugin loaded');
+        return this;
+    }
 
+    /**
+     * Register all status commands
+     */
+    registerCommands() {
         // Register save command
-        bot.messageHandler.registerCommand('save', this.handleSaveCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('save', this.handleSaveCommand.bind(this), {
             description: 'Save replied status media to bot private chat',
             usage: `${config.PREFIX}save (reply to status)`,
             category: 'Status'
         });
-
-        this.logger.info('✅ Status plugin loaded');
-        return this;
-    },
+    }
 
     async handleMessage(message) {
         try {
@@ -34,7 +48,7 @@ const StatusPlugin = {
         } catch (error) {
             console.error(`Error in status message handler: ${error.message}`);
         }
-    },
+    }
 
     /**
      * Check if message is a reply to WhatsApp status
@@ -52,7 +66,7 @@ const StatusPlugin = {
                                  messageInfo.quotedMessage.key?.remoteJid?.includes('status@broadcast');
         
         return isStatusBroadcast;
-    },
+    }
 
     /**
      * Check if user wants auto-send (contains 'send' keyword)
@@ -68,7 +82,7 @@ const StatusPlugin = {
                               text.includes('send please');
         
         return isReplyingToBotOwner && hasSendKeyword;
-    },
+    }
 
     /**
      * Auto-send status media to user who replied with 'send'
@@ -96,7 +110,7 @@ const StatusPlugin = {
         } catch (error) {
             console.error(`Error in auto-send: ${error.message}`);
         }
-    },
+    }
 
     /**
      * Handle .save command to save status media to bot private chat
@@ -151,7 +165,7 @@ const StatusPlugin = {
         } catch (error) {
             console.error(`Error in save command: ${error.message}`);
         }
-    },
+    }
 
     /**
      * Extract media from status message
@@ -201,7 +215,7 @@ const StatusPlugin = {
             console.error(`Error extracting status media: ${error.message}`);
             return null;
         }
-    },
+    }
 
     /**
      * Extract text content from status
@@ -233,6 +247,6 @@ const StatusPlugin = {
             return null;
         }
     }
-};
+}
 
 module.exports = StatusPlugin;
