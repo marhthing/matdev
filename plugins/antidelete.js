@@ -151,20 +151,24 @@ class AntiDeletePlugin {
             // Get the actual sender JID from the archived message
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
-
-            // Create clean notification format with tagging
-            const alertText = `${archivedMessage.content || 'No content'}\n\n@${senderNumber}`;
+            
+            // Get chat name/info
+            const isGroup = chatJid.includes('@g.us');
+            const chatName = isGroup ? 'Group Chat' : 'Private Chat';
+            
+            // Format like WhatsApp forwarded message
+            const alertText = `🗑️ *DELETED MESSAGE*\n\n` +
+                `📱 *From:* @${senderNumber}\n` +
+                `💬 *Chat:* ${chatName}\n` +
+                `🕐 *Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n\n` +
+                `📄 *Original Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
+                `_Message was deleted but recovered by anti-delete feature_`;
 
             const alertMessage = {
                 text: alertText,
                 mentions: [senderJid],
                 contextInfo: {
-                    mentionedJid: [senderJid],
-                    // Use a fake quoted message to force proper display
-                    quotedMessage: {
-                        conversation: `Deleted by ${senderNumber}`
-                    },
-                    remoteJid: senderJid
+                    mentionedJid: [senderJid]
                 }
             };
 
