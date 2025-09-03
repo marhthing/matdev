@@ -117,8 +117,8 @@ class StatusPlugin {
      */
     async handleSaveCommand(message) {
         try {
-            // Extract JID information
-            const jids = this.bot.extractJIDFromMessage(message);
+            // Extract JID information using centralized JID utils
+            const jids = this.bot.jidUtils.extractJIDs(message);
             if (!jids) {
                 console.error('Failed to extract JIDs from message');
                 return;
