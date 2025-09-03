@@ -196,7 +196,6 @@ class AntiDeletePlugin {
                         case 'stickerMessage':
                             mediaMessage.sticker = mediaData.buffer;
                             delete mediaMessage.caption; // Stickers don't have captions
-                            delete mediaMessage.contextInfo; // Stickers look better without quotes
                             break;
                     }
 
