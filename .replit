@@ -14,17 +14,6 @@ runButton = "Project"
 [[workflows.workflow]]
 name = "MATDEV Bot"
 author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node index.js"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
-name = "MATDEV Bot"
-author = "agent"
 mode = "sequential"
 
 [[workflows.workflow.tasks]]
@@ -35,13 +24,16 @@ args = "node index.js"
 outputType = "console"
 
 [[workflows.workflow]]
-name = "Project"
+name = "MATDEV Bot"
 mode = "parallel"
 author = "agent"
 
 [[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "MATDEV Bot"
+task = "shell.exec"
+args = "node index.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [deployment]
 run = ["node", "index.js"]
