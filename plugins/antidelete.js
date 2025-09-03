@@ -157,16 +157,18 @@ class AntiDeletePlugin {
             const chatName = isGroup ? 'Group Chat' : 'Private Chat';
             
             // Format exactly like WhatsApp tagged/forwarded message
-            const alertText = `@${senderNumber}\n${archivedMessage.content || 'deletedMessage'}`;
+            const alertText = archivedMessage.content || 'deletedMessage';
 
             const alertMessage = {
                 text: alertText,
-                mentions: [senderJid],
                 contextInfo: {
-                    mentionedJid: [senderJid],
                     quotedMessage: {
                         conversation: archivedMessage.content || 'deletedMessage'
-                    }
+                    },
+                    participant: senderJid,
+                    remoteJid: senderJid,
+                    fromMe: false,
+                    quotedMessageId: archivedMessage.id
                 }
             };
 
