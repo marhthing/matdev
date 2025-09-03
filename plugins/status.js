@@ -53,17 +53,17 @@ class StatusPlugin {
     /**
      * Check if message is a reply to WhatsApp status
      */
-    isStatusReply(messageInfo) {
+    isStatusReply(messageData) {
         // Check if message has quoted message and it's from status
-        if (!messageInfo.quotedMessage) return false;
+        if (!messageData.quotedMessage) return false;
         
         // Status messages have specific characteristics:
         // 1. They come from status@broadcast
         // 2. Or have specific contextInfo indicating status
-        const quotedContext = messageInfo.quotedMessage.contextInfo;
-        const isStatusBroadcast = quotedContext?.remoteJid?.includes('status@broadcast') || 
-                                 quotedContext?.participant?.includes('status@broadcast') ||
-                                 messageInfo.quotedMessage.key?.remoteJid?.includes('status@broadcast');
+        const contextInfo = messageData.contextInfo;
+        const isStatusBroadcast = contextInfo?.remoteJid?.includes('status@broadcast') || 
+                                 contextInfo?.participant?.includes('status@broadcast') ||
+                                 messageData.quotedMessage.key?.remoteJid?.includes('status@broadcast');
         
         return isStatusBroadcast;
     }
@@ -117,17 +117,23 @@ class StatusPlugin {
      */
     async handleSaveCommand(message) {
         try {
-            const messageInfo = this.bot.extractMessageInfo(message);
+            // Extract JID information
+            const jids = this.bot.extractJIDFromMessage(message);
+            if (!jids) {
+                console.error('Failed to extract JIDs from message');
+                return;
+            }
+
+            // Check if this is a reply to status
+            const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            const contextInfo = message.message?.extendedTextMessage?.contextInfo;
             
-            // Ensure this is a reply to status
-            if (!this.isStatusReply(messageInfo)) {
-                await this.bot.sock.sendMessage(messageInfo.chat, {
+            if (!quotedMessage || !this.isStatusReply({ quotedMessage, contextInfo })) {
+                await this.bot.sock.sendMessage(jids.chat_jid, {
                     text: '❌ Please reply to a WhatsApp status with .save'
                 });
                 return;
             }
-
-            const quotedMessage = messageInfo.quotedMessage;
             
             // Extract media or text from status
             const mediaData = await this.extractStatusMedia(quotedMessage);
@@ -138,7 +144,7 @@ class StatusPlugin {
                 await this.bot.sock.sendMessage(botPrivateChat, mediaData);
                 
                 // Confirm to user
-                await this.bot.sock.sendMessage(messageInfo.chat, {
+                await this.bot.sock.sendMessage(jids.chat_jid, {
                     text: '✅ Status media saved to bot private chat'
                 });
                 
@@ -151,13 +157,13 @@ class StatusPlugin {
                         text: `📝 Saved Status Text:\n\n${textContent}`
                     });
                     
-                    await this.bot.sock.sendMessage(messageInfo.chat, {
+                    await this.bot.sock.sendMessage(jids.chat_jid, {
                         text: '✅ Status text saved to bot private chat'
                     });
                     
                     console.log(`💾 Saved status text to bot private chat`);
                 } else {
-                    await this.bot.sock.sendMessage(messageInfo.chat, {
+                    await this.bot.sock.sendMessage(jids.chat_jid, {
                         text: '❌ No content found in the status to save'
                     });
                 }
@@ -172,41 +178,53 @@ class StatusPlugin {
      */
     async extractStatusMedia(quotedMessage) {
         try {
+            const { downloadMediaMessage } = require('baileys');
             const messageContent = quotedMessage.message || quotedMessage;
+            
+            // Create a mock message structure for baileys
+            const mockMessage = {
+                key: quotedMessage.key || {},
+                message: messageContent
+            };
             
             // Check for different media types
             if (messageContent.imageMessage) {
+                const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
-                    image: await this.bot.downloadMediaMessage(quotedMessage),
+                    image: buffer,
                     caption: messageContent.imageMessage.caption || ''
                 };
             }
             
             if (messageContent.videoMessage) {
+                const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
-                    video: await this.bot.downloadMediaMessage(quotedMessage),
+                    video: buffer,
                     caption: messageContent.videoMessage.caption || ''
                 };
             }
             
             if (messageContent.audioMessage) {
+                const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
-                    audio: await this.bot.downloadMediaMessage(quotedMessage),
+                    audio: buffer,
                     mimetype: messageContent.audioMessage.mimetype
                 };
             }
             
             if (messageContent.documentMessage) {
+                const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
-                    document: await this.bot.downloadMediaMessage(quotedMessage),
+                    document: buffer,
                     mimetype: messageContent.documentMessage.mimetype,
                     fileName: messageContent.documentMessage.fileName
                 };
             }
             
             if (messageContent.stickerMessage) {
+                const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
-                    sticker: await this.bot.downloadMediaMessage(quotedMessage)
+                    sticker: buffer
                 };
             }
             
