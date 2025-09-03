@@ -166,7 +166,11 @@ class AntiDeletePlugin {
                         caption: archivedMessage.content || '',
                         contextInfo: {
                             participant: senderJid,
-                            remoteJid: senderJid,
+                            quotedMessage: {
+                                conversation: archivedMessage.content || 'Media'
+                            },
+                            stanzaId: archivedMessage.id,
+                            remoteJid: archivedMessage.chat_jid,
                             fromMe: false
                         }
                     };
