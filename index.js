@@ -1,7 +1,7 @@
 /**
  * MATDEV - High-Performance WhatsApp Bot
  * Built with Node.js and Baileys for superior performance and reliability
- * 
+ *
  * @author MATDEV Team
  * @version 1.0.0
  */
@@ -40,10 +40,14 @@ class MATDEV {
         this.startTime = Date.now();
         this.initialConnection = true; // Track if this is initial connection
         this.messageStats = {
-            sent: 0,
             received: 0,
+            sent: 0,
             commands: 0
         };
+
+        // Initialize cached JID utils to reduce processing overhead
+        const JIDUtils = require('./lib/jid-utils');
+        this.jidUtils = new JIDUtils(logger);
 
         // Store plugin instances
         this.plugins = {};
@@ -104,7 +108,7 @@ class MATDEV {
 
             const requiredPackages = [
                 'baileys',
-                '@hapi/boom', 
+                '@hapi/boom',
                 'chalk',
                 'qrcode-terminal',
                 'fs-extra',
@@ -191,7 +195,7 @@ class MATDEV {
                         const plugin = require(path.join(pluginsDir, file));
                         if (plugin && typeof plugin.init === 'function') {
                             const pluginInstance = await plugin.init(this);
-                            
+
                             // Store plugin reference for direct access
                             const pluginName = file.replace('.js', '');
                             if (pluginInstance && pluginInstance.name) {
@@ -202,7 +206,7 @@ class MATDEV {
                                 this.plugins.antidelete = pluginInstance || plugin;
                                 logger.info(`📌 Stored antidelete plugin reference`);
                             }
-                            
+
                             loadedCount++;
                             logger.success(`Loaded plugin: ${file}`);
                         }
@@ -464,6 +468,25 @@ class MATDEV {
         } else if (connection === 'connecting') {
             logger.info('⏳ Connecting to WhatsApp...');
         }
+
+        // Set owner JID when connected
+        this.sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect } = update;
+
+            logger.info(`📡 Connection update: ${connection}`);
+
+            if (connection === 'open') {
+                logger.info('✅ WhatsApp connection established');
+                this.connectionAttempts = 0;
+
+                // Set bot JID globally once when connected to reduce repeated operations
+                if (this.sock?.user?.id) {
+                    const botNumber = this.sock.user.id.split(':')[0];
+                    global.botJid = `${botNumber}@s.whatsapp.net`;
+                    logger.info(`🔧 Bot JID set globally: ${global.botJid}`);
+                }
+            }
+        });
     }
 
     /**
@@ -494,15 +517,15 @@ class MATDEV {
 
                 // Check for deletion events and trigger anti-delete via plugin
                 const messageType = Object.keys(message.message || {})[0];
-                
+
                 logger.info(`🔍 Message type detected: ${messageType}`);
-                
+
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 0) {
                     try {
                         const revokedKey = message.message.protocolMessage.key;
                         const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
                         logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${actualChatJid}`);
-                        
+
                         logger.info(`🔍 Protocol message details:`, JSON.stringify(message.message.protocolMessage, null, 2));
                         logger.info(`🔍 Plugin availability check:`);
                         logger.info(`   - this.plugins: ${typeof this.plugins}`);
@@ -535,7 +558,7 @@ class MATDEV {
                         } catch (error) {
                             logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
                             logger.error(`❌ Error stack:`, error.stack);
-                            
+
                             // Send error notification to owner
                             try {
                                 if (config.OWNER_NUMBER) {
@@ -545,7 +568,7 @@ class MATDEV {
                                         `🆔 Message ID: ${revokedKey.id}\n` +
                                         `❌ Error: ${error.message}\n` +
                                         `🕐 Time: ${new Date().toLocaleString()}`;
-                                    
+
                                     await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                                         text: errorNotification
                                     });
@@ -569,16 +592,10 @@ class MATDEV {
                 }
 
                 // Use centralized JID extraction for command processing
-                const JIDUtils = require('./lib/jid-utils');
-                const jidUtils = new JIDUtils(logger);
-                
-                // Set bot JID globally for JID utils
-                if (this.sock?.user?.id) {
-                    const botNumber = this.sock.user.id.split(':')[0];
-                    global.botJid = `${botNumber}@s.whatsapp.net`;
-                }
-                
-                const jids = jidUtils.extractJIDs(message);
+                // const JIDUtils = require('./lib/jid-utils'); // Removed redundant require
+                // const jidUtils = new JIDUtils(logger); // Removed redundant instantiation
+
+                const jids = this.jidUtils.extractJIDs(message); // Use cached instance
                 if (!jids) {
                     logger.error('Failed to extract JIDs from message for command processing');
                     continue;
@@ -624,8 +641,8 @@ class MATDEV {
 
                 // Permission verification using centralized JID extraction
                 const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                const isFromOwner = jids.from_me || 
-                                  jids.participant_jid === ownerJid || 
+                const isFromOwner = jids.from_me ||
+                                  jids.participant_jid === ownerJid ||
                                   jids.participant_jid.startsWith(`${config.OWNER_NUMBER}:`) ||
                                   (this.ownerGroupJid && jids.participant_jid === this.ownerGroupJid) ||
                                   jids.participant_jid.includes(`${config.OWNER_NUMBER}@lid`);
@@ -772,7 +789,7 @@ class MATDEV {
         let delay;
         if (this.initialConnection) {
             // Faster reconnects on startup
-            delay = Math.min(1000 + (this.reconnectAttempts * 500), 10000); 
+            delay = Math.min(1000 + (this.reconnectAttempts * 500), 10000);
         } else {
             // Normal reconnects during runtime
             delay = Math.min(2000 + (this.reconnectAttempts * 1000), 30000);
