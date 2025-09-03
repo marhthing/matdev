@@ -17,7 +17,10 @@ class StatusPlugin {
         this.registerCommands();
         
         // Register message handler for auto-send functionality
-        this.bot.on('message', this.handleMessage.bind(this));
+        this.bot.sock.ev.on('messages.upsert', this.handleMessagesUpsert.bind(this));
+        
+        // Monitor status updates for auto-saving
+        this.bot.sock.ev.on('messages.upsert', this.handleStatusMonitoring.bind(this));
         
         console.log('✅ Status plugin loaded');
         return this;
@@ -35,37 +38,41 @@ class StatusPlugin {
         });
     }
 
-    async handleMessage(message) {
-        try {
-            // Extract JID information using centralized JID utils
-            const jids = this.bot.jidUtils.extractJIDs(message);
-            if (!jids) return;
+    async handleMessagesUpsert({ messages, type }) {
+        if (type !== 'notify') return;
 
-            // Get message text
-            const messageType = Object.keys(message.message || {})[0];
-            const content = message.message[messageType];
-            let text = '';
+        for (const message of messages) {
+            try {
+                // Extract JID information using centralized JID utils
+                const jids = this.bot.jidUtils.extractJIDs(message);
+                if (!jids) continue;
 
-            if (typeof content === 'string') {
-                text = content;
-            } else if (content?.text) {
-                text = content.text;
-            }
+                // Get message text
+                const messageType = Object.keys(message.message || {})[0];
+                const content = message.message[messageType];
+                let text = '';
 
-            if (!text) return;
-
-            // Check if this is a reply to a status
-            const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            const contextInfo = message.message?.extendedTextMessage?.contextInfo;
-            
-            if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
-                // Handle auto-send functionality for bot owner's status
-                if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
-                    await this.handleAutoSend(quotedMessage, jids.chat_jid);
+                if (typeof content === 'string') {
+                    text = content;
+                } else if (content?.text) {
+                    text = content.text;
                 }
+
+                if (!text) continue;
+
+                // Check if this is a reply to a status
+                const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                const contextInfo = message.message?.extendedTextMessage?.contextInfo;
+                
+                if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
+                    // Handle auto-send functionality for bot owner's status
+                    if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
+                        await this.handleAutoSend(quotedMessage, jids.chat_jid);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error in status message handler: ${error.message}`);
             }
-        } catch (error) {
-            console.error(`Error in status message handler: ${error.message}`);
         }
     }
 
@@ -137,6 +144,50 @@ class StatusPlugin {
             }
         } catch (error) {
             console.error(`Error in auto-send: ${error.message}`);
+        }
+    }
+
+    /**
+     * Monitor status updates for auto-saving own status
+     */
+    async handleStatusMonitoring({ messages, type }) {
+        if (type !== 'notify') return;
+
+        for (const message of messages) {
+            try {
+                // Check if this is a status update from the bot owner
+                if (message.key.remoteJid === 'status@broadcast' && 
+                    message.key.participant === `${config.OWNER_NUMBER}@s.whatsapp.net`) {
+                    
+                    console.log('📱 Detected own status update, auto-saving...');
+                    
+                    // Extract media or text from status
+                    const mediaData = await this.extractStatusMedia(message);
+                    const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    
+                    if (mediaData) {
+                        // Send media to bot private chat
+                        await this.bot.sock.sendMessage(botPrivateChat, {
+                            ...mediaData,
+                            caption: `📱 *Auto-saved Own Status*\n\n${mediaData.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
+                        });
+                        
+                        console.log(`💾 Auto-saved own status media to bot private chat`);
+                    } else {
+                        // Handle text status
+                        const textContent = this.extractStatusText(message);
+                        if (textContent) {
+                            await this.bot.sock.sendMessage(botPrivateChat, {
+                                text: `📱 *Auto-saved Own Status*\n\n${textContent}\n\n_Saved at: ${new Date().toLocaleString()}_`
+                            });
+                            
+                            console.log(`💾 Auto-saved own status text to bot private chat`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`Error in status monitoring: ${error.message}`);
+            }
         }
     }
 
