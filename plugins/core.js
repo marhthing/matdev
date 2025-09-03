@@ -395,7 +395,8 @@ class CorePlugin {
             
             if (args.length === 1) {
                 // When in their chat: .allow <cmd>
-                jid = sender;
+                // Use participant instead of sender for business accounts
+                jid = messageInfo.participant;
                 command = args[0];
             } else {
                 // .allow <jid> <cmd>
