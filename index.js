@@ -587,7 +587,14 @@ class MATDEV {
                         // Preserve original participant format (including @lid)
                         participant = message.key.participant;
                     } else {
-                        participant = isGroup ? message.key.participant : sender;
+                        // Handle business accounts (@lid) properly
+                        if (message.key.senderPn && sender.endsWith('@lid')) {
+                            // Business account - use the actual phone number
+                            logger.info(`🔧 Business account detected! Using senderPn: ${message.key.senderPn} instead of remoteJid: ${sender}`);
+                            participant = message.key.senderPn;
+                        } else {
+                            participant = isGroup ? message.key.participant : sender;
+                        }
                     }
 
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
