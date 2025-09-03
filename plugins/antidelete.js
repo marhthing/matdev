@@ -156,19 +156,17 @@ class AntiDeletePlugin {
             const isGroup = chatJid.includes('@g.us');
             const chatName = isGroup ? 'Group Chat' : 'Private Chat';
             
-            // Format like WhatsApp forwarded message
-            const alertText = `🗑️ *DELETED MESSAGE*\n\n` +
-                `📱 *From:* @${senderNumber}\n` +
-                `💬 *Chat:* ${chatName}\n` +
-                `🕐 *Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n\n` +
-                `📄 *Original Content:*\n${archivedMessage.content || 'No text content'}\n\n` +
-                `_Message was deleted but recovered by anti-delete feature_`;
+            // Format exactly like WhatsApp tagged/forwarded message
+            const alertText = `@${senderNumber}\n${archivedMessage.content || 'deletedMessage'}`;
 
             const alertMessage = {
                 text: alertText,
                 mentions: [senderJid],
                 contextInfo: {
-                    mentionedJid: [senderJid]
+                    mentionedJid: [senderJid],
+                    quotedMessage: {
+                        conversation: archivedMessage.content || 'deletedMessage'
+                    }
                 }
             };
 
