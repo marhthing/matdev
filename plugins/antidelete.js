@@ -265,11 +265,12 @@ class AntiDeletePlugin {
             return true;
         }
         
-        // Only monitor groups (@g.us) and private chats (@s.whatsapp.net)
+        // Monitor groups (@g.us), private chats (@s.whatsapp.net), and lid chats (@lid)
         const isGroup = chatJid.endsWith('@g.us');
         const isPrivateChat = chatJid.endsWith('@s.whatsapp.net');
+        const isLidChat = chatJid.endsWith('@lid');
         
-        return !(isGroup || isPrivateChat);
+        return !(isGroup || isPrivateChat || isLidChat);
     }
 
     /**
