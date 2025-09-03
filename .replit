@@ -13,8 +13,8 @@ runButton = "Project"
 
 [[workflows.workflow]]
 name = "MATDEV Bot"
+mode = "parallel"
 author = "agent"
-mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
