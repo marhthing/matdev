@@ -10,7 +10,8 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - Set up workflow for bot execution with console output
 - Configured deployment settings for VM deployment (required for long-running bot)
 - Bot successfully connects to WhatsApp and processes messages
-- All 4 plugins loaded successfully (antidelete, core, media, system)
+- All 5 plugins loaded successfully (antidelete, core, media, status, system)
+- Configured anti-delete feature to ignore status and newsletter messages while monitoring all other chats
 
 # User Preferences
 
