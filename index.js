@@ -568,35 +568,30 @@ class MATDEV {
                     continue;
                 }
 
-                // For COMMAND processing, determine participant
-                const botJid = `${this.sock.user?.id?.split(':')[0]}@s.whatsapp.net`;
-                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                // Use centralized JID extraction for command processing
+                const JIDUtils = require('./lib/jid-utils');
+                const jidUtils = new JIDUtils(logger);
+                
+                // Set bot JID globally for JID utils
+                if (this.sock?.user?.id) {
+                    const botNumber = this.sock.user.id.split(':')[0];
+                    global.botJid = `${botNumber}@s.whatsapp.net`;
+                }
+                
+                const jids = jidUtils.extractJIDs(message);
+                if (!jids) {
+                    logger.error('Failed to extract JIDs from message for command processing');
+                    continue;
+                }
 
-                let participant;
-                const sender = message.key.remoteJid;
+                const participant = jids.participant_jid;
+                const sender = jids.chat_jid;
 
-                if (message.key.fromMe) {
+                if (jids.from_me) {
                     logger.info(`📤 Processing outgoing message from bot/owner`);
-                    participant = botJid;
                     logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
                 } else {
                     logger.info(`📥 Processing incoming message`);
-                    const isGroup = sender.endsWith('@g.us');
-
-                    if (isGroup && message.key.participant) {
-                        // Preserve original participant format (including @lid)
-                        participant = message.key.participant;
-                    } else {
-                        // Handle business accounts (@lid) properly
-                        if (message.key.senderPn && sender.endsWith('@lid')) {
-                            // Business account - use the actual phone number
-                            logger.info(`🔧 Business account detected! Using senderPn: ${message.key.senderPn} instead of remoteJid: ${sender}`);
-                            participant = message.key.senderPn;
-                        } else {
-                            participant = isGroup ? message.key.participant : sender;
-                        }
-                    }
-
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
                 }
 
