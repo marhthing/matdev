@@ -14,7 +14,7 @@ const StatusPlugin = {
             category: 'Status'
         });
 
-        bot.logger.info('✅ Status plugin loaded');
+        this.logger.info('✅ Status plugin loaded');
         return this;
     },
 
