@@ -396,6 +396,7 @@ class CorePlugin {
             if (args.length === 1) {
                 // When in their chat: .allow <cmd>
                 // Grant permission to the person you're chatting with (sender = chat_jid)
+                this.bot.logger.info(`🔧 DEBUG .allow - sender: ${messageInfo.sender}, participant: ${messageInfo.participant}`);
                 jid = messageInfo.sender;
                 command = args[0];
             } else {
