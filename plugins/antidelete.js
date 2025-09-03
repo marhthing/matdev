@@ -86,35 +86,31 @@ class AntiDeletePlugin {
     async handleMessageDeletion(messageId, chatJid) {
         try {
             console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
-            
+
             // Add delay to ensure message is properly stored before checking
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Get the original message from our database
+            // Get the original message from our JSON storage
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
 
             if (originalMessage) {
-                console.log('📋 ANTI-DELETE: Original message found:', {
+                this.bot.logger.info(`📋 Original message found in database:`, {
                     id: originalMessage.id,
                     sender: originalMessage.sender_jid,
                     participant: originalMessage.participant_jid,
-                    content: originalMessage.content?.substring(0, 50),
-                    fromMe: originalMessage.from_me,
-                    chatJid: originalMessage.chat_jid
+                    content: originalMessage.content?.substring(0, 50) + '...',
+                    timestamp: originalMessage.timestamp,
+                    from_me: originalMessage.from_me
                 });
 
-                // Check if this was actually an incoming message (not from bot/owner)
-                // Use the stored from_me field from when the message was originally received
-                const isIncoming = !originalMessage.from_me;
-                
-                console.log(`📊 ANTI-DELETE: Message analysis: isIncoming=${isIncoming}, from_me=${originalMessage.from_me}`);
-                
-                if (isIncoming && config.OWNER_NUMBER) {
+                // Send alert to owner for incoming messages (use centralized from_me flag)
+                const config = require('../config');
+                if (config.OWNER_NUMBER && !originalMessage.from_me) {
                     console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion');
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.bot.database.markMessageDeleted(messageId, chatJid);
                     console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
-                } else if (!isIncoming) {
+                } else if (!originalMessage.from_me) { // This condition is now handled above, but keeping for logical flow if needed elsewhere
                     console.log('ℹ️ ANTI-DELETE: Skipping own message deletion:', messageId);
                 } else {
                     console.log('⚠️ ANTI-DELETE: No owner number configured, skipping alert');
@@ -123,10 +119,10 @@ class AntiDeletePlugin {
                 console.log('❌ ANTI-DELETE: Original message not found in database:', messageId);
                 // Only send notification if we're sure it wasn't our own message
                 // Check if the chat is with someone else (not status or our own number)
-                const isOtherPersonChat = chatJid !== 'status@broadcast' && 
+                const isOtherPersonChat = chatJid !== 'status@broadcast' &&
                                         !chatJid.startsWith(config.OWNER_NUMBER) &&
                                         chatJid.includes('@s.whatsapp.net');
-                
+
                 if (config.OWNER_NUMBER && isOtherPersonChat) {
                     console.log('🚨 ANTI-DELETE: Sending unknown deletion alert');
                     const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
@@ -135,7 +131,7 @@ class AntiDeletePlugin {
                         `🆔 *Message ID:* ${messageId}\n` +
                         `🕐 *Detected At:* ${new Date().toLocaleString()}\n\n` +
                         `_This might be due to the message being sent before the bot started monitoring._`;
-                    
+
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                         text: unknownDeleteNotification
                     });
@@ -158,7 +154,7 @@ class AntiDeletePlugin {
 
             // Create clean notification format with tagging
             const alertText = `${archivedMessage.content || 'No content'}\n\n@${senderNumber}`;
-            
+
             const alertMessage = {
                 text: alertText,
                 mentions: [senderJid],

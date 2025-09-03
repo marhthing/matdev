@@ -622,38 +622,40 @@ class MATDEV {
                     continue;
                 }
 
-                // Permission verification for command processing (support both regular and LID JIDs)
-                const isFromOwner = participant === ownerJid || 
-                                  participant.startsWith(`${config.OWNER_NUMBER}:`) ||
-                                  (this.ownerGroupJid && participant === this.ownerGroupJid) ||
-                                  participant.includes(`${config.OWNER_NUMBER}@lid`);
+                // Permission verification using centralized JID extraction
+                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                const isFromOwner = jids.from_me || 
+                                  jids.participant_jid === ownerJid || 
+                                  jids.participant_jid.startsWith(`${config.OWNER_NUMBER}:`) ||
+                                  (this.ownerGroupJid && jids.participant_jid === this.ownerGroupJid) ||
+                                  jids.participant_jid.includes(`${config.OWNER_NUMBER}@lid`);
 
                 // Check if user has any permissions (for non-owners)
                 let hasAnyPermissions = false;
                 if (!isFromOwner) {
-                    const userPermissions = this.database.getUserPermissions(participant);
+                    const userPermissions = this.database.getUserPermissions(jids.participant_jid);
                     hasAnyPermissions = userPermissions.length > 0;
                 }
 
                 // Allow command processing if user is owner OR has any permissions
                 if (!isFromOwner && !hasAnyPermissions) {
-                    logger.debug(`Archived command from unauthorized user: ${participant}`);
+                    logger.debug(`Archived command from unauthorized user: ${jids.participant_jid}`);
                     continue;
                 }
 
                 const userType = isFromOwner ? 'owner' : 'permitted user';
-                logger.info(`📨 Processing command from ${userType}: ${participant}`);
+                logger.info(`📨 Processing command from ${userType}: ${jids.participant_jid}`);
                 logger.info(`📝 Command text: "${text}"`);
 
-                // Security checks for commands
-                if (await security.isBlocked(message.key.remoteJid)) {
-                    logger.debug(`Command blocked by security: ${message.key.remoteJid}`);
+                // Security checks for commands using centralized JIDs
+                if (await security.isBlocked(jids.chat_jid)) {
+                    logger.debug(`Command blocked by security: ${jids.chat_jid}`);
                     continue;
                 }
 
-                // Rate limiting for commands
-                if (await security.isRateLimited(message.key.remoteJid)) {
-                    logger.debug(`Command rate limited: ${message.key.remoteJid}`);
+                // Rate limiting for commands using centralized participant JID
+                if (await security.isRateLimited(jids.participant_jid)) {
+                    logger.debug(`Command rate limited: ${jids.participant_jid}`);
                     continue;
                 }
 
