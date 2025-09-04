@@ -656,14 +656,17 @@ class SystemPlugin {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
                 } else if (result.updateAvailable) {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `🔄 *UPDATE AVAILABLE*\n\nUse ${config.PREFIX}updatenow to update.`);
+                        `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}updatenow to update now.`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `✅ *BOT IS UP TO DATE*`);
+                        `✅ *BOT IS UP TO DATE*\n\n📍 No updates available`);
                 }
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `⚠️ *Manager not available*\n\nUse ${config.PREFIX}updatenow to force update.`);
+                    `⚠️ *UPDATE SYSTEM UNAVAILABLE*\n\n` +
+                    `🔧 Manager not running\n` +
+                    `📋 Please restart the bot to enable updates\n` +
+                    `💡 Or use manual Git pull`);
             }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
@@ -678,6 +681,7 @@ class SystemPlugin {
             if (global.managerCommands && global.managerCommands.updateNow) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '🔄 *UPDATING FROM GITHUB*\n\n' +
+                    '✅ Auto-update system active\n' +
                     '📁 Session will be preserved\n' +
                     '⏱️ Bot restarting shortly...'
                 );
@@ -688,14 +692,15 @@ class SystemPlugin {
                 }, 2000);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '🔄 *MANUAL RESTART REQUIRED*\n\n' +
-                    '⚠️ Auto-update unavailable\n' +
-                    '📋 Please restart the bot manually\n' +
+                    '⚠️ *UPDATE SYSTEM UNAVAILABLE*\n\n' +
+                    '🔧 Auto-update not available\n' +
+                    '📋 Please use the Run button to restart\n' +
+                    '💡 This will pull latest code from GitHub\n' +
                     '🔗 Repo: https://github.com/marhthing/Bot1.git'
                 );
             }
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try manual restart.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try clicking Run button.');
         }
     }
 
