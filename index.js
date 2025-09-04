@@ -610,81 +610,15 @@ class MATDEV {
                 } else {
                     logger.info(`📥 Processing incoming message`);
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
+                    
+                    // Process the message through the MessageHandler
+                    logger.info(`🔄 Calling MessageHandler to process command...`);
+                    await this.messageHandler.process(message);
+                    logger.info(`✅ MessageHandler processing completed`);
                 }
 
-                // Extract text for command processing
-                const content = message.message[messageType];
-                let text = '';
-
-                if (typeof content === 'string') {
-                    text = content;
-                } else if (content?.text) {
-                    text = content.text;
-                } else if (content?.caption) {
-                    text = content.caption;
-                } else {
-                    text = ''; // For media messages without text/caption
-                }
-
-                // Only continue with command processing if there's text
-                if (!text || !text.trim()) {
-                    logger.debug(`Archived message without text content, type: ${messageType}`);
-                    continue;
-                }
-
-                // Check if it's a command (starts with prefix) - skip non-commands early
-                const hasPrefix = text.trim().startsWith(config.PREFIX);
-                if (!hasPrefix) {
-                    logger.debug(`Archived non-command message: "${text.substring(0, 50)}..."`);
-                    continue;
-                }
-
-                // Permission verification using centralized JID extraction
-                const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                const isFromOwner = jids.from_me ||
-                                  jids.participant_jid === ownerJid ||
-                                  jids.participant_jid.startsWith(`${config.OWNER_NUMBER}:`) ||
-                                  (this.ownerGroupJid && jids.participant_jid === this.ownerGroupJid) ||
-                                  jids.participant_jid.includes(`${config.OWNER_NUMBER}@lid`);
-
-                // Check if user has any permissions (for non-owners)
-                let hasAnyPermissions = false;
-                if (!isFromOwner) {
-                    const userPermissions = this.database.getUserPermissions(jids.participant_jid);
-                    hasAnyPermissions = userPermissions.length > 0;
-                }
-
-                // Special case: .rg command is available to anyone in groups (no permission needed)
-                const isRgCommand = text.trim().toLowerCase() === `${config.PREFIX}rg`;
-                
-                // Allow command processing if user is owner OR has any permissions OR using .rg command
-                if (!isFromOwner && !hasAnyPermissions && !isRgCommand) {
-                    logger.debug(`Archived command from unauthorized user: ${jids.participant_jid}`);
-                    continue;
-                }
-                
-                if (isRgCommand) {
-                    logger.info(`🔐 Special permission: .rg command allowed for anyone in groups (pre-filter)`);
-                }
-
-                const userType = isFromOwner ? 'owner' : 'permitted user';
-                logger.info(`📨 Processing command from ${userType}: ${jids.participant_jid}`);
-                logger.info(`📝 Command text: "${text}"`);
-
-                // Security checks for commands using centralized JIDs
-                if (await security.isBlocked(jids.chat_jid)) {
-                    logger.debug(`Command blocked by security: ${jids.chat_jid}`);
-                    continue;
-                }
-
-                // Rate limiting for commands using centralized participant JID
-                if (await security.isRateLimited(jids.participant_jid)) {
-                    logger.debug(`Command rate limited: ${jids.participant_jid}`);
-                    continue;
-                }
-
-                // Process the command message
-                await this.messageHandler.process(message);
+                // MessageHandler takes care of all command processing, so we can continue to next message
+                continue;
 
             } catch (error) {
                 logger.error('Error processing message:', error);
