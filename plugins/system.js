@@ -573,6 +573,28 @@ class SystemPlugin {
     }
 
     /**
+     * Set environment variable (exposed method for other plugins)
+     */
+    async setEnvValue(key, value) {
+        try {
+            await this.updateEnvFile(key, value);
+            // Also update process.env for immediate effect
+            process.env[key] = value;
+            return true;
+        } catch (error) {
+            console.error('Error setting environment variable:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get environment variable (exposed method for other plugins)
+     */
+    getEnvValue(key) {
+        return process.env[key];
+    }
+
+    /**
      * Update environment variable in .env file
      */
     async updateEnvFile(key, value) {
