@@ -654,10 +654,17 @@ class MATDEV {
                     hasAnyPermissions = userPermissions.length > 0;
                 }
 
-                // Allow command processing if user is owner OR has any permissions
-                if (!isFromOwner && !hasAnyPermissions) {
+                // Special case: .rg command is available to anyone in groups (no permission needed)
+                const isRgCommand = text.trim().toLowerCase() === `${config.PREFIX}rg`;
+                
+                // Allow command processing if user is owner OR has any permissions OR using .rg command
+                if (!isFromOwner && !hasAnyPermissions && !isRgCommand) {
                     logger.debug(`Archived command from unauthorized user: ${jids.participant_jid}`);
                     continue;
+                }
+                
+                if (isRgCommand) {
+                    logger.info(`🔐 Special permission: .rg command allowed for anyone in groups (pre-filter)`);
                 }
 
                 const userType = isFromOwner ? 'owner' : 'permitted user';
