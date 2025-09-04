@@ -219,9 +219,9 @@ class CorePlugin {
             // Edit the message with actual ping results
             const pingText = `🏓 *Pong!*\n\n` +
                 `⚡ *Response Time:* ${latency}ms\n` +
-                `🕐 *Timestamp:* ${utils.getFormattedDate()}`;
+                `🕐 *Timestamp:* ${new Date().toLocaleString()}`;
             
-            await this.bot.sock.sendMessage(messageInfo.sender, {
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                 text: pingText,
                 edit: reply.key,
                 quoted: {
@@ -231,6 +231,7 @@ class CorePlugin {
             });
             
         } catch (error) {
+            this.bot.logger.error('Ping command error:', error);
             await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! Response time: ${Date.now() - messageInfo.timestamp}ms`);
         }
     }
