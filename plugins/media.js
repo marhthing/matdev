@@ -326,8 +326,7 @@ class MediaPlugin {
 
             // Send as image
             await this.bot.sock.sendMessage(messageInfo.sender, {
-                image: buffer.buffer, // Access buffer from the object returned by downloadMedia
-                caption: '✅ Sticker converted to photo'
+                image: buffer.buffer // Access buffer from the object returned by downloadMedia
             });
 
         } catch (error) {
