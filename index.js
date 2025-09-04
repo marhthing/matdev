@@ -610,12 +610,12 @@ class MATDEV {
                 } else {
                     logger.info(`📥 Processing incoming message`);
                     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
-                    
-                    // Process the message through the MessageHandler
-                    logger.info(`🔄 Calling MessageHandler to process command...`);
-                    await this.messageHandler.process(message);
-                    logger.info(`✅ MessageHandler processing completed`);
                 }
+                
+                // Process all messages (incoming and outgoing) through the MessageHandler
+                logger.info(`🔄 Calling MessageHandler to process command...`);
+                await this.messageHandler.process(message);
+                logger.info(`✅ MessageHandler processing completed`);
 
                 // MessageHandler takes care of all command processing, so we can continue to next message
                 continue;
