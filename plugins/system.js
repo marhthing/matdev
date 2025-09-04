@@ -656,37 +656,17 @@ class SystemPlugin {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
                 } else if (result.updateAvailable) {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `🔄 *UPDATE AVAILABLE*\n\n` +
-                        `${result.message}\n\n` +
-                        `*Platform:* ${config.PLATFORM}\n` +
-                        `*Node.js:* ${process.version}\n\n` +
-                        `Use ${config.PREFIX}updatenow to update immediately.\n\n` +
-                        `_Session folder will be preserved during update_`);
+                        `🔄 *1 UPDATE AVAILABLE*\n\n` +
+                        `Use ${config.PREFIX}updatenow to update immediately.`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `✅ *BOT IS UP TO DATE*\n\n` +
-                        `${result.message}\n\n` +
-                        `*Current Version:* Latest\n` +
-                        `*Platform:* ${config.PLATFORM}\n` +
-                        `*Node.js:* ${process.version}\n\n` +
-                        `_No updates available at this time_`);
+                        `✅ *0 UPDATES AVAILABLE*\n\n` +
+                        `Bot is up to date.`);
                 }
             } else {
-                // Fallback update info
-                const updateText = `*🔄 UPDATE INFORMATION*\n\n` +
-                    `*Current Version:* 1.0.0\n` +
-                    `*Platform:* ${config.PLATFORM}\n` +
-                    `*Node.js:* ${process.version}\n\n` +
-                    `*Update Status:*\n` +
-                    `• Auto-updates: ❌ Disabled\n` +
-                    `• Manual updates: ✅ Available\n\n` +
-                    `*To update MATDEV:*\n` +
-                    `1. Pull latest changes from repository\n` +
-                    `2. Restart the bot process\n` +
-                    `3. Session will be preserved automatically\n\n` +
-                    `_Always backup your session before updating_`;
-                
-                await this.bot.messageHandler.reply(messageInfo, updateText);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `⚠️ *UPDATE STATUS UNKNOWN*\n\n` +
+                    `Use ${config.PREFIX}updatenow to force update from GitHub.`);
             }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
