@@ -288,7 +288,17 @@ function startBot(entryPoint = 'bot.js') {
                     startBot(entryPoint)
                 }, 2000)
             } else {
-                // Non-zero exit code means crash
+                // Non-zero exit code means crash or update request
+                // Check if this might be an update request by checking for missing files or update flag
+                const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json')
+                const isForcedUpdate = existsSync('.update_flag.json')
+                
+                if (isInitialSetup || isForcedUpdate) {
+                    console.log('🔄 Update triggered - initiating recloning process...')
+                    cloneAndSetup()
+                    return // Don't restart normally, let cloneAndSetup handle it
+                }
+                
                 restartCount++
                 if (restartCount <= maxRestarts) {
                     console.log(`🔄 Restarting bot after crash... (${restartCount}/${maxRestarts})`)
