@@ -142,13 +142,6 @@ class SystemPlugin {
             ownerOnly: true
         });
 
-        this.bot.messageHandler.registerCommand('health', this.healthCheck.bind(this), {
-            description: 'Perform system health check',
-            usage: `${config.PREFIX}health`,
-            category: 'system',
-            ownerOnly: true
-        });
-
 
     }
 
@@ -649,6 +642,9 @@ class SystemPlugin {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
             
+            // Give a small delay to ensure manager commands are fully loaded
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             if (global.managerCommands && global.managerCommands.checkUpdates) {
                 const result = await global.managerCommands.checkUpdates();
                 
@@ -678,6 +674,9 @@ class SystemPlugin {
      */
     async updateNowCommand(messageInfo) {
         try {
+            // Give a small delay to ensure manager commands are fully loaded
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             if (global.managerCommands && global.managerCommands.updateNow) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '🔄 *UPDATING FROM GITHUB*\n\n' +
