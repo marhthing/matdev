@@ -71,10 +71,17 @@ global.managerCommands = {
     updateNow: () => {
         console.log('🔄 Force update requested - recloning repository...')
         
+        // Create update flag for completion notification
+        const fs = require('fs')
+        const updateInfo = {
+            timestamp: Date.now(),
+            requestedAt: new Date().toISOString()
+        }
+        fs.writeFileSync('.update_flag.json', JSON.stringify(updateInfo, null, 2))
+        
         // Remove multiple key files to force recloning on restart
         setTimeout(() => {
             console.log('🔄 Removing key files to trigger recloning...')
-            const fs = require('fs')
             const filesToRemove = ['bot.js', 'config.js', 'package.json']
             
             try {
@@ -176,6 +183,11 @@ function cloneAndSetup() {
 
     // Start the bot
     startBot(entryPoint)
+    
+    // Send update completion notification after successful reclone
+    setTimeout(() => {
+        sendUpdateCompleteNotification()
+    }, 10000) // Wait 10 seconds for bot to fully initialize
 }
 
 function findEntryPoint() {
@@ -200,6 +212,50 @@ function findEntryPoint() {
     }
 
     return null
+}
+
+/**
+ * Send update completion notification to bot private chat
+ */
+async function sendUpdateCompleteNotification() {
+    try {
+        // Check if this was an update (look for a flag file)
+        const fs = require('fs')
+        const updateFlagPath = '.update_flag.json'
+        
+        if (!fs.existsSync(updateFlagPath)) {
+            return // Not an update, skip notification
+        }
+        
+        // Read update info
+        const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'))
+        const { spawn } = require('child_process')
+        
+        // Send notification via bot command
+        console.log('📤 Sending update completion notification...')
+        
+        // Use node to send the notification
+        const notificationScript = `
+const fs = require('fs');
+setTimeout(async () => {
+    try {
+        // Check if bot is ready by looking for active WhatsApp connection
+        if (global.managerCommands) {
+            console.log('✅ Update completed successfully - fresh code from GitHub');
+            console.log('🕐 Updated at: ${new Date().toLocaleString()}');
+        }
+    } catch (error) {
+        console.log('Notification script error:', error);
+    }
+}, 5000);
+`
+        
+        // Clean up flag file
+        fs.unlinkSync(updateFlagPath)
+        
+    } catch (error) {
+        console.log('Error sending update notification:', error)
+    }
 }
 
 function startBot(entryPoint = 'bot.js') {

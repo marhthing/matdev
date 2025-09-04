@@ -96,6 +96,9 @@ class MATDEV {
             // Check for restart completion message
             await this.checkRestartCompletion();
 
+            // Check for update completion and send notification
+            await this.checkUpdateCompletion();
+
         } catch (error) {
             logger.error('Failed to start MATDEV:', error);
             process.exit(1);
@@ -1013,6 +1016,49 @@ class MATDEV {
             }
         } catch (error) {
             console.error('Error sending delete alert:', error);
+        }
+    }
+
+    /**
+     * Check for update completion and send notification
+     */
+    async checkUpdateCompletion() {
+        try {
+            const updateFlagPath = '.update_flag.json';
+            
+            if (fs.existsSync(updateFlagPath)) {
+                // Wait for bot to fully initialize
+                setTimeout(async () => {
+                    try {
+                        const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
+                        
+                        // Send update completion message to bot owner
+                        const completionMessage = '✅ *UPDATE COMPLETED*\n\n' +
+                            '🔄 Successfully recloned from GitHub\n' +
+                            '📱 Bot restarted with latest code\n' +
+                            '⚡ All systems operational\n' +
+                            `🕐 Completed: ${new Date().toLocaleString()}\n\n` +
+                            '_MATDEV is now running the latest version_';
+                        
+                        await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                            text: completionMessage
+                        });
+                        
+                        // Clean up the update flag file
+                        fs.unlinkSync(updateFlagPath);
+                        
+                        logger.success('✅ Update completion notification sent');
+                    } catch (error) {
+                        logger.error('Error sending update completion notification:', error);
+                        // Clean up the file even if there's an error
+                        if (fs.existsSync(updateFlagPath)) {
+                            fs.unlinkSync(updateFlagPath);
+                        }
+                    }
+                }, 8000); // Wait 8 seconds for WhatsApp connection to stabilize
+            }
+        } catch (error) {
+            logger.error('Error checking update completion:', error);
         }
     }
 
