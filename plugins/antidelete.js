@@ -41,16 +41,16 @@ class AntiDeletePlugin {
      * Register anti-delete commands
      */
     registerCommands() {
-        this.bot.messageHandler.registerCommand('antidelete', this.toggleAntiDelete.bind(this), {
+        this.bot.messageHandler.registerCommand('delete', this.toggleAntiDelete.bind(this), {
             description: 'Toggle anti-delete monitoring',
-            usage: `${config.PREFIX}antidelete [on|off]`,
+            usage: `${config.PREFIX}delete [on|off]`,
             category: 'admin',
             ownerOnly: true
         });
 
-        this.bot.messageHandler.registerCommand('getdeleted', this.getDeletedMessages.bind(this), {
+        this.bot.messageHandler.registerCommand('delete all', this.getDeletedMessages.bind(this), {
             description: 'Get recent deleted messages',
-            usage: `${config.PREFIX}getdeleted [count]`,
+            usage: `${config.PREFIX}delete all [count]`,
             category: 'admin',
             ownerOnly: true
         });
@@ -307,7 +307,7 @@ class AntiDeletePlugin {
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
                 await this.bot.messageHandler.reply(messageInfo,
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
-                    `Use \`${config.PREFIX}antidelete on\` or \`${config.PREFIX}antidelete off\` to toggle.`);
+                    `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
             }
 
         } catch (error) {
