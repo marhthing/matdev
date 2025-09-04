@@ -297,10 +297,17 @@ class AntiDeletePlugin {
             } else if (status === 'off') {
                 config.ANTI_DELETE = false;
                 await this.bot.messageHandler.reply(messageInfo, '❌ Anti-delete monitoring disabled');
-            } else {
+            } else if (!status) {
+                // No argument provided - show status
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
                 await this.bot.messageHandler.reply(messageInfo,
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
+                    `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
+            } else {
+                // Invalid argument provided
+                await this.bot.messageHandler.reply(messageInfo,
+                    `❌ Invalid option: "${status}"\n\n` +
+                    `Use \`${config.PREFIX}delete\` to check status\n` +
                     `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
             }
 
