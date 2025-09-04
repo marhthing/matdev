@@ -502,12 +502,12 @@ class MATDEV {
 
             try {
                 // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
-                logger.info(`📂 Archiving message for anti-delete...`);
+                // logger.info(`📂 Archiving message for anti-delete...`);
                 await this.database.archiveMessage(message);
 
                 // Log all message details for debugging
-                logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
-                logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
+                // logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
+                // logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
 
                 // Update statistics for all messages
                 this.messageStats.received++;
@@ -518,7 +518,7 @@ class MATDEV {
                 // Check for deletion events and trigger anti-delete via plugin
                 const messageType = Object.keys(message.message || {})[0];
 
-                logger.info(`🔍 Message type detected: ${messageType}`);
+                // logger.info(`🔍 Message type detected: ${messageType}`);
 
                 if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 0) {
                     try {
@@ -597,25 +597,25 @@ class MATDEV {
 
                 const jids = this.jidUtils.extractJIDs(message); // Use cached instance
                 if (!jids) {
-                    logger.error('Failed to extract JIDs from message for command processing');
+                    // logger.error('Failed to extract JIDs from message for command processing');
                     continue;
                 }
 
                 const participant = jids.participant_jid;
                 const sender = jids.chat_jid;
 
-                if (jids.from_me) {
-                    logger.info(`📤 Processing outgoing message from bot/owner`);
-                    logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
-                } else {
-                    logger.info(`📥 Processing incoming message`);
-                    logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
-                }
+                // if (jids.from_me) {
+                //     logger.info(`📤 Processing outgoing message from bot/owner`);
+                //     logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
+                // } else {
+                //     logger.info(`📥 Processing incoming message`);
+                //     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
+                // }
                 
                 // Process all messages (incoming and outgoing) through the MessageHandler
-                logger.info(`🔄 Calling MessageHandler to process command...`);
+                // logger.info(`🔄 Calling MessageHandler to process command...`);
                 await this.messageHandler.process(message);
-                logger.info(`✅ MessageHandler processing completed`);
+                // logger.info(`✅ MessageHandler processing completed`);
 
                 // MessageHandler takes care of all command processing, so we can continue to next message
                 continue;

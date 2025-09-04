@@ -443,12 +443,12 @@ class CorePlugin {
                 if (quotedMessage && quotedMessage.participant) {
                     // Grant permission to the quoted message author
                     jid = quotedMessage.participant;
-                    console.log(`🔧 DEBUG .allow - granting to quoted participant: ${jid}`);
+                    // console.log(`🔧 DEBUG .allow - granting to quoted participant: ${jid}`);
                 } else {
                     // When in private chat: .allow <cmd>
                     // Grant permission to the person you're chatting with (chat_jid)
                     jid = messageInfo.chat_jid;
-                    console.log(`🔧 DEBUG .allow - granting to chat participant: ${jid}`);
+                    // console.log(`🔧 DEBUG .allow - granting to chat participant: ${jid}`);
                 }
                 command = args[0];
             } else {
