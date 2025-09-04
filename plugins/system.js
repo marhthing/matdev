@@ -677,12 +677,7 @@ class SystemPlugin {
      */
     async executeUpdateNow(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 *RECLONING FROM GITHUB*\n\n' +
-                '📁 Session will be preserved\n' +
-                '🔄 Recloning latest code from repository\n' +
-                '⏱️ Restarting with fresh code...'
-            );
+            await this.bot.messageHandler.reply(messageInfo, 'Updating....');
             
             console.log('🔄 Executing update now command - using manager recloning...');
             
