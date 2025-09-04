@@ -71,17 +71,22 @@ global.managerCommands = {
     updateNow: () => {
         console.log('🔄 Force update requested - recloning repository...')
         
-        // Remove bot.js to force recloning on restart
+        // Remove multiple key files to force recloning on restart
         setTimeout(() => {
-            console.log('🔄 Removing bot.js to trigger recloning...')
+            console.log('🔄 Removing key files to trigger recloning...')
             const fs = require('fs')
+            const filesToRemove = ['bot.js', 'config.js', 'package.json']
+            
             try {
-                if (fs.existsSync('bot.js')) {
-                    fs.unlinkSync('bot.js')
-                    console.log('✅ bot.js removed - recloning will be triggered')
+                for (const file of filesToRemove) {
+                    if (fs.existsSync(file)) {
+                        fs.unlinkSync(file)
+                        console.log(`✅ ${file} removed`)
+                    }
                 }
+                console.log('✅ Key files removed - recloning will be triggered')
             } catch (error) {
-                console.error('❌ Failed to remove bot.js:', error)
+                console.error('❌ Failed to remove files:', error)
             }
             
             console.log('🔄 Forcing process exit to trigger recloning...')
@@ -95,7 +100,8 @@ global.managerCommands = {
 console.log('✅ Manager commands ready and available globally')
 
 // Check if this is an initial setup or restart
-const isInitialSetup = !existsSync('bot.js')
+// If any of these key files are missing, trigger recloning
+const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json')
 
 if (isInitialSetup) {
     console.log('🔧 Initial setup detected - cloning from GitHub...')
