@@ -222,23 +222,35 @@ class MediaPlugin {
                 return;
             }
 
-            const buffer = await this.downloadMedia(quotedMessage, mediaType); // Use the new downloadMedia
+            const buffer = await this.downloadMedia(quotedMessage, mediaType);
             
             if (!buffer) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
                 return;
             }
 
-            // Send as sticker
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                sticker: buffer.buffer, // Access buffer from the object returned by downloadMedia
-                packname: config.BOT_NAME || 'MATDEV',
-                author: config.BOT_NAME || 'MATDEV'
-            });
+            // Prepare sticker message with proper metadata
+            const stickerMessage = {
+                sticker: buffer.buffer
+            };
+
+            // Add metadata - these should be at the top level for WhatsApp to recognize them
+            if (config.BOT_NAME) {
+                stickerMessage.packname = config.BOT_NAME;
+                stickerMessage.author = config.BOT_NAME;
+            }
+
+            // For video stickers, ensure they meet WhatsApp requirements
+            if (mediaType === 'videoMessage') {
+                // Video stickers should be short (max 6 seconds) and optimized
+                stickerMessage.isAnimated = true;
+            }
+
+            await this.bot.sock.sendMessage(messageInfo.sender, stickerMessage);
 
         } catch (error) {
             console.log('Sticker error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker. Video must be under 6 seconds for animated stickers.');
         }
     }
 
@@ -276,19 +288,26 @@ class MediaPlugin {
                 }
             }
 
-            const buffer = await this.downloadMedia(quotedMessage, 'stickerMessage'); // Use the new downloadMedia
+            const buffer = await this.downloadMedia(quotedMessage, 'stickerMessage');
             
             if (!buffer) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process sticker. Please try again.');
                 return;
             }
 
-            // Send sticker with new metadata
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                sticker: buffer.buffer, // Access buffer from the object returned by downloadMedia
+            // Prepare sticker message with proper metadata structure
+            const stickerMessage = {
+                sticker: buffer.buffer,
                 packname: packname,
                 author: author
-            });
+            };
+
+            // Check if original was animated and preserve that
+            if (quotedMessage.stickerMessage.isAnimated) {
+                stickerMessage.isAnimated = true;
+            }
+
+            await this.bot.sock.sendMessage(messageInfo.sender, stickerMessage);
 
         } catch (error) {
             console.log('Take error:', error);
