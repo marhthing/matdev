@@ -42,7 +42,7 @@ const config = {
     PLUGIN_AUTO_LOAD: process.env.PLUGIN_AUTO_LOAD !== 'false',
     STARTUP_MESSAGE: process.env.STARTUP_MESSAGE === 'true',
     STATUS_REPORTS: process.env.STATUS_REPORTS === 'true',
-    BOT_REACTIONS: process.env.BOT_REACTIONS === 'true' || false,
+    BOT_REACTIONS: process.env.BOT_REACTIONS !== 'false',
 
     // External Services
     WEATHER_API_KEY: process.env.WEATHER_API_KEY || '',
