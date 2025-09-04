@@ -48,12 +48,6 @@ class AntiDeletePlugin {
             ownerOnly: true
         });
 
-        this.bot.messageHandler.registerCommand('delete all', this.getDeletedMessages.bind(this), {
-            description: 'Get recent deleted messages',
-            usage: `${config.PREFIX}delete all [count]`,
-            category: 'admin',
-            ownerOnly: true
-        });
     }
 
     /**
