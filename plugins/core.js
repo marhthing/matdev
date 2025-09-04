@@ -632,7 +632,7 @@ class CorePlugin {
             }
 
             // Log what we found for debugging
-            this.bot.logger.info(`🔍 LID extraction attempt:`, {
+            console.log(`🔍 LID extraction attempt:`, {
                 messageKey: messageInfo.key,
                 participantJid: messageInfo.participant_jid,
                 extractedLid: senderLid
