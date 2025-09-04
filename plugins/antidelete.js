@@ -293,10 +293,18 @@ class AntiDeletePlugin {
 
             if (status === 'on') {
                 config.ANTI_DELETE = true;
-                await this.bot.messageHandler.reply(messageInfo, '✅ Anti-delete monitoring enabled');
+                // Persist to .env file
+                if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
+                    await this.bot.plugins.system.setEnvValue('ANTI_DELETE', 'true');
+                }
+                await this.bot.messageHandler.reply(messageInfo, '✅ Anti-delete monitoring enabled (persistent)');
             } else if (status === 'off') {
                 config.ANTI_DELETE = false;
-                await this.bot.messageHandler.reply(messageInfo, '❌ Anti-delete monitoring disabled');
+                // Persist to .env file
+                if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
+                    await this.bot.plugins.system.setEnvValue('ANTI_DELETE', 'false');
+                }
+                await this.bot.messageHandler.reply(messageInfo, '❌ Anti-delete monitoring disabled (persistent)');
             } else if (!status) {
                 // No argument provided - show status
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';

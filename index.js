@@ -82,7 +82,7 @@ global.managerCommands = {
         // Force immediate recloning by removing ALL key files (bypass any existence checks)
         setTimeout(() => {
             console.log('🔄 Force removing ALL key files to trigger complete recloning...')
-            const filesToRemove = ['bot.js', 'config.js', 'package.json', '.env']
+            const filesToRemove = ['bot.js', 'config.js', 'package.json']
             
             try {
                 // Remove files without checking if they exist first
