@@ -643,26 +643,49 @@ class SystemPlugin {
             await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
             
             // Give a small delay to ensure manager commands are fully loaded
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            if (global.managerCommands && global.managerCommands.checkUpdates) {
-                const result = await global.managerCommands.checkUpdates();
+            // Always try to check for updates, regardless of manager availability
+            try {
+                const result = await this.checkGitHubUpdates();
                 
                 if (result.error) {
-                    await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ *UPDATE CHECK FAILED*\n\n` +
+                        `Error: ${result.error}\n\n` +
+                        `💡 Check your internet connection or repository access`);
                 } else if (result.updateAvailable) {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}updatenow to update now.`);
+                        `🔄 *${result.commitsAhead} UPDATE(S) AVAILABLE*\n\n` +
+                        `📍 New commits found on GitHub\n` +
+                        `🔗 Use ${config.PREFIX}updatenow to update`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `✅ *BOT IS UP TO DATE*\n\n📍 No updates available`);
+                        `✅ *BOT IS UP TO DATE*\n\n` +
+                        `📍 No updates available\n` +
+                        `🔗 Latest commit: ${result.latestCommit}`);
                 }
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `⚠️ *UPDATE SYSTEM UNAVAILABLE*\n\n` +
-                    `🔧 Manager not running\n` +
-                    `📋 Please restart the bot to enable updates\n` +
-                    `💡 Or use manual Git pull`);
+            } catch (checkError) {
+                // Fallback to manager commands if direct check fails
+                if (global.managerCommands && global.managerCommands.checkUpdates) {
+                    const result = await global.managerCommands.checkUpdates();
+                    
+                    if (result.error) {
+                        await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
+                    } else if (result.updateAvailable) {
+                        await this.bot.messageHandler.reply(messageInfo, 
+                            `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}updatenow to update now.`);
+                    } else {
+                        await this.bot.messageHandler.reply(messageInfo, 
+                            `✅ *BOT IS UP TO DATE*\n\n📍 No updates available`);
+                    }
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `⚠️ *UPDATE CHECK UNAVAILABLE*\n\n` +
+                        `🔧 Cannot access GitHub or Git\n` +
+                        `💡 Check repository configuration\n` +
+                        `🔗 Repo: https://github.com/marhthing/Bot1.git`);
+                }
             }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
@@ -731,6 +754,102 @@ class SystemPlugin {
         } catch (error) {
             return [];
         }
+    }
+
+    /**
+     * Check GitHub for updates directly
+     */
+    async checkGitHubUpdates() {
+        const { spawn } = require('child_process');
+        const GITHUB_REPO = 'https://github.com/marhthing/Bot1.git';
+        
+        return new Promise((resolve) => {
+            try {
+                // Get remote latest commit
+                const remoteProcess = spawn('git', ['ls-remote', GITHUB_REPO, 'HEAD'], {
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
+                
+                let remoteOutput = '';
+                let remoteError = '';
+                
+                remoteProcess.stdout.on('data', (data) => {
+                    remoteOutput += data.toString();
+                });
+                
+                remoteProcess.stderr.on('data', (data) => {
+                    remoteError += data.toString();
+                });
+                
+                remoteProcess.on('close', (code) => {
+                    if (code !== 0) {
+                        resolve({ error: 'Cannot access GitHub repository' });
+                        return;
+                    }
+                    
+                    const remoteCommit = remoteOutput.split('\t')[0];
+                    if (!remoteCommit) {
+                        resolve({ error: 'Invalid response from GitHub' });
+                        return;
+                    }
+                    
+                    // Get local commit if git repo exists
+                    const localProcess = spawn('git', ['rev-parse', 'HEAD'], {
+                        stdio: ['pipe', 'pipe', 'pipe']
+                    });
+                    
+                    let localOutput = '';
+                    
+                    localProcess.stdout.on('data', (data) => {
+                        localOutput += data.toString();
+                    });
+                    
+                    localProcess.on('close', (localCode) => {
+                        const localCommit = localCode === 0 ? localOutput.trim() : null;
+                        
+                        if (!localCommit || localCommit !== remoteCommit) {
+                            // Count commits ahead
+                            if (localCommit) {
+                                const countProcess = spawn('git', ['rev-list', '--count', `${localCommit}..${remoteCommit}`], {
+                                    stdio: ['pipe', 'pipe', 'pipe']
+                                });
+                                
+                                let countOutput = '';
+                                countProcess.stdout.on('data', (data) => {
+                                    countOutput += data.toString();
+                                });
+                                
+                                countProcess.on('close', (countCode) => {
+                                    const commitsAhead = countCode === 0 ? parseInt(countOutput.trim()) || 1 : 1;
+                                    resolve({
+                                        updateAvailable: true,
+                                        commitsAhead,
+                                        latestCommit: remoteCommit.substring(0, 7),
+                                        localCommit: localCommit ? localCommit.substring(0, 7) : 'none'
+                                    });
+                                });
+                            } else {
+                                resolve({
+                                    updateAvailable: true,
+                                    commitsAhead: 1,
+                                    latestCommit: remoteCommit.substring(0, 7),
+                                    localCommit: 'none'
+                                });
+                            }
+                        } else {
+                            resolve({
+                                updateAvailable: false,
+                                latestCommit: remoteCommit.substring(0, 7),
+                                localCommit: localCommit.substring(0, 7)
+                            });
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                resolve({ error: error.message });
+            }
+        });
     }
 
     /**
