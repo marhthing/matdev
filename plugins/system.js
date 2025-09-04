@@ -812,40 +812,51 @@ class SystemPlugin {
                     localProcess.on('close', (localCode) => {
                         const localCommit = localCode === 0 ? localOutput.trim() : null;
                         
-                        if (!localCommit || localCommit !== remoteCommit) {
-                            // Count commits ahead
-                            if (localCommit) {
-                                const countProcess = spawn('git', ['rev-list', '--count', `${localCommit}..${remoteCommit}`], {
-                                    stdio: ['pipe', 'pipe', 'pipe']
-                                });
-                                
-                                let countOutput = '';
-                                countProcess.stdout.on('data', (data) => {
-                                    countOutput += data.toString();
-                                });
-                                
-                                countProcess.on('close', (countCode) => {
-                                    const commitsAhead = countCode === 0 ? parseInt(countOutput.trim()) || 1 : 1;
-                                    resolve({
-                                        updateAvailable: true,
-                                        commitsAhead,
-                                        latestCommit: remoteCommit.substring(0, 7),
-                                        localCommit: localCommit ? localCommit.substring(0, 7) : 'none'
-                                    });
-                                });
-                            } else {
-                                resolve({
-                                    updateAvailable: true,
-                                    commitsAhead: 1,
-                                    latestCommit: remoteCommit.substring(0, 7),
-                                    localCommit: 'none'
-                                });
-                            }
-                        } else {
+                        if (!localCommit) {
+                            // No local git repo, consider update needed
+                            resolve({
+                                updateAvailable: true,
+                                commitsAhead: 1,
+                                latestCommit: remoteCommit.substring(0, 7),
+                                localCommit: 'none'
+                            });
+                        } else if (localCommit === remoteCommit) {
+                            // Commits match - up to date
                             resolve({
                                 updateAvailable: false,
                                 latestCommit: remoteCommit.substring(0, 7),
                                 localCommit: localCommit.substring(0, 7)
+                            });
+                        } else {
+                            // Check if local is behind remote (needs update)
+                            const countProcess = spawn('git', ['rev-list', '--count', `${localCommit}..${remoteCommit}`], {
+                                stdio: ['pipe', 'pipe', 'pipe']
+                            });
+                            
+                            let countOutput = '';
+                            countProcess.stdout.on('data', (data) => {
+                                countOutput += data.toString();
+                            });
+                            
+                            countProcess.on('close', (countCode) => {
+                                const commitsBehind = countCode === 0 ? parseInt(countOutput.trim()) || 0 : 0;
+                                
+                                if (commitsBehind > 0) {
+                                    // Local is behind remote - update available
+                                    resolve({
+                                        updateAvailable: true,
+                                        commitsAhead: commitsBehind,
+                                        latestCommit: remoteCommit.substring(0, 7),
+                                        localCommit: localCommit.substring(0, 7)
+                                    });
+                                } else {
+                                    // Local is ahead of or same as remote - up to date
+                                    resolve({
+                                        updateAvailable: false,
+                                        latestCommit: remoteCommit.substring(0, 7),
+                                        localCommit: localCommit.substring(0, 7)
+                                    });
+                                }
                             });
                         }
                     });
