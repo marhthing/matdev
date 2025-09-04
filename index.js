@@ -178,7 +178,27 @@ function startBot(entryPoint = 'bot.js') {
     })
 
     console.log('✅ Bot manager running!')
+    
+    // Keep the manager process alive
+    const keepAlive = setInterval(() => {
+        // This interval keeps the manager process running
+        // It will only exit when explicitly terminated
+    }, 60000) // Check every minute
+    
+    // Store the interval for cleanup
+    botProcess.keepAliveInterval = keepAlive
 }
+
+// Prevent the manager from exiting unexpectedly
+process.on('uncaughtException', (error) => {
+    console.error('❌ Manager uncaught exception:', error)
+    // Don't exit, keep the manager running
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Manager unhandled rejection:', reason)
+    // Don't exit, keep the manager running
+})
 
 // Expose functions for bot commands
 global.managerCommands = {
