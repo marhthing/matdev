@@ -93,19 +93,7 @@ class CorePlugin {
             ownerOnly: true
         });
 
-        this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
-            description: 'Check for updates',
-            usage: `${config.PREFIX}update`,
-            category: 'admin',
-            ownerOnly: true
-        });
-
-        this.bot.messageHandler.registerCommand('updatenow', this.updateNowCommand.bind(this), {
-            description: 'Force update from GitHub',
-            usage: `${config.PREFIX}updatenow`,
-            category: 'admin',
-            ownerOnly: true
-        });
+        // Update commands moved to system plugin
 
         this.bot.messageHandler.registerCommand('eval', this.evalCommand.bind(this), {
             description: 'Execute JavaScript code',

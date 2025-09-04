@@ -111,18 +111,10 @@ class SystemPlugin {
             ownerOnly: true
         });
 
-        // Update command
+        // Update command (handles both check and now)
         this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
-            description: 'Check for bot updates',
-            usage: `${config.PREFIX}update`,
-            category: 'system',
-            ownerOnly: true
-        });
-
-        // Update now command
-        this.bot.messageHandler.registerCommand('updatenow', this.updateNowCommand.bind(this), {
-            description: 'Force update from GitHub',
-            usage: `${config.PREFIX}updatenow`,
+            description: 'Check for bot updates or force update with "now"',
+            usage: `${config.PREFIX}update [now]`,
             category: 'system',
             ownerOnly: true
         });
@@ -636,10 +628,19 @@ class SystemPlugin {
     }
 
     /**
-     * Update command
+     * Update command - handles both check and force update
      */
     async updateCommand(messageInfo) {
         try {
+            const { args } = messageInfo;
+            const action = args[0]?.toLowerCase();
+            
+            // Handle 'update now' to force update
+            if (action === 'now') {
+                return await this.executeUpdateNow(messageInfo);
+            }
+            
+            // Default: check for updates
             await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
             
             // Give a small delay to ensure manager commands are fully loaded
@@ -658,7 +659,7 @@ class SystemPlugin {
                     await this.bot.messageHandler.reply(messageInfo, 
                         `🔄 *${result.commitsAhead} UPDATE(S) AVAILABLE*\n\n` +
                         `📍 New commits found on GitHub\n` +
-                        `🔗 Use ${config.PREFIX}updatenow to update`);
+                        `🔗 Use ${config.PREFIX}update now to update`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, 
                         `✅ *BOT IS UP TO DATE*\n\n` +
@@ -674,7 +675,7 @@ class SystemPlugin {
                         await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
                     } else if (result.updateAvailable) {
                         await this.bot.messageHandler.reply(messageInfo, 
-                            `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}updatenow to update now.`);
+                            `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}update now to update now.`);
                     } else {
                         await this.bot.messageHandler.reply(messageInfo, 
                             `✅ *BOT IS UP TO DATE*\n\n📍 No updates available`);
@@ -693,10 +694,17 @@ class SystemPlugin {
     }
 
     /**
-     * Update now command - Force update from GitHub
+     * Execute update now - Force update from GitHub
      */
-    async updateNowCommand(messageInfo) {
+    async executeUpdateNow(messageInfo) {
         try {
+            // First check if manager commands are available
+            console.log('🔍 Checking manager commands availability...');
+            console.log('global.managerCommands available:', !!global.managerCommands);
+            if (global.managerCommands) {
+                console.log('updateNow function available:', typeof global.managerCommands.updateNow);
+            }
+            
             // Give a small delay to ensure manager commands are fully loaded
             await new Promise(resolve => setTimeout(resolve, 500));
             
@@ -708,21 +716,30 @@ class SystemPlugin {
                     '⏱️ Bot restarting shortly...'
                 );
                 
+                console.log('🔄 Triggering manager update command...');
                 // Give time for the message to be sent before triggering update
                 setTimeout(() => {
                     global.managerCommands.updateNow();
                 }, 2000);
             } else {
+                // Fallback: Manual update instructions with restart
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '⚠️ *UPDATE SYSTEM UNAVAILABLE*\n\n' +
-                    '🔧 Auto-update not available\n' +
-                    '📋 Please use the Run button to restart\n' +
-                    '💡 This will pull latest code from GitHub\n' +
-                    '🔗 Repo: https://github.com/marhthing/Bot1.git'
+                    '🔄 *INITIATING MANUAL UPDATE*\n\n' +
+                    '⚠️ Auto-update system unavailable\n' +
+                    '🔧 Performing manual restart to pull latest code\n' +
+                    '📁 Session will be preserved\n' +
+                    '⏱️ Restarting in 3 seconds...'
                 );
+                
+                // Force restart which will trigger the manager to pull latest code
+                setTimeout(() => {
+                    console.log('🔄 Forcing restart for manual update...');
+                    process.exit(0);
+                }, 3000);
             }
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try clicking Run button.');
+            console.error('❌ Update now error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try clicking Run button to restart manually.');
         }
     }
 
