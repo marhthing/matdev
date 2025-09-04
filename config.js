@@ -3,6 +3,74 @@
  * Environment-based configuration with intelligent defaults
  */
 
+const fs = require('fs-extra');
+const path = require('path');
+
+// Ensure .env file exists with default values
+function ensureEnvFile() {
+    const envPath = path.join(__dirname, '.env');
+    
+    // Default environment variables
+    const defaultEnv = {
+        BOT_NAME: 'MATDEV',
+        PREFIX: '.',
+        PUBLIC_MODE: 'false',
+        AUTO_TYPING: 'false',
+        AUTO_READ: 'false',
+        AUTO_STATUS_VIEW: 'false',
+        ANTI_DELETE: 'true',
+        MAX_CONCURRENT_MESSAGES: '5',
+        MESSAGE_TIMEOUT: '30000',
+        CACHE_TTL: '3600',
+        ANTI_BAN: 'true',
+        RATE_LIMIT_WINDOW: '60000',
+        RATE_LIMIT_MAX_REQUESTS: '20',
+        MAX_MEDIA_SIZE: '104857600',
+        ALLOWED_MEDIA_TYPES: 'image,video,audio,document',
+        LOG_LEVEL: 'info',
+        LOG_TO_FILE: 'false',
+        PLUGIN_AUTO_LOAD: 'true',
+        STARTUP_MESSAGE: 'false',
+        STATUS_REPORTS: 'false',
+        BOT_REACTIONS: 'true',
+        PORT: '8000',
+        NODE_ENV: 'production',
+        TIMEZONE: 'UTC',
+        LANGUAGE: 'en'
+    };
+    
+    try {
+        // Read existing .env file if it exists
+        let existingEnv = {};
+        if (fs.existsSync(envPath)) {
+            const envContent = fs.readFileSync(envPath, 'utf8');
+            envContent.split('\n').forEach(line => {
+                const [key, value] = line.split('=');
+                if (key && value) {
+                    existingEnv[key.trim()] = value.trim();
+                }
+            });
+        }
+        
+        // Merge existing with defaults (existing values take priority)
+        const finalEnv = { ...defaultEnv, ...existingEnv };
+        
+        // Write updated .env file
+        const envLines = Object.entries(finalEnv)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n');
+            
+        fs.writeFileSync(envPath, envLines + '\n');
+        
+        console.log('✅ Environment file updated with defaults');
+    } catch (error) {
+        console.warn('⚠️ Could not update .env file:', error.message);
+    }
+}
+
+// Ensure .env file exists before loading
+ensureEnvFile();
+
 require('dotenv').config();
 
 const config = {
