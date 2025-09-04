@@ -144,6 +144,14 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Bot reactions command
+        this.bot.messageHandler.registerCommand('br', this.botReactionsCommand.bind(this), {
+            description: 'Toggle bot auto-reactions on commands',
+            usage: `${config.PREFIX}br [on|off]`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -728,6 +736,41 @@ class CorePlugin {
             console.error('Group LID Info command error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while retrieving group LID information.');
+        }
+    }
+
+    /**
+     * Bot reactions command handler
+     */
+    async botReactionsCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            const status = args[0]?.toLowerCase();
+            const config = require('../config');
+
+            if (status === 'on') {
+                config.BOT_REACTIONS = true;
+                await this.bot.messageHandler.reply(messageInfo, '✅ Bot auto-reactions enabled');
+            } else if (status === 'off') {
+                config.BOT_REACTIONS = false;
+                await this.bot.messageHandler.reply(messageInfo, '❌ Bot auto-reactions disabled');
+            } else if (!status) {
+                // No argument provided - show status
+                const currentStatus = config.BOT_REACTIONS ? 'ON' : 'OFF';
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🤖 *Bot Auto-Reactions Status:* ${currentStatus}\n\n` +
+                    `Use \`${config.PREFIX}br on\` or \`${config.PREFIX}br off\` to toggle.\n\n` +
+                    `*Reaction Types:*\n` +
+                    `⏳ Loading while processing\n` +
+                    `✅ Success when completed\n` +
+                    `❌ Error if failed/not found`);
+            } else {
+                // Invalid argument provided - silently ignore
+                return;
+            }
+
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling bot reactions.');
         }
     }
 }
