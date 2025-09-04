@@ -157,11 +157,11 @@ class AntiDeletePlugin {
             // Get the actual sender JID from the archived message
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
-            
+
             // Get chat name/info
             const isGroup = chatJid.includes('@g.us');
             let groupName = '';
-            
+
             if (isGroup) {
                 try {
                     // Try to get group metadata
@@ -172,7 +172,7 @@ class AntiDeletePlugin {
                     groupName = 'Group Chat';
                 }
             }
-            
+
             // Check if it's a media message first
             if (archivedMessage.media_url) {
                 const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
@@ -181,7 +181,7 @@ class AntiDeletePlugin {
                     // Create media message with tagged format
                     // Tag area shows "deletedMessage" and group name if applicable
                     const tagText = isGroup ? `deletedMessage • ${groupName}` : 'deletedMessage';
-                    
+
                     const mediaMessage = {
                         caption: archivedMessage.content || '',
                         contextInfo: {
@@ -224,7 +224,7 @@ class AntiDeletePlugin {
                 } else {
                     // If media couldn't be recovered, send text notification
                     const tagText = isGroup ? `Deleted Media • ${groupName}` : 'Deleted Media';
-                    
+
                     const alertMessage = {
                         text: `❌ Deleted ${(archivedMessage.message_type || 'media').replace('Message', '')} could not be recovered`,
                         contextInfo: {
@@ -242,7 +242,7 @@ class AntiDeletePlugin {
             } else {
                 // For text messages, use the original format with group name in tag
                 const alertText = archivedMessage.content || 'deletedMessage';
-                const tagText = isGroup ? `deletedMessage • ${groupName}` : (archivedMessage.content || 'deletedMessage');
+                const tagText = isGroup ? groupName : 'deletedMessage';
 
                 const alertMessage = {
                     text: alertText,
@@ -275,17 +275,17 @@ class AntiDeletePlugin {
         if (chatJid === 'status@broadcast' || chatJid.includes('status@broadcast')) {
             return true;
         }
-        
+
         // Ignore newsletters and channels
         if (chatJid.includes('@newsletter') || chatJid.includes('@broadcast') || chatJid.includes('channel')) {
             return true;
         }
-        
+
         // Monitor groups (@g.us), private chats (@s.whatsapp.net), and lid chats (@lid)
         const isGroup = chatJid.endsWith('@g.us');
         const isPrivateChat = chatJid.endsWith('@s.whatsapp.net');
         const isLidChat = chatJid.endsWith('@lid');
-        
+
         return !(isGroup || isPrivateChat || isLidChat);
     }
 
