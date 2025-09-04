@@ -151,6 +151,13 @@ class CorePlugin {
      */
     async helpCommand(messageInfo) {
         try {
+            console.log(`🔍 Help command executing for: ${messageInfo.chat_jid}`);
+            console.log(`🔍 Message info:`, {
+                chat_jid: messageInfo.chat_jid,
+                sender: messageInfo.sender,
+                participant_jid: messageInfo.participant_jid,
+                is_group: messageInfo.is_group
+            });
             const { args } = messageInfo;
             
             if (args.length > 0) {
@@ -200,6 +207,8 @@ class CorePlugin {
                 await this.bot.messageHandler.reply(messageInfo, helpText);
             }
         } catch (error) {
+            console.error('❌ Help command error:', error);
+            console.error('❌ Help command stack:', error.stack);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying help.');
         }
     }
