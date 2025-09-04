@@ -160,7 +160,18 @@ class AntiDeletePlugin {
             
             // Get chat name/info
             const isGroup = chatJid.includes('@g.us');
-            const chatName = isGroup ? 'Group Chat' : 'Private Chat';
+            let groupName = '';
+            
+            if (isGroup) {
+                try {
+                    // Try to get group metadata
+                    const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
+                    groupName = groupMetadata.subject || 'Unknown Group';
+                } catch (error) {
+                    console.log('Could not fetch group name:', error);
+                    groupName = 'Group Chat';
+                }
+            }
             
             // Check if it's a media message first
             if (archivedMessage.media_url) {
@@ -168,12 +179,14 @@ class AntiDeletePlugin {
 
                 if (mediaData && mediaData.buffer && mediaData.buffer.length > 0) {
                     // Create media message with tagged format
-                    // Tag area shows "deletedMessage", caption shows original text
+                    // Tag area shows "deletedMessage" and group name if applicable
+                    const tagText = isGroup ? `deletedMessage • ${groupName}` : 'deletedMessage';
+                    
                     const mediaMessage = {
                         caption: archivedMessage.content || '',
                         contextInfo: {
                             quotedMessage: {
-                                conversation: 'deletedMessage'
+                                conversation: tagText
                             },
                             participant: senderJid,
                             remoteJid: senderJid,
@@ -210,11 +223,13 @@ class AntiDeletePlugin {
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
                 } else {
                     // If media couldn't be recovered, send text notification
+                    const tagText = isGroup ? `Deleted Media • ${groupName}` : 'Deleted Media';
+                    
                     const alertMessage = {
                         text: `❌ Deleted ${(archivedMessage.message_type || 'media').replace('Message', '')} could not be recovered`,
                         contextInfo: {
                             quotedMessage: {
-                                conversation: 'Deleted Media'
+                                conversation: tagText
                             },
                             participant: senderJid,
                             remoteJid: senderJid,
@@ -225,14 +240,15 @@ class AntiDeletePlugin {
                     await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
                 }
             } else {
-                // For text messages, use the original format
+                // For text messages, use the original format with group name in tag
                 const alertText = archivedMessage.content || 'deletedMessage';
+                const tagText = isGroup ? `deletedMessage • ${groupName}` : (archivedMessage.content || 'deletedMessage');
 
                 const alertMessage = {
                     text: alertText,
                     contextInfo: {
                         quotedMessage: {
-                            conversation: archivedMessage.content || 'deletedMessage'
+                            conversation: tagText
                         },
                         participant: senderJid,
                         remoteJid: senderJid,
