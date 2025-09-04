@@ -71,9 +71,10 @@ global.managerCommands = {
     updateNow: () => {
         console.log('🔄 Force update requested - recloning repository...')
         
-        // Stop current bot process and reclone
+        // Force exit to trigger full restart and reclone
         setTimeout(() => {
-            cloneAndSetup()
+            console.log('🔄 Forcing process exit to trigger recloning...')
+            process.exit(1)
         }, 1000)
         
         return { message: 'Update initiated - bot will restart with latest code' }
