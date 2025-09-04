@@ -125,17 +125,29 @@ function startBot(entryPoint = 'bot.js') {
     botProcess.on('exit', (code, signal) => {
         console.log(`🔄 Bot exited with code ${code}, signal ${signal}`)
         
-        if (code !== 0 && signal !== 'SIGTERM' && signal !== 'SIGINT') {
-            restartCount++
-            if (restartCount <= maxRestarts) {
-                console.log(`🔄 Restarting bot... (${restartCount}/${maxRestarts})`)
+        // Always restart unless it's a manager shutdown or interrupt
+        if (signal !== 'SIGTERM' && signal !== 'SIGINT') {
+            if (code === 0) {
+                // Code 0 means intentional restart (like .restart command)
+                console.log(`🔄 Restarting bot as requested...`)
                 setTimeout(() => {
                     startBot(entryPoint)
                 }, 2000)
             } else {
-                console.error('❌ Too many restarts, stopping')
-                process.exit(1)
+                // Non-zero exit code means crash
+                restartCount++
+                if (restartCount <= maxRestarts) {
+                    console.log(`🔄 Restarting bot after crash... (${restartCount}/${maxRestarts})`)
+                    setTimeout(() => {
+                        startBot(entryPoint)
+                    }, 2000)
+                } else {
+                    console.error('❌ Too many crash restarts, stopping')
+                    process.exit(1)
+                }
             }
+        } else {
+            console.log('🛑 Bot stopped by manager')
         }
     })
 
