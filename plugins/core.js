@@ -220,24 +220,16 @@ class CorePlugin {
         try {
             const start = Date.now();
             
-            // Send initial response with quote
-            const reply = await this.bot.messageHandler.reply(messageInfo, '🏓 Pinging...');
-            
+            // Calculate latency
             const latency = Date.now() - start;
             
-            // Edit the message with actual ping results
+            // Send ping response directly
             const pingText = `🏓 *Pong!*\n\n` +
                 `⚡ *Response Time:* ${latency}ms\n` +
-                `🕐 *Timestamp:* ${new Date().toLocaleString()}`;
+                `🕐 *Timestamp:* ${new Date().toLocaleString()}\n` +
+                `📱 *Chat:* ${messageInfo.is_group ? 'Group' : 'Private'}`;
             
-            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                text: pingText,
-                edit: reply.key,
-                quoted: {
-                    key: messageInfo.key,
-                    message: messageInfo.message
-                }
-            });
+            await this.bot.messageHandler.reply(messageInfo, pingText);
             
         } catch (error) {
             this.bot.logger.error('Ping command error:', error);
