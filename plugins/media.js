@@ -222,7 +222,12 @@ class MediaPlugin {
 
             await this.bot.messageHandler.reply(messageInfo, '🎨 Creating sticker... Please wait.');
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+            const buffer = await this.downloadMedia(quotedMessage, mediaType);
+            
+            if (!buffer) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
+                return;
+            }
 
             // Send as sticker
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -232,6 +237,7 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.log('Sticker error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker.');
         }
     }
@@ -270,7 +276,12 @@ class MediaPlugin {
                 }
             }
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+            const buffer = await this.downloadMedia(quotedMessage, 'stickerMessage');
+            
+            if (!buffer) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process sticker. Please try again.');
+                return;
+            }
 
             // Send sticker with new metadata
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -280,6 +291,7 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.log('Take error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error taking sticker.');
         }
     }
@@ -303,7 +315,12 @@ class MediaPlugin {
                 return;
             }
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+            const buffer = await this.downloadMedia(quotedMessage, 'stickerMessage');
+            
+            if (!buffer) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process sticker. Please try again.');
+                return;
+            }
 
             // Send as image
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -312,6 +329,7 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.log('Photo error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error converting sticker to photo.');
         }
     }
@@ -507,6 +525,64 @@ class MediaPlugin {
     isMediaMessage(message) {
         const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
         return mediaTypes.some(type => message[type]);
+    }
+
+    /**
+     * Enhanced media download with fallback methods
+     */
+    async downloadMedia(quotedMessage, mediaType) {
+        try {
+            // Method 1: Direct baileys download
+            try {
+                const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                if (buffer && buffer.length > 0) {
+                    return buffer;
+                }
+            } catch (error) {
+                console.log('Direct download failed, trying alternatives...');
+            }
+
+            // Method 2: Try using the media URL if available
+            const mediaData = quotedMessage[mediaType];
+            if (mediaData && mediaData.url) {
+                try {
+                    const response = await fetch(mediaData.url);
+                    if (response.ok) {
+                        const arrayBuffer = await response.arrayBuffer();
+                        return Buffer.from(arrayBuffer);
+                    }
+                } catch (error) {
+                    console.log('URL download failed:', error);
+                }
+            }
+
+            // Method 3: Check if we have it in our database cache
+            if (this.bot.database && quotedMessage.key) {
+                try {
+                    // Try to find cached media by message ID
+                    const messageId = quotedMessage.key.id;
+                    const cachedPath = path.join(__dirname, '../session/media');
+                    const files = await fs.readdir(cachedPath).catch(() => []);
+                    
+                    for (const file of files) {
+                        if (file.includes(messageId.replace(/[^a-zA-Z0-9]/g, '_'))) {
+                            const filePath = path.join(cachedPath, file);
+                            const buffer = await fs.readFile(filePath);
+                            if (buffer && buffer.length > 0) {
+                                return buffer;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.log('Cache lookup failed:', error);
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.log('All media download methods failed:', error);
+            return null;
+        }
     }
 
     /**
