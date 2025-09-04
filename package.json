@@ -2,7 +2,7 @@
   "name": "workspace",
   "version": "1.0.0",
   "description": "<div align=\"center\">",
-  "main": "index.js",
+  "main": "bot.js",
   "directories": {
     "lib": "lib"
   },

@@ -86,6 +86,27 @@ class CorePlugin {
             ownerOnly: true
         });
 
+        this.bot.messageHandler.registerCommand('shutdown', this.shutdownCommand.bind(this), {
+            description: 'Shutdown the bot',
+            usage: `${config.PREFIX}shutdown`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
+            description: 'Check for updates',
+            usage: `${config.PREFIX}update`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('updatenow', this.updateNowCommand.bind(this), {
+            description: 'Force update from GitHub',
+            usage: `${config.PREFIX}updatenow`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
         this.bot.messageHandler.registerCommand('eval', this.evalCommand.bind(this), {
             description: 'Execute JavaScript code',
             usage: `${config.PREFIX}eval <code>`,
@@ -340,13 +361,103 @@ class CorePlugin {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🔄 Restarting MATDEV bot...');
             
-            // Give time for message to send
-            setTimeout(() => {
-                process.exit(0);
-            }, 2000);
+            // Use manager restart if available
+            if (global.managerCommands && global.managerCommands.restart) {
+                setTimeout(() => {
+                    global.managerCommands.restart();
+                }, 1000);
+            } else {
+                // Fallback to direct exit
+                setTimeout(() => {
+                    process.exit(0);
+                }, 2000);
+            }
             
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during restart.');
+        }
+    }
+
+    /**
+     * Shutdown command handler (owner only)
+     */
+    async shutdownCommand(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🛑 Shutting down MATDEV bot...');
+            
+            // Use manager shutdown if available
+            if (global.managerCommands && global.managerCommands.shutdown) {
+                setTimeout(() => {
+                    global.managerCommands.shutdown();
+                }, 1000);
+            } else {
+                // Fallback to direct shutdown
+                setTimeout(() => {
+                    this.bot.shutdown();
+                }, 2000);
+            }
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error during shutdown.');
+        }
+    }
+
+    /**
+     * Update command handler (owner only)
+     */
+    async updateCommand(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
+            
+            if (global.managerCommands && global.managerCommands.checkUpdates) {
+                const result = await global.managerCommands.checkUpdates();
+                
+                if (result.error) {
+                    await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
+                } else if (result.updateAvailable) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `🔄 ${result.message}\n\nUse ${config.PREFIX}updatenow to update immediately.`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, `✅ ${result.message}`);
+                }
+            } else {
+                // Fallback update info
+                const updateText = `*🔄 UPDATE INFORMATION*\n\n` +
+                    `*Current Version:* 1.0.0\n` +
+                    `*Platform:* ${config.PLATFORM}\n` +
+                    `*Node.js:* ${process.version}\n\n` +
+                    `*Update Status:*\n` +
+                    `• Auto-updates: ❌ Disabled\n` +
+                    `• Manual updates: ✅ Available\n\n` +
+                    `*To update MATDEV:*\n` +
+                    `1. Pull latest changes from repository\n` +
+                    `2. Restart the bot process\n` +
+                    `3. Session will be preserved automatically\n\n` +
+                    `_Always backup your session before updating_`;
+                
+                await this.bot.messageHandler.reply(messageInfo, updateText);
+            }
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
+        }
+    }
+
+    /**
+     * Update now command handler (owner only)
+     */
+    async updateNowCommand(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '⚠️ Force updating from GitHub...\n\n🔄 Bot will restart with latest code shortly.');
+            
+            if (global.managerCommands && global.managerCommands.updateNow) {
+                setTimeout(() => {
+                    global.managerCommands.updateNow();
+                }, 1000);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Manager commands not available. Please restart manually.');
+            }
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error during force update.');
         }
     }
 
