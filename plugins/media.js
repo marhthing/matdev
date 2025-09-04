@@ -233,7 +233,7 @@ class MediaPlugin {
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 sticker: buffer.buffer, // Access buffer from the object returned by downloadMedia
                 packname: config.BOT_NAME || 'MATDEV',
-                author: 'MATDEV Bot'
+                author: config.BOT_NAME || 'MATDEV'
             });
 
         } catch (error) {
@@ -264,7 +264,7 @@ class MediaPlugin {
             }
 
             let packname = config.BOT_NAME || 'MATDEV';
-            let author = 'MATDEV Bot';
+            let author = config.BOT_NAME || 'MATDEV';
 
             if (args.length > 0) {
                 const metadata = args.join(' ').split('|');
