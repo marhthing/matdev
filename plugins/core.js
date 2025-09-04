@@ -151,13 +151,13 @@ class CorePlugin {
      */
     async helpCommand(messageInfo) {
         try {
-            console.log(`🔍 Help command executing for: ${messageInfo.chat_jid}`);
-            console.log(`🔍 Message info:`, {
-                chat_jid: messageInfo.chat_jid,
-                sender: messageInfo.sender,
-                participant_jid: messageInfo.participant_jid,
-                is_group: messageInfo.is_group
-            });
+            // console.log(`🔍 Help command executing for: ${messageInfo.chat_jid}`);
+            // console.log(`🔍 Message info:`, {
+            //     chat_jid: messageInfo.chat_jid,
+            //     sender: messageInfo.sender,
+            //     participant_jid: messageInfo.participant_jid,
+            //     is_group: messageInfo.is_group
+            // });
             const { args } = messageInfo;
             
             if (args.length > 0) {
@@ -609,15 +609,7 @@ class CorePlugin {
 
             // Check if a group LID is already registered
             if (this.bot.database.isGroupLidRegistered()) {
-                const existingData = this.bot.database.getGroupLidData();
-                const registeredAt = new Date(existingData.registeredAt).toLocaleString();
-                
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ *Group LID Already Registered*\n\n` +
-                    `🆔 *Registered LID:* ${existingData.lid}\n` +
-                    `👤 *Registered By:* ${existingData.registeredBy.split('@')[0]}\n` +
-                    `📅 *Date:* ${registeredAt}\n\n` +
-                    `_The .rg command is now disabled until the LID is cleared._`);
+                // Silent - LID already registered, do nothing
                 return;
             }
 
@@ -643,26 +635,20 @@ class CorePlugin {
             }
 
             // Log what we found for debugging
-            console.log(`🔍 LID extraction attempt:`, {
-                messageKey: messageInfo.key,
-                participantJid: messageInfo.participant_jid,
-                extractedLid: senderLid
-            });
+            // console.log(`🔍 LID extraction attempt:`, {
+            //     messageKey: messageInfo.key,
+            //     participantJid: messageInfo.participant_jid,
+            //     extractedLid: senderLid
+            // });
 
             if (!senderLid) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ *No LID Found*\n\n` +
-                    `This command requires a WhatsApp Business account with LID.\n` +
-                    `Make sure you're using a Business account and try again.`);
+                // Silent - no LID found, do nothing
                 return;
             }
 
             // Verify the LID format
             if (!senderLid.includes('@lid')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ *Invalid LID Format*\n\n` +
-                    `Expected format: xxxxx@lid\n` +
-                    `Received: ${senderLid}`);
+                // Silent - invalid LID format, do nothing
                 return;
             }
 
@@ -670,15 +656,11 @@ class CorePlugin {
             const result = await this.bot.database.registerGroupLid(senderLid, messageInfo.participant_jid);
 
             if (result.success) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `✅ *Group LID Registered Successfully*\n\n` +
-                    `🆔 *Your LID:* ${senderLid}\n` +
-                    `👤 *Registered By:* ${messageInfo.participant_jid.split('@')[0]}\n` +
-                    `📅 *Date:* ${new Date().toLocaleString()}\n\n` +
-                    `_The .rg command is now disabled. Only the bot owner can clear this registration._`);
+                // Silent - LID registered successfully, do nothing
+                return;
             } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ *Registration Failed*\n\n${result.message}`);
+                // Silent - registration failed, do nothing
+                return;
             }
 
         } catch (error) {
