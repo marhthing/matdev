@@ -69,7 +69,7 @@ global.managerCommands = {
     },
     
     updateNow: () => {
-        console.log('🔄 Force update requested - recloning repository...')
+        console.log('🔄 Force update requested - bypassing all checks and recloning repository...')
         
         // Create update flag for completion notification
         const fs = require('fs')
@@ -79,39 +79,47 @@ global.managerCommands = {
         }
         fs.writeFileSync('.update_flag.json', JSON.stringify(updateInfo, null, 2))
         
-        // Remove multiple key files to force recloning on restart
+        // Force immediate recloning by removing ALL key files (bypass any existence checks)
         setTimeout(() => {
-            console.log('🔄 Removing key files to trigger recloning...')
-            const filesToRemove = ['bot.js', 'config.js', 'package.json']
+            console.log('🔄 Force removing ALL key files to trigger complete recloning...')
+            const filesToRemove = ['bot.js', 'config.js', 'package.json', '.env']
             
             try {
+                // Remove files without checking if they exist first
                 for (const file of filesToRemove) {
-                    if (fs.existsSync(file)) {
+                    try {
                         fs.unlinkSync(file)
                         console.log(`✅ ${file} removed`)
+                    } catch (err) {
+                        console.log(`ℹ️ ${file} not found or already removed`)
                     }
                 }
-                console.log('✅ Key files removed - recloning will be triggered')
+                console.log('✅ All files removed - forced recloning will be triggered')
             } catch (error) {
                 console.error('❌ Failed to remove files:', error)
             }
             
-            console.log('🔄 Forcing process exit to trigger recloning...')
+            console.log('🔄 Forcing process exit to trigger complete recloning from index.js...')
             process.exit(1)
         }, 1000)
         
-        return { message: 'Update initiated - bot will restart with latest code' }
+        return { message: 'Force update initiated - bot will restart with latest code from GitHub' }
     }
 }
 
 console.log('✅ Manager commands ready and available globally')
 
-// Check if this is an initial setup or restart
+// Check if this is an initial setup, restart, or forced update
 // If any of these key files are missing, trigger recloning
 const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json')
+const isForcedUpdate = existsSync('.update_flag.json')
 
-if (isInitialSetup) {
-    console.log('🔧 Initial setup detected - cloning from GitHub...')
+if (isInitialSetup || isForcedUpdate) {
+    if (isForcedUpdate) {
+        console.log('🔄 Forced update detected - recloning from GitHub...')
+    } else {
+        console.log('🔧 Initial setup detected - cloning from GitHub...')
+    }
     cloneAndSetup()
 } else {
     console.log('🚀 Starting MATDEV bot...')

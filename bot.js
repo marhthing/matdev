@@ -84,14 +84,14 @@ class MATDEV {
             // Ensure required directories exist
             await this.ensureDirectories();
 
-            // Initialize JSON storage
+            // Start WhatsApp connection FIRST
+            await this.connect();
+
+            // Initialize JSON storage after connection
             await this.database.initialize();
 
-            // Load plugins
+            // Load plugins after connection
             await this.loadPlugins();
-
-            // Start connection
-            await this.connect();
 
             // Check for restart completion message
             await this.checkRestartCompletion();
