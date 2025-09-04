@@ -111,12 +111,14 @@ class MediaPlugin {
      */
     async mediainfoCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
             const mediaType = Object.keys(quotedMessage)[0];
 
             if (!this.isMediaMessage(quotedMessage)) {
@@ -156,7 +158,11 @@ class MediaPlugin {
                 return;
             }
 
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
                 return;
             }
@@ -164,7 +170,6 @@ class MediaPlugin {
             await this.bot.messageHandler.reply(messageInfo, '🔄 Converting media... Please wait.');
 
             const targetFormat = args[0].toLowerCase();
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!this.isMediaMessage(quotedMessage)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
@@ -200,12 +205,14 @@ class MediaPlugin {
      */
     async stickerCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
             const mediaType = Object.keys(quotedMessage)[0];
 
             if (!['imageMessage', 'videoMessage'].includes(mediaType)) {
@@ -236,12 +243,14 @@ class MediaPlugin {
         try {
             const { args } = messageInfo;
 
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!quotedMessage.stickerMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker.');
@@ -280,12 +289,14 @@ class MediaPlugin {
      */
     async photoCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!quotedMessage.stickerMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker.');
@@ -310,12 +321,14 @@ class MediaPlugin {
      */
     async compressCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!this.isMediaMessage(quotedMessage)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
@@ -355,12 +368,14 @@ class MediaPlugin {
      */
     async toaudioCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!quotedMessage.videoMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
@@ -388,12 +403,14 @@ class MediaPlugin {
      */
     async tomp3Command(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio or video file.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
             const mediaType = Object.keys(quotedMessage)[0];
 
             if (!['audioMessage', 'videoMessage'].includes(mediaType)) {
@@ -422,12 +439,14 @@ class MediaPlugin {
      */
     async tovideoCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a GIF or video.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
 
             if (!this.isMediaMessage(quotedMessage)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
@@ -454,12 +473,14 @@ class MediaPlugin {
      */
     async toimageCommand(messageInfo) {
         try {
-            if (!messageInfo.message.quotedMessage) {
+            // Check for quoted message in the proper structure
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker or document.');
                 return;
             }
-
-            const quotedMessage = messageInfo.message.quotedMessage;
             const mediaType = Object.keys(quotedMessage)[0];
 
             if (!['stickerMessage', 'documentMessage'].includes(mediaType)) {
