@@ -621,12 +621,22 @@ class CorePlugin {
             // Look for LID information in the message key
             let senderLid = null;
             
-            // Check for senderLid in the original message
+            // Check for senderLid in the original message (multiple possible locations)
             if (messageInfo.key && messageInfo.key.senderLid) {
                 senderLid = messageInfo.key.senderLid;
             } else if (messageInfo.key && messageInfo.key.participantLid) {
                 senderLid = messageInfo.key.participantLid;
+            } else if (messageInfo.participant_jid && messageInfo.participant_jid.includes('@lid')) {
+                // If participant_jid already contains LID, use it directly
+                senderLid = messageInfo.participant_jid;
             }
+
+            // Log what we found for debugging
+            this.bot.logger.info(`🔍 LID extraction attempt:`, {
+                messageKey: messageInfo.key,
+                participantJid: messageInfo.participant_jid,
+                extractedLid: senderLid
+            });
 
             if (!senderLid) {
                 await this.bot.messageHandler.reply(messageInfo, 
