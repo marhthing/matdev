@@ -9,6 +9,79 @@ console.log('📍 Working in:', __dirname)
 // Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
 const GITHUB_REPO = 'https://github.com/marhthing/Bot1.git'
 
+// Expose manager commands IMMEDIATELY at startup - before any bot operations
+console.log('🔧 Setting up manager commands...')
+global.managerCommands = {
+    restart: () => {
+        console.log('🔄 Restart requested via bot command')
+        process.kill(process.pid, 'SIGUSR1')
+    },
+    
+    shutdown: () => {
+        console.log('🛑 Shutdown requested via bot command')
+        process.kill(process.pid, 'SIGTERM')
+    },
+    
+    checkUpdates: async () => {
+        try {
+            console.log('🔍 Checking for updates...')
+            
+            // Fetch latest commit from GitHub
+            const { spawnSync } = require('child_process')
+            const result = spawnSync('git', ['ls-remote', GITHUB_REPO, 'HEAD'], {
+                encoding: 'utf8',
+                stdio: ['inherit', 'pipe', 'inherit']
+            })
+            
+            if (result.error || result.status !== 0) {
+                return { error: 'Failed to check remote repository' }
+            }
+            
+            const remoteCommit = result.stdout.split('\t')[0]
+            
+            // Get local commit if git repo exists
+            let localCommit = null
+            if (require('fs-extra').existsSync('.git')) {
+                const localResult = spawnSync('git', ['rev-parse', 'HEAD'], {
+                    encoding: 'utf8',
+                    stdio: ['inherit', 'pipe', 'inherit']
+                })
+                
+                if (localResult.status === 0) {
+                    localCommit = localResult.stdout.trim()
+                }
+            }
+            
+            if (!localCommit || localCommit !== remoteCommit) {
+                return { 
+                    updateAvailable: true, 
+                    message: `Updates available! Local: ${localCommit?.substring(0, 7) || 'none'}, Remote: ${remoteCommit.substring(0, 7)}` 
+                }
+            } else {
+                return { 
+                    updateAvailable: false, 
+                    message: 'Bot is up to date!' 
+                }
+            }
+        } catch (error) {
+            return { error: error.message }
+        }
+    },
+    
+    updateNow: () => {
+        console.log('🔄 Force update requested - recloning repository...')
+        
+        // Stop current bot process and reclone
+        setTimeout(() => {
+            cloneAndSetup()
+        }, 1000)
+        
+        return { message: 'Update initiated - bot will restart with latest code' }
+    }
+}
+
+console.log('✅ Manager commands ready and available globally')
+
 // Check if this is an initial setup or restart
 const isInitialSetup = !existsSync('bot.js')
 
@@ -199,71 +272,3 @@ process.on('unhandledRejection', (reason, promise) => {
     // Don't exit, keep the manager running
 })
 
-// Expose functions for bot commands
-global.managerCommands = {
-    restart: () => {
-        console.log('🔄 Restart requested via bot command')
-        process.kill(process.pid, 'SIGUSR1')
-    },
-    
-    shutdown: () => {
-        console.log('🛑 Shutdown requested via bot command')
-        process.kill(process.pid, 'SIGTERM')
-    },
-    
-    checkUpdates: async () => {
-        try {
-            console.log('🔍 Checking for updates...')
-            
-            // Fetch latest commit from GitHub
-            const result = spawnSync('git', ['ls-remote', GITHUB_REPO, 'HEAD'], {
-                encoding: 'utf8',
-                stdio: ['inherit', 'pipe', 'inherit']
-            })
-            
-            if (result.error || result.status !== 0) {
-                return { error: 'Failed to check remote repository' }
-            }
-            
-            const remoteCommit = result.stdout.split('\t')[0]
-            
-            // Get local commit if git repo exists
-            let localCommit = null
-            if (existsSync('.git')) {
-                const localResult = spawnSync('git', ['rev-parse', 'HEAD'], {
-                    encoding: 'utf8',
-                    stdio: ['inherit', 'pipe', 'inherit']
-                })
-                
-                if (localResult.status === 0) {
-                    localCommit = localResult.stdout.trim()
-                }
-            }
-            
-            if (!localCommit || localCommit !== remoteCommit) {
-                return { 
-                    updateAvailable: true, 
-                    message: `Updates available! Local: ${localCommit?.substring(0, 7) || 'none'}, Remote: ${remoteCommit.substring(0, 7)}` 
-                }
-            } else {
-                return { 
-                    updateAvailable: false, 
-                    message: 'Bot is up to date!' 
-                }
-            }
-        } catch (error) {
-            return { error: error.message }
-        }
-    },
-    
-    updateNow: () => {
-        console.log('🔄 Force update requested - recloning repository...')
-        
-        // Stop current bot process and reclone
-        setTimeout(() => {
-            cloneAndSetup()
-        }, 1000)
-        
-        return { message: 'Update initiated - bot will restart with latest code' }
-    }
-}
