@@ -472,8 +472,9 @@ class MATDEV {
             logger.info('⏳ Connecting to WhatsApp...');
         }
 
-        // Set owner JID when connected
-        this.sock.ev.on('connection.update', (update) => {
+        // Set owner JID when connected (avoid duplicate event listeners)
+        if (this.sock && this.sock.ev) {
+            this.sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect } = update;
 
             logger.info(`📡 Connection update: ${connection}`);
@@ -489,7 +490,8 @@ class MATDEV {
                     logger.info(`🔧 Bot JID set globally: ${global.botJid}`);
                 }
             }
-        });
+            });
+        }
     }
 
     /**

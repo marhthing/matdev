@@ -656,17 +656,14 @@ class SystemPlugin {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
                 } else if (result.updateAvailable) {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `🔄 *1 UPDATE AVAILABLE*\n\n` +
-                        `Use ${config.PREFIX}updatenow to update immediately.`);
+                        `🔄 *UPDATE AVAILABLE*\n\nUse ${config.PREFIX}updatenow to update.`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `✅ *0 UPDATES AVAILABLE*\n\n` +
-                        `Bot is up to date.`);
+                        `✅ *BOT IS UP TO DATE*`);
                 }
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `⚠️ *UPDATE STATUS UNKNOWN*\n\n` +
-                    `Use ${config.PREFIX}updatenow to force update from GitHub.`);
+                    `⚠️ *Manager not available*\n\nUse ${config.PREFIX}updatenow to force update.`);
             }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
@@ -678,24 +675,27 @@ class SystemPlugin {
      */
     async updateNowCommand(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, 
-                '⚠️ *FORCE UPDATE INITIATED*\n\n' +
-                '🔄 Recloning from GitHub...\n' +
-                '📁 Session folder will be preserved\n' +
-                '⏱️ Bot will restart with latest code shortly'
-            );
-            
             if (global.managerCommands && global.managerCommands.updateNow) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '🔄 *UPDATING FROM GITHUB*\n\n' +
+                    '📁 Session will be preserved\n' +
+                    '⏱️ Bot restarting shortly...'
+                );
+                
                 // Give time for the message to be sent before triggering update
                 setTimeout(() => {
                     global.managerCommands.updateNow();
                 }, 2000);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Manager commands not available. Please restart manually to get latest updates.');
+                    '🔄 *MANUAL RESTART REQUIRED*\n\n' +
+                    '⚠️ Auto-update unavailable\n' +
+                    '📋 Please restart the bot manually\n' +
+                    '🔗 Repo: https://github.com/marhthing/Bot1.git'
+                );
             }
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error initiating force update.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try manual restart.');
         }
     }
 

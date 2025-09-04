@@ -7,8 +7,7 @@ console.log('🎯 MATDEV Bot Auto-Manager')
 console.log('📍 Working in:', __dirname)
 
 // Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
-const GITHUB_REPO = 'https://github.com/YOUR_USERNAME/YOUR_REPO.git'
-// Example: const GITHUB_REPO = 'https://github.com/marhthing/matdev-bot.git'
+const GITHUB_REPO = 'https://github.com/marhthing/Bot1.git'
 
 // Check if this is an initial setup or restart
 const isInitialSetup = !existsSync('bot.js')
