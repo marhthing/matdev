@@ -18,15 +18,18 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "MATDEV Bot PM2"
+args = "MATDEV Bot"
 
 [[workflows.workflow]]
-name = "MATDEV Bot PM2"
+name = "MATDEV Bot"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx pm2 start ecosystem.config.js && npx pm2 logs MATDEV-Bot --lines 200"
+args = "node index.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [deployment]
 run = ["node", "index.js"]
