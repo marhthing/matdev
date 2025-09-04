@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Configuration
  * Environment-based configuration with intelligent defaults
@@ -6,11 +7,19 @@
 const fs = require('fs-extra');
 const path = require('path');
 
-// Ensure .env file exists with default values
-function ensureEnvFile() {
+// Only create .env file if it doesn't exist
+function ensureEnvFileIfMissing() {
     const envPath = path.join(__dirname, '.env');
     
-    // Default environment variables
+    // If .env already exists, don't touch it - preserve user settings
+    if (fs.existsSync(envPath)) {
+        console.log('✅ Using existing .env file (preserving user settings)');
+        return;
+    }
+    
+    console.log('📝 Creating default .env file...');
+    
+    // Default environment variables (only used if .env doesn't exist)
     const defaultEnv = {
         BOT_NAME: 'MATDEV',
         PREFIX: '.',
@@ -40,37 +49,23 @@ function ensureEnvFile() {
     };
     
     try {
-        // Read existing .env file if it exists
-        let existingEnv = {};
-        if (fs.existsSync(envPath)) {
-            const envContent = fs.readFileSync(envPath, 'utf8');
-            envContent.split('\n').forEach(line => {
-                const [key, value] = line.split('=');
-                if (key && value) {
-                    existingEnv[key.trim()] = value.trim();
-                }
-            });
-        }
-        
-        // Merge existing with defaults (existing values take priority)
-        const finalEnv = { ...defaultEnv, ...existingEnv };
-        
-        // Write updated .env file
-        const envLines = Object.entries(finalEnv)
+        // Write default .env file
+        const envLines = Object.entries(defaultEnv)
             .map(([key, value]) => `${key}=${value}`)
             .join('\n');
             
         fs.writeFileSync(envPath, envLines + '\n');
         
-        console.log('✅ Environment file updated with defaults');
+        console.log('✅ Default .env file created');
     } catch (error) {
-        console.warn('⚠️ Could not update .env file:', error.message);
+        console.warn('⚠️ Could not create default .env file:', error.message);
     }
 }
 
-// Ensure .env file exists before loading
-ensureEnvFile();
+// Only create .env if it doesn't exist
+ensureEnvFileIfMissing();
 
+// Load environment variables
 require('dotenv').config();
 
 const config = {
@@ -82,6 +77,7 @@ const config = {
     // Bot Behavior
     PREFIX: process.env.PREFIX || '.',
     PUBLIC_MODE: process.env.PUBLIC_MODE === 'true',
+    
     // Feature flags
     AUTO_TYPING: process.env.AUTO_TYPING === 'true' || false,
     AUTO_READ: process.env.AUTO_READ === 'true' || false,
@@ -136,7 +132,7 @@ const config = {
               process.env.KOYEB ? 'koyeb' : 'vps'
 };
 
-// Validation
+// Validation (warnings only, don't override)
 if (!config.SESSION_ID && config.NODE_ENV === 'production') {
     console.warn('⚠️  SESSION_ID not configured. Bot will require manual QR scanning.');
 }
@@ -145,10 +141,15 @@ if (!config.OWNER_NUMBER) {
     console.warn('⚠️  OWNER_NUMBER not configured. Some features may be limited.');
 }
 
-// Platform-specific optimizations
+// Platform-specific optimizations (read-only)
 if (config.PLATFORM === 'heroku') {
-    config.LOG_TO_FILE = false; // Heroku has ephemeral filesystem
-    config.CACHE_TTL = 1800; // Shorter cache for memory optimization
+    // Don't override user settings, just provide info
+    if (!process.env.LOG_TO_FILE) {
+        console.log('ℹ️  Heroku detected: File logging disabled by default');
+    }
+    if (!process.env.CACHE_TTL) {
+        console.log('ℹ️  Heroku detected: Using shorter cache TTL for memory optimization');
+    }
 }
 
 module.exports = config;

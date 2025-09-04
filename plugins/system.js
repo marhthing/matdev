@@ -112,6 +112,21 @@ class SystemPlugin {
             ownerOnly: true
         });
 
+        // Environment variable management
+        this.bot.messageHandler.registerCommand('setenv', this.setEnvCommand.bind(this), {
+            description: 'Set environment variable',
+            usage: `${config.PREFIX}setenv <key> <value>`,
+            category: 'system',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('getenv', this.getEnvCommand.bind(this), {
+            description: 'Get environment variable',
+            usage: `${config.PREFIX}getenv <key>`,
+            category: 'system',
+            ownerOnly: true
+        });
+
         this.bot.messageHandler.registerCommand('health', this.healthCheck.bind(this), {
             description: 'Perform system health check',
             usage: `${config.PREFIX}health`,
@@ -485,6 +500,110 @@ class SystemPlugin {
     }
 
     
+
+    /**
+     * Set environment variable command
+     */
+    async setEnvCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            
+            if (args.length < 2) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Usage: ${config.PREFIX}setenv <key> <value>\n\nExample: ${config.PREFIX}setenv BOT_NAME MyBot`
+                );
+                return;
+            }
+            
+            const key = args[0].toUpperCase();
+            const value = args.slice(1).join(' ');
+            
+            // Update .env file
+            await this.updateEnvFile(key, value);
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Environment variable updated:\n*${key}* = ${value}\n\n⚠️ *Restart required* to apply changes`
+            );
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error updating environment variable.');
+        }
+    }
+
+    /**
+     * Get environment variable command
+     */
+    async getEnvCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            
+            if (args.length < 1) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Usage: ${config.PREFIX}getenv <key>\n\nExample: ${config.PREFIX}getenv BOT_NAME`
+                );
+                return;
+            }
+            
+            const key = args[0].toUpperCase();
+            const value = process.env[key];
+            
+            if (value === undefined) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ Environment variable *${key}* is not set`);
+            } else {
+                // Hide sensitive values
+                const sensitiveKeys = ['SESSION_ID', 'DATABASE_URL', 'REDIS_URL', 'API_KEY'];
+                const isSensitive = sensitiveKeys.some(sensitive => key.includes(sensitive));
+                const displayValue = isSensitive ? '[HIDDEN]' : value;
+                
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `*Environment Variable:*\n*${key}* = ${displayValue}`
+                );
+            }
+            
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving environment variable.');
+        }
+    }
+
+    /**
+     * Update environment variable in .env file
+     */
+    async updateEnvFile(key, value) {
+        const envPath = path.join(process.cwd(), '.env');
+        
+        try {
+            let envContent = '';
+            let envLines = [];
+            
+            // Read existing .env file
+            if (await fs.pathExists(envPath)) {
+                envContent = await fs.readFile(envPath, 'utf8');
+                envLines = envContent.split('\n');
+            }
+            
+            // Find and update existing key or add new one
+            let keyFound = false;
+            envLines = envLines.map(line => {
+                if (line.startsWith(`${key}=`)) {
+                    keyFound = true;
+                    return `${key}=${value}`;
+                }
+                return line;
+            });
+            
+            // Add new key if not found
+            if (!keyFound) {
+                envLines.push(`${key}=${value}`);
+            }
+            
+            // Write back to .env file
+            const newContent = envLines.filter(line => line.trim() !== '').join('\n') + '\n';
+            await fs.writeFile(envPath, newContent);
+            
+        } catch (error) {
+            throw new Error(`Failed to update .env file: ${error.message}`);
+        }
+    }
 
     /**
      * Update command
