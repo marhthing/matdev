@@ -121,6 +121,29 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Group LID registration command
+        this.bot.messageHandler.registerCommand('rg', this.registerGroupLidCommand.bind(this), {
+            description: 'Register your LID for this group (one-time only)',
+            usage: `${config.PREFIX}rg`,
+            category: 'group',
+            groupOnly: true
+        });
+
+        // Group LID management commands (owner only)
+        this.bot.messageHandler.registerCommand('clearlid', this.clearGroupLidCommand.bind(this), {
+            description: 'Clear the registered group LID',
+            usage: `${config.PREFIX}clearlid`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('lidinfo', this.groupLidInfoCommand.bind(this), {
+            description: 'Show registered group LID information',
+            usage: `${config.PREFIX}lidinfo`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -557,6 +580,151 @@ class CorePlugin {
             
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving permissions.');
+        }
+    }
+
+    /**
+     * Register Group LID command handler (.rg)
+     * Only works in groups and only when no group LID is registered yet
+     */
+    async registerGroupLidCommand(messageInfo) {
+        try {
+            // Verify this is a group
+            if (!messageInfo.is_group) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command only works in groups.');
+                return;
+            }
+
+            // Check if a group LID is already registered
+            if (this.bot.database.isGroupLidRegistered()) {
+                const existingData = this.bot.database.getGroupLidData();
+                const registeredAt = new Date(existingData.registeredAt).toLocaleString();
+                
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ *Group LID Already Registered*\n\n` +
+                    `🆔 *Registered LID:* ${existingData.lid}\n` +
+                    `👤 *Registered By:* ${existingData.registeredBy.split('@')[0]}\n` +
+                    `📅 *Date:* ${registeredAt}\n\n` +
+                    `_The .rg command is now disabled until the LID is cleared._`);
+                return;
+            }
+
+            // Extract the sender's LID from the message
+            const message = messageInfo.key ? { key: messageInfo.key } : null;
+            if (!message) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Unable to extract message information.');
+                return;
+            }
+
+            // Look for LID information in the message key
+            let senderLid = null;
+            
+            // Check for senderLid in the original message
+            if (messageInfo.key && messageInfo.key.senderLid) {
+                senderLid = messageInfo.key.senderLid;
+            } else if (messageInfo.key && messageInfo.key.participantLid) {
+                senderLid = messageInfo.key.participantLid;
+            }
+
+            if (!senderLid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ *No LID Found*\n\n` +
+                    `This command requires a WhatsApp Business account with LID.\n` +
+                    `Make sure you're using a Business account and try again.`);
+                return;
+            }
+
+            // Verify the LID format
+            if (!senderLid.includes('@lid')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ *Invalid LID Format*\n\n` +
+                    `Expected format: xxxxx@lid\n` +
+                    `Received: ${senderLid}`);
+                return;
+            }
+
+            // Register the group LID
+            const result = await this.bot.database.registerGroupLid(senderLid, messageInfo.participant_jid);
+
+            if (result.success) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ *Group LID Registered Successfully*\n\n` +
+                    `🆔 *Your LID:* ${senderLid}\n` +
+                    `👤 *Registered By:* ${messageInfo.participant_jid.split('@')[0]}\n` +
+                    `📅 *Date:* ${new Date().toLocaleString()}\n\n` +
+                    `_The .rg command is now disabled. Only the bot owner can clear this registration._`);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ *Registration Failed*\n\n${result.message}`);
+            }
+
+        } catch (error) {
+            this.bot.logger.error('Register Group LID command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while registering the group LID.');
+        }
+    }
+
+    /**
+     * Clear Group LID command handler (.clearlid) - Owner only
+     */
+    async clearGroupLidCommand(messageInfo) {
+        try {
+            const result = await this.bot.database.clearGroupLid();
+
+            if (result.success) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ *Group LID Cleared*\n\n` +
+                    `🗑️ *Previous LID:* ${result.previousLid}\n` +
+                    `📅 *Cleared:* ${new Date().toLocaleString()}\n\n` +
+                    `_The .rg command is now available for registration again._`);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ *Clear Failed*\n\n${result.message}`);
+            }
+
+        } catch (error) {
+            this.bot.logger.error('Clear Group LID command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while clearing the group LID.');
+        }
+    }
+
+    /**
+     * Group LID Info command handler (.lidinfo) - Owner only
+     */
+    async groupLidInfoCommand(messageInfo) {
+        try {
+            if (!this.bot.database.isGroupLidRegistered()) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `📋 *Group LID Status*\n\n` +
+                    `❌ *Status:* No group LID registered\n` +
+                    `💡 *Info:* Use .rg in a group to register a LID\n\n` +
+                    `_Only users with WhatsApp Business accounts can register._`);
+                return;
+            }
+
+            const lidData = this.bot.database.getGroupLidData();
+            const registeredAt = new Date(lidData.registeredAt).toLocaleString();
+            const registeredBy = lidData.registeredBy.split('@')[0];
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📋 *Group LID Information*\n\n` +
+                `✅ *Status:* Registered\n` +
+                `🆔 *LID:* ${lidData.lid}\n` +
+                `👤 *Registered By:* ${registeredBy}\n` +
+                `📅 *Date:* ${registeredAt}\n\n` +
+                `*Management:*\n` +
+                `• Use \`.clearlid\` to clear registration\n` +
+                `• Use \`.rg\` (in groups) to register new LID after clearing\n\n` +
+                `_LID registration is one-time only until cleared._`);
+
+        } catch (error) {
+            this.bot.logger.error('Group LID Info command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while retrieving group LID information.');
         }
     }
 }

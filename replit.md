@@ -4,6 +4,15 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 
 # Recent Changes
 
+## September 4, 2025 - Group LID Registration System Implementation
+- **NEW FEATURE**: Complete group LID registration system for WhatsApp Business accounts
+- Added `.rg` command for one-time LID registration in groups (becomes invalid after registration)
+- Added `.clearlid` command for owner to clear registered LID
+- Added `.lidinfo` command for owner to view LID registration status
+- Extended JSON storage system to support persistent group LID data storage
+- All LID commands implement proper validation and permission checks
+- System handles WhatsApp's new LID format and business account requirements
+
 ## September 4, 2025 - Initial Replit Setup
 - Successfully imported GitHub project to Replit environment
 - Installed all Node.js dependencies successfully
@@ -48,6 +57,8 @@ The system follows a modular, object-oriented design with clear separation of co
 - **Anti-Ban Protection** - Intelligent message delays and burst control
 - **Suspicious Activity Detection** - Pattern recognition for spam and abuse
 - **Command Authorization** - Role-based access control with owner-only commands
+- **Group LID Registration** - One-time registration system for WhatsApp Business accounts
+- **LID Validation** - Validates WhatsApp Business LID format and prevents duplicate registrations
 
 ## Performance Optimizations
 - **Multi-tier Caching** - Separate caches for messages, users, groups, and media with different TTL settings
@@ -84,3 +95,12 @@ The system follows a modular, object-oriented design with clear separation of co
 - Local file system for WhatsApp authentication credentials
 - JSON-based session persistence with automatic backup capabilities
 - Temporary directory management for media processing workflows
+- **Group LID Storage** - Persistent storage for WhatsApp Business LID registrations
+- **Permission Management** - JSON-based storage for user command permissions
+
+## Group LID Management System
+- **One-time Registration** - Users can register their WhatsApp Business LID once per system
+- **Group-only Registration** - LID registration only works in group chats for security
+- **Owner Management** - Bot owner can clear registrations and view LID information
+- **Business Account Support** - Handles WhatsApp's new LID format for business accounts
+- **Registration Prevention** - Once registered, prevents additional registrations until cleared
