@@ -671,7 +671,7 @@ class CorePlugin {
             }
 
         } catch (error) {
-            this.bot.logger.error('Register Group LID command error:', error);
+            console.error('Register Group LID command error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while registering the group LID.');
         }
@@ -696,7 +696,7 @@ class CorePlugin {
             }
 
         } catch (error) {
-            this.bot.logger.error('Clear Group LID command error:', error);
+            console.error('Clear Group LID command error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while clearing the group LID.');
         }
@@ -732,7 +732,7 @@ class CorePlugin {
                 `_LID registration is one-time only until cleared._`);
 
         } catch (error) {
-            this.bot.logger.error('Group LID Info command error:', error);
+            console.error('Group LID Info command error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while retrieving group LID information.');
         }
