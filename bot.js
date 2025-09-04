@@ -1027,7 +1027,7 @@ class MATDEV {
             const updateFlagPath = '.update_flag.json';
             
             if (fs.existsSync(updateFlagPath)) {
-                // Wait for bot to fully initialize
+                // Wait for bot to fully initialize - same timing as restart completion
                 setTimeout(async () => {
                     try {
                         const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
@@ -1055,7 +1055,7 @@ class MATDEV {
                             fs.unlinkSync(updateFlagPath);
                         }
                     }
-                }, 8000); // Wait 8 seconds for WhatsApp connection to stabilize
+                }, 5000); // Use same timing as restart completion (5 seconds)
             }
         } catch (error) {
             logger.error('Error checking update completion:', error);
