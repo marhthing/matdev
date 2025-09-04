@@ -93,6 +93,9 @@ class MATDEV {
             // Start connection
             await this.connect();
 
+            // Check for restart completion message
+            await this.checkRestartCompletion();
+
         } catch (error) {
             logger.error('Failed to start MATDEV:', error);
             process.exit(1);
@@ -1008,6 +1011,42 @@ class MATDEV {
             }
         } catch (error) {
             console.error('Error sending delete alert:', error);
+        }
+    }
+
+    /**
+     * Check for restart completion and send notification
+     */
+    async checkRestartCompletion() {
+        try {
+            const restartInfoPath = '.restart_info.json';
+            
+            if (fs.existsSync(restartInfoPath)) {
+                // Wait a bit for bot to fully initialize
+                setTimeout(async () => {
+                    try {
+                        const restartInfo = JSON.parse(fs.readFileSync(restartInfoPath, 'utf8'));
+                        
+                        // Send restart completion message
+                        await this.sock.sendMessage(restartInfo.chatJid, {
+                            text: '✅ Restart completed'
+                        });
+                        
+                        // Clean up the restart info file
+                        fs.unlinkSync(restartInfoPath);
+                        
+                        logger.info('✅ Restart completion message sent');
+                    } catch (error) {
+                        logger.error('Error sending restart completion message:', error);
+                        // Clean up the file even if there's an error
+                        if (fs.existsSync(restartInfoPath)) {
+                            fs.unlinkSync(restartInfoPath);
+                        }
+                    }
+                }, 3000); // Wait 3 seconds for WhatsApp connection to stabilize
+            }
+        } catch (error) {
+            logger.error('Error checking restart completion:', error);
         }
     }
 

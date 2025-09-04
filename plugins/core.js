@@ -361,6 +361,13 @@ class CorePlugin {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🔄 Restarting MATDEV bot...');
             
+            // Store restart info for completion message
+            const restartInfo = {
+                chatJid: messageInfo.chat_jid,
+                timestamp: Date.now()
+            };
+            require('fs-extra').writeFileSync('.restart_info.json', JSON.stringify(restartInfo));
+            
             // Use manager restart if available
             if (global.managerCommands && global.managerCommands.restart) {
                 setTimeout(() => {
