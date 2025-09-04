@@ -166,7 +166,7 @@ class AntiDeletePlugin {
             if (archivedMessage.media_url) {
                 const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
 
-                if (mediaData) {
+                if (mediaData && mediaData.buffer && mediaData.buffer.length > 0) {
                     // Create media message with tagged format
                     // Tag area shows "deletedMessage", caption shows original text
                     const mediaMessage = {

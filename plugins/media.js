@@ -528,35 +528,11 @@ class MediaPlugin {
     }
 
     /**
-     * Enhanced media download with fallback methods
+     * Download media from cached files only
      */
     async downloadMedia(quotedMessage, mediaType) {
         try {
-            // Method 1: Direct baileys download
-            try {
-                const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
-                if (buffer && buffer.length > 0) {
-                    return buffer;
-                }
-            } catch (error) {
-                console.log('Direct download failed, trying alternatives...');
-            }
-
-            // Method 2: Try using the media URL if available
-            const mediaData = quotedMessage[mediaType];
-            if (mediaData && mediaData.url) {
-                try {
-                    const response = await fetch(mediaData.url);
-                    if (response.ok) {
-                        const arrayBuffer = await response.arrayBuffer();
-                        return Buffer.from(arrayBuffer);
-                    }
-                } catch (error) {
-                    console.log('URL download failed:', error);
-                }
-            }
-
-            // Method 3: Check if we have it in our database cache
+            // Only use cached files method
             if (this.bot.database && quotedMessage.key) {
                 try {
                     // Try to find cached media by message ID
@@ -564,15 +540,20 @@ class MediaPlugin {
                     const cachedPath = path.join(__dirname, '../session/media');
                     const files = await fs.readdir(cachedPath).catch(() => []);
                     
+                    console.log(`Looking for cached media for message ID: ${messageId}`);
+                    
                     for (const file of files) {
                         if (file.includes(messageId.replace(/[^a-zA-Z0-9]/g, '_'))) {
                             const filePath = path.join(cachedPath, file);
                             const buffer = await fs.readFile(filePath);
                             if (buffer && buffer.length > 0) {
+                                console.log(`Found cached media: ${file}`);
                                 return buffer;
                             }
                         }
                     }
+                    
+                    console.log(`No cached media found for message ID: ${messageId}`);
                 } catch (error) {
                     console.log('Cache lookup failed:', error);
                 }
@@ -580,7 +561,7 @@ class MediaPlugin {
 
             return null;
         } catch (error) {
-            console.log('All media download methods failed:', error);
+            console.log('Media download from cache failed:', error);
             return null;
         }
     }
