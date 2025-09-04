@@ -437,10 +437,19 @@ class CorePlugin {
             let jid, command;
             
             if (args.length === 1) {
-                // When in their chat: .allow <cmd>
-                // Grant permission to the person you're chatting with (chat_jid)
-                                console.log(`🔧 DEBUG .allow - sender: ${messageInfo.sender}, participant: ${messageInfo.participant_jid}, chat_jid: ${messageInfo.chat_jid}`);
-                jid = messageInfo.chat_jid;  // Grant permission to the person you're chatting with
+                // Check if message is a reply to someone (quoted message)
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo;
+                
+                if (quotedMessage && quotedMessage.participant) {
+                    // Grant permission to the quoted message author
+                    jid = quotedMessage.participant;
+                    console.log(`🔧 DEBUG .allow - granting to quoted participant: ${jid}`);
+                } else {
+                    // When in private chat: .allow <cmd>
+                    // Grant permission to the person you're chatting with (chat_jid)
+                    jid = messageInfo.chat_jid;
+                    console.log(`🔧 DEBUG .allow - granting to chat participant: ${jid}`);
+                }
                 command = args[0];
             } else {
                 // .allow <jid> <cmd>
