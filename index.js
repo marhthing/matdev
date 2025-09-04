@@ -71,8 +71,19 @@ global.managerCommands = {
     updateNow: () => {
         console.log('🔄 Force update requested - recloning repository...')
         
-        // Force exit to trigger full restart and reclone
+        // Remove bot.js to force recloning on restart
         setTimeout(() => {
+            console.log('🔄 Removing bot.js to trigger recloning...')
+            const fs = require('fs')
+            try {
+                if (fs.existsSync('bot.js')) {
+                    fs.unlinkSync('bot.js')
+                    console.log('✅ bot.js removed - recloning will be triggered')
+                }
+            } catch (error) {
+                console.error('❌ Failed to remove bot.js:', error)
+            }
+            
             console.log('🔄 Forcing process exit to trigger recloning...')
             process.exit(1)
         }, 1000)
