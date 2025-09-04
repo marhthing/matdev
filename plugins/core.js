@@ -152,6 +152,28 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Deployment management commands
+        this.bot.messageHandler.registerCommand('restart', this.restartCommand.bind(this), {
+            description: 'Restart the bot using PM2',
+            usage: `${config.PREFIX}restart`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('shutdown', this.shutdownCommand.bind(this), {
+            description: 'Shutdown the bot using PM2',
+            usage: `${config.PREFIX}shutdown`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
+            description: 'Update bot from GitHub with git checking',
+            usage: `${config.PREFIX}update [now]`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -771,6 +793,78 @@ class CorePlugin {
 
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling bot reactions.');
+        }
+    }
+
+    /**
+     * Restart command handler
+     */
+    async restartCommand(messageInfo) {
+        try {
+            const DeploymentManager = require('../deployment-manager');
+            const deployManager = new DeploymentManager();
+
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Restarting bot with PM2...');
+            
+            const result = await deployManager.restart();
+            
+            // Since the bot will restart, this reply might not be sent
+            if (result.success) {
+                await this.bot.messageHandler.reply(messageInfo, result.message);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, result.message);
+            }
+
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error restarting bot.');
+        }
+    }
+
+    /**
+     * Shutdown command handler
+     */
+    async shutdownCommand(messageInfo) {
+        try {
+            const DeploymentManager = require('../deployment-manager');
+            const deployManager = new DeploymentManager();
+
+            await this.bot.messageHandler.reply(messageInfo, '🛑 Shutting down bot...');
+            
+            const result = await deployManager.shutdown();
+            await this.bot.messageHandler.reply(messageInfo, result.message);
+
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error shutting down bot.');
+        }
+    }
+
+    /**
+     * Update command handler
+     */
+    async updateCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            const forceUpdate = args[0]?.toLowerCase() === 'now';
+            
+            const DeploymentManager = require('../deployment-manager');
+            const deployManager = new DeploymentManager();
+
+            if (forceUpdate) {
+                await this.bot.messageHandler.reply(messageInfo, '⚡ Force updating from GitHub...');
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
+            }
+            
+            const result = await deployManager.update(forceUpdate);
+            
+            if (result.success) {
+                await this.bot.messageHandler.reply(messageInfo, result.message);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, result.message);
+            }
+
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error updating bot.');
         }
     }
 }
