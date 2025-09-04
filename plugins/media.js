@@ -222,8 +222,6 @@ class MediaPlugin {
                 return;
             }
 
-            await this.bot.messageHandler.reply(messageInfo, '🎨 Creating sticker... Please wait.');
-
             const buffer = await this.downloadMedia(quotedMessage, mediaType); // Use the new downloadMedia
             
             if (!buffer) {
