@@ -119,6 +119,14 @@ class SystemPlugin {
             ownerOnly: true
         });
 
+        // Update now command
+        this.bot.messageHandler.registerCommand('updatenow', this.updateNowCommand.bind(this), {
+            description: 'Force update from GitHub',
+            usage: `${config.PREFIX}updatenow`,
+            category: 'system',
+            ownerOnly: true
+        });
+
         // Environment variable management
         this.bot.messageHandler.registerCommand('setenv', this.setEnvCommand.bind(this), {
             description: 'Set environment variable',
@@ -639,22 +647,75 @@ class SystemPlugin {
      */
     async updateCommand(messageInfo) {
         try {
-            const updateText = `*🔄 UPDATE INFORMATION*\n\n` +
-                `*Current Version:* 1.0.0\n` +
-                `*Platform:* ${config.PLATFORM}\n` +
-                `*Node.js:* ${process.version}\n\n` +
-                `*Update Status:*\n` +
-                `• Auto-updates: ❌ Disabled\n` +
-                `• Manual updates: ✅ Available\n\n` +
-                `*To update MATDEV:*\n` +
-                `1. Pull latest changes from repository\n` +
-                `2. Restart the bot process\n` +
-                `3. Session will be preserved automatically\n\n` +
-                `_Always backup your session before updating_`;
-
-            await this.bot.messageHandler.reply(messageInfo, updateText);
+            await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
+            
+            if (global.managerCommands && global.managerCommands.checkUpdates) {
+                const result = await global.managerCommands.checkUpdates();
+                
+                if (result.error) {
+                    await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
+                } else if (result.updateAvailable) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `🔄 *UPDATE AVAILABLE*\n\n` +
+                        `${result.message}\n\n` +
+                        `*Platform:* ${config.PLATFORM}\n` +
+                        `*Node.js:* ${process.version}\n\n` +
+                        `Use ${config.PREFIX}updatenow to update immediately.\n\n` +
+                        `_Session folder will be preserved during update_`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `✅ *BOT IS UP TO DATE*\n\n` +
+                        `${result.message}\n\n` +
+                        `*Current Version:* Latest\n` +
+                        `*Platform:* ${config.PLATFORM}\n` +
+                        `*Node.js:* ${process.version}\n\n` +
+                        `_No updates available at this time_`);
+                }
+            } else {
+                // Fallback update info
+                const updateText = `*🔄 UPDATE INFORMATION*\n\n` +
+                    `*Current Version:* 1.0.0\n` +
+                    `*Platform:* ${config.PLATFORM}\n` +
+                    `*Node.js:* ${process.version}\n\n` +
+                    `*Update Status:*\n` +
+                    `• Auto-updates: ❌ Disabled\n` +
+                    `• Manual updates: ✅ Available\n\n` +
+                    `*To update MATDEV:*\n` +
+                    `1. Pull latest changes from repository\n` +
+                    `2. Restart the bot process\n` +
+                    `3. Session will be preserved automatically\n\n` +
+                    `_Always backup your session before updating_`;
+                
+                await this.bot.messageHandler.reply(messageInfo, updateText);
+            }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
+        }
+    }
+
+    /**
+     * Update now command - Force update from GitHub
+     */
+    async updateNowCommand(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, 
+                '⚠️ *FORCE UPDATE INITIATED*\n\n' +
+                '🔄 Recloning from GitHub...\n' +
+                '📁 Session folder will be preserved\n' +
+                '⏱️ Bot will restart with latest code shortly'
+            );
+            
+            if (global.managerCommands && global.managerCommands.updateNow) {
+                // Give time for the message to be sent before triggering update
+                setTimeout(() => {
+                    global.managerCommands.updateNow();
+                }, 2000);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Manager commands not available. Please restart manually to get latest updates.');
+            }
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error initiating force update.');
         }
     }
 

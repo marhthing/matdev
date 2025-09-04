@@ -25,9 +25,9 @@ function cloneAndSetup() {
     console.log('📥 Cloning bot from GitHub...')
     console.log('🔗 Repository:', GITHUB_REPO)
 
-    // Remove any existing files (except this manager)
-    console.log('🧹 Cleaning workspace...')
-    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "node_modules" -exec rm -rf {} +'], { stdio: 'inherit' })
+    // Remove any existing files (except this manager, node_modules, and session)
+    console.log('🧹 Cleaning workspace (preserving session folder)...')
+    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "node_modules" ! -name "session" -exec rm -rf {} +'], { stdio: 'inherit' })
 
     // Clone repository to a temporary directory
     const cloneResult = spawnSync('git', ['clone', GITHUB_REPO, 'temp_clone'], {
