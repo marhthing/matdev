@@ -304,11 +304,8 @@ class AntiDeletePlugin {
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
                     `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
             } else {
-                // Invalid argument provided
-                await this.bot.messageHandler.reply(messageInfo,
-                    `❌ Invalid option: "${status}"\n\n` +
-                    `Use \`${config.PREFIX}delete\` to check status\n` +
-                    `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
+                // Invalid argument provided - silently ignore
+                return;
             }
 
         } catch (error) {
