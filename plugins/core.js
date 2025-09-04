@@ -868,10 +868,18 @@ class CorePlugin {
 
             if (status === 'on') {
                 config.BOT_REACTIONS = true;
-                await this.bot.messageHandler.reply(messageInfo, '✅ Bot auto-reactions enabled');
+                // Persist to .env file
+                if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
+                    await this.bot.plugins.system.setEnvValue('BOT_REACTIONS', 'true');
+                }
+                await this.bot.messageHandler.reply(messageInfo, '✅ Bot auto-reactions enabled (persistent)');
             } else if (status === 'off') {
                 config.BOT_REACTIONS = false;
-                await this.bot.messageHandler.reply(messageInfo, '❌ Bot auto-reactions disabled');
+                // Persist to .env file
+                if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
+                    await this.bot.plugins.system.setEnvValue('BOT_REACTIONS', 'false');
+                }
+                await this.bot.messageHandler.reply(messageInfo, '❌ Bot auto-reactions disabled (persistent)');
             } else if (!status) {
                 // No argument provided - show status
                 const currentStatus = config.BOT_REACTIONS ? 'ON' : 'OFF';
