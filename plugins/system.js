@@ -673,60 +673,40 @@ class SystemPlugin {
     }
 
     /**
-     * Execute update now - Force update from GitHub with improved system
+     * Execute update now - Force update from GitHub using manager's recloning functionality
      */
     async executeUpdateNow(messageInfo) {
         try {
             await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 *UPDATING FROM GITHUB*\n\n' +
+                '🔄 *RECLONING FROM GITHUB*\n\n' +
                 '📁 Session will be preserved\n' +
-                '🔄 Pulling latest code from repository\n' +
-                '⏱️ Restarting with updates...'
+                '🔄 Recloning latest code from repository\n' +
+                '⏱️ Restarting with fresh code...'
             );
             
-            console.log('🔄 Executing update now command...');
+            console.log('🔄 Executing update now command - using manager recloning...');
             
-            // Use a more direct approach - create a script that pulls updates and restarts
-            const updateScript = `
-                echo "🔄 Starting update process..."
-                
-                # Save session directory
-                echo "💾 Preserving session data..."
-                
-                # Pull latest changes
-                echo "📥 Pulling latest code from GitHub..."
-                git fetch origin main
-                git reset --hard origin/main
-                
-                # Reinstall dependencies if package.json changed
-                echo "📦 Checking dependencies..."
-                npm install --production
-                
-                echo "✅ Update completed, restarting..."
-                exit 0
-            `;
-            
-            // Execute the update script
-            const { spawn } = require('child_process');
-            const updateProcess = spawn('bash', ['-c', updateScript], {
-                stdio: 'inherit',
-                detached: true
-            });
-            
-            updateProcess.on('close', (code) => {
-                console.log('🔄 Update process completed with code:', code);
-                // Exit to trigger restart
+            // Use the manager's updateNow function which does proper recloning
+            if (global.managerCommands && global.managerCommands.updateNow) {
+                // Call the manager's updateNow which will reclone everything
+                setTimeout(() => {
+                    const result = global.managerCommands.updateNow();
+                    console.log('🔄 Manager update initiated:', result);
+                }, 1000);
+            } else {
+                // Fallback - exit to trigger manager restart which will reclone
+                console.log('🔄 Manager commands not available, triggering restart for recloning...');
                 setTimeout(() => {
                     process.exit(0);
                 }, 1000);
-            });
+            }
             
         } catch (error) {
             console.error('❌ Update now error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ *UPDATE FAILED*\n\n' +
                 '🔧 Please restart manually using the Run button\n' +
-                '💡 This will pull the latest code from GitHub'
+                '💡 This will reclone the latest code from GitHub'
             );
         }
     }
