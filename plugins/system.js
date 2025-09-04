@@ -640,31 +640,16 @@ class SystemPlugin {
                 return await this.executeUpdateNow(messageInfo);
             }
             
-            // Default: check for updates
-            await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
-            
-            // Give a small delay to ensure manager commands are fully loaded
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Always try to check for updates, regardless of manager availability
+            // Default: check for updates (no loading message)
             try {
                 const result = await this.checkGitHubUpdates();
                 
                 if (result.error) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        `❌ *UPDATE CHECK FAILED*\n\n` +
-                        `Error: ${result.error}\n\n` +
-                        `💡 Check your internet connection or repository access`);
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed');
                 } else if (result.updateAvailable) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        `🔄 *${result.commitsAhead} UPDATE(S) AVAILABLE*\n\n` +
-                        `📍 New commits found on GitHub\n` +
-                        `🔗 Use ${config.PREFIX}update now to update`);
+                    await this.bot.messageHandler.reply(messageInfo, '🔄 1 update available');
                 } else {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        `✅ *BOT IS UP TO DATE*\n\n` +
-                        `📍 No updates available\n` +
-                        `🔗 Latest commit: ${result.latestCommit}`);
+                    await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
                 }
             } catch (checkError) {
                 // Fallback to manager commands if direct check fails
@@ -672,20 +657,14 @@ class SystemPlugin {
                     const result = await global.managerCommands.checkUpdates();
                     
                     if (result.error) {
-                        await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed');
                     } else if (result.updateAvailable) {
-                        await this.bot.messageHandler.reply(messageInfo, 
-                            `🔄 *UPDATE AVAILABLE*\n\n✅ Auto-update ready\nUse ${config.PREFIX}update now to update now.`);
+                        await this.bot.messageHandler.reply(messageInfo, '🔄 1 update available');
                     } else {
-                        await this.bot.messageHandler.reply(messageInfo, 
-                            `✅ *BOT IS UP TO DATE*\n\n📍 No updates available`);
+                        await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
                     }
                 } else {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        `⚠️ *UPDATE CHECK UNAVAILABLE*\n\n` +
-                        `🔧 Cannot access GitHub or Git\n` +
-                        `💡 Check repository configuration\n` +
-                        `🔗 Repo: https://github.com/marhthing/Bot1.git`);
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Update check unavailable');
                 }
             }
         } catch (error) {
