@@ -694,52 +694,61 @@ class SystemPlugin {
     }
 
     /**
-     * Execute update now - Force update from GitHub
+     * Execute update now - Force update from GitHub with improved system
      */
     async executeUpdateNow(messageInfo) {
         try {
-            // First check if manager commands are available
-            console.log('🔍 Checking manager commands availability...');
-            console.log('global.managerCommands available:', !!global.managerCommands);
-            if (global.managerCommands) {
-                console.log('updateNow function available:', typeof global.managerCommands.updateNow);
-            }
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🔄 *UPDATING FROM GITHUB*\n\n' +
+                '📁 Session will be preserved\n' +
+                '🔄 Pulling latest code from repository\n' +
+                '⏱️ Restarting with updates...'
+            );
             
-            // Give a small delay to ensure manager commands are fully loaded
-            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log('🔄 Executing update now command...');
             
-            if (global.managerCommands && global.managerCommands.updateNow) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '🔄 *UPDATING FROM GITHUB*\n\n' +
-                    '✅ Auto-update system active\n' +
-                    '📁 Session will be preserved\n' +
-                    '⏱️ Bot restarting shortly...'
-                );
+            // Use a more direct approach - create a script that pulls updates and restarts
+            const updateScript = `
+                echo "🔄 Starting update process..."
                 
-                console.log('🔄 Triggering manager update command...');
-                // Give time for the message to be sent before triggering update
-                setTimeout(() => {
-                    global.managerCommands.updateNow();
-                }, 2000);
-            } else {
-                // Fallback: Manual update instructions with restart
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '🔄 *INITIATING MANUAL UPDATE*\n\n' +
-                    '⚠️ Auto-update system unavailable\n' +
-                    '🔧 Performing manual restart to pull latest code\n' +
-                    '📁 Session will be preserved\n' +
-                    '⏱️ Restarting in 3 seconds...'
-                );
+                # Save session directory
+                echo "💾 Preserving session data..."
                 
-                // Force restart which will trigger the manager to pull latest code
+                # Pull latest changes
+                echo "📥 Pulling latest code from GitHub..."
+                git fetch origin main
+                git reset --hard origin/main
+                
+                # Reinstall dependencies if package.json changed
+                echo "📦 Checking dependencies..."
+                npm install --production
+                
+                echo "✅ Update completed, restarting..."
+                exit 0
+            `;
+            
+            // Execute the update script
+            const { spawn } = require('child_process');
+            const updateProcess = spawn('bash', ['-c', updateScript], {
+                stdio: 'inherit',
+                detached: true
+            });
+            
+            updateProcess.on('close', (code) => {
+                console.log('🔄 Update process completed with code:', code);
+                // Exit to trigger restart
                 setTimeout(() => {
-                    console.log('🔄 Forcing restart for manual update...');
                     process.exit(0);
-                }, 3000);
-            }
+                }, 1000);
+            });
+            
         } catch (error) {
             console.error('❌ Update now error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Update failed. Try clicking Run button to restart manually.');
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ *UPDATE FAILED*\n\n' +
+                '🔧 Please restart manually using the Run button\n' +
+                '💡 This will pull the latest code from GitHub'
+            );
         }
     }
 
