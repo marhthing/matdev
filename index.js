@@ -1,7 +1,7 @@
 const { spawn, spawnSync } = require('child_process')
 const { existsSync } = require('fs')
-const fs = require('fs-extra')
-const path = require('path')
+//const fs = require('fs-extra')
+//const path = require('path')
 
 console.log('🎯 MATDEV Bot Auto-Manager')
 console.log('📍 Working in:', __dirname)
