@@ -149,8 +149,8 @@ function cloneAndSetup() {
     console.log('📁 Moving bot files (preserving existing .env and config.js)...')
     spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true; cp config.js config.js.backup 2>/dev/null || true'], { stdio: 'inherit' })
     
-    // Copy new files
-    const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/* . && rm -rf temp_clone'], {
+    // Copy new files (including hidden files)
+    const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/. . && rm -rf temp_clone'], {
         stdio: 'inherit'
     })
     
