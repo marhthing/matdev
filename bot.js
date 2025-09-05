@@ -774,40 +774,65 @@ class MATDEV {
      */
     async handleMessageUpdates(messages) {
         for (const message of messages) {
-            // Check if message has been deleted
-            if (message.update.messageStubType === 6) { // 6 indicates message deletion
-                const messageId = message.key.id;
-                const chatJid = message.key.remoteJid;
+            logger.debug('📥 Message update received:', {
+                key: message.key,
+                update: Object.keys(message.update || {}),
+                messageStubType: message.update?.messageStubType
+            });
 
-                logger.warn(`🗑️ DELETION DETECTED VIA UPDATE - ID: ${messageId}, Chat: ${chatJid}`);
+            // Check for different types of message deletions
+            let deletionDetected = false;
+            let messageId, chatJid;
 
-                // Use the anti-delete plugin if available and enabled
-                if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
-                    logger.info('🔄 Delegating to anti-delete plugin');
-                    await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
-                } else {
-                    // Fallback to built-in handling
-                    await this.handleAntiDelete(messageId, chatJid);
+            // Method 1: Check for REVOKE stub type (68 in newer Baileys versions)
+            if (message.update?.messageStubType === 68) {
+                messageId = message.key.id;
+                chatJid = message.key.remoteJid;
+                deletionDetected = true;
+                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 68 - ID: ${messageId}, Chat: ${chatJid}`);
+            }
+            // Method 2: Check legacy stub type 6 (for compatibility)
+            else if (message.update?.messageStubType === 6) {
+                messageId = message.key.id;
+                chatJid = message.key.remoteJid;
+                deletionDetected = true;
+                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 6 - ID: ${messageId}, Chat: ${chatJid}`);
+            }
+            // Method 3: Protocol message revoke (type 0 = MESSAGE_DELETE)
+            else if (message.update?.message?.protocolMessage?.type === 0) {
+                const revokedKey = message.update.message.protocolMessage.key;
+                if (revokedKey && revokedKey.id) {
+                    messageId = revokedKey.id;
+                    chatJid = revokedKey.remoteJid || message.key.remoteJid;
+                    deletionDetected = true;
+                    logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL TYPE 0 - ID: ${messageId}, Chat: ${chatJid}`);
+                }
+            }
+            // Method 4: Legacy protocol message revoke (string type)
+            else if (message.update?.message?.protocolMessage?.type === 'REVOKE') {
+                const revokedKey = message.update.message.protocolMessage.key;
+                if (revokedKey && revokedKey.id) {
+                    messageId = revokedKey.id;
+                    chatJid = revokedKey.remoteJid || message.key.remoteJid;
+                    deletionDetected = true;
+                    logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL STRING - ID: ${messageId}, Chat: ${chatJid}`);
                 }
             }
 
-            // Also handle protocol message revokes (more common deletion type)
-            if (message.update.message?.protocolMessage?.type === 'REVOKE') {
-                const revokedKey = message.update.message.protocolMessage.key;
-                if (revokedKey && revokedKey.id) {
-                    const messageId = revokedKey.id;
-                    const chatJid = revokedKey.remoteJid || message.key.remoteJid;
-
-                    logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL - ID: ${messageId}, Chat: ${chatJid}`);
-
+            // Process deletion if detected
+            if (deletionDetected && messageId && chatJid) {
+                try {
                     // Use the anti-delete plugin if available and enabled
                     if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
                         logger.info('🔄 Delegating to anti-delete plugin');
                         await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
                     } else {
                         // Fallback to built-in handling
+                        logger.info('🔄 Using built-in anti-delete handling');
                         await this.handleAntiDelete(messageId, chatJid);
                     }
+                } catch (error) {
+                    logger.error('Error processing deletion:', error);
                 }
             }
         }
