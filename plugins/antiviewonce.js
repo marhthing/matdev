@@ -1,4 +1,7 @@
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
+const crypto = require('crypto');
 
 /**
  * Anti-View Once Plugin
@@ -15,6 +18,21 @@ class AntiViewOncePlugin {
      */
     async init() {
         console.log('✅ Anti-View Once plugin loaded');
+        
+        // Ensure viewonce directory exists
+        this.viewOnceDir = path.join(__dirname, '..', 'session', 'viewonce');
+        await fs.ensureDir(this.viewOnceDir);
+        
+        // Schedule periodic cleanup (every 24 hours)
+        setInterval(() => {
+            this.cleanupOldSavedMedia();
+        }, 24 * 60 * 60 * 1000);
+        
+        // Run initial cleanup
+        setTimeout(() => {
+            this.cleanupOldSavedMedia();
+        }, 10000); // Wait 10 seconds after startup
+        
         this.registerCommands();
     }
 
@@ -123,8 +141,40 @@ class AntiViewOncePlugin {
             console.log(`📸 Processing ${contentType} view once`);
             
             try {
-                // Extract the media from view once
-                const buffer = await this.extractViewOnceMedia(viewOnceMessage);
+                // Generate unique identifier for this view once message
+                const messageId = this.generateMessageId(viewOnceMessage, contentType);
+                const savedFilePath = await this.getSavedMediaPath(messageId, contentType);
+                
+                let buffer = null;
+                let usedSavedMedia = false;
+                
+                // First try to extract media from WhatsApp
+                try {
+                    buffer = await this.extractViewOnceMedia(viewOnceMessage);
+                    
+                    // Save the extracted media for future use
+                    if (buffer) {
+                        await this.saveViewOnceMedia(buffer, messageId, contentType, viewOnceContent);
+                        console.log(`💾 Saved view once ${contentType} for future access`);
+                    }
+                } catch (error) {
+                    console.log(`⚠️ Failed to extract from WhatsApp (${error.message}), checking for saved media...`);
+                    
+                    // Try to load from saved file
+                    if (await fs.pathExists(savedFilePath)) {
+                        buffer = await fs.readFile(savedFilePath);
+                        usedSavedMedia = true;
+                        console.log(`📂 Using saved media from: ${path.basename(savedFilePath)}`);
+                    } else {
+                        console.log(`❌ No saved media found for this view once message`);
+                        throw error;
+                    }
+                }
+                
+                if (!buffer) {
+                    console.log(`❌ Could not extract or load saved media for view once message`);
+                    return;
+                }
                 
                 let extractedMessage = null;
                 
@@ -152,7 +202,8 @@ class AntiViewOncePlugin {
                     
                     // Send to destination
                     await this.bot.sock.sendMessage(targetJid, extractedMessage);
-                    console.log(`💥 Successfully extracted and sent view once ${contentType} to ${targetJid}`);
+                    const sourceMsg = usedSavedMedia ? ' (from saved media)' : '';
+                    console.log(`💥 Successfully extracted and sent view once ${contentType} to ${targetJid}${sourceMsg}`);
                 }
                 
             } catch (error) {
@@ -161,6 +212,89 @@ class AntiViewOncePlugin {
             
         } catch (error) {
             console.error(`Error in anti-view once command: ${error.message}`);
+        }
+    }
+
+    /**
+     * Generate a unique identifier for the view once message
+     */
+    generateMessageId(viewOnceMessage, contentType) {
+        // Create a hash based on message content and timestamp
+        const messageContent = viewOnceMessage.viewOnceMessage?.message || viewOnceMessage.message || viewOnceMessage;
+        const content = messageContent[contentType];
+        
+        // Use various properties to create a unique identifier
+        const identifier = [
+            content?.url || '',
+            content?.directPath || '',
+            content?.mediaKey || '',
+            content?.fileLength || '',
+            content?.mimetype || '',
+            Date.now().toString() // Add timestamp as fallback
+        ].filter(Boolean).join('|');
+        
+        return crypto.createHash('md5').update(identifier).digest('hex').substring(0, 12);
+    }
+
+    /**
+     * Get the file path for saved media
+     */
+    async getSavedMediaPath(messageId, contentType) {
+        const extension = contentType === 'imageMessage' ? 'jpg' : 'mp4';
+        return path.join(this.viewOnceDir, `${messageId}.${extension}`);
+    }
+
+    /**
+     * Save view once media to disk for future access
+     */
+    async saveViewOnceMedia(buffer, messageId, contentType, viewOnceContent) {
+        try {
+            const filePath = await this.getSavedMediaPath(messageId, contentType);
+            
+            // Save the media file
+            await fs.writeFile(filePath, buffer);
+            
+            // Save metadata
+            const metadataPath = path.join(this.viewOnceDir, `${messageId}.json`);
+            const metadata = {
+                messageId,
+                contentType,
+                savedAt: new Date().toISOString(),
+                caption: viewOnceContent[contentType]?.caption || null,
+                mimetype: viewOnceContent[contentType]?.mimetype || null,
+                fileLength: viewOnceContent[contentType]?.fileLength || buffer.length,
+                fileName: path.basename(filePath)
+            };
+            
+            await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+            
+            console.log(`💾 Saved view once media: ${path.basename(filePath)} (${buffer.length} bytes)`);
+            
+        } catch (error) {
+            console.error(`Error saving view once media: ${error.message}`);
+        }
+    }
+
+    /**
+     * Clean up old saved view once files (older than 7 days)
+     */
+    async cleanupOldSavedMedia() {
+        try {
+            const files = await fs.readdir(this.viewOnceDir);
+            const now = Date.now();
+            const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+            
+            for (const file of files) {
+                const filePath = path.join(this.viewOnceDir, file);
+                const stats = await fs.stat(filePath);
+                
+                if (now - stats.mtime.getTime() > maxAge) {
+                    await fs.unlink(filePath);
+                    console.log(`🗑️ Cleaned up old view once file: ${file}`);
+                }
+            }
+        } catch (error) {
+            console.error(`Error cleaning up old view once files: ${error.message}`);
         }
     }
 
