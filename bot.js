@@ -56,6 +56,7 @@ class MATDEV {
         this.ownerGroupJid = null;
 
         // Initialize managers
+        this.logger = logger; // Add logger to class instance
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
         this.database = database;
