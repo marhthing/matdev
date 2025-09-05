@@ -391,15 +391,14 @@ class SystemPlugin {
         try {
             const configText = `*⚙️ BOT CONFIGURATION*\n\n` +
                 `*Identity:*\n` +
-                `• OWNER_NUMBER: ${config.OWNER_NUMBER ? 'Set' : 'Not Set'}\n` +
                 `• PREFIX: ${config.PREFIX}\n\n` +
                 `*Behavior:*\n` +
                 `• AUTO_TYPING: ${config.AUTO_TYPING}\n` +
                 `• AUTO_READ: ${config.AUTO_READ}\n` +
                 `• AUTO_STATUS_VIEW: ${config.AUTO_STATUS_VIEW}\n` +
                 `• REJECT_CALLS: ${config.REJECT_CALLS}\n\n` +
-                `_To change: ${config.PREFIX}setenv <KEY> <VALUE>_\n` +
-                `_Example: ${config.PREFIX}setenv AUTO_TYPING true_`;
+                `_To change: ${config.PREFIX}setenv <KEY>=<VALUE>_\n` +
+                `_Example: ${config.PREFIX}setenv AUTO_TYPING=true_`;
 
             await this.bot.messageHandler.reply(messageInfo, configText);
         } catch (error) {
@@ -442,15 +441,32 @@ class SystemPlugin {
         try {
             const { args } = messageInfo;
 
-            if (args.length < 2) {
+            if (args.length < 1) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Usage: ${config.PREFIX}setenv <key>=<value>`
                 );
                 return;
             }
 
-            const key = args[0].toUpperCase();
-            const value = args.slice(1).join(' ');
+            const input = args.join(' ');
+            const equalIndex = input.indexOf('=');
+            
+            if (equalIndex === -1) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Usage: ${config.PREFIX}setenv <key>=<value>`
+                );
+                return;
+            }
+
+            const key = input.substring(0, equalIndex).trim().toUpperCase();
+            const value = input.substring(equalIndex + 1).trim();
+
+            if (!key || !value) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Usage: ${config.PREFIX}setenv <key>=<value>`
+                );
+                return;
+            }
 
             // Protected configuration keys that cannot be modified via setenv (hidden values only)
             const protectedKeys = [
