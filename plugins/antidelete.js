@@ -334,7 +334,7 @@ class AntiDeletePlugin {
                 // Save the new default destination
                 this.bot.database.setData('antiDeleteDefaultDestination', newDefaultJid);
                 console.log(`✅ Default anti-delete destination set to: ${newDefaultJid}`);
-                await this.bot.messageHandler.reply(messageInfo, `✅ Anti-delete destination set to: ${newDefaultJid.split('@')[0]}`);
+                // No confirmation message sent - silent operation like .vv and .save
             }
 
         } catch (error) {
