@@ -192,31 +192,9 @@ class StatusPlugin {
                 if (message.key.remoteJid === 'status@broadcast' &&
                     message.key.participant === `${config.OWNER_NUMBER}@s.whatsapp.net`) {
 
-                    console.log('📱 Detected own status update, auto-saving...');
-
-                    // Extract media or text from status
-                    const mediaData = await this.extractStatusMedia(message);
-                    const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-
-                    if (mediaData) {
-                        // Send media to bot private chat
-                        await this.bot.sock.sendMessage(botPrivateChat, {
-                            ...mediaData,
-                            caption: `📱 *Auto-saved Own Status*\n\n${mediaData.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                        });
-
-                        console.log(`💾 Auto-saved own status media to bot private chat`);
-                    } else {
-                        // Handle text status
-                        const textContent = this.extractStatusText(message);
-                        if (textContent) {
-                            await this.bot.sock.sendMessage(botPrivateChat, {
-                                text: `📱 *Auto-saved Own Status*\n\n${textContent}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                            });
-
-                            console.log(`💾 Auto-saved own status text to bot private chat`);
-                        }
-                    }
+                    // Status is already saved automatically in session/media by WhatsApp
+                    // No need to forward to private chat
+                    console.log('📱 Detected own status update (auto-save to chat disabled)');
                 }
             } catch (error) {
                 console.error(`Error in status monitoring: ${error.message}`);
