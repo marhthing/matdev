@@ -223,11 +223,11 @@ class MATDEV {
             }
 
             logger.success(`✅ Loaded ${loadedCount} plugins successfully`);
-            
+
             // Mark plugins as loaded and show ready message
             this.pluginsLoaded = true;
             console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
-            
+
             // Send startup notification if it was deferred
             if (this.shouldSendStartupNotification) {
                 await this.sendStartupNotification();
@@ -247,15 +247,15 @@ class MATDEV {
                 // Set up connection ready handler
                 this.connectionReadyResolver = resolve;
                 this.connectionErrorResolver = reject;
-                
+
                 // Start the connection process
                 await this.connect();
-                
+
                 // If already connected, resolve immediately
                 if (this.isConnected) {
                     resolve();
                 }
-                
+
             } catch (error) {
                 reject(error);
             }
@@ -346,10 +346,10 @@ class MATDEV {
         // Group updates handler
         this.sock.ev.on('groups.update', this.handleGroupUpdates.bind(this));
 
-        // Status updates handler
-        if (config.AUTO_STATUS_VIEW) {
-            this.sock.ev.on('messages.upsert', this.handleStatusView.bind(this));
-        }
+        // Status updates handler (moved to handleMessages for unified processing)
+        // if (config.AUTO_STATUS_VIEW) {
+        //     this.sock.ev.on('messages.upsert', this.handleStatusView.bind(this));
+        // }
     }
 
     /**
@@ -547,135 +547,83 @@ class MATDEV {
     async handleMessages({ messages, type }) {
         if (type !== 'notify') return;
 
-        logger.info(`📬 Received ${messages.length} messages of type: ${type}`);
-
-        // Process all messages in parallel for maximum speed - crucial for anti-delete
-        const messagePromises = messages.map(async (message) => {
-            if (!message || !message.message) return;
-
+        for (const message of messages) {
             try {
-                // CRITICAL: Archive IMMEDIATELY in parallel - no waiting
-                const archivePromise = this.database.archiveMessage(message);
-                
-                // Process other operations in parallel
-                const cacheResult = cache.cacheMessage(message);
-                const statsUpdate = this.messageStats.received++;
+                // Skip if message is undefined or null
+                if (!message || !message.key) {
+                    continue;
+                }
 
-                // Wait for archival to complete (most critical for anti-delete)
-                await archivePromise;
-                
-                // Cache operation is synchronous, no need for error handling
-                
-                return message;
-            } catch (error) {
-                logger.error('Error in parallel message processing:', error);
-                return null;
-            }
-        });
-
-        // Wait for all archival operations to complete
-        const processedMessages = await Promise.all(messagePromises);
-        
-        // Now handle special message types (like deletions) 
-        for (const message of processedMessages.filter(Boolean)) {
-            try {
-                // Check for deletion events and trigger anti-delete via plugin
-                const messageType = Object.keys(message.message || {})[0];
-
-                // logger.info(`🔍 Message type detected: ${messageType}`);
-
-                if (messageType === 'protocolMessage' && message.message.protocolMessage?.type === 0) {
-                    try {
-                        const revokedKey = message.message.protocolMessage.key;
-                        const actualChatJid = message.key.remoteJid; // Use the actual chat JID from the message envelope
-                        logger.warn(`🗑️ DELETION DETECTED - ID: ${revokedKey?.id}, Chat: ${actualChatJid}`);
-
-                        logger.info(`🔍 Protocol message details:`, JSON.stringify(message.message.protocolMessage, null, 2));
-                        logger.info(`🔍 Plugin availability check:`);
-                        logger.info(`   - this.plugins: ${typeof this.plugins}`);
-                        logger.info(`   - this.plugins.antidelete: ${typeof this.plugins.antidelete}`);
-                        if (this.plugins.antidelete) {
-                            logger.info(`   - handleMessageDeletion method: ${typeof this.plugins.antidelete.handleMessageDeletion}`);
-                        }
-
-                        // Validate we have a proper message ID to process
-                        if (!revokedKey?.id) {
-                            logger.error(`❌ Invalid revoked key - no message ID found`);
-                            return; // Skip processing this deletion
-                        }
-
-                        // Always process deletions - we'll determine ownership in the anti-delete handler
-                        // The fromMe flag and remoteJid in protocol messages can be unreliable
+                // Handle status updates separately
+                if (message.key.remoteJid === 'status@broadcast') {
+                    // Auto view status if enabled
+                    if (config.AUTO_STATUS_VIEW && !message.key.fromMe) {
                         try {
-                            // Trigger anti-delete handling directly through the plugin if available
-                            if (this.plugins.antidelete && typeof this.plugins.antidelete.handleMessageDeletion === 'function') {
-                                logger.info(`🔍 Triggering anti-delete plugin for message: ${revokedKey.id}`);
-                                await this.plugins.antidelete.handleMessageDeletion(revokedKey.id, actualChatJid);
-                                logger.success(`✅ Anti-delete plugin handling completed for: ${revokedKey.id}`);
-                            } else {
-                                // Fallback to built-in handler
-                                logger.info(`🔍 Using fallback anti-delete for message: ${revokedKey.id}`);
-                                logger.info(`🔍 Built-in handler available: ${typeof this.handleAntiDelete}`);
-                                await this.handleAntiDelete(revokedKey.id, actualChatJid);
-                                logger.success(`✅ Fallback anti-delete handling completed for: ${revokedKey.id}`);
-                            }
+                            await this.sock.readMessages([message.key]);
+                            logger.debug('👁️ Auto-viewed status from:', message.key.participant || message.key.remoteJid);
                         } catch (error) {
-                            logger.error(`❌ Anti-delete handling failed for ${revokedKey.id}:`, error);
-                            logger.error(`❌ Error stack:`, error.stack);
-
-                            // Send error notification to owner
-                            try {
-                                if (config.OWNER_NUMBER) {
-                                    const errorNotification = `🚨 *ANTI-DELETE ERROR*\n\n` +
-                                        `⚠️ Failed to process deleted message\n` +
-                                        `📱 Chat: ${actualChatJid.split('@')[0]}\n` +
-                                        `🆔 Message ID: ${revokedKey.id}\n` +
-                                        `❌ Error: ${error.message}\n` +
-                                        `🕐 Time: ${new Date().toLocaleString()}`;
-
-                                    await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
-                                        text: errorNotification
-                                    });
-                                    logger.info(`✅ Error notification sent to owner`);
-                                }
-                            } catch (notifyError) {
-                                logger.error(`❌ Failed to send error notification:`, notifyError);
-                            }
+                            logger.error('Error auto-viewing status:', error.message);
                         }
-                    } catch (protocolError) {
-                        logger.error(`❌ Error processing protocol message:`, protocolError);
-                        logger.error(`❌ Protocol error stack:`, protocolError.stack);
+                    }
+                    continue; // Status plugin handles this
+                }
+
+                // Auto-read messages if enabled (for non-status messages)
+                if (config.AUTO_READ && !message.key.fromMe) {
+                    try {
+                        await this.sock.readMessages([message.key]);
+                        logger.debug('📖 Auto-read message from:', message.key.remoteJid);
+                    } catch (error) {
+                        logger.error('Error auto-reading message:', error.message);
                     }
                 }
 
-                // Skip system messages, receipts, reactions, etc. for COMMAND processing only
-                const ignoredTypes = ['protocolMessage', 'reactionMessage', 'pollUpdateMessage', 'receiptMessage'];
-                if (ignoredTypes.includes(messageType)) {
-                    logger.debug(`Archived system message type: ${messageType}, skipping command processing`);
+                // Auto-typing simulation if enabled (for non-status messages)
+                if (config.AUTO_TYPING && !message.key.fromMe) {
+                    try {
+                        await this.sock.sendPresenceUpdate('composing', message.key.remoteJid);
+                        // Stop typing after a realistic delay
+                        setTimeout(async () => {
+                            try {
+                                await this.sock.sendPresenceUpdate('paused', message.key.remoteJid);
+                            } catch (error) {
+                                logger.error('Error stopping typing indicator:', error.message);
+                            }
+                        }, 2000 + Math.random() * 3000); // 2-5 seconds
+                        logger.debug('⌨️ Auto-typing activated for:', message.key.remoteJid);
+                    } catch (error) {
+                        logger.error('Error auto-typing:', error.message);
+                    }
+                }
+
+                // Archive message using JSONStorage
+                if (this.storage) {
+                    await this.storage.archiveMessage(message);
+                }
+
+                // Skip processing our own messages unless it's a command
+                if (message.key.fromMe) {
+                    // Check if it's a command from us
+                    const messageType = Object.keys(message.message || {})[0];
+                    const content = message.message?.[messageType];
+                    const text = typeof content === 'string' ? content : content?.text || '';
+
+                    if (text.startsWith(config.PREFIX)) {
+                        // Process our own commands
+                        await this.messageHandler.process(message);
+                    }
                     continue;
                 }
 
-                // Use centralized JID extraction for command processing
-                // const JIDUtils = require('./lib/jid-utils'); // Removed redundant require
-                // const jidUtils = new JIDUtils(logger); // Removed redundant instantiation
-
-                const jids = this.jidUtils.extractJIDs(message); // Use cached instance
-                if (!jids) {
-                    // logger.error('Failed to extract JIDs from message for command processing');
-                    continue;
-                }
-
-                const participant = jids.participant_jid;
-                const sender = jids.chat_jid;
-
-                // if (jids.from_me) {
-                //     logger.info(`📤 Processing outgoing message from bot/owner`);
-                //     logger.info(`📤 Bot command to: ${sender} (from: ${participant})`);
-                // } else {
-                //     logger.info(`📥 Processing incoming message`);
-                //     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
+                // if (config.OWNER_NUMBER) {
+                //     // Add owner verification logic
+                //     const ownerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                //     if (message.key.remoteJid !== ownerJid && !this.isGroup(message.key.remoteJid)) {
+                //         // Skip non-owner messages in private chats
+                //         continue;
+                //     }
                 // }
-                
+
                 // Process all messages (incoming and outgoing) through the MessageHandler
                 // logger.info(`🔄 Calling MessageHandler to process command...`);
                 await this.messageHandler.process(message);
@@ -697,12 +645,13 @@ class MATDEV {
      */
     async handleCall(calls) {
         for (const call of calls) {
+            // Reject calls if config.REJECT_CALLS is true and it's an incoming call offer
             if (config.REJECT_CALLS && call.status === 'offer') {
                 try {
                     await this.sock.rejectCall(call.id, call.from);
-                    logger.info(`📞 Rejected call from: ${call.from}`);
+                    logger.info(`📞 Rejected incoming call from: ${call.from}`);
                 } catch (error) {
-                    logger.error('Failed to reject call:', error);
+                    logger.error(`Failed to reject call from ${call.from}:`, error);
                 }
             }
         }
@@ -725,22 +674,22 @@ class MATDEV {
     }
 
     /**
-     * Handle status view automation
+     * Handle status view automation (now integrated into handleMessages)
      */
-    async handleStatusView({ messages }) {
-        if (!config.AUTO_STATUS_VIEW) return;
+    // async handleStatusView({ messages }) {
+    //     if (!config.AUTO_STATUS_VIEW) return;
 
-        for (const message of messages) {
-            if (message.key.remoteJid === 'status@broadcast') {
-                try {
-                    await this.sock.readMessages([message.key]);
-                    logger.debug(`👀 Viewed status from: ${message.key.participant}`);
-                } catch (error) {
-                    logger.error('Failed to view status:', error);
-                }
-            }
-        }
-    }
+    //     for (const message of messages) {
+    //         if (message.key.remoteJid === 'status@broadcast') {
+    //             try {
+    //                 await this.sock.readMessages([message.key]);
+    //                 logger.debug(`👀 Viewed status from: ${message.key.participant}`);
+    //             } catch (error) {
+    //                 logger.error('Failed to view status:', error);
+    //             }
+    //         }
+    //     }
+    // }
 
     /**
      * Clear session files when absolutely necessary
@@ -1081,23 +1030,23 @@ class MATDEV {
     async checkUpdateCompletion() {
         try {
             const updateFlagPath = '.update_flag.json';
-            
+
             if (fs.existsSync(updateFlagPath)) {
                 // Wait for bot to fully initialize - same timing as restart completion
                 setTimeout(async () => {
                     try {
                         const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
-                        
+
                         // Send update completion message to bot owner
                         const completionMessage = '✅ Bot updated';
-                        
+
                         await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                             text: completionMessage
                         });
-                        
+
                         // Clean up the update flag file
                         fs.unlinkSync(updateFlagPath);
-                        
+
                         logger.success('✅ Update completion notification sent');
                     } catch (error) {
                         logger.error('Error sending update completion notification:', error);
@@ -1119,21 +1068,21 @@ class MATDEV {
     async checkRestartCompletion() {
         try {
             const restartInfoPath = '.restart_info.json';
-            
+
             if (fs.existsSync(restartInfoPath)) {
                 // Wait a bit for bot to fully initialize
                 setTimeout(async () => {
                     try {
                         const restartInfo = JSON.parse(fs.readFileSync(restartInfoPath, 'utf8'));
-                        
+
                         // Send restart completion message
                         await this.sock.sendMessage(restartInfo.chatJid, {
                             text: '✅ Restart completed'
                         });
-                        
+
                         // Clean up the restart info file
                         fs.unlinkSync(restartInfoPath);
-                        
+
                         logger.info('✅ Restart completion message sent');
                     } catch (error) {
                         logger.error('Error sending restart completion message:', error);
