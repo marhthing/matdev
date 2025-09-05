@@ -155,24 +155,24 @@ class AntiViewOncePlugin {
                     // Save the extracted media for future use
                     if (buffer) {
                         await this.saveViewOnceMedia(buffer, messageId, contentType, viewOnceContent);
-                        console.log(`💾 Saved view once ${contentType} for future access`);
+                        // Saved view once for future access silently
                     }
                 } catch (error) {
-                    console.log(`⚠️ Failed to extract from WhatsApp (${error.message}), checking for saved media...`);
+                    // Failed to extract from WhatsApp, checking for saved media silently
                     
                     // Try to load from saved file
                     if (await fs.pathExists(savedFilePath)) {
                         buffer = await fs.readFile(savedFilePath);
                         usedSavedMedia = true;
-                        console.log(`📂 Using saved media from: ${path.basename(savedFilePath)}`);
+                        // Using saved media silently
                     } else {
-                        console.log(`❌ No saved media found for this view once message`);
+                        // No saved media found
                         throw error;
                     }
                 }
                 
                 if (!buffer) {
-                    console.log(`❌ Could not extract or load saved media for view once message`);
+                    // Could not extract or load saved media
                     return;
                 }
                 
@@ -191,7 +191,7 @@ class AntiViewOncePlugin {
                         caption: viewOnceContent.videoMessage.caption || undefined
                     };
                 } else {
-                    console.log(`❌ Unsupported view once content type: ${contentType}`);
+                    // Unsupported view once content type
                     return;
                 }
                 
@@ -203,7 +203,7 @@ class AntiViewOncePlugin {
                     // Send to destination
                     await this.bot.sock.sendMessage(targetJid, extractedMessage);
                     const sourceMsg = usedSavedMedia ? ' (from saved media)' : '';
-                    console.log(`💥 Successfully extracted and sent view once ${contentType} to ${targetJid}${sourceMsg}`);
+                    // Successfully extracted and sent view once silently
                 }
                 
             } catch (error) {
