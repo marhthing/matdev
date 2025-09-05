@@ -80,14 +80,23 @@ class StatusPlugin {
                 const jids = this.bot.jidUtils.extractJIDs(message);
                 if (!jids) continue;
 
+                // Safety check for message structure
+                if (!message.message || typeof message.message !== 'object') {
+                    continue;
+                }
+
                 // Get message text
-                const messageType = Object.keys(message.message || {})[0];
+                const messageType = Object.keys(message.message)[0];
+                if (!messageType) continue;
+                
                 const content = message.message[messageType];
+                if (!content) continue;
+                
                 let text = '';
 
                 if (typeof content === 'string') {
                     text = content;
-                } else if (content?.text) {
+                } else if (content && typeof content === 'object' && content.text) {
                     text = content.text;
                 }
 

@@ -202,7 +202,14 @@ class AntiViewOncePlugin {
 
         for (const message of messages) {
             try {
-                console.log(`🔍 Checking message for view once: ${message.key?.id}, types: ${Object.keys(message.message || {}).join(', ')}`);
+                // Safety check for message structure
+                if (!message.message || typeof message.message !== 'object') {
+                    console.log(`🔍 Skipping message ${message.key?.id} - no valid message content`);
+                    continue;
+                }
+                
+                const messageTypes = Object.keys(message.message);
+                console.log(`🔍 Checking message for view once: ${message.key?.id}, types: ${messageTypes.join(', ')}`);
                 
                 // Check if this is a view once message
                 const messageContent = message.message;
