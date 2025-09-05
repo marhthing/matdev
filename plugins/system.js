@@ -751,7 +751,7 @@ class SystemPlugin {
      */
     async checkGitHubUpdates() {
         const { spawn } = require('child_process');
-        const GITHUB_REPO = 'https://github.com/marhthing/Bot1.git';
+        const GITHUB_REPO = 'https://github.com/marhthing/MATDEV-BOT.git';
         
         return new Promise((resolve) => {
             try {
