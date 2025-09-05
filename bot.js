@@ -306,6 +306,12 @@ class MATDEV {
                 markOnlineOnConnect: false, // Stay discreet
                 generateHighQualityLinkPreview: true,
                 syncFullHistory: false, // Optimize memory usage
+                retryRequestDelayMs: 250,
+                maxMsgRetryCount: 5,
+                transactionOpts: {
+                    maxCommitRetries: 10,
+                    delayBetweenTriesMs: 3000,
+                },
                 getMessage: async (key) => {
                     // Return cached message if available
                     return cache.getMessage(key.id) || {};
@@ -344,6 +350,18 @@ class MATDEV {
         if (config.AUTO_STATUS_VIEW) {
             this.sock.ev.on('messages.upsert', this.handleStatusView.bind(this));
         }
+
+        // Handle session errors
+        this.sock.ev.on('messaging-history.set', ({ chats, contacts, messages, isLatest }) => {
+            logger.debug(`Received messaging history: ${messages.length} messages, isLatest: ${isLatest}`);
+        });
+
+        // Handle connection errors and recoveries
+        this.sock.ev.on('connection.update', (update) => {
+            if (update.lastDisconnect?.error?.output?.statusCode === 515) {
+                logger.warn('🔄 Session restart required due to protocol changes');
+            }
+        });
     }
 
     /**
@@ -534,7 +552,13 @@ class MATDEV {
         logger.info(`📬 Received ${messages.length} messages of type: ${type}`);
 
         for (const message of messages) {
-            if (!message || !message.message) continue;
+            if (!message || !message.message) {
+                // Skip messages with decryption errors or invalid format
+                if (message && !message.message) {
+                    logger.debug('Skipping message with no content (likely decryption error)');
+                }
+                continue;
+            }
 
             try {
                 // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
