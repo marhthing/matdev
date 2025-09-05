@@ -647,12 +647,7 @@ class SystemPlugin {
                 if (result.error) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + result.error);
                 } else if (result.updateAvailable) {
-                    const commitsText = result.commitsAhead === 1 ? 'commit' : 'commits';
-                    const message = `🔄 *UPDATE AVAILABLE*\n\n` +
-                        `📊 You are ${result.commitsAhead} ${commitsText} behind\n` +
-                        `🏠 Local: ${result.localCommit}\n` +
-                        `☁️ Remote: ${result.latestCommit}\n\n` +
-                        `📝 Use \`.update now\` to update`;
+                    const message = `🔄 *${result.commitsAhead} UPDATE AVAILABLE*`;
                     await this.bot.messageHandler.reply(messageInfo, message);
                 } else {
                     const message = `✅ *BOT UP TO DATE*\n\n` +
