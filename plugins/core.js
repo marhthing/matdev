@@ -228,8 +228,19 @@ class CorePlugin {
         const start = Date.now();
         
         try {
-            // Send response and calculate latency after sending
-            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
+            // Send initial message
+            const sentMessage = await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! 0ms`);
+            
+            // Calculate actual latency after sending
+            const latency = Date.now() - start;
+            
+            // Edit the message with actual latency
+            if (sentMessage && sentMessage.key) {
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🏓 Pong! ${latency}ms`,
+                    edit: sentMessage.key
+                });
+            }
             
         } catch (error) {
             const errorLatency = Date.now() - start;
