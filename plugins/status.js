@@ -80,23 +80,14 @@ class StatusPlugin {
                 const jids = this.bot.jidUtils.extractJIDs(message);
                 if (!jids) continue;
 
-                // Safety check for message structure
-                if (!message.message || typeof message.message !== 'object') {
-                    continue;
-                }
-
                 // Get message text
-                const messageType = Object.keys(message.message)[0];
-                if (!messageType) continue;
-                
+                const messageType = Object.keys(message.message || {})[0];
                 const content = message.message[messageType];
-                if (!content) continue;
-                
                 let text = '';
 
                 if (typeof content === 'string') {
                     text = content;
-                } else if (content && typeof content === 'object' && content.text) {
+                } else if (content?.text) {
                     text = content.text;
                 }
 
@@ -106,7 +97,7 @@ class StatusPlugin {
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 const contextInfo = message.message?.extendedTextMessage?.contextInfo;
 
-                if (quotedMessage && contextInfo && this.isStatusReply({ quotedMessage, contextInfo })) {
+                if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
                     // Handle auto-send functionality for bot owner's status
                     if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
                         await this.handleAutoSend(quotedMessage, jids.chat_jid);
@@ -123,7 +114,7 @@ class StatusPlugin {
      */
     isStatusReply(messageData) {
         // Check if message has quoted message and it's from status
-        if (!messageData?.quotedMessage) return false;
+        if (!messageData.quotedMessage) return false;
 
         // Status messages have specific characteristics:
         // 1. They come from status@broadcast
@@ -131,7 +122,7 @@ class StatusPlugin {
         const contextInfo = messageData.contextInfo;
         const isStatusBroadcast = contextInfo?.remoteJid?.includes('status@broadcast') ||
                                  contextInfo?.participant?.includes('status@broadcast') ||
-                                 messageData.quotedMessage?.key?.remoteJid?.includes('status@broadcast');
+                                 messageData.quotedMessage.key?.remoteJid?.includes('status@broadcast');
 
         return isStatusBroadcast;
     }
@@ -259,70 +250,7 @@ class StatusPlugin {
 
             console.log(`💾 Forwarding message to bot owner chat`);
 
-            // Special handling for view-once messages
-            if (quotedMessage.viewOnceMessage) {
-                console.log(`📸 Detected view once message, checking for cached media...`);
-                
-                // Try to get cached view-once media first
-                const quotedMessageId = contextInfo?.stanzaId;
-                if (quotedMessageId && this.bot.plugins?.antiviewonce) {
-                    const cachedViewOnce = this.bot.plugins.antiviewonce.getCachedViewOnceMedia(quotedMessageId);
-                    if (cachedViewOnce) {
-                        console.log(`📸 Using cached view once media for .save`);
-                        
-                        let extractedMessage = null;
-                        if (cachedViewOnce.contentType === 'imageMessage') {
-                            extractedMessage = {
-                                image: cachedViewOnce.buffer,
-                                caption: `💾 *Saved View Once Message*\n\n${cachedViewOnce.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                            };
-                        } else if (cachedViewOnce.contentType === 'videoMessage') {
-                            extractedMessage = {
-                                video: cachedViewOnce.buffer,
-                                caption: `💾 *Saved View Once Message*\n\n${cachedViewOnce.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                            };
-                        }
-                        
-                        if (extractedMessage) {
-                            await this.bot.sock.sendMessage(botPrivateChat, extractedMessage);
-                            console.log(`✅ Cached view once message saved to bot owner chat`);
-                            return;
-                        }
-                    }
-                }
-                
-                // Fallback to trying to download view once directly
-                try {
-                    const mediaData = await this.extractAnyMedia({ message: quotedMessage, key: contextInfo });
-                    const viewOnceContent = quotedMessage.viewOnceMessage.message;
-                    const contentType = Object.keys(viewOnceContent)[0];
-                    
-                    let extractedMessage = null;
-                    if (contentType === 'imageMessage') {
-                        extractedMessage = {
-                            image: mediaData,
-                            caption: `💾 *Saved View Once Message*\n\n${viewOnceContent.imageMessage.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                        };
-                    } else if (contentType === 'videoMessage') {
-                        extractedMessage = {
-                            video: mediaData,
-                            caption: `💾 *Saved View Once Message*\n\n${viewOnceContent.videoMessage.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
-                        };
-                    }
-                    
-                    if (extractedMessage) {
-                        await this.bot.sock.sendMessage(botPrivateChat, extractedMessage);
-                        console.log(`✅ View once message saved to bot owner chat`);
-                        return;
-                    }
-                } catch (viewOnceError) {
-                    console.error(`Failed to extract view once media for .save: ${viewOnceError.message}`);
-                    console.log('💡 Tip: The view once message may have been opened too many times. Try using .vv command instead.');
-                    // Fall through to regular forward method
-                }
-            }
-
-            // Regular message forwarding (fallback for all other message types)
+            // Use WhatsApp's native forward mechanism - directly forward to bot owner
             await this.bot.sock.sendMessage(botPrivateChat, {
                 forward: {
                     key: contextInfo.stanzaId ? {
