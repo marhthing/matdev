@@ -488,7 +488,7 @@ class SystemPlugin {
                 await this.hotReloadConfig(key, value);
 
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `✅ Environment variable updated:\n*${key}* = ${value}\n\n🔄 *Applied instantly* - no restart needed`
+                    `✅ *${key}* = ${value}`
                 );
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
