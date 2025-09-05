@@ -217,7 +217,10 @@ class AntiDeletePlugin {
                     }
 
                     // Get saved default destination or fallback to bot owner chat
-                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${require('../config').OWNER_NUMBER}@s.whatsapp.net`;
+                    // Ensure we send to owner private chat, not the chat where deletion occurred
+                    const config = require('../config');
+                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    console.log(`📤 ANTI-DELETE: Sending text alert to: ${targetJid}`);
 
                     await this.bot.sock.sendMessage(targetJid, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
@@ -258,7 +261,10 @@ class AntiDeletePlugin {
                 };
 
                 // Get saved default destination or fallback to bot owner chat
-                const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${require('../config').OWNER_NUMBER}@s.whatsapp.net`;
+                // Ensure we send to owner private chat, not the chat where deletion occurred
+                const config = require('../config');
+                const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                console.log(`📤 ANTI-DELETE: Sending media alert to: ${targetJid}`);
 
                 await this.bot.sock.sendMessage(targetJid, alertMessage);
             }
