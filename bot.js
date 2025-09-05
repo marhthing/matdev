@@ -93,6 +93,9 @@ class MATDEV {
             // Load plugins only after WhatsApp is fully connected
             await this.loadPlugins();
 
+            // Store plugin references for direct access
+            this.setupPluginReferences();
+
             // Check for restart completion message
             await this.checkRestartCompletion();
 
@@ -252,13 +255,13 @@ class MATDEV {
      */
     initializePluginHotReload() {
         const pluginsDir = path.join(__dirname, 'plugins');
-        
+
         try {
             // Watch for changes in plugins directory
             this.pluginWatcher = require('fs').watch(pluginsDir, { recursive: false }, (eventType, filename) => {
                 if (filename && filename.endsWith('.js')) {
                     logger.info(`🔥 Hot reload detected: ${filename} (${eventType})`);
-                    
+
                     // Debounce rapid file changes
                     clearTimeout(this.reloadTimeout);
                     this.reloadTimeout = setTimeout(() => {
@@ -767,44 +770,46 @@ class MATDEV {
     }
 
     /**
-     * Handle message updates (for anti-delete detection)
+     * Handle message updates, specifically for detecting deleted messages
      */
-    async handleMessageUpdates(updates) {
-        try {
-            for (const update of updates) {
-                // Handle direct revoke type (messageStubType)
-                if (update.update?.messageStubType === 'REVOKE') {
-                    const messageId = update.key?.id;
-                    const chatJid = update.key?.remoteJid;
-                    
-                    if (messageId && chatJid) {
-                        console.log('🗑️ REVOKE detected via messageStubType:', messageId);
-                        
-                        // Call anti-delete plugin if available
-                        if (this.plugins?.antidelete) {
-                            await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
-                        }
-                    }
-                }
+    async handleMessageUpdates(messages) {
+        for (const message of messages) {
+            // Check if message has been deleted
+            if (message.update.messageStubType === 6) { // 6 indicates message deletion
+                const messageId = message.key.id;
+                const chatJid = message.key.remoteJid;
 
-                // Handle protocol message revoke (more common)
-                if (update.update?.message?.protocolMessage?.type === 'REVOKE') {
-                    const revokedKey = update.update.message.protocolMessage.key;
-                    if (revokedKey?.id) {
-                        const messageId = revokedKey.id;
-                        const chatJid = revokedKey.remoteJid || update.key?.remoteJid;
-                        
-                        console.log('🗑️ REVOKE detected via protocolMessage:', messageId);
-                        
-                        // Call anti-delete plugin if available
-                        if (this.plugins?.antidelete) {
-                            await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
-                        }
+                logger.warn(`🗑️ DELETION DETECTED VIA UPDATE - ID: ${messageId}, Chat: ${chatJid}`);
+
+                // Use the anti-delete plugin if available and enabled
+                if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
+                    logger.info('🔄 Delegating to anti-delete plugin');
+                    await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
+                } else {
+                    // Fallback to built-in handling
+                    await this.handleAntiDelete(messageId, chatJid);
+                }
+            }
+
+            // Also handle protocol message revokes (more common deletion type)
+            if (message.update.message?.protocolMessage?.type === 'REVOKE') {
+                const revokedKey = message.update.message.protocolMessage.key;
+                if (revokedKey && revokedKey.id) {
+                    const messageId = revokedKey.id;
+                    const chatJid = revokedKey.remoteJid || message.key.remoteJid;
+
+                    logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL - ID: ${messageId}, Chat: ${chatJid}`);
+
+                    // Use the anti-delete plugin if available and enabled
+                    if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
+                        logger.info('🔄 Delegating to anti-delete plugin');
+                        await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
+                    } else {
+                        // Fallback to built-in handling
+                        await this.handleAntiDelete(messageId, chatJid);
                     }
                 }
             }
-        } catch (error) {
-            logger.error('Error handling message updates:', error);
         }
     }
 
@@ -1120,20 +1125,12 @@ class MATDEV {
     }
 
     /**
-     * Handle message updates, specifically for detecting deleted messages
+     * Setup direct references to important plugins
      */
-    async handleMessageUpdates(messages) {
-        for (const message of messages) {
-            // Check if the message has been deleted
-            if (message.update.messageStubType === 6) { // 6 indicates message deletion
-                const messageId = message.key.id;
-                const chatJid = message.key.remoteJid;
-
-                logger.warn(`🗑️ DELETION DETECTED VIA UPDATE - ID: ${messageId}, Chat: ${chatJid}`);
-
-                // Trigger anti-delete handling
-                await this.handleAntiDelete(messageId, chatJid);
-            }
+    setupPluginReferences() {
+        // Store direct reference to anti-delete plugin for message update handling
+        if (this.plugins && this.plugins.antidelete) {
+            logger.info('✅ Anti-delete plugin reference established');
         }
     }
 
