@@ -6,7 +6,7 @@ console.log('🎯 MATDEV Bot Auto-Manager');
 console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
-const GITHUB_REPO = 'https://github.com/marhthing/MATDEV-BOT.git';
+const GITHUB_REPO = 'https://github.com/marhthing/matdev.git';
 
 // Initialize manager commands
 const managerCommands = new ManagerCommands(GITHUB_REPO);
