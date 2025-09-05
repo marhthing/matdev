@@ -220,46 +220,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 </div>
 
-## 🌐 Hosting on Replit
-
-### ☁️ Replit Setup
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Auto-Deploy** | ✅ Supported | Fork and run automatically |
-| **Always-On** | ✅ Supported | Use Replit's always-on feature |
-| **Zero Config** | ✅ Supported | Works out of the box |
-| **Session Persistence** | ✅ Supported | Maintains WhatsApp connection |
-
-### 🖥️ Alternative Platforms
-| Platform | Status | Notes |
-|----------|---------|-------|
-| **Railway** | ✅ Supported | Auto-deploy from GitHub |
-| **Render** | ✅ Supported | Free tier available |
-| **Heroku** | ⚠️ Limited | Use worker dyno, no longer free |
-| **VPS/Server** | ✅ Supported | Install Node.js 18+ |
-
-## 📋 Setup Instructions
-
-### 1. Using Replit (Recommended)
-1. **Fork this repository** on GitHub
-2. **Create new Repl** from your forked repository
-3. **Click Run** - the auto-manager will handle everything
-4. **Scan QR code** that appears in console
-5. **Test with** `.ping` command
-
-### 2. Manual Clone Method
-```bash
-# Clone the repository
-git clone https://github.com/marhthing/MATDEV-BOT.git
-cd MATDEV-BOT
-
-# Install dependencies
-npm install
-
-# Start the bot
-node bot.js
-```
-
 ## 🎮 Essential Commands
 
 | Command | Description | Example |
@@ -272,38 +232,6 @@ node bot.js
 | `.restart` | Restart the bot | `.restart` |
 | `.save` | Forward message to owner | `.save` |
 | `.vv` | Save view-once media | `.vv` |
-
-## 🛡️ Security Features
-
-### Anti-Delete System
-- Automatically detects deleted messages
-- Recovers and forwards deleted content to owner
-- Supports all media types (images, videos, audio, stickers)
-- Preserves original message metadata
-
-### Anti-View Once
-- Saves view-once photos and videos
-- Automatic forwarding to bot owner
-- Preserves media quality
-- Secure file storage
-
-### Permission System
-- Owner-only commands protection
-- JID-based authentication
-- Group and private chat management
-- Secure command execution
-
-## 🤖 Auto-Update System
-
-Your bot includes an intelligent auto-update system:
-
-- **`.update`** - Check for updates from GitHub repository
-- **`.updatenow`** - Force update immediately with fresh clone
-- **Session Preservation** - Keeps WhatsApp session during updates
-- **Automatic Recovery** - Restarts after updates complete
-- **Zero Downtime** - Seamless update process
-
-
 
 ## 💡 Pro Tips
 
