@@ -442,7 +442,7 @@ class SystemPlugin {
 
             if (args.length < 2) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Usage: ${config.PREFIX}setenv <key> <value>\n\nExample: ${config.PREFIX}setenv BOT_NAME MyBot`
+                    `❌ Usage: ${config.PREFIX}setenv <key>=<value>`
                 );
                 return;
             }
@@ -450,15 +450,13 @@ class SystemPlugin {
             const key = args[0].toUpperCase();
             const value = args.slice(1).join(' ');
 
-            // Protected configuration keys that cannot be modified via setenv
+            // Protected configuration keys that cannot be modified via setenv (hidden values only)
             const protectedKeys = [
-                'BOT_NAME', 'PREFIX', 'AUTO_TYPING', 'AUTO_READ', 
-                'AUTO_STATUS_VIEW', 'REJECT_CALLS', 'PUBLIC_MODE',
                 'SESSION_ID', 'OWNER_NUMBER', 'ANTI_BAN',
                 'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
                 'MAX_CONCURRENT_MESSAGES', 'MESSAGE_TIMEOUT',
                 'CACHE_TTL', 'LOG_LEVEL', 'LOG_TO_FILE',
-                'NODE_ENV', 'PLATFORM'
+                'NODE_ENV', 'PLATFORM', 'PUBLIC_MODE'
             ];
 
             if (protectedKeys.includes(key)) {
@@ -490,7 +488,7 @@ class SystemPlugin {
 
             if (args.length < 1) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Usage: ${config.PREFIX}getenv <key>\n\nExample: ${config.PREFIX}getenv BOT_NAME`
+                    `❌ Usage: ${config.PREFIX}getenv <key>`
                 );
                 return;
             }
@@ -501,14 +499,13 @@ class SystemPlugin {
             if (value === undefined) {
                 await this.bot.messageHandler.reply(messageInfo, `❌ Environment variable *${key}* is not set`);
             } else {
-                // Protected configuration keys that should show restricted message
+                // Protected configuration keys that should show restricted message (hidden values only)
                 const protectedKeys = [
-                    'BOT_NAME', 'PREFIX', 'AUTO_TYPING', 'AUTO_READ', 
-                    'AUTO_STATUS_VIEW', 'REJECT_CALLS', 'PUBLIC_MODE',
-                    'ANTI_BAN', 'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
+                    'SESSION_ID', 'OWNER_NUMBER', 'ANTI_BAN',
+                    'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
                     'MAX_CONCURRENT_MESSAGES', 'MESSAGE_TIMEOUT',
                     'CACHE_TTL', 'LOG_LEVEL', 'LOG_TO_FILE',
-                    'NODE_ENV', 'PLATFORM'
+                    'NODE_ENV', 'PLATFORM', 'PUBLIC_MODE'
                 ];
 
                 // Hide sensitive values completely
