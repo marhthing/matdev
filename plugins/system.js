@@ -45,13 +45,7 @@ class SystemPlugin {
 
 
 
-        // Plugin management
-        this.bot.messageHandler.registerCommand('plugins', this.pluginsCommand.bind(this), {
-            description: 'Manage bot plugins',
-            usage: `${config.PREFIX}plugins [list|reload]`,
-            category: 'system',
-            ownerOnly: true
-        });
+        
 
         // Configuration command
         this.bot.messageHandler.registerCommand('config', this.configCommand.bind(this), {
