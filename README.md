@@ -33,7 +33,7 @@ console.log('🎯 MATDEV Auto-Manager');
 console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository
-const GITHUB_REPO = 'https://github.com/marhthing/MATDEV-BOT.git';
+const GITHUB_REPO = 'https://github.com/marhthing/matdev.git';
 
 // Check if this is an initial setup, restart, or forced update
 const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json');
