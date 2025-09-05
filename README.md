@@ -242,7 +242,7 @@ This project is the intellectual property of **MATDEV**.
 - Unauthorized use, copying, or distribution is strictly prohibited
 - Commercial use is not permitted without written consent from MATDEV
 
-**📧 Contact:** For licensing inquiries or permission requests, contact MATDEV at aremartins801@gmail.com
+**📧 Contact:** For licensing inquiries or permission requests, contact MATDEV at ✉️ aremartins801@gmail.com
 
 **© 2025 MATDEV. All Rights Reserved.**
 
