@@ -47,8 +47,8 @@ class AntiViewOncePlugin {
             const contextInfo = message.message?.extendedTextMessage?.contextInfo;
             
             // Debug: Log the message structure to understand what we're getting
-            console.log(`🔍 Debug - quotedMessage keys:`, quotedMessage ? Object.keys(quotedMessage) : 'no quoted message');
-            console.log(`🔍 Debug - contextInfo:`, contextInfo ? 'exists' : 'missing');
+            // console.log(`🔍 Debug - quotedMessage keys:`, quotedMessage ? Object.keys(quotedMessage) : 'no quoted message');
+            // console.log(`🔍 Debug - contextInfo:`, contextInfo ? 'exists' : 'missing');
             
             let viewOnceMessage = null;
             
@@ -56,21 +56,21 @@ class AntiViewOncePlugin {
             if (quotedMessage?.viewOnceMessage) {
                 // Direct view once message
                 viewOnceMessage = quotedMessage;
-                console.log(`🔍 Found direct view once message in reply`);
+                // console.log(`🔍 Found direct view once message in reply`);
             } else if (quotedMessage?.message?.viewOnceMessage) {
                 // Nested view once message
                 viewOnceMessage = quotedMessage.message;
-                console.log(`🔍 Found nested view once message in reply`);
+                // console.log(`🔍 Found nested view once message in reply`);
             } else if (quotedMessage) {
                 // Check if this is a forwarded view once (from .save)
                 // When view once is forwarded, it loses the viewOnceMessage wrapper
                 // and becomes regular imageMessage, videoMessage, etc.
                 const messageTypes = Object.keys(quotedMessage);
-                console.log(`🔍 Debug - available message types:`, messageTypes);
+                // console.log(`🔍 Debug - available message types:`, messageTypes);
                 
                 // Check if it's likely a forwarded view once (image or video)
                 if (messageTypes.includes('imageMessage') || messageTypes.includes('videoMessage')) {
-                    console.log(`🔍 Treating as forwarded view once message`);
+                    // console.log(`🔍 Treating as forwarded view once message`);
                     // Create a fake viewOnceMessage structure for processing
                     viewOnceMessage = {
                         viewOnceMessage: {
@@ -82,7 +82,7 @@ class AntiViewOncePlugin {
                     return;
                 }
             } else {
-                console.log(`🔍 No reply found - searching for recent view once messages`);
+                // console.log(`🔍 No reply found - searching for recent view once messages`);
                 console.log('❌ Please reply to a view once message with .vv');
                 return;
             }
@@ -92,13 +92,11 @@ class AntiViewOncePlugin {
                 return;
             }
             
-            console.log(`💥 Processing anti-view once for message`);
-            
             // Extract the actual content from view once message
             const viewOnceContent = viewOnceMessage.viewOnceMessage.message;
             const contentType = Object.keys(viewOnceContent)[0];
             
-            console.log(`📸 View once content type: ${contentType}`);
+            console.log(`📸 Processing ${contentType} view once`);
             
             try {
                 // Extract the media from view once
