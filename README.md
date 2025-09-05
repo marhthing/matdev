@@ -1,5 +1,5 @@
 
-# MATDEV WhatsApp Bot - Host Anywhere
+# MATDEV - Host Anywhere
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 [![Baileys](https://img.shields.io/badge/Baileys-Latest-blue.svg)](https://github.com/WhiskeySockets/Baileys)
 [![Deploy](https://img.shields.io/badge/Deploy-One--Click-success.svg)]()
 
-**⚡ High-Performance WhatsApp Bot with Auto-Update System**
+**⚡ High-Performance Application with Auto-Update System**
 
 *Host on any platform with zero configuration*
 
@@ -15,8 +15,8 @@
 
 ## 🚀 Quick Deploy
 
-### Auto-Manager (Replit)
-Use our auto-manager system to automatically deploy and update your bot on Replit:
+### Auto-Manager
+Use our auto-manager system to automatically deploy and update your application:
 
 <div align="center">
 
@@ -29,7 +29,7 @@ Use our auto-manager system to automatically deploy and update your bot on Repli
 const { spawn, spawnSync } = require('child_process');
 const { existsSync } = require('fs');
 
-console.log('🎯 MATDEV Bot Auto-Manager');
+console.log('🎯 MATDEV Auto-Manager');
 console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository
@@ -47,12 +47,12 @@ if (isInitialSetup || isForcedUpdate) {
     }
     cloneAndSetup();
 } else {
-    console.log('🚀 Starting MATDEV bot...');
+    console.log('🚀 Starting MATDEV...');
     startBot();
 }
 
 function cloneAndSetup() {
-    console.log('📥 Cloning bot from GitHub...');
+    console.log('📥 Cloning application from GitHub...');
     console.log('🔗 Repository:', GITHUB_REPO);
 
     // Clean workspace (preserve important files)
@@ -71,7 +71,7 @@ function cloneAndSetup() {
     }
 
     // Backup and move files
-    console.log('📁 Moving bot files (preserving existing .env and config.js)...');
+    console.log('📁 Moving application files (preserving existing .env and config.js)...');
     spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true; cp config.js config.js.backup 2>/dev/null || true'], { stdio: 'inherit' });
     
     const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/. . && rm -rf temp_clone'], {
@@ -81,20 +81,20 @@ function cloneAndSetup() {
     spawnSync('bash', ['-c', 'mv .env.backup .env 2>/dev/null || true; mv config.js.backup config.js 2>/dev/null || true'], { stdio: 'inherit' });
 
     if (moveResult.error || moveResult.status !== 0) {
-        console.error('❌ Failed to move bot files!');
+        console.error('❌ Failed to move application files!');
         console.error('Error:', moveResult.error?.message || `Exit code: moveResult.status}`);
         process.exit(1);
     }
 
-    console.log('✅ Bot files moved successfully!');
+    console.log('✅ Application files moved successfully!');
 
     // Find entry point
     let entryPoint = findEntryPoint();
     if (!entryPoint) {
-        console.error('❌ No bot entry point found!');
+        console.error('❌ No application entry point found!');
         process.exit(1);
     }
-    console.log(`✅ Found bot entry point: ${entryPoint}`);
+    console.log(`✅ Found application entry point: ${entryPoint}`);
 
     // Install dependencies
     if (existsSync('package.json')) {
@@ -110,7 +110,7 @@ function cloneAndSetup() {
         console.log('✅ Dependencies installed!');
     }
 
-    // Start the bot
+    // Start the application
     startBot(entryPoint);
 }
 
@@ -139,7 +139,7 @@ function findEntryPoint() {
 }
 
 function startBot(entryPoint = 'bot.js') {
-    console.log(`🚀 Starting bot: ${entryPoint}`);
+    console.log(`🚀 Starting application: ${entryPoint}`);
 
     const botProcess = spawn('node', [entryPoint], {
         stdio: 'inherit'
@@ -149,11 +149,11 @@ function startBot(entryPoint = 'bot.js') {
     const maxRestarts = 5;
 
     botProcess.on('exit', (code, signal) => {
-        console.log(`🔄 Bot exited with code ${code}, signal ${signal}`);
+        console.log(`🔄 Application exited with code ${code}, signal ${signal}`);
         
         if (signal !== 'SIGTERM' && signal !== 'SIGINT') {
             if (code === 0) {
-                console.log(`🔄 Restarting bot as requested...`);
+                console.log(`🔄 Restarting application as requested...`);
                 setTimeout(() => startBot(entryPoint), 2000);
             } else {
                 // Check for update requests
@@ -168,7 +168,7 @@ function startBot(entryPoint = 'bot.js') {
                 
                 restartCount++;
                 if (restartCount <= maxRestarts) {
-                    console.log(`🔄 Restarting bot after crash... (${restartCount}/${maxRestarts})`);
+                    console.log(`🔄 Restarting application after crash... (${restartCount}/${maxRestarts})`);
                     setTimeout(() => startBot(entryPoint), 2000);
                 } else {
                     console.error('❌ Too many crash restarts, stopping');
@@ -176,34 +176,34 @@ function startBot(entryPoint = 'bot.js') {
                 }
             }
         } else {
-            console.log('🛑 Bot stopped by manager');
+            console.log('🛑 Application stopped by manager');
         }
     });
 
     botProcess.on('error', (error) => {
-        console.error('❌ Bot start error:', error.message);
+        console.error('❌ Application start error:', error.message);
     });
 
     // Handle process signals
     process.on('SIGUSR1', () => {
-        console.log('🔄 Received restart signal, restarting bot...');
+        console.log('🔄 Received restart signal, restarting application...');
         botProcess.kill('SIGTERM');
         setTimeout(() => startBot(entryPoint), 2000);
     });
 
     process.on('SIGTERM', () => {
-        console.log('🛑 Received shutdown signal, stopping bot...');
+        console.log('🛑 Received shutdown signal, stopping application...');
         botProcess.kill('SIGTERM');
         process.exit(0);
     });
 
     process.on('SIGINT', () => {
-        console.log('🛑 Received interrupt signal, stopping bot...');
+        console.log('🛑 Received interrupt signal, stopping application...');
         botProcess.kill('SIGINT');
         process.exit(0);
     });
 
-    console.log('✅ Bot manager running!');
+    console.log('✅ Application manager running!');
 }
 
 // Prevent manager from exiting unexpectedly  
@@ -224,10 +224,10 @@ process.on('unhandledRejection', (reason, promise) => {
 
 <div align="center">
 
-**🚀 Ready to deploy? Fork this repository and start hosting on Replit!**
+**🚀 Ready to deploy? Fork this repository and start hosting!**
 
 [Fork Now](https://github.com/marhthing/MATDEV-BOT/fork) • [Report Issues](https://github.com/marhthing/MATDEV-BOT/issues) • [Get Support](https://github.com/marhthing/MATDEV-BOT/discussions)
 
-*Made with ❤️ for the WhatsApp Bot community*
+*Made with ❤️ for the community*
 
 </div>
