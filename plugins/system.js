@@ -450,6 +450,25 @@ class SystemPlugin {
             const key = args[0].toUpperCase();
             const value = args.slice(1).join(' ');
 
+            // Protected configuration keys that cannot be modified via setenv
+            const protectedKeys = [
+                'BOT_NAME', 'PREFIX', 'AUTO_TYPING', 'AUTO_READ', 
+                'AUTO_STATUS_VIEW', 'REJECT_CALLS', 'PUBLIC_MODE',
+                'SESSION_ID', 'OWNER_NUMBER', 'ANTI_BAN',
+                'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
+                'MAX_CONCURRENT_MESSAGES', 'MESSAGE_TIMEOUT',
+                'CACHE_TTL', 'LOG_LEVEL', 'LOG_TO_FILE',
+                'NODE_ENV', 'PLATFORM'
+            ];
+
+            if (protectedKeys.includes(key)) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `🔒 *${key}* is a protected configuration value and cannot be modified via setenv.\n\n` +
+                    `Use the bot's built-in configuration methods or edit the .env file directly.`
+                );
+                return;
+            }
+
             // Update .env file
             await this.updateEnvFile(key, value);
 
@@ -482,14 +501,31 @@ class SystemPlugin {
             if (value === undefined) {
                 await this.bot.messageHandler.reply(messageInfo, `❌ Environment variable *${key}* is not set`);
             } else {
-                // Hide sensitive values
-                const sensitiveKeys = ['SESSION_ID', 'DATABASE_URL', 'REDIS_URL', 'API_KEY'];
-                const isSensitive = sensitiveKeys.some(sensitive => key.includes(sensitive));
-                const displayValue = isSensitive ? '[HIDDEN]' : value;
+                // Protected configuration keys that should show restricted message
+                const protectedKeys = [
+                    'BOT_NAME', 'PREFIX', 'AUTO_TYPING', 'AUTO_READ', 
+                    'AUTO_STATUS_VIEW', 'REJECT_CALLS', 'PUBLIC_MODE',
+                    'ANTI_BAN', 'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
+                    'MAX_CONCURRENT_MESSAGES', 'MESSAGE_TIMEOUT',
+                    'CACHE_TTL', 'LOG_LEVEL', 'LOG_TO_FILE',
+                    'NODE_ENV', 'PLATFORM'
+                ];
 
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `*Environment Variable:*\n*${key}* = ${displayValue}`
-                );
+                // Hide sensitive values completely
+                const sensitiveKeys = ['SESSION_ID', 'OWNER_NUMBER', 'DATABASE_URL', 'REDIS_URL', 'API_KEY'];
+                const isSensitive = sensitiveKeys.some(sensitive => key.includes(sensitive));
+                
+                if (protectedKeys.includes(key)) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `🔒 *${key}* is a protected configuration value.\n\n` +
+                        `Use the ${config.PREFIX}config command to view current configuration.`
+                    );
+                } else {
+                    const displayValue = isSensitive ? '[HIDDEN]' : value;
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `*Environment Variable:*\n*${key}* = ${displayValue}`
+                    );
+                }
             }
 
         } catch (error) {
