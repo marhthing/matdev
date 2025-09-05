@@ -683,8 +683,7 @@ class SystemPlugin {
                 if (result.error) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + result.error);
                 } else if (result.updateAvailable) {
-                    const message = `🔄 *${result.commitsAhead} UPDATE AVAILABLE*`;
-                    await this.bot.messageHandler.reply(messageInfo, message);
+                    await this.bot.messageHandler.reply(messageInfo, '🔄 *UPDATE AVAILABLE*');
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, '✅ *BOT UP TO DATE*');
                 }
