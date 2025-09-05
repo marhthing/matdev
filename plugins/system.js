@@ -832,12 +832,26 @@ class SystemPlugin {
                                 localCommit: localCommit.substring(0, 7)
                             });
                         } else {
-                            // Commits are different - update needed (remote is source of truth)
-                            resolve({
-                                updateAvailable: true,
-                                commitsAhead: 1,
-                                latestCommit: remoteCommit.substring(0, 7),
-                                localCommit: localCommit.substring(0, 7)
+                            // Commits are different - check how many commits behind
+                            const countProcess = spawn('git', ['rev-list', '--count', `${localCommit}..${remoteCommit}`], {
+                                stdio: ['pipe', 'pipe', 'pipe']
+                            });
+                            
+                            let countOutput = '';
+                            countProcess.stdout.on('data', (data) => {
+                                countOutput += data.toString();
+                            });
+                            
+                            countProcess.on('close', (countCode) => {
+                                const commitsBehind = countCode === 0 ? parseInt(countOutput.trim()) || 1 : 1;
+                                
+                                // Always consider update needed when commits differ
+                                resolve({
+                                    updateAvailable: true,
+                                    commitsAhead: commitsBehind,
+                                    latestCommit: remoteCommit.substring(0, 7),
+                                    localCommit: localCommit.substring(0, 7)
+                                });
                             });
                         }
                     });
