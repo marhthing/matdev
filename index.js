@@ -1,26 +1,11 @@
 const { spawn, spawnSync } = require('child_process');
 const { existsSync } = require('fs');
-const ManagerCommands = require('./lib/manager');
 
 console.log('🎯 MATDEV Bot Auto-Manager');
 console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
 const GITHUB_REPO = 'https://github.com/marhthing/matdev.git';
-
-// Initialize manager commands
-const managerCommands = new ManagerCommands(GITHUB_REPO);
-
-// Expose essential manager commands globally  
-console.log('🔧 Setting up manager commands...');
-global.managerCommands = {
-    restart: () => managerCommands.restart(),
-    shutdown: () => managerCommands.shutdown(),
-    checkUpdates: () => managerCommands.checkUpdates(),
-    updateNow: () => managerCommands.updateNow()
-};
-
-console.log('✅ Manager commands ready and available globally');
 
 // Check if this is an initial setup, restart, or forced update
 const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json');
@@ -34,6 +19,25 @@ if (isInitialSetup || isForcedUpdate) {
     }
     cloneAndSetup();
 } else {
+    // Only load manager commands after files exist
+    try {
+        const ManagerCommands = require('./lib/manager');
+        const managerCommands = new ManagerCommands(GITHUB_REPO);
+        
+        // Expose essential manager commands globally  
+        console.log('🔧 Setting up manager commands...');
+        global.managerCommands = {
+            restart: () => managerCommands.restart(),
+            shutdown: () => managerCommands.shutdown(),
+            checkUpdates: () => managerCommands.checkUpdates(),
+            updateNow: () => managerCommands.updateNow()
+        };
+        
+        console.log('✅ Manager commands ready and available globally');
+    } catch (error) {
+        console.log('⚠️  Manager commands not available (files may be missing)');
+    }
+    
     console.log('🚀 Starting MATDEV bot...');
     startBot();
 }
