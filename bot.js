@@ -56,7 +56,6 @@ class MATDEV {
         this.ownerGroupJid = null;
 
         // Initialize managers
-        this.logger = logger; // Add logger to class instance
         this.connectionManager = new ConnectionManager(this);
         this.sessionManager = new SessionManager();
         this.database = database;
@@ -257,61 +256,28 @@ class MATDEV {
                 path.join(__dirname, 'session')
             );
 
-            // Store original console.log to filter out session messages
-            const originalConsoleLog = console.log;
-            console.log = (...args) => {
-                const message = args.join(' ');
-                if (message.includes('Closing stale open session') ||
-                    message.includes('Closing session:') ||
-                    message.includes('SessionEntry')) {
-                    return; // Skip these messages
-                }
-                originalConsoleLog.apply(console, args);
+            // Create socket connection
+            // Create minimal logger for Baileys
+            const baileyLogger = {
+                trace: () => {},
+                debug: () => {},
+                info: () => {},
+                warn: () => {},
+                error: () => {},
+                fatal: () => {},
+                child: () => baileyLogger // Return self for child logger calls
             };
 
-            // Create custom logger that filters out session logs
-            const filteredLogger = {
-                ...logger, // Inherit from the main logger
-                debug: (message, data) => {
-                    // Filter out session management logs
-                    if (typeof message === 'string' && (
-                        message.includes('Closing stale open session') ||
-                        message.includes('Closing session:') ||
-                        message.includes('SessionEntry')
-                    )) {
-                        return; // Skip these logs
-                    }
-                    logger.debug(message, data);
-                },
-                info: (message, data) => {
-                    // Filter out session info logs
-                    if (typeof message === 'string' && (
-                        message.includes('Closing stale open session') ||
-                        message.includes('Closing session:')
-                    )) {
-                        return; // Skip these logs
-                    }
-                    logger.info(message, data);
-                }
-            };
-
-            // Create socket connection with enhanced options
             this.sock = makeWASocket({
                 auth: state,
-                logger: this.logger.getLogger(), // Use the logger with child method
                 printQRInTerminal: false, // We handle QR display ourselves
+                logger: baileyLogger, // Minimal logger to prevent conflicts
                 browser: ['MATDEV', 'Desktop', '1.0.0'],
                 defaultQueryTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
                 markOnlineOnConnect: false, // Stay discreet
                 generateHighQualityLinkPreview: true,
                 syncFullHistory: false, // Optimize memory usage
-                retryRequestDelayMs: 250,
-                maxMsgRetryCount: 5,
-                transactionOpts: {
-                    maxCommitRetries: 10,
-                    delayBetweenTriesMs: 3000,
-                },
                 getMessage: async (key) => {
                     // Return cached message if available
                     return cache.getMessage(key.id) || {};
@@ -350,18 +316,6 @@ class MATDEV {
         if (config.AUTO_STATUS_VIEW) {
             this.sock.ev.on('messages.upsert', this.handleStatusView.bind(this));
         }
-
-        // Handle session errors
-        this.sock.ev.on('messaging-history.set', ({ chats, contacts, messages, isLatest }) => {
-            logger.debug(`Received messaging history: ${messages.length} messages, isLatest: ${isLatest}`);
-        });
-
-        // Handle connection errors and recoveries
-        this.sock.ev.on('connection.update', (update) => {
-            if (update.lastDisconnect?.error?.output?.statusCode === 515) {
-                logger.warn('🔄 Session restart required due to protocol changes');
-            }
-        });
     }
 
     /**
@@ -552,13 +506,7 @@ class MATDEV {
         logger.info(`📬 Received ${messages.length} messages of type: ${type}`);
 
         for (const message of messages) {
-            if (!message || !message.message) {
-                // Skip messages with decryption errors or invalid format
-                if (message && !message.message) {
-                    logger.debug('Skipping message with no content (likely decryption error)');
-                }
-                continue;
-            }
+            if (!message || !message.message) continue;
 
             try {
                 // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
@@ -671,7 +619,7 @@ class MATDEV {
                 //     logger.info(`📥 Processing incoming message`);
                 //     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
                 // }
-
+                
                 // Process all messages (incoming and outgoing) through the MessageHandler
                 // logger.info(`🔄 Calling MessageHandler to process command...`);
                 await this.messageHandler.process(message);
@@ -1077,13 +1025,13 @@ class MATDEV {
     async checkUpdateCompletion() {
         try {
             const updateFlagPath = '.update_flag.json';
-
+            
             if (fs.existsSync(updateFlagPath)) {
                 // Wait for bot to fully initialize - same timing as restart completion
                 setTimeout(async () => {
                     try {
                         const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
-
+                        
                         // Send update completion message to bot owner
                         const completionMessage = '✅ *UPDATE COMPLETED*\n\n' +
                             '🔄 Successfully recloned from GitHub\n' +
@@ -1091,14 +1039,14 @@ class MATDEV {
                             '⚡ All systems operational\n' +
                             `🕐 Completed: ${new Date().toLocaleString()}\n\n` +
                             '_MATDEV is now running the latest version_';
-
+                        
                         await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                             text: completionMessage
                         });
-
+                        
                         // Clean up the update flag file
                         fs.unlinkSync(updateFlagPath);
-
+                        
                         logger.success('✅ Update completion notification sent');
                     } catch (error) {
                         logger.error('Error sending update completion notification:', error);
@@ -1120,21 +1068,21 @@ class MATDEV {
     async checkRestartCompletion() {
         try {
             const restartInfoPath = '.restart_info.json';
-
+            
             if (fs.existsSync(restartInfoPath)) {
                 // Wait a bit for bot to fully initialize
                 setTimeout(async () => {
                     try {
                         const restartInfo = JSON.parse(fs.readFileSync(restartInfoPath, 'utf8'));
-
+                        
                         // Send restart completion message
                         await this.sock.sendMessage(restartInfo.chatJid, {
                             text: '✅ Restart completed'
                         });
-
+                        
                         // Clean up the restart info file
                         fs.unlinkSync(restartInfoPath);
-
+                        
                         logger.info('✅ Restart completion message sent');
                     } catch (error) {
                         logger.error('Error sending restart completion message:', error);
