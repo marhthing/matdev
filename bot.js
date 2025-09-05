@@ -463,6 +463,9 @@ class MATDEV {
         // Message handler
         this.sock.ev.on('messages.upsert', this.handleMessages);
 
+        // Message update handler (for anti-delete detection)
+        this.sock.ev.on('messages.update', this.handleMessageUpdates.bind(this));
+
         // Call handler
         this.sock.ev.on('call', this.handleCall.bind(this));
 
@@ -720,8 +723,8 @@ class MATDEV {
                 }
 
                 // Archive message using JSONStorage
-                if (this.storage) {
-                    await this.storage.archiveMessage(message);
+                if (this.database) {
+                    await this.database.archiveMessage(message);
                 }
 
                 // Skip processing our own messages unless it's a command
@@ -760,6 +763,48 @@ class MATDEV {
                 // Don't let one message error crash the bot
                 continue;
             }
+        }
+    }
+
+    /**
+     * Handle message updates (for anti-delete detection)
+     */
+    async handleMessageUpdates(updates) {
+        try {
+            for (const update of updates) {
+                // Handle direct revoke type (messageStubType)
+                if (update.update?.messageStubType === 'REVOKE') {
+                    const messageId = update.key?.id;
+                    const chatJid = update.key?.remoteJid;
+                    
+                    if (messageId && chatJid) {
+                        console.log('🗑️ REVOKE detected via messageStubType:', messageId);
+                        
+                        // Call anti-delete plugin if available
+                        if (this.plugins?.antidelete) {
+                            await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
+                        }
+                    }
+                }
+
+                // Handle protocol message revoke (more common)
+                if (update.update?.message?.protocolMessage?.type === 'REVOKE') {
+                    const revokedKey = update.update.message.protocolMessage.key;
+                    if (revokedKey?.id) {
+                        const messageId = revokedKey.id;
+                        const chatJid = revokedKey.remoteJid || update.key?.remoteJid;
+                        
+                        console.log('🗑️ REVOKE detected via protocolMessage:', messageId);
+                        
+                        // Call anti-delete plugin if available
+                        if (this.plugins?.antidelete) {
+                            await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            logger.error('Error handling message updates:', error);
         }
     }
 
