@@ -132,22 +132,13 @@ class AntiViewOncePlugin {
                     return;
                 }
                 
-                // Send the extracted content
+                // Send the extracted content only to owner's chat for archival
                 if (extractedMessage) {
-                    await this.bot.sock.sendMessage(jids.chat_jid, extractedMessage);
-                    console.log(`💥 Successfully extracted and sent view once ${contentType}`);
-                    
-                    // Optional: Also save to bot private chat for archival
                     const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                    const archiveMessage = {
-                        ...extractedMessage,
-                        caption: extractedMessage.caption ? 
-                                `📁 View Once Archive\n🕐 ${new Date().toLocaleString()}\n\n${extractedMessage.caption}` :
-                                `📁 View Once Archive\n🕐 ${new Date().toLocaleString()}`
-                    };
                     
-                    await this.bot.sock.sendMessage(botPrivateChat, archiveMessage);
-                    console.log(`📁 Archived extracted view once content`);
+                    // Send to owner's chat with original caption only
+                    await this.bot.sock.sendMessage(botPrivateChat, extractedMessage);
+                    console.log(`💥 Successfully extracted and sent view once ${contentType}`);
                 }
                 
             } catch (error) {
