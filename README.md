@@ -1,3 +1,4 @@
+
 # MATDEV WhatsApp Bot - Host Anywhere
 
 <div align="center">
@@ -14,8 +15,8 @@
 
 ## 🚀 Quick Deploy
 
-### Auto-Manager (Any Host)
-Use our auto-manager system to automatically deploy and update your bot:
+### Auto-Manager (Replit)
+Use our auto-manager system to automatically deploy and update your bot on Replit:
 
 <div align="center">
 
@@ -27,50 +28,12 @@ Use our auto-manager system to automatically deploy and update your bot:
 ```javascript
 const { spawn, spawnSync } = require('child_process');
 const { existsSync } = require('fs');
-const ManagerCommands = require('./lib/manager');
 
 console.log('🎯 MATDEV Bot Auto-Manager');
 console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository
 const GITHUB_REPO = 'https://github.com/marhthing/MATDEV-BOT.git';
-
-// Initialize manager commands
-const managerCommands = new ManagerCommands(GITHUB_REPO);
-
-// ... (truncated for brevity)
-// The complete code is available below for copying
-```
-
-**To get the complete auto-manager code:**
-1. Select and copy all the text below
-2. Create a new `index.js` file on your hosting platform
-3. Paste the complete code
-
-```javascript
-const { spawn, spawnSync } = require('child_process');
-const { existsSync } = require('fs');
-const ManagerCommands = require('./lib/manager');
-
-console.log('🎯 MATDEV Bot Auto-Manager');
-console.log('📍 Working in:', __dirname);
-
-// Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
-const GITHUB_REPO = 'https://github.com/marhthing/MATDEV-BOT.git';
-
-// Initialize manager commands
-const managerCommands = new ManagerCommands(GITHUB_REPO);
-
-// Expose essential manager commands globally  
-console.log('🔧 Setting up manager commands...');
-global.managerCommands = {
-    restart: () => managerCommands.restart(),
-    shutdown: () => managerCommands.shutdown(),
-    checkUpdates: () => managerCommands.checkUpdates(),
-    updateNow: () => managerCommands.updateNow()
-};
-
-console.log('✅ Manager commands ready and available globally');
 
 // Check if this is an initial setup, restart, or forced update
 const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json');
@@ -119,7 +82,7 @@ function cloneAndSetup() {
 
     if (moveResult.error || moveResult.status !== 0) {
         console.error('❌ Failed to move bot files!');
-        console.error('Error:', moveResult.error?.message || `Exit code: ${moveResult.status}`);
+        console.error('Error:', moveResult.error?.message || `Exit code: moveResult.status}`);
         process.exit(1);
     }
 
@@ -136,7 +99,7 @@ function cloneAndSetup() {
     // Install dependencies
     if (existsSync('package.json')) {
         console.log('📦 Installing dependencies...');
-        const installResult = spawnSync('npm', ['install', '--production'], {
+        const installResult = spawnSync('npm', ['install'], {
             stdio: 'inherit'
         });
 
@@ -149,11 +112,6 @@ function cloneAndSetup() {
 
     // Start the bot
     startBot(entryPoint);
-    
-    // Send update completion notification after successful setup
-    setTimeout(() => {
-        managerCommands.sendUpdateCompleteNotification();
-    }, 10000);
 }
 
 function findEntryPoint() {
@@ -262,36 +220,34 @@ process.on('unhandledRejection', (reason, promise) => {
 
 </div>
 
-## 🌐 Hosting Platforms
+## 🌐 Hosting on Replit
 
-### ☁️ Cloud Platforms
+### ☁️ Replit Setup
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Auto-Deploy** | ✅ Supported | Fork and run automatically |
+| **Always-On** | ✅ Supported | Use Replit's always-on feature |
+| **Zero Config** | ✅ Supported | Works out of the box |
+| **Session Persistence** | ✅ Supported | Maintains WhatsApp connection |
+
+### 🖥️ Alternative Platforms
 | Platform | Status | Notes |
 |----------|---------|-------|
-| **Heroku** | ✅ Supported | Use worker dyno |
 | **Railway** | ✅ Supported | Auto-deploy from GitHub |
 | **Render** | ✅ Supported | Free tier available |
-| **Replit** | ✅ Supported | Perfect for development |
-| **Koyeb** | ✅ Supported | European hosting |
-| **Digital Ocean** | ✅ Supported | Use App Platform |
-
-### 🖥️ VPS/Server
-| Platform | Status | Notes |
-|----------|---------|-------|
-| **Ubuntu/Debian** | ✅ Supported | Install Node.js 18+ |
-| **CentOS/RHEL** | ✅ Supported | Use NodeJS repository |
-| **Windows Server** | ✅ Supported | Install Node.js & Git |
-| **Docker** | ✅ Supported | Use official Node image |
+| **Heroku** | ⚠️ Limited | Use worker dyno, no longer free |
+| **VPS/Server** | ✅ Supported | Install Node.js 18+ |
 
 ## 📋 Setup Instructions
 
-### 1. Using Auto-Manager (Recommended)
-1. **Create new project** on your hosting platform
-2. **Copy the auto-manager code** from the button above
-3. **Create `index.js`** and paste the copied code
-4. **Set start command**: `node index.js`
-5. **Deploy** and watch it auto-install everything!
+### 1. Using Replit (Recommended)
+1. **Fork this repository** on GitHub
+2. **Create new Repl** from your forked repository
+3. **Click Run** - the auto-manager will handle everything
+4. **Scan QR code** that appears in console
+5. **Test with** `.ping` command
 
-### 2. Direct Clone Method
+### 2. Manual Clone Method
 ```bash
 # Clone the repository
 git clone https://github.com/marhthing/MATDEV-BOT.git
@@ -306,39 +262,92 @@ node bot.js
 
 ## 📱 Getting Started
 
-1. **Deploy your bot** using any method above
-2. **Open your hosting platform's console/logs**
+1. **Deploy your bot** using Replit or any hosting platform
+2. **Open console/logs** in your hosting platform
 3. **Look for QR code** in the console output
-4. **Scan the QR code** with your WhatsApp
+4. **Scan QR code** with WhatsApp (must be phone that will own the bot)
 5. **Send `.ping`** to test if it's working
+6. **Send `.help`** to see all available commands
 
-## ⚡ Features
+## ⚡ Key Features
 
 - 🚀 **Auto-Deploy**: Clone and install everything automatically
 - 🔄 **Auto-Update**: Update bot with `.update` command
-- 🛡️ **Anti-Ban**: Smart rate limiting and security features
+- 🛡️ **Anti-Delete**: Recover deleted messages automatically
+- 👁️ **Anti-View Once**: Save view-once media automatically
 - 📦 **Plugin System**: Modular commands and features
 - 💾 **Session Persistence**: Maintains WhatsApp connection
 - 🔒 **Security**: Owner-only commands and permission system
+- 📊 **Message Archiving**: Stores all messages in database
+- 🔍 **Advanced Logging**: Comprehensive logging system
 
-## 🎮 Basic Commands
+## 🎮 Essential Commands
 
-| Command | Description |
-|---------|-------------|
-| `.ping` | Test bot response |
-| `.help` | Show all commands |
-| `.status` | Show bot statistics |
-| `.update` | Check for updates |
-| `.restart` | Restart the bot |
+| Command | Description | Example |
+|---------|-------------|---------|
+| `.ping` | Test bot response | `.ping` |
+| `.help` | Show all commands | `.help` |
+| `.status` | Show bot statistics | `.status` |
+| `.update` | Check for updates | `.update` |
+| `.updatenow` | Force update immediately | `.updatenow` |
+| `.restart` | Restart the bot | `.restart` |
+| `.save` | Forward message to owner | `.save` |
+| `.vv` | Save view-once media | `.vv` |
+
+## 🛡️ Security Features
+
+### Anti-Delete System
+- Automatically detects deleted messages
+- Recovers and forwards deleted content to owner
+- Supports all media types (images, videos, audio, stickers)
+- Preserves original message metadata
+
+### Anti-View Once
+- Saves view-once photos and videos
+- Automatic forwarding to bot owner
+- Preserves media quality
+- Secure file storage
+
+### Permission System
+- Owner-only commands protection
+- JID-based authentication
+- Group and private chat management
+- Secure command execution
 
 ## 🤖 Auto-Update System
 
 Your bot includes an intelligent auto-update system:
 
-- **`.update`** - Check for updates from GitHub
-- **`.updatenow`** - Force update immediately  
-- **Session Preservation** - Keeps your WhatsApp session during updates
+- **`.update`** - Check for updates from GitHub repository
+- **`.updatenow`** - Force update immediately with fresh clone
+- **Session Preservation** - Keeps WhatsApp session during updates
 - **Automatic Recovery** - Restarts after updates complete
+- **Zero Downtime** - Seamless update process
+
+## 🔧 Configuration
+
+### Environment Variables
+Create a `.env` file or set these in your hosting platform:
+
+```env
+# Bot Configuration
+PREFIX=.
+OWNER_NUMBER=your_whatsapp_number
+BOT_NAME=MATDEV Bot
+
+# Features
+ANTI_DELETE=true
+ANTI_VIEW_ONCE=true
+BOT_REACTIONS=true
+
+# Optional API Keys
+WEATHER_API_KEY=your_weather_api_key
+NEWS_API_KEY=your_news_api_key
+REMOVE_BG_API_KEY=your_remove_bg_api_key
+```
+
+### Config.js Settings
+The `config.js` file contains all bot settings and can be modified for advanced users.
 
 ## 🔧 Troubleshooting
 
@@ -346,32 +355,92 @@ Your bot includes an intelligent auto-update system:
 - Check if Node.js 18+ is installed
 - Verify all dependencies installed with `npm install`
 - Check console logs for error messages
+- Ensure proper file permissions
 
 ### QR Code Not Showing
+- Wait 30-60 seconds after deployment
 - Refresh your hosting platform's console
-- Wait 30 seconds after deployment
 - Check if bot process is running
+- Verify network connectivity
 
 ### Commands Not Working
-- Make sure you're the bot owner (scan QR with your WhatsApp)
+- Make sure you're the bot owner (scan QR with owner's WhatsApp)
 - Check if prefix is correct (default is `.`)
 - Verify bot is responding with `.ping`
+- Check console for error messages
 
-## 💡 Tips
+### Session Issues
+- Delete `session` folder and rescan QR code
+- Check WhatsApp Web active sessions
+- Ensure stable internet connection
+- Verify phone has WhatsApp installed
+
+### Update Problems
+- Use `.updatenow` for force update
+- Check GitHub repository accessibility
+- Verify file permissions
+- Manual restart may be required
+
+## 💡 Pro Tips
 
 - **Fork First**: Always fork this repository before deploying
-- **Update Regularly**: Use `.update` to get latest features
-- **Monitor Logs**: Keep an eye on console output
+- **Update Regularly**: Use `.update` to get latest features and security fixes
+- **Monitor Logs**: Keep an eye on console output for issues
 - **Backup Sessions**: Your session folder contains WhatsApp credentials
+- **Use Always-On**: Enable always-on feature in Replit for 24/7 operation
+- **Test Commands**: Use private chats to test new features safely
+
+## 📊 Performance Features
+
+- **Message Caching**: In-memory caching for faster response times
+- **Database Optimization**: SQLite with automatic cleanup
+- **Memory Management**: Automatic cleanup of temporary files
+- **Connection Stability**: Advanced reconnection handling
+- **Rate Limiting**: Built-in protection against spam and bans
+
+## 🔌 Plugin System
+
+The bot uses a modular plugin system:
+
+- **Core Plugin**: Essential bot commands
+- **System Plugin**: Update and maintenance commands
+- **Anti-Delete Plugin**: Message recovery functionality
+- **Anti-View Once Plugin**: View-once media saving
+- **Media Plugin**: Image and video processing
+- **Status Plugin**: WhatsApp status interaction
+
+## 📁 Project Structure
+
+```
+MATDEV-BOT/
+├── lib/                    # Core libraries
+│   ├── cache.js           # Caching system
+│   ├── connection.js      # WhatsApp connection management
+│   ├── database.js        # SQLite database operations
+│   ├── logger.js          # Logging system
+│   ├── message.js         # Message handling
+│   └── ...
+├── plugins/               # Bot plugins
+│   ├── core.js           # Essential commands
+│   ├── system.js         # System commands
+│   ├── antidelete.js     # Anti-delete functionality
+│   └── ...
+├── session/              # WhatsApp session data
+├── tmp/                  # Temporary files
+├── bot.js               # Main bot file
+├── config.js            # Configuration
+├── index.js             # Auto-manager
+└── package.json         # Dependencies
+```
 
 ---
 
 <div align="center">
 
-**🚀 Ready to deploy? Fork this repository and start hosting!**
+**🚀 Ready to deploy? Fork this repository and start hosting on Replit!**
 
 [Fork Now](https://github.com/marhthing/MATDEV-BOT/fork) • [Report Issues](https://github.com/marhthing/MATDEV-BOT/issues) • [Get Support](https://github.com/marhthing/MATDEV-BOT/discussions)
 
-*Made with ❤️ for the community*
+*Made with ❤️ for the WhatsApp Bot community*
 
 </div>
