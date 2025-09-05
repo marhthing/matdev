@@ -260,27 +260,6 @@ npm install
 node bot.js
 ```
 
-## 📱 Getting Started
-
-1. **Deploy your bot** using Replit or any hosting platform
-2. **Open console/logs** in your hosting platform
-3. **Look for QR code** in the console output
-4. **Scan QR code** with WhatsApp (must be phone that will own the bot)
-5. **Send `.ping`** to test if it's working
-6. **Send `.help`** to see all available commands
-
-## ⚡ Key Features
-
-- 🚀 **Auto-Deploy**: Clone and install everything automatically
-- 🔄 **Auto-Update**: Update bot with `.update` command
-- 🛡️ **Anti-Delete**: Recover deleted messages automatically
-- 👁️ **Anti-View Once**: Save view-once media automatically
-- 📦 **Plugin System**: Modular commands and features
-- 💾 **Session Persistence**: Maintains WhatsApp connection
-- 🔒 **Security**: Owner-only commands and permission system
-- 📊 **Message Archiving**: Stores all messages in database
-- 🔍 **Advanced Logging**: Comprehensive logging system
-
 ## 🎮 Essential Commands
 
 | Command | Description | Example |
@@ -342,41 +321,6 @@ Your bot includes an intelligent auto-update system:
 - **Memory Management**: Automatic cleanup of temporary files
 - **Connection Stability**: Advanced reconnection handling
 - **Rate Limiting**: Built-in protection against spam and bans
-
-## 🔌 Plugin System
-
-The bot uses a modular plugin system:
-
-- **Core Plugin**: Essential bot commands
-- **System Plugin**: Update and maintenance commands
-- **Anti-Delete Plugin**: Message recovery functionality
-- **Anti-View Once Plugin**: View-once media saving
-- **Media Plugin**: Image and video processing
-- **Status Plugin**: WhatsApp status interaction
-
-## 📁 Project Structure
-
-```
-MATDEV-BOT/
-├── lib/                    # Core libraries
-│   ├── cache.js           # Caching system
-│   ├── connection.js      # WhatsApp connection management
-│   ├── database.js        # SQLite database operations
-│   ├── logger.js          # Logging system
-│   ├── message.js         # Message handling
-│   └── ...
-├── plugins/               # Bot plugins
-│   ├── core.js           # Essential commands
-│   ├── system.js         # System commands
-│   ├── antidelete.js     # Anti-delete functionality
-│   └── ...
-├── session/              # WhatsApp session data
-├── tmp/                  # Temporary files
-├── bot.js               # Main bot file
-├── config.js            # Configuration
-├── index.js             # Auto-manager
-└── package.json         # Dependencies
-```
 
 ---
 
