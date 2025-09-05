@@ -42,8 +42,8 @@ class AntiDeletePlugin {
      */
     registerCommands() {
         this.bot.messageHandler.registerCommand('delete', this.toggleAntiDelete.bind(this), {
-            description: 'Toggle anti-delete monitoring',
-            usage: `${config.PREFIX}delete [on|off]`,
+            description: 'Toggle anti-delete monitoring or set default destination',
+            usage: `${config.PREFIX}delete [on|off|jid] - Toggle monitoring or set destination`,
             category: 'admin',
             ownerOnly: true
         });
@@ -132,7 +132,10 @@ class AntiDeletePlugin {
                         `🕐 *Detected At:* ${new Date().toLocaleString()}\n\n` +
                         `_This might be due to the message being sent before the bot started monitoring._`;
 
-                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+                    // Get saved default destination or fallback to bot owner chat
+                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    
+                    await this.bot.sock.sendMessage(targetJid, {
                         text: unknownDeleteNotification
                     });
                     console.log('✅ ANTI-DELETE: Unknown deletion alert sent');
@@ -213,7 +216,10 @@ class AntiDeletePlugin {
                             break;
                     }
 
-                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, mediaMessage);
+                    // Get saved default destination or fallback to bot owner chat
+            const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+
+                    await this.bot.sock.sendMessage(targetJid, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
                 } else {
                     // If media couldn't be recovered, send text notification
@@ -231,7 +237,7 @@ class AntiDeletePlugin {
                             quotedMessageId: archivedMessage.id
                         }
                     };
-                    await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
+                    await this.bot.sock.sendMessage(targetJid, alertMessage);
                 }
             } else {
                 // For text messages, use the original format with group name in tag
@@ -251,7 +257,7 @@ class AntiDeletePlugin {
                     }
                 };
 
-                await this.bot.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, alertMessage);
+                await this.bot.sock.sendMessage(targetJid, alertMessage);
             }
 
             console.log(`🗑️ Detected deleted message from ${senderNumber}`);
@@ -284,40 +290,55 @@ class AntiDeletePlugin {
     }
 
     /**
-     * Toggle anti-delete monitoring
+     * Toggle anti-delete monitoring or set default destination
      */
     async toggleAntiDelete(messageInfo) {
         try {
             const { args } = messageInfo;
-            const status = args[0]?.toLowerCase();
+            const firstArg = args[0]?.toLowerCase();
 
-            if (status === 'on') {
+            if (firstArg === 'on') {
                 config.ANTI_DELETE = true;
                 // Persist to .env file
                 if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
                     await this.bot.plugins.system.setEnvValue('ANTI_DELETE', 'true');
                 }
                 await this.bot.messageHandler.reply(messageInfo, '✅ Anti-delete monitoring enabled (persistent)');
-            } else if (status === 'off') {
+            } else if (firstArg === 'off') {
                 config.ANTI_DELETE = false;
                 // Persist to .env file
                 if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
                     await this.bot.plugins.system.setEnvValue('ANTI_DELETE', 'false');
                 }
                 await this.bot.messageHandler.reply(messageInfo, '❌ Anti-delete monitoring disabled (persistent)');
-            } else if (!status) {
-                // No argument provided - show status
+            } else if (!firstArg) {
+                // No argument provided - show status and destination
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
+                const currentDestination = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                const destinationNumber = currentDestination.split('@')[0];
+                
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🗑️ *Anti-Delete Status:* ${currentStatus}\n\n` +
-                    `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.`);
+                    `🗑️ *Anti-Delete Status:* ${currentStatus}\n` +
+                    `📤 *Default Destination:* ${destinationNumber}\n\n` +
+                    `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.\n` +
+                    `Use \`${config.PREFIX}delete <jid>\` to set destination.`);
             } else {
-                // Invalid argument provided - silently ignore
-                return;
+                // This is setting the default destination
+                let newDefaultJid = args[0];
+                
+                // Normalize JID format
+                if (!newDefaultJid.includes('@')) {
+                    newDefaultJid = `${newDefaultJid}@s.whatsapp.net`;
+                }
+                
+                // Save the new default destination
+                this.bot.database.setData('antiDeleteDefaultDestination', newDefaultJid);
+                console.log(`✅ Default anti-delete destination set to: ${newDefaultJid}`);
+                await this.bot.messageHandler.reply(messageInfo, `✅ Anti-delete destination set to: ${newDefaultJid.split('@')[0]}`);
             }
 
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling anti-delete.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error with anti-delete command.');
         }
     }
 
