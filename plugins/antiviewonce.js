@@ -25,7 +25,7 @@ class AntiViewOncePlugin {
         // Register anti-view once command
         this.bot.messageHandler.registerCommand('vv', this.handleAntiViewOnce.bind(this), {
             description: 'Extract and send original content from view once messages',
-            usage: `${config.PREFIX}vv (reply to view once message)`,
+            usage: `${config.PREFIX}vv [jid] (reply to view once message)`,
             category: 'utility'
         });
     }
@@ -121,13 +121,29 @@ class AntiViewOncePlugin {
                     return;
                 }
                 
-                // Send the extracted content only to owner's chat for archival
+                // Send the extracted content to specified destination
                 if (extractedMessage) {
-                    const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    // Check if user specified a destination JID
+                    const jids = this.bot.jidUtils.extractJIDs(message);
+                    const args = message.message?.extendedTextMessage?.text?.split(' ') || [];
+                    let targetJid = `${config.OWNER_NUMBER}@s.whatsapp.net`; // Default to owner
                     
-                    // Send to owner's chat with original caption only
-                    await this.bot.sock.sendMessage(botPrivateChat, extractedMessage);
-                    console.log(`💥 Successfully extracted and sent view once ${contentType}`);
+                    // Check if JID was specified in command (e.g., ".vv 1234567890")
+                    if (args.length > 1 && args[1]) {
+                        let specifiedJid = args[1];
+                        
+                        // Normalize JID format
+                        if (!specifiedJid.includes('@')) {
+                            specifiedJid = `${specifiedJid}@s.whatsapp.net`;
+                        }
+                        
+                        targetJid = specifiedJid;
+                        console.log(`📤 Custom destination specified: ${targetJid}`);
+                    }
+                    
+                    // Send to specified destination
+                    await this.bot.sock.sendMessage(targetJid, extractedMessage);
+                    console.log(`💥 Successfully extracted and sent view once ${contentType} to ${targetJid}`);
                 }
                 
             } catch (error) {
