@@ -110,7 +110,7 @@ class AntiDeletePlugin {
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.bot.database.markMessageDeleted(messageId, chatJid);
                     console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
-                } else if (!originalMessage.from_me) { // This condition is now handled above, but keeping for logical flow if needed elsewhere
+                } else if (originalMessage.from_me) {
                     console.log('ℹ️ ANTI-DELETE: Skipping own message deletion:', messageId);
                 } else {
                     console.log('⚠️ ANTI-DELETE: No owner number configured, skipping alert');
@@ -217,7 +217,7 @@ class AntiDeletePlugin {
                     }
 
                     // Get saved default destination or fallback to bot owner chat
-            const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${require('../config').OWNER_NUMBER}@s.whatsapp.net`;
 
                     await this.bot.sock.sendMessage(targetJid, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
@@ -256,6 +256,9 @@ class AntiDeletePlugin {
                         quotedMessageId: archivedMessage.id
                     }
                 };
+
+                // Get saved default destination or fallback to bot owner chat
+                const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${require('../config').OWNER_NUMBER}@s.whatsapp.net`;
 
                 await this.bot.sock.sendMessage(targetJid, alertMessage);
             }
