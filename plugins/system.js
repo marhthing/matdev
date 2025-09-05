@@ -838,8 +838,14 @@ class SystemPlugin {
                             });
                             
                             let countOutput = '';
+                            let countError = '';
+                            
                             countProcess.stdout.on('data', (data) => {
                                 countOutput += data.toString();
+                            });
+                            
+                            countProcess.stderr.on('data', (data) => {
+                                countError += data.toString();
                             });
                             
                             countProcess.on('close', (countCode) => {
@@ -853,6 +859,17 @@ class SystemPlugin {
                                     localCommit: localCommit.substring(0, 7)
                                 });
                             });
+                            
+                            // Add timeout to prevent hanging
+                            setTimeout(() => {
+                                countProcess.kill();
+                                resolve({
+                                    updateAvailable: true,
+                                    commitsAhead: 1,
+                                    latestCommit: remoteCommit.substring(0, 7),
+                                    localCommit: localCommit.substring(0, 7)
+                                });
+                            }, 5000);
                         }
                     });
                 });
