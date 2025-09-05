@@ -142,7 +142,7 @@ class AntiViewOncePlugin {
                     console.log(`💥 Successfully extracted and sent view once ${contentType}`);
                     
                     // Optional: Also save to bot private chat for archival
-                    const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    const botPrivateChat = this.bot.getBotJid() || `${config.OWNER_NUMBER}@s.whatsapp.net`;
                     const archiveMessage = {
                         ...extractedMessage,
                         caption: `💥 *View Once Archive* 💥\n\n` +
