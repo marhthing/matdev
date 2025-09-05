@@ -43,19 +43,7 @@ class CorePlugin {
             category: 'core'
         });
 
-        // Status command
-        this.bot.messageHandler.registerCommand('status', this.statusCommand.bind(this), {
-            description: 'Show bot status and statistics',
-            usage: `${config.PREFIX}status`,
-            category: 'core'
-        });
 
-        // Uptime command
-        this.bot.messageHandler.registerCommand('uptime', this.uptimeCommand.bind(this), {
-            description: 'Show bot uptime',
-            usage: `${config.PREFIX}uptime`,
-            category: 'core'
-        });
 
         // Menu command (alias for help)
         this.bot.messageHandler.registerCommand('menu', this.helpCommand.bind(this), {
@@ -64,12 +52,6 @@ class CorePlugin {
             category: 'core'
         });
 
-        // About command
-        this.bot.messageHandler.registerCommand('about', this.aboutCommand.bind(this), {
-            description: 'About MATDEV bot',
-            usage: `${config.PREFIX}about`,
-            category: 'core'
-        });
 
         // JID command
         this.bot.messageHandler.registerCommand('jid', this.jidCommand.bind(this), {
@@ -95,19 +77,7 @@ class CorePlugin {
 
         // Update commands moved to system plugin
 
-        this.bot.messageHandler.registerCommand('eval', this.evalCommand.bind(this), {
-            description: 'Execute JavaScript code',
-            usage: `${config.PREFIX}eval <code>`,
-            category: 'admin',
-            ownerOnly: true
-        });
 
-        this.bot.messageHandler.registerCommand('broadcast', this.broadcastCommand.bind(this), {
-            description: 'Broadcast message to all chats',
-            usage: `${config.PREFIX}broadcast <message>`,
-            category: 'admin',
-            ownerOnly: true
-        });
 
         // Permission management commands (owner only)
         this.bot.messageHandler.registerCommand('allow', this.allowCommand.bind(this), {

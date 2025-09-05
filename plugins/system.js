@@ -39,53 +39,11 @@ class SystemPlugin {
      * Register system commands
      */
     registerCommands() {
-        // System info command
-        this.bot.messageHandler.registerCommand('sysinfo', this.sysinfoCommand.bind(this), {
-            description: 'Show system information',
-            usage: `${config.PREFIX}sysinfo`,
-            category: 'system',
-            ownerOnly: true
-        });
 
-        // Performance command
-        this.bot.messageHandler.registerCommand('performance', this.performanceCommand.bind(this), {
-            description: 'Show performance metrics',
-            usage: `${config.PREFIX}performance`,
-            category: 'system',
-            ownerOnly: true
-        });
 
-        // Cache stats command
-        this.bot.messageHandler.registerCommand('cache', this.cacheCommand.bind(this), {
-            description: 'Manage cache system',
-            usage: `${config.PREFIX}cache [clear|stats]`,
-            category: 'system',
-            ownerOnly: true
-        });
 
-        // Security stats command
-        this.bot.messageHandler.registerCommand('security', this.securityCommand.bind(this), {
-            description: 'Show security statistics',
-            usage: `${config.PREFIX}security [stats|blocked]`,
-            category: 'system',
-            ownerOnly: true
-        });
 
-        // Logs command
-        this.bot.messageHandler.registerCommand('logs', this.logsCommand.bind(this), {
-            description: 'Manage bot logs',
-            usage: `${config.PREFIX}logs [recent|clear]`,
-            category: 'system',
-            ownerOnly: true
-        });
 
-        // Cleanup command
-        this.bot.messageHandler.registerCommand('cleanup', this.cleanupCommand.bind(this), {
-            description: 'Clean temporary files and cache',
-            usage: `${config.PREFIX}cleanup`,
-            category: 'system',
-            ownerOnly: true
-        });
 
         // Plugin management
         this.bot.messageHandler.registerCommand('plugins', this.pluginsCommand.bind(this), {
@@ -103,13 +61,6 @@ class SystemPlugin {
             ownerOnly: true
         });
 
-        // Health check command
-        this.bot.messageHandler.registerCommand('health', this.healthCheck.bind(this), {
-            description: 'Perform system health check',
-            usage: `${config.PREFIX}health`,
-            category: 'system',
-            ownerOnly: true
-        });
 
         // Update command (handles both check and now)
         this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
