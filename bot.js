@@ -549,24 +549,37 @@ class MATDEV {
 
         logger.info(`📬 Received ${messages.length} messages of type: ${type}`);
 
-        for (const message of messages) {
-            if (!message || !message.message) continue;
+        // Process all messages in parallel for maximum speed - crucial for anti-delete
+        const messagePromises = messages.map(async (message) => {
+            if (!message || !message.message) return;
 
             try {
-                // FIRST: ALWAYS archive ALL messages (incoming and outgoing) for anti-delete
-                // logger.info(`📂 Archiving message for anti-delete...`);
-                await this.database.archiveMessage(message);
+                // CRITICAL: Archive IMMEDIATELY in parallel - no waiting
+                const archivePromise = this.database.archiveMessage(message);
+                
+                // Process other operations in parallel
+                const cachePromise = cache.cacheMessage(message);
+                const statsUpdate = Promise.resolve(this.messageStats.received++);
 
-                // Log all message details for debugging
-                // logger.info(`🔍 Message key:`, JSON.stringify(message.key, null, 2));
-                // logger.info(`📝 Message content:`, JSON.stringify(message.message, null, 2));
+                // Wait for archival to complete (most critical for anti-delete)
+                await archivePromise;
+                
+                // Let cache and stats update continue in background
+                cachePromise.catch(err => logger.warn('Cache error:', err.message));
+                
+                return message;
+            } catch (error) {
+                logger.error('Error in parallel message processing:', error);
+                return null;
+            }
+        });
 
-                // Update statistics for all messages
-                this.messageStats.received++;
-
-                // Cache all messages
-                cache.cacheMessage(message);
-
+        // Wait for all archival operations to complete
+        const processedMessages = await Promise.all(messagePromises);
+        
+        // Now handle special message types (like deletions) 
+        for (const message of processedMessages.filter(Boolean)) {
+            try {
                 // Check for deletion events and trigger anti-delete via plugin
                 const messageType = Object.keys(message.message || {})[0];
 
