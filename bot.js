@@ -84,13 +84,13 @@ class MATDEV {
             // Ensure required directories exist
             await this.ensureDirectories();
 
-            // Start WhatsApp connection FIRST
-            await this.connect();
+            // Start WhatsApp connection FIRST and wait for it to be fully established
+            await this.connectAndWaitForReady();
 
-            // Initialize JSON storage after connection
+            // Initialize JSON storage after connection is established
             await this.database.initialize();
 
-            // Load plugins after connection
+            // Load plugins only after WhatsApp is fully connected
             await this.loadPlugins();
 
             // Check for restart completion message
@@ -223,9 +223,43 @@ class MATDEV {
             }
 
             logger.success(`✅ Loaded ${loadedCount} plugins successfully`);
+            
+            // Mark plugins as loaded and show ready message
+            this.pluginsLoaded = true;
+            console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
+            
+            // Send startup notification if it was deferred
+            if (this.shouldSendStartupNotification) {
+                await this.sendStartupNotification();
+                this.shouldSendStartupNotification = false;
+            }
         } catch (error) {
             logger.error('Failed to load plugins:', error);
         }
+    }
+
+    /**
+     * Establish WhatsApp connection and wait for it to be ready
+     */
+    async connectAndWaitForReady() {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Set up connection ready handler
+                this.connectionReadyResolver = resolve;
+                this.connectionErrorResolver = reject;
+                
+                // Start the connection process
+                await this.connect();
+                
+                // If already connected, resolve immediately
+                if (this.isConnected) {
+                    resolve();
+                }
+                
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     /**
@@ -462,15 +496,25 @@ class MATDEV {
             // Initialize security features
             await security.initialize(this.sock);
 
-            // Send startup notification if configured
+            // Resolve the connection ready promise if it exists
+            if (this.connectionReadyResolver) {
+                logger.info('🔗 WhatsApp connection ready - proceeding with initialization...');
+                this.connectionReadyResolver();
+                this.connectionReadyResolver = null;
+            }
+
+            // Send startup notification if configured (will be done after plugins load)
             if (config.OWNER_NUMBER && config.STARTUP_MESSAGE) {
-                await this.sendStartupNotification();
+                this.shouldSendStartupNotification = true;
             }
 
             // Start periodic tasks
             this.startPeriodicTasks();
 
-            console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
+            // Only show ready message if plugins are already loaded
+            if (this.pluginsLoaded) {
+                console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
+            }
         } else if (connection === 'connecting') {
             logger.info('⏳ Connecting to WhatsApp...');
         }
