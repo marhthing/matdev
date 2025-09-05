@@ -730,6 +730,34 @@ class MATDEV {
                     await this.database.archiveMessage(message);
                 }
 
+                // Check if this is a deletion event (protocol message)
+                if (message.message?.protocolMessage?.type === 0 || message.message?.protocolMessage?.type === 'REVOKE') {
+                    const revokedKey = message.message.protocolMessage.key;
+                    if (revokedKey && revokedKey.id) {
+                        const messageId = revokedKey.id;
+                        const chatJid = revokedKey.remoteJid || message.key.remoteJid;
+                        
+                        logger.warn(`🗑️ DELETION DETECTED IN MESSAGES.UPSERT - ID: ${messageId}, Chat: ${chatJid}`);
+                        
+                        try {
+                            // Use the anti-delete plugin if available and enabled
+                            if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
+                                logger.info('🔄 Delegating to anti-delete plugin from messages.upsert');
+                                await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
+                            } else {
+                                // Fallback to built-in handling
+                                logger.info('🔄 Using built-in anti-delete handling from messages.upsert');
+                                await this.handleAntiDelete(messageId, chatJid);
+                            }
+                        } catch (error) {
+                            logger.error('Error processing deletion in messages.upsert:', error);
+                        }
+                        
+                        // Skip further processing since this is a deletion event
+                        continue;
+                    }
+                }
+
                 // Skip processing our own messages unless it's a command
                 if (message.key.fromMe) {
                     // Check if it's a command from us
@@ -774,10 +802,12 @@ class MATDEV {
      */
     async handleMessageUpdates(messages) {
         for (const message of messages) {
-            logger.debug('📥 Message update received:', {
-                key: message.key,
-                update: Object.keys(message.update || {}),
-                messageStubType: message.update?.messageStubType
+            logger.info('📥 Message update received:', {
+                key: message.key?.id,
+                remoteJid: message.key?.remoteJid,
+                updateKeys: Object.keys(message.update || {}),
+                messageStubType: message.update?.messageStubType,
+                protocolType: message.update?.message?.protocolMessage?.type
             });
 
             // Check for different types of message deletions
@@ -818,6 +848,13 @@ class MATDEV {
                     logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL STRING - ID: ${messageId}, Chat: ${chatJid}`);
                 }
             }
+            // Method 5: Check for messageStubType 1 (which sometimes indicates deletion)
+            else if (message.update?.messageStubType === 1) {
+                messageId = message.key.id;
+                chatJid = message.key.remoteJid;
+                deletionDetected = true;
+                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: ${messageId}, Chat: ${chatJid}`);
+            }
 
             // Process deletion if detected
             if (deletionDetected && messageId && chatJid) {
@@ -834,6 +871,9 @@ class MATDEV {
                 } catch (error) {
                     logger.error('Error processing deletion:', error);
                 }
+            } else {
+                // Log unhandled message updates for debugging
+                logger.debug('📝 Unhandled message update - not a deletion');
             }
         }
     }
