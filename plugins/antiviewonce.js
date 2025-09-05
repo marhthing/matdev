@@ -177,12 +177,16 @@ class AntiViewOncePlugin {
      * Setup view once message interception to cache media before it's opened
      */
     setupViewOnceInterception() {
+        console.log('🔧 Setting up view once message interception...');
+        
         // Wait for bot socket to be available
         const setupInterception = () => {
             if (this.bot.sock && this.bot.sock.ev) {
+                console.log('🔌 Bot socket found, registering view once interception...');
                 this.bot.sock.ev.on('messages.upsert', this.interceptViewOnceMessages.bind(this));
-                console.log('📸 View once message interception enabled');
+                console.log('📸 View once message interception enabled and listening');
             } else {
+                console.log('⏳ Bot socket not ready, retrying in 1s...');
                 setTimeout(setupInterception, 1000);
             }
         };
@@ -234,6 +238,8 @@ class AntiViewOncePlugin {
      */
     cacheViewOnceMedia(messageId, mediaData) {
         try {
+            console.log(`💾 Attempting to cache view once media for ID: ${messageId}`);
+            
             // Store in database for persistence
             this.bot.database.setData(`viewonce_${messageId}`, {
                 contentType: mediaData.contentType,
@@ -242,15 +248,20 @@ class AntiViewOncePlugin {
                 // Don't store buffer in JSON, we'll handle it separately
             });
             
+            console.log(`📁 Stored view once metadata in database for: ${messageId}`);
+            
             // Store buffer in memory cache for immediate access
             if (!this.bot.cache) {
                 this.bot.cache = new Map();
             }
             this.bot.cache.set(`viewonce_buffer_${messageId}`, mediaData.buffer);
             
+            console.log(`🧠 Stored view once buffer in memory cache for: ${messageId}`);
+            
             // Set expiry for memory cache (24 hours)
             setTimeout(() => {
                 this.bot.cache.delete(`viewonce_buffer_${messageId}`);
+                console.log(`⏰ Expired memory cache for view once: ${messageId}`);
             }, 24 * 60 * 60 * 1000);
             
         } catch (error) {
