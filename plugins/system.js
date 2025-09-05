@@ -686,10 +686,7 @@ class SystemPlugin {
                     const message = `🔄 *${result.commitsAhead} UPDATE AVAILABLE*`;
                     await this.bot.messageHandler.reply(messageInfo, message);
                 } else {
-                    const message = `✅ *BOT UP TO DATE*\n\n` +
-                        `🏠 Local: ${result.localCommit}\n` +
-                        `☁️ Remote: ${result.latestCommit}`;
-                    await this.bot.messageHandler.reply(messageInfo, message);
+                    await this.bot.messageHandler.reply(messageInfo, '✅ *BOT UP TO DATE*');
                 }
             } catch (checkError) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + checkError.message);
