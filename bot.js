@@ -1089,12 +1089,7 @@ class MATDEV {
                         const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
                         
                         // Send update completion message to bot owner
-                        const completionMessage = '✅ *UPDATE COMPLETED*\n\n' +
-                            '🔄 Successfully recloned from GitHub\n' +
-                            '📱 Bot restarted with latest code\n' +
-                            '⚡ All systems operational\n' +
-                            `🕐 Completed: ${new Date().toLocaleString()}\n\n` +
-                            '_MATDEV is now running the latest version_';
+                        const completionMessage = '✅ Bot updated';
                         
                         await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                             text: completionMessage

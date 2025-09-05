@@ -669,19 +669,43 @@ class SystemPlugin {
     }
 
     /**
-     * Execute update now - Force fresh restart from index.js with recloning
+     * Execute update now - Check for updates first, then force fresh restart from index.js with recloning if needed
      */
     async executeUpdateNow(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🔄 *FORCE UPDATING*\n\nRemoving key files to trigger recloning...');
+            // First check if updates are available
+            const updateResult = await this.checkGitHubUpdates();
             
-            console.log('🔄 Force update: Removing key files to trigger recloning...');
+            if (updateResult.error) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + updateResult.error);
+                return;
+            }
+            
+            // If no updates available, just inform user
+            if (!updateResult.updateAvailable) {
+                await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
+                return;
+            }
+            
+            // Updates are available, proceed with update process
+            await this.bot.messageHandler.reply(messageInfo, '🔄 *UPDATING BOT*\n\nRemoving key files to trigger recloning...');
+            
+            console.log('🔄 Update available: Removing key files to trigger recloning...');
             
             // Remove key files to trigger recloning by index.js
             // index.js checks for these files and reclones if they're missing
             setTimeout(async () => {
                 try {
                     const fs = require('fs-extra');
+                    
+                    // Create update flag file to trigger completion message after restart
+                    const updateFlag = {
+                        timestamp: new Date().toISOString(),
+                        chatJid: messageInfo.key.remoteJid,
+                        reason: 'update_now_command'
+                    };
+                    await fs.writeFile('.update_flag.json', JSON.stringify(updateFlag, null, 2));
+                    console.log('✅ Created update flag file');
                     
                     // Remove the key files that index.js checks for
                     const filesToRemove = ['bot.js', 'config.js', 'package.json'];
