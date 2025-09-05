@@ -688,7 +688,7 @@ class SystemPlugin {
             }
             
             // Updates are available, proceed with update process
-            await this.bot.messageHandler.reply(messageInfo, '🔄 *UPDATING BOT*\n\nRemoving key files to trigger recloning...');
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Updating now...');
             
             console.log('🔄 Update available: Removing key files to trigger recloning...');
             
