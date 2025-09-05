@@ -640,32 +640,28 @@ class SystemPlugin {
                 return await this.executeUpdateNow(messageInfo);
             }
             
-            // Default: check for updates (no loading message)
+            // Default: check for updates and show commit differences
             try {
                 const result = await this.checkGitHubUpdates();
                 
                 if (result.error) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + result.error);
                 } else if (result.updateAvailable) {
-                    await this.bot.messageHandler.reply(messageInfo, '🔄 1 update available');
+                    const commitsText = result.commitsAhead === 1 ? 'commit' : 'commits';
+                    const message = `🔄 *UPDATE AVAILABLE*\n\n` +
+                        `📊 You are ${result.commitsAhead} ${commitsText} behind\n` +
+                        `🏠 Local: ${result.localCommit}\n` +
+                        `☁️ Remote: ${result.latestCommit}\n\n` +
+                        `📝 Use \`.update now\` to update`;
+                    await this.bot.messageHandler.reply(messageInfo, message);
                 } else {
-                    await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
+                    const message = `✅ *BOT UP TO DATE*\n\n` +
+                        `🏠 Local: ${result.localCommit}\n` +
+                        `☁️ Remote: ${result.latestCommit}`;
+                    await this.bot.messageHandler.reply(messageInfo, message);
                 }
             } catch (checkError) {
-                // Fallback to manager commands if direct check fails
-                if (global.managerCommands && global.managerCommands.checkUpdates) {
-                    const result = await global.managerCommands.checkUpdates();
-                    
-                    if (result.error) {
-                        await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed');
-                    } else if (result.updateAvailable) {
-                        await this.bot.messageHandler.reply(messageInfo, '🔄 1 update available');
-                    } else {
-                        await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
-                    }
-                } else {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Update check unavailable');
-                }
+                await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + checkError.message);
             }
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error checking for updates.');
@@ -673,35 +669,27 @@ class SystemPlugin {
     }
 
     /**
-     * Execute update now - Force update from GitHub using manager's recloning functionality
+     * Execute update now - Force fresh restart from index.js with recloning
      */
     async executeUpdateNow(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, 'Updating....');
+            await this.bot.messageHandler.reply(messageInfo, '🔄 *FORCE UPDATING*\n\nRestarting from index.js with fresh clone...');
             
-            console.log('🔄 Executing update now command - using manager recloning...');
+            console.log('🔄 Force update: Triggering fresh restart from index.js...');
             
-            // Use the manager's updateNow function which does proper recloning
-            if (global.managerCommands && global.managerCommands.updateNow) {
-                // Call the manager's updateNow which will reclone everything
-                setTimeout(() => {
-                    const result = global.managerCommands.updateNow();
-                    console.log('🔄 Manager update initiated:', result);
-                }, 1000);
-            } else {
-                // Fallback - exit to trigger manager restart which will reclone
-                console.log('🔄 Manager commands not available, triggering restart for recloning...');
-                setTimeout(() => {
-                    process.exit(0);
-                }, 1000);
-            }
+            // Force exit to trigger index.js restart with fresh cloning
+            // This bypasses all file existence checks
+            setTimeout(() => {
+                console.log('🔄 Forcing process exit for fresh restart...');
+                process.exit(1); // Exit with error code to trigger fresh restart
+            }, 1000);
             
         } catch (error) {
             console.error('❌ Update now error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ *UPDATE FAILED*\n\n' +
                 '🔧 Please restart manually using the Run button\n' +
-                '💡 This will reclone the latest code from GitHub'
+                '💡 This will trigger fresh cloning from GitHub'
             );
         }
     }
