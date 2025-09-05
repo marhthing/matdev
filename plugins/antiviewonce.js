@@ -46,20 +46,36 @@ class AntiViewOncePlugin {
             const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
             const contextInfo = message.message?.extendedTextMessage?.contextInfo;
             
+            // Debug: Log the message structure to understand what we're getting
+            console.log(`🔍 Debug - quotedMessage keys:`, quotedMessage ? Object.keys(quotedMessage) : 'no quoted message');
+            console.log(`🔍 Debug - contextInfo:`, contextInfo ? 'exists' : 'missing');
+            
             let viewOnceMessage = null;
             
-            // First, check if replying to a view once message
+            // Check for view once in different possible structures
             if (quotedMessage?.viewOnceMessage) {
+                // Direct view once message
                 viewOnceMessage = quotedMessage;
-                console.log(`🔍 Found view once message in reply`);
-            }
-            // If no reply, look for recent view once messages in current chat
-            else {
-                console.log(`🔍 Searching for recent view once messages in chat`);
+                console.log(`🔍 Found direct view once message in reply`);
+            } else if (quotedMessage?.message?.viewOnceMessage) {
+                // Nested view once message
+                viewOnceMessage = quotedMessage.message;
+                console.log(`🔍 Found nested view once message in reply`);
+            } else if (quotedMessage) {
+                // Check if the quoted message itself is a forwarded view once (from .save)
+                // When forwarded, it might lose the viewOnceMessage wrapper
+                const messageTypes = Object.keys(quotedMessage);
+                console.log(`🔍 Debug - available message types:`, messageTypes);
                 
-                // Look through recent messages for view once content
-                // This would work better if we had access to message history, 
-                // but we'll focus on replied messages for now
+                // For now, let's still require a proper view once structure
+                // but give better feedback about what we found
+                await this.bot.sock.sendMessage(jids.chat_jid, {
+                    text: `❌ This doesn't appear to be a view once message.\n\nMessage types found: ${messageTypes.join(', ')}\n\nPlease reply to an actual view once message with .vv`
+                });
+                return;
+            } else {
+                console.log(`🔍 No reply found - searching for recent view once messages`);
+                
                 await this.bot.sock.sendMessage(jids.chat_jid, {
                     text: '❌ Please reply to a view once message with .vv'
                 });
