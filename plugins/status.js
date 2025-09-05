@@ -226,7 +226,7 @@ class StatusPlugin {
     }
 
     /**
-     * Handle .save command to save any replied message to bot private chat
+     * Handle .save command to forward any replied message to bot private chat
      */
     async handleSaveCommand(message) {
         try {
@@ -249,243 +249,38 @@ class StatusPlugin {
             }
             
             const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-            const timestamp = new Date().toLocaleString();
             
-            // Get sender info for context
-            const senderJid = contextInfo?.participant || contextInfo?.remoteJid || 'Unknown';
-            const senderName = senderJid.split('@')[0];
-            const chatName = jids.is_group ? 'Group Chat' : 'Private Chat';
+            console.log(`💾 Forwarding message to bot private chat`);
             
-            // Handle different message types
-            const messageType = Object.keys(quotedMessage)[0];
-            let savedMessage = null;
+            // Create the exact message structure for forwarding
+            const messageToForward = {
+                key: contextInfo.stanzaId ? {
+                    id: contextInfo.stanzaId,
+                    remoteJid: contextInfo.remoteJid || jids.chat_jid,
+                    participant: contextInfo.participant,
+                    fromMe: false
+                } : undefined,
+                message: quotedMessage
+            };
             
-            console.log(`🔍 Processing save command for message type: ${messageType}`);
+            // Forward the message exactly as-is using WhatsApp's forward mechanism
+            await this.bot.sock.sendMessage(botPrivateChat, {
+                forward: messageToForward
+            });
             
-            switch (messageType) {
-                case 'conversation':
-                    // Regular text message
-                    savedMessage = {
-                        text: `💾 *SAVED MESSAGE*\n\n` +
-                              `📨 *From:* ${senderName}\n` +
-                              `💬 *Chat:* ${chatName}\n` +
-                              `🕐 *Saved:* ${timestamp}\n\n` +
-                              `📝 *Message:*\n${quotedMessage.conversation}`
-                    };
-                    break;
-                    
-                case 'extendedTextMessage':
-                    // Extended text (with links, formatting, etc.)
-                    savedMessage = {
-                        text: `💾 *SAVED MESSAGE*\n\n` +
-                              `📨 *From:* ${senderName}\n` +
-                              `💬 *Chat:* ${chatName}\n` +
-                              `🕐 *Saved:* ${timestamp}\n\n` +
-                              `📝 *Message:*\n${quotedMessage.extendedTextMessage.text}`
-                    };
-                    break;
-                    
-                case 'imageMessage':
-                    // Image message
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        savedMessage = {
-                            image: buffer,
-                            caption: `💾 *SAVED IMAGE*\n\n` +
-                                    `📨 *From:* ${senderName}\n` +
-                                    `💬 *Chat:* ${chatName}\n` +
-                                    `🕐 *Saved:* ${timestamp}\n\n` +
-                                    `${quotedMessage.imageMessage.caption ? `📝 *Caption:* ${quotedMessage.imageMessage.caption}` : ''}`
-                        };
-                    } catch (error) {
-                        console.error('Error downloading image:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (Image)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `⚠️ Could not download image\n` +
-                                  `${quotedMessage.imageMessage.caption ? `📝 *Caption:* ${quotedMessage.imageMessage.caption}` : ''}`
-                        };
-                    }
-                    break;
-                    
-                case 'videoMessage':
-                    // Video message
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        savedMessage = {
-                            video: buffer,
-                            caption: `💾 *SAVED VIDEO*\n\n` +
-                                    `📨 *From:* ${senderName}\n` +
-                                    `💬 *Chat:* ${chatName}\n` +
-                                    `🕐 *Saved:* ${timestamp}\n\n` +
-                                    `${quotedMessage.videoMessage.caption ? `📝 *Caption:* ${quotedMessage.videoMessage.caption}` : ''}`
-                        };
-                    } catch (error) {
-                        console.error('Error downloading video:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (Video)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `⚠️ Could not download video\n` +
-                                  `${quotedMessage.videoMessage.caption ? `📝 *Caption:* ${quotedMessage.videoMessage.caption}` : ''}`
-                        };
-                    }
-                    break;
-                    
-                case 'audioMessage':
-                    // Audio message
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        savedMessage = {
-                            audio: buffer,
-                            mimetype: quotedMessage.audioMessage.mimetype || 'audio/mpeg'
-                        };
-                        // Send context separately for audio
-                        await this.bot.sock.sendMessage(botPrivateChat, {
-                            text: `💾 *SAVED AUDIO*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}`
-                        });
-                    } catch (error) {
-                        console.error('Error downloading audio:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (Audio)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `⚠️ Could not download audio`
-                        };
-                    }
-                    break;
-                    
-                case 'documentMessage':
-                    // Document message
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        savedMessage = {
-                            document: buffer,
-                            mimetype: quotedMessage.documentMessage.mimetype,
-                            fileName: quotedMessage.documentMessage.fileName || 'document',
-                            caption: `💾 *SAVED DOCUMENT*\n\n` +
-                                    `📨 *From:* ${senderName}\n` +
-                                    `💬 *Chat:* ${chatName}\n` +
-                                    `🕐 *Saved:* ${timestamp}\n\n` +
-                                    `📄 *File:* ${quotedMessage.documentMessage.fileName || 'Unknown'}`
-                        };
-                    } catch (error) {
-                        console.error('Error downloading document:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (Document)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `⚠️ Could not download document\n` +
-                                  `📄 *File:* ${quotedMessage.documentMessage.fileName || 'Unknown'}`
-                        };
-                    }
-                    break;
-                    
-                case 'stickerMessage':
-                    // Sticker message
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        savedMessage = {
-                            sticker: buffer
-                        };
-                        // Send context separately for sticker
-                        await this.bot.sock.sendMessage(botPrivateChat, {
-                            text: `💾 *SAVED STICKER*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}`
-                        });
-                    } catch (error) {
-                        console.error('Error downloading sticker:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (Sticker)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `⚠️ Could not download sticker`
-                        };
-                    }
-                    break;
-                    
-                case 'viewOnceMessage':
-                    // View once message (attempt to save)
-                    const viewOnceContent = quotedMessage.viewOnceMessage.message;
-                    const viewOnceType = Object.keys(viewOnceContent)[0];
-                    
-                    try {
-                        const buffer = await this.extractAnyMedia(quotedMessage);
-                        if (viewOnceType === 'imageMessage') {
-                            savedMessage = {
-                                image: buffer,
-                                caption: `💾 *SAVED VIEW ONCE IMAGE*\n\n` +
-                                        `📨 *From:* ${senderName}\n` +
-                                        `💬 *Chat:* ${chatName}\n` +
-                                        `🕐 *Saved:* ${timestamp}\n\n` +
-                                        `👁️ *Note:* This was a view once message\n` +
-                                        `${viewOnceContent.imageMessage.caption ? `📝 *Caption:* ${viewOnceContent.imageMessage.caption}` : ''}`
-                            };
-                        } else if (viewOnceType === 'videoMessage') {
-                            savedMessage = {
-                                video: buffer,
-                                caption: `💾 *SAVED VIEW ONCE VIDEO*\n\n` +
-                                        `📨 *From:* ${senderName}\n` +
-                                        `💬 *Chat:* ${chatName}\n` +
-                                        `🕐 *Saved:* ${timestamp}\n\n` +
-                                        `👁️ *Note:* This was a view once message\n` +
-                                        `${viewOnceContent.videoMessage.caption ? `📝 *Caption:* ${viewOnceContent.videoMessage.caption}` : ''}`
-                            };
-                        }
-                    } catch (error) {
-                        console.error('Error downloading view once media:', error);
-                        savedMessage = {
-                            text: `💾 *SAVED MESSAGE (View Once)*\n\n` +
-                                  `📨 *From:* ${senderName}\n` +
-                                  `💬 *Chat:* ${chatName}\n` +
-                                  `🕐 *Saved:* ${timestamp}\n\n` +
-                                  `👁️ *Note:* This was a view once message\n` +
-                                  `⚠️ Could not download media`
-                        };
-                    }
-                    break;
-                    
-                default:
-                    // Unknown message type
-                    savedMessage = {
-                        text: `💾 *SAVED MESSAGE*\n\n` +
-                              `📨 *From:* ${senderName}\n` +
-                              `💬 *Chat:* ${chatName}\n` +
-                              `🕐 *Saved:* ${timestamp}\n\n` +
-                              `📝 *Type:* ${messageType}\n` +
-                              `⚠️ Unsupported message type`
-                    };
-                    break;
-            }
+            console.log(`✅ Message forwarded to bot private chat`);
             
-            // Send the saved message to bot private chat
-            if (savedMessage) {
-                await this.bot.sock.sendMessage(botPrivateChat, savedMessage);
-                console.log(`💾 Saved ${messageType} message to bot private chat`);
-                
-                // Send confirmation to user
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '✅ Message saved to bot private chat'
-                });
-            }
+            // Send confirmation to user
+            await this.bot.sock.sendMessage(jids.chat_jid, {
+                text: '✅ Message forwarded to bot private chat'
+            });
             
         } catch (error) {
             console.error(`Error in save command: ${error.message}`);
             const jids = this.bot.jidUtils.extractJIDs(message);
             if (jids) {
                 await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ Error saving message'
+                    text: '❌ Error forwarding message'
                 });
             }
         }
