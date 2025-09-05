@@ -62,17 +62,27 @@ class AntiViewOncePlugin {
                 viewOnceMessage = quotedMessage.message;
                 console.log(`🔍 Found nested view once message in reply`);
             } else if (quotedMessage) {
-                // Check if the quoted message itself is a forwarded view once (from .save)
-                // When forwarded, it might lose the viewOnceMessage wrapper
+                // Check if this is a forwarded view once (from .save)
+                // When view once is forwarded, it loses the viewOnceMessage wrapper
+                // and becomes regular imageMessage, videoMessage, etc.
                 const messageTypes = Object.keys(quotedMessage);
                 console.log(`🔍 Debug - available message types:`, messageTypes);
                 
-                // For now, let's still require a proper view once structure
-                // but give better feedback about what we found
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: `❌ This doesn't appear to be a view once message.\n\nMessage types found: ${messageTypes.join(', ')}\n\nPlease reply to an actual view once message with .vv`
-                });
-                return;
+                // Check if it's likely a forwarded view once (image or video)
+                if (messageTypes.includes('imageMessage') || messageTypes.includes('videoMessage')) {
+                    console.log(`🔍 Treating as forwarded view once message`);
+                    // Create a fake viewOnceMessage structure for processing
+                    viewOnceMessage = {
+                        viewOnceMessage: {
+                            message: quotedMessage
+                        }
+                    };
+                } else {
+                    await this.bot.sock.sendMessage(jids.chat_jid, {
+                        text: `❌ This doesn't appear to be a view once message.\n\nMessage types found: ${messageTypes.join(', ')}\n\nPlease reply to a view once message or forwarded view once with .vv`
+                    });
+                    return;
+                }
             } else {
                 console.log(`🔍 No reply found - searching for recent view once messages`);
                 
