@@ -25,7 +25,7 @@ class AntiViewOncePlugin {
         // Register anti-view once command
         this.bot.messageHandler.registerCommand('vv', this.handleAntiViewOnce.bind(this), {
             description: 'Extract and send original content from view once messages',
-            usage: `${config.PREFIX}vv [jid] (reply to view once message)`,
+            usage: `${config.PREFIX}vv [jid] - Set default destination or extract view once`,
             category: 'utility'
         });
     }
@@ -40,6 +40,30 @@ class AntiViewOncePlugin {
             if (!jids) {
                 console.error('Failed to extract JIDs from message');
                 return;
+            }
+
+            // Check if this is just setting the default destination
+            const args = message.message?.extendedTextMessage?.text?.split(' ') || 
+                        message.message?.conversation?.split(' ') || [];
+            
+            if (args.length > 1 && args[1]) {
+                // Check if this is NOT a reply (meaning user wants to set default destination)
+                const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                
+                if (!quotedMessage) {
+                    // This is setting the default destination
+                    let newDefaultJid = args[1];
+                    
+                    // Normalize JID format
+                    if (!newDefaultJid.includes('@')) {
+                        newDefaultJid = `${newDefaultJid}@s.whatsapp.net`;
+                    }
+                    
+                    // Save the new default destination
+                    this.bot.database.setData('vvDefaultDestination', newDefaultJid);
+                    console.log(`✅ Default vv destination set to: ${newDefaultJid}`);
+                    return;
+                }
             }
 
             // Check if this is a reply to a view once message
@@ -121,27 +145,12 @@ class AntiViewOncePlugin {
                     return;
                 }
                 
-                // Send the extracted content to specified destination
+                // Send the extracted content to appropriate destination
                 if (extractedMessage) {
-                    // Check if user specified a destination JID
-                    const jids = this.bot.jidUtils.extractJIDs(message);
-                    const args = message.message?.extendedTextMessage?.text?.split(' ') || [];
-                    let targetJid = `${config.OWNER_NUMBER}@s.whatsapp.net`; // Default to owner
+                    // Get saved default destination or fallback to owner
+                    let targetJid = this.bot.database.getData('vvDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
                     
-                    // Check if JID was specified in command (e.g., ".vv 1234567890")
-                    if (args.length > 1 && args[1]) {
-                        let specifiedJid = args[1];
-                        
-                        // Normalize JID format
-                        if (!specifiedJid.includes('@')) {
-                            specifiedJid = `${specifiedJid}@s.whatsapp.net`;
-                        }
-                        
-                        targetJid = specifiedJid;
-                        console.log(`📤 Custom destination specified: ${targetJid}`);
-                    }
-                    
-                    // Send to specified destination
+                    // Send to destination
                     await this.bot.sock.sendMessage(targetJid, extractedMessage);
                     console.log(`💥 Successfully extracted and sent view once ${contentType} to ${targetJid}`);
                 }
