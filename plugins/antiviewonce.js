@@ -78,24 +78,17 @@ class AntiViewOncePlugin {
                         }
                     };
                 } else {
-                    await this.bot.sock.sendMessage(jids.chat_jid, {
-                        text: `❌ This doesn't appear to be a view once message.\n\nMessage types found: ${messageTypes.join(', ')}\n\nPlease reply to a view once message or forwarded view once with .vv`
-                    });
+                    console.log(`❌ This doesn't appear to be a view once message. Message types found: ${messageTypes.join(', ')}`);
                     return;
                 }
             } else {
                 console.log(`🔍 No reply found - searching for recent view once messages`);
-                
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ Please reply to a view once message with .vv'
-                });
+                console.log('❌ Please reply to a view once message with .vv');
                 return;
             }
             
             if (!viewOnceMessage) {
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ No view once message found. Reply to a view once message with .vv'
-                });
+                console.log('❌ No view once message found. Reply to a view once message with .vv');
                 return;
             }
             
@@ -126,9 +119,7 @@ class AntiViewOncePlugin {
                         caption: viewOnceContent.videoMessage.caption || undefined
                     };
                 } else {
-                    await this.bot.sock.sendMessage(jids.chat_jid, {
-                        text: `❌ Unsupported view once content type: ${contentType}`
-                    });
+                    console.log(`❌ Unsupported view once content type: ${contentType}`);
                     return;
                 }
                 
@@ -143,19 +134,10 @@ class AntiViewOncePlugin {
                 
             } catch (error) {
                 console.error('Error extracting view once media:', error);
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: `❌ Failed to extract view once content: ${error.message}`
-                });
             }
             
         } catch (error) {
             console.error(`Error in anti-view once command: ${error.message}`);
-            const jids = this.bot.jidUtils.extractJIDs(message);
-            if (jids) {
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ Error processing anti-view once command'
-                });
-            }
         }
     }
 

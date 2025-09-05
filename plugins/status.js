@@ -241,9 +241,7 @@ class StatusPlugin {
             const contextInfo = message.message?.extendedTextMessage?.contextInfo;
 
             if (!quotedMessage) {
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ Please reply to any message with .save'
-                });
+                console.log('❌ Please reply to any message with .save');
                 return;
             }
 
@@ -267,19 +265,10 @@ class StatusPlugin {
 
             console.log(`✅ Message forwarded to bot owner chat`);
 
-            // Send confirmation to user
-            await this.bot.sock.sendMessage(jids.chat_jid, {
-                text: '✅ Message forwarded to bot owner chat'
-            });
+            // No confirmation message sent - using bot reactions instead
 
         } catch (error) {
             console.error(`Error in save command: ${error.message}`);
-            const jids = this.bot.jidUtils.extractJIDs(message);
-            if (jids) {
-                await this.bot.sock.sendMessage(jids.chat_jid, {
-                    text: '❌ Error forwarding message'
-                });
-            }
         }
     }
 
