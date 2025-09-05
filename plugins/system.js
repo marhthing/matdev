@@ -391,13 +391,15 @@ class SystemPlugin {
         try {
             const configText = `*⚙️ BOT CONFIGURATION*\n\n` +
                 `*Identity:*\n` +
-                `• Owner: ${config.OWNER_NUMBER ? 'Set' : 'Not Set'}\n` +
-                `• Prefix: ${config.PREFIX}\n\n` +
+                `• OWNER_NUMBER: ${config.OWNER_NUMBER ? 'Set' : 'Not Set'}\n` +
+                `• PREFIX: ${config.PREFIX}\n\n` +
                 `*Behavior:*\n` +
-                `• Auto Typing: ${config.AUTO_TYPING ? '✅' : '❌'}\n` +
-                `• Auto Read: ${config.AUTO_READ ? '✅' : '❌'}\n` +
-                `• Auto Status View: ${config.AUTO_STATUS_VIEW ? '✅' : '❌'}\n` +
-                `• Reject Calls: ${config.REJECT_CALLS ? '✅' : '❌'}`;
+                `• AUTO_TYPING: ${config.AUTO_TYPING}\n` +
+                `• AUTO_READ: ${config.AUTO_READ}\n` +
+                `• AUTO_STATUS_VIEW: ${config.AUTO_STATUS_VIEW}\n` +
+                `• REJECT_CALLS: ${config.REJECT_CALLS}\n\n` +
+                `_To change: ${config.PREFIX}setenv <KEY> <VALUE>_\n` +
+                `_Example: ${config.PREFIX}setenv AUTO_TYPING true_`;
 
             await this.bot.messageHandler.reply(messageInfo, configText);
         } catch (error) {
