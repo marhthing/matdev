@@ -256,22 +256,49 @@ class MATDEV {
                 path.join(__dirname, 'session')
             );
 
-            // Create socket connection
-            // Create minimal logger for Baileys
-            const baileyLogger = {
-                trace: () => {},
-                debug: () => {},
-                info: () => {},
-                warn: () => {},
-                error: () => {},
-                fatal: () => {},
-                child: () => baileyLogger // Return self for child logger calls
+            // Store original console.log to filter out session messages
+            const originalConsoleLog = console.log;
+            console.log = (...args) => {
+                const message = args.join(' ');
+                if (message.includes('Closing stale open session') ||
+                    message.includes('Closing session:') ||
+                    message.includes('SessionEntry')) {
+                    return; // Skip these messages
+                }
+                originalConsoleLog.apply(console, args);
             };
 
+            // Create custom logger that filters out session logs
+            const filteredLogger = {
+                ...logger, // Inherit from the main logger
+                debug: (message, data) => {
+                    // Filter out session management logs
+                    if (typeof message === 'string' && (
+                        message.includes('Closing stale open session') ||
+                        message.includes('Closing session:') ||
+                        message.includes('SessionEntry')
+                    )) {
+                        return; // Skip these logs
+                    }
+                    logger.debug(message, data);
+                },
+                info: (message, data) => {
+                    // Filter out session info logs
+                    if (typeof message === 'string' && (
+                        message.includes('Closing stale open session') ||
+                        message.includes('Closing session:')
+                    )) {
+                        return; // Skip these logs
+                    }
+                    logger.info(message, data);
+                }
+            };
+
+            // Create socket connection with enhanced options
             this.sock = makeWASocket({
                 auth: state,
+                logger: filteredLogger, // Use the filtered logger
                 printQRInTerminal: false, // We handle QR display ourselves
-                logger: baileyLogger, // Minimal logger to prevent conflicts
                 browser: ['MATDEV', 'Desktop', '1.0.0'],
                 defaultQueryTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
@@ -619,7 +646,7 @@ class MATDEV {
                 //     logger.info(`📥 Processing incoming message`);
                 //     logger.info(`📥 Incoming message from: ${sender} (participant: ${participant})`);
                 // }
-                
+
                 // Process all messages (incoming and outgoing) through the MessageHandler
                 // logger.info(`🔄 Calling MessageHandler to process command...`);
                 await this.messageHandler.process(message);
@@ -1025,13 +1052,13 @@ class MATDEV {
     async checkUpdateCompletion() {
         try {
             const updateFlagPath = '.update_flag.json';
-            
+
             if (fs.existsSync(updateFlagPath)) {
                 // Wait for bot to fully initialize - same timing as restart completion
                 setTimeout(async () => {
                     try {
                         const updateInfo = JSON.parse(fs.readFileSync(updateFlagPath, 'utf8'));
-                        
+
                         // Send update completion message to bot owner
                         const completionMessage = '✅ *UPDATE COMPLETED*\n\n' +
                             '🔄 Successfully recloned from GitHub\n' +
@@ -1039,14 +1066,14 @@ class MATDEV {
                             '⚡ All systems operational\n' +
                             `🕐 Completed: ${new Date().toLocaleString()}\n\n` +
                             '_MATDEV is now running the latest version_';
-                        
+
                         await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                             text: completionMessage
                         });
-                        
+
                         // Clean up the update flag file
                         fs.unlinkSync(updateFlagPath);
-                        
+
                         logger.success('✅ Update completion notification sent');
                     } catch (error) {
                         logger.error('Error sending update completion notification:', error);
@@ -1068,21 +1095,21 @@ class MATDEV {
     async checkRestartCompletion() {
         try {
             const restartInfoPath = '.restart_info.json';
-            
+
             if (fs.existsSync(restartInfoPath)) {
                 // Wait a bit for bot to fully initialize
                 setTimeout(async () => {
                     try {
                         const restartInfo = JSON.parse(fs.readFileSync(restartInfoPath, 'utf8'));
-                        
+
                         // Send restart completion message
                         await this.sock.sendMessage(restartInfo.chatJid, {
                             text: '✅ Restart completed'
                         });
-                        
+
                         // Clean up the restart info file
                         fs.unlinkSync(restartInfoPath);
-                        
+
                         logger.info('✅ Restart completion message sent');
                     } catch (error) {
                         logger.error('Error sending restart completion message:', error);
