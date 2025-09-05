@@ -161,6 +161,21 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Sticker command binding commands (owner only)
+        this.bot.messageHandler.registerCommand('setcmd', this.setStickerCommand.bind(this), {
+            description: 'Bind a command to a sticker (reply to sticker)',
+            usage: `${config.PREFIX}setcmd <command> (reply to sticker)`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('delcmd', this.deleteStickerCommand.bind(this), {
+            description: 'Remove command binding from a sticker (reply to sticker)',
+            usage: `${config.PREFIX}delcmd (reply to sticker)`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -885,6 +900,103 @@ class CorePlugin {
 
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling bot reactions.');
+        }
+    }
+
+    /**
+     * Set sticker command binding
+     */
+    async setStickerCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            
+            if (args.length === 0) {
+                console.log('❌ No command specified for sticker binding');
+                return;
+            }
+
+            const commandName = args[0].toLowerCase();
+            
+            // Check if the command exists
+            const commands = this.bot.messageHandler.getCommands();
+            const command = commands.find(cmd => cmd.name === commandName);
+            
+            if (!command) {
+                console.log(`❌ Command "${commandName}" not found`);
+                return;
+            }
+
+            // Check if this is a reply to a sticker
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            
+            if (!quotedMessage || !quotedMessage.stickerMessage) {
+                console.log('❌ Please reply to a sticker when using .setcmd');
+                return;
+            }
+
+            // Get sticker hash/URL for identification
+            const stickerData = quotedMessage.stickerMessage;
+            const stickerHash = stickerData.fileSha256 ? Buffer.from(stickerData.fileSha256).toString('hex') : stickerData.url;
+            
+            if (!stickerHash) {
+                console.log('❌ Could not identify sticker');
+                return;
+            }
+
+            // Store sticker command binding
+            const stickerCommands = this.bot.database.getData('stickerCommands') || {};
+            stickerCommands[stickerHash] = {
+                command: commandName,
+                boundAt: Date.now(),
+                boundBy: messageInfo.sender
+            };
+            
+            this.bot.database.setData('stickerCommands', stickerCommands);
+            
+            console.log(`✅ Sticker bound to command: ${commandName}`);
+            
+        } catch (error) {
+            console.error(`Error in set sticker command: ${error.message}`);
+        }
+    }
+
+    /**
+     * Delete sticker command binding
+     */
+    async deleteStickerCommand(messageInfo) {
+        try {
+            // Check if this is a reply to a sticker
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            
+            if (!quotedMessage || !quotedMessage.stickerMessage) {
+                console.log('❌ Please reply to a sticker when using .delcmd');
+                return;
+            }
+
+            // Get sticker hash/URL for identification
+            const stickerData = quotedMessage.stickerMessage;
+            const stickerHash = stickerData.fileSha256 ? Buffer.from(stickerData.fileSha256).toString('hex') : stickerData.url;
+            
+            if (!stickerHash) {
+                console.log('❌ Could not identify sticker');
+                return;
+            }
+
+            // Remove sticker command binding
+            const stickerCommands = this.bot.database.getData('stickerCommands') || {};
+            
+            if (stickerCommands[stickerHash]) {
+                const removedCommand = stickerCommands[stickerHash].command;
+                delete stickerCommands[stickerHash];
+                this.bot.database.setData('stickerCommands', stickerCommands);
+                
+                console.log(`✅ Removed command binding: ${removedCommand}`);
+            } else {
+                console.log('❌ This sticker has no command binding');
+            }
+            
+        } catch (error) {
+            console.error(`Error in delete sticker command: ${error.message}`);
         }
     }
 }
