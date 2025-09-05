@@ -673,15 +673,37 @@ class SystemPlugin {
      */
     async executeUpdateNow(messageInfo) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🔄 *FORCE UPDATING*\n\nRestarting from index.js with fresh clone...');
+            await this.bot.messageHandler.reply(messageInfo, '🔄 *FORCE UPDATING*\n\nRemoving key files to trigger recloning...');
             
-            console.log('🔄 Force update: Triggering fresh restart from index.js...');
+            console.log('🔄 Force update: Removing key files to trigger recloning...');
             
-            // Force exit to trigger index.js restart with fresh cloning
-            // This bypasses all file existence checks
-            setTimeout(() => {
-                console.log('🔄 Forcing process exit for fresh restart...');
-                process.exit(1); // Exit with error code to trigger fresh restart
+            // Remove key files to trigger recloning by index.js
+            // index.js checks for these files and reclones if they're missing
+            setTimeout(async () => {
+                try {
+                    const fs = require('fs-extra');
+                    
+                    // Remove the key files that index.js checks for
+                    const filesToRemove = ['bot.js', 'config.js', 'package.json'];
+                    
+                    console.log('🔄 Removing key files to trigger recloning...');
+                    for (const file of filesToRemove) {
+                        try {
+                            if (await fs.pathExists(file)) {
+                                await fs.unlink(file);
+                                console.log(`✅ Removed: ${file}`);
+                            }
+                        } catch (err) {
+                            console.log(`⚠️ Could not remove ${file}: ${err.message}`);
+                        }
+                    }
+                    
+                    console.log('🔄 Key files removed, forcing process exit to trigger recloning...');
+                    process.exit(1); // Exit to trigger index.js restart which will detect missing files and reclone
+                } catch (error) {
+                    console.error('❌ Error removing files:', error);
+                    process.exit(1); // Exit anyway to trigger restart
+                }
             }, 1000);
             
         } catch (error) {
