@@ -202,6 +202,8 @@ class AntiViewOncePlugin {
 
         for (const message of messages) {
             try {
+                console.log(`🔍 Checking message for view once: ${message.key?.id}, types: ${Object.keys(message.message || {}).join(', ')}`);
+                
                 // Check if this is a view once message
                 const messageContent = message.message;
                 if (messageContent?.viewOnceMessage) {
@@ -225,6 +227,14 @@ class AntiViewOncePlugin {
                         console.log(`💾 Cached view once ${contentType} with ID: ${messageId}`);
                     } catch (cacheError) {
                         console.error(`Failed to cache view once media: ${cacheError.message}`);
+                    }
+                } else {
+                    // Debug: Show what message types we're getting
+                    if (messageContent) {
+                        const messageTypes = Object.keys(messageContent);
+                        if (messageTypes.length > 0 && !messageTypes.includes('protocolMessage')) {
+                            console.log(`🔍 Non-view-once message types: ${messageTypes.join(', ')}`);
+                        }
                     }
                 }
             } catch (error) {

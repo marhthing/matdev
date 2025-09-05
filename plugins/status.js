@@ -97,7 +97,7 @@ class StatusPlugin {
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 const contextInfo = message.message?.extendedTextMessage?.contextInfo;
 
-                if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
+                if (quotedMessage && contextInfo && this.isStatusReply({ quotedMessage, contextInfo })) {
                     // Handle auto-send functionality for bot owner's status
                     if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
                         await this.handleAutoSend(quotedMessage, jids.chat_jid);
@@ -114,7 +114,7 @@ class StatusPlugin {
      */
     isStatusReply(messageData) {
         // Check if message has quoted message and it's from status
-        if (!messageData.quotedMessage) return false;
+        if (!messageData?.quotedMessage) return false;
 
         // Status messages have specific characteristics:
         // 1. They come from status@broadcast
@@ -122,7 +122,7 @@ class StatusPlugin {
         const contextInfo = messageData.contextInfo;
         const isStatusBroadcast = contextInfo?.remoteJid?.includes('status@broadcast') ||
                                  contextInfo?.participant?.includes('status@broadcast') ||
-                                 messageData.quotedMessage.key?.remoteJid?.includes('status@broadcast');
+                                 messageData.quotedMessage?.key?.remoteJid?.includes('status@broadcast');
 
         return isStatusBroadcast;
     }
