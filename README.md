@@ -228,6 +228,22 @@ process.on('unhandledRejection', (reason, promise) => {
 
 [Fork Now](https://github.com/marhthing/MATDEV-BOT/fork) • [Report Issues](https://github.com/marhthing/MATDEV-BOT/issues) • [Get Support](https://github.com/marhthing/MATDEV-BOT/discussions)
 
-*Made with ❤️ for the community*
+**Made by MATDEV**
+
+---
+
+## 📋 License
+
+This project is the intellectual property of **MATDEV**. 
+
+**⚠️ Usage Restrictions:**
+- This software is **NOT** open source
+- Usage, modification, or distribution **requires explicit permission** from the owner (MATDEV)
+- Unauthorized use, copying, or distribution is strictly prohibited
+- Commercial use is not permitted without written consent from MATDEV
+
+**📧 Contact:** For licensing inquiries or permission requests, please contact MATDEV directly.
+
+**© 2025 MATDEV. All Rights Reserved.**
 
 </div>
