@@ -397,26 +397,15 @@ class SystemPlugin {
         try {
             const configText = `*⚙️ BOT CONFIGURATION*\n\n` +
                 `*Identity:*\n` +
-                `• Bot Name: ${config.BOT_NAME}\n` +
+                `Bot Name: ${config.BOT_NAME}\n` +
                 `• Owner: ${config.OWNER_NUMBER ? 'Set' : 'Not Set'}\n` +
                 `• Prefix: ${config.PREFIX}\n\n` +
                 `*Behavior:*\n` +
-                `• Public Mode: ${config.PUBLIC_MODE ? '✅' : '❌'}\n` +
+                `Public Mode: ${config.PUBLIC_MODE ? '✅' : '❌'}\n` +
                 `• Auto Typing: ${config.AUTO_TYPING ? '✅' : '❌'}\n` +
                 `• Auto Read: ${config.AUTO_READ ? '✅' : '❌'}\n` +
                 `• Auto Status View: ${config.AUTO_STATUS_VIEW ? '✅' : '❌'}\n` +
-                `• Reject Calls: ${config.REJECT_CALLS ? '✅' : '❌'}\n\n` +
-                `*Performance:*\n` +
-                `• Max Concurrent Messages: ${config.MAX_CONCURRENT_MESSAGES}\n` +
-                `• Message Timeout: ${config.MESSAGE_TIMEOUT}ms\n` +
-                `• Cache TTL: ${config.CACHE_TTL}s\n\n` +
-                `*Security:*\n` +
-                `• Anti-Ban: ${config.ANTI_BAN ? '✅' : '❌'}\n` +
-                `• Rate Limit Window: ${config.RATE_LIMIT_WINDOW / 1000}s\n` +
-                `• Rate Limit Max: ${config.RATE_LIMIT_MAX_REQUESTS}\n\n` +
-                `*Platform:*\n` +
-                `• Detected: ${config.PLATFORM}\n` +
-                `• Environment: ${config.NODE_ENV}`;
+                `• Reject Calls: ${config.REJECT_CALLS ? '✅' : '❌'}`;
 
             await this.bot.messageHandler.reply(messageInfo, configText);
         } catch (error) {
