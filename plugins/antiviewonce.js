@@ -117,17 +117,13 @@ class AntiViewOncePlugin {
                     // Send the extracted image
                     extractedMessage = {
                         image: buffer,
-                        caption: `💥 *Anti-View Once* 💥\n\n` +
-                                `📸 Original image extracted from view once message\n` +
-                                `${viewOnceContent.imageMessage.caption ? `\n📝 Original caption: ${viewOnceContent.imageMessage.caption}` : ''}`
+                        caption: viewOnceContent.imageMessage.caption || undefined
                     };
                 } else if (contentType === 'videoMessage') {
                     // Send the extracted video
                     extractedMessage = {
                         video: buffer,
-                        caption: `💥 *Anti-View Once* 💥\n\n` +
-                                `🎥 Original video extracted from view once message\n` +
-                                `${viewOnceContent.videoMessage.caption ? `\n📝 Original caption: ${viewOnceContent.videoMessage.caption}` : ''}`
+                        caption: viewOnceContent.videoMessage.caption || undefined
                     };
                 } else {
                     await this.bot.sock.sendMessage(jids.chat_jid, {
@@ -142,13 +138,12 @@ class AntiViewOncePlugin {
                     console.log(`💥 Successfully extracted and sent view once ${contentType}`);
                     
                     // Optional: Also save to bot private chat for archival
-                    const botPrivateChat = this.bot.getBotJid() || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                     const archiveMessage = {
                         ...extractedMessage,
-                        caption: `💥 *View Once Archive* 💥\n\n` +
-                                `📁 Extracted from view once and archived\n` +
-                                `🕐 Extracted: ${new Date().toLocaleString()}\n` +
-                                `${extractedMessage.caption ? `\n${extractedMessage.caption.replace('💥 *Anti-View Once* 💥', '')}` : ''}`
+                        caption: extractedMessage.caption ? 
+                                `📁 View Once Archive\n🕐 ${new Date().toLocaleString()}\n\n${extractedMessage.caption}` :
+                                `📁 View Once Archive\n🕐 ${new Date().toLocaleString()}`
                     };
                     
                     await this.bot.sock.sendMessage(botPrivateChat, archiveMessage);
