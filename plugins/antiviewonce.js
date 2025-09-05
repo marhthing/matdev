@@ -147,7 +147,7 @@ class AntiViewOncePlugin {
                 
                 // Send the extracted content to appropriate destination
                 if (extractedMessage) {
-                    // Get saved default destination or fallback to owner
+                    // Get saved default destination or fallback to bot private chat
                     let targetJid = this.bot.database.getData('vvDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
                     
                     // Send to destination
