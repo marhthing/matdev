@@ -753,6 +753,18 @@ class SystemPlugin {
                         }
                     }
 
+                    // Send completion message before restart
+                    try {
+                        await this.bot.sock.sendMessage(messageInfo.key.remoteJid, {
+                            text: '✅ Update completed successfully! Bot will restart now.'
+                        });
+                        console.log('✅ Update completion message sent');
+                        // Small delay to ensure message is sent
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    } catch (err) {
+                        console.log('⚠️ Could not send completion message:', err.message);
+                    }
+
                     console.log('🔄 Key files removed, forcing process exit to trigger recloning...');
                     process.exit(1); // Exit to trigger index.js restart which will detect missing files and reclone
                 } catch (error) {
@@ -868,12 +880,29 @@ class SystemPlugin {
                                 localCommit: localCommit.substring(0, 7)
                             });
                         } else {
-                            // Commits are different - update needed (remote is source of truth)
-                            resolve({
-                                updateAvailable: true,
-                                commitsAhead: 1,
-                                latestCommit: remoteCommit.substring(0, 7),
-                                localCommit: localCommit.substring(0, 7)
+                            // Check if local commit exists in remote history - if it does, we're up to date
+                            // This handles cases where local has the latest remote commit but git ls-remote shows a different HEAD
+                            const checkLocalInRemote = spawn('git', ['cat-file', '-e', remoteCommit], {
+                                stdio: ['pipe', 'pipe', 'pipe']
+                            });
+                            
+                            checkLocalInRemote.on('close', (checkCode) => {
+                                if (checkCode === 0) {
+                                    // Remote commit exists locally - we have it, so up to date
+                                    resolve({
+                                        updateAvailable: false,
+                                        latestCommit: remoteCommit.substring(0, 7),
+                                        localCommit: localCommit.substring(0, 7)
+                                    });
+                                } else {
+                                    // Remote commit doesn't exist locally - update needed
+                                    resolve({
+                                        updateAvailable: true,
+                                        commitsAhead: 'available',
+                                        latestCommit: remoteCommit.substring(0, 7),
+                                        localCommit: localCommit.substring(0, 7)
+                                    });
+                                }
                             });
                         }
                     });

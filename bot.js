@@ -234,6 +234,9 @@ class MATDEV {
             // Initialize hot reload for plugins
             this.initializePluginHotReload();
 
+            // Send startup confirmation message to bot private chat
+            await this.sendStartupConfirmation();
+
             // Send startup notification if it was deferred
             if (this.shouldSendStartupNotification) {
                 await this.sendStartupNotification();
@@ -338,6 +341,23 @@ class MATDEV {
             logger.info(`🗑️ Unloaded plugin: ${pluginName}`);
         } catch (error) {
             logger.error(`Error unloading plugin ${pluginName}:`, error.message);
+        }
+    }
+
+    /**
+     * Send startup confirmation message to bot private chat
+     */
+    async sendStartupConfirmation() {
+        try {
+            if (this.sock && config.OWNER_NUMBER) {
+                const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                await this.sock.sendMessage(botPrivateChat, {
+                    text: "MATDEV bot started successfully"
+                });
+                logger.info('✅ Startup confirmation sent to bot private chat');
+            }
+        } catch (error) {
+            logger.error('Failed to send startup confirmation:', error.message);
         }
     }
 
