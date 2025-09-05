@@ -228,8 +228,16 @@ class CorePlugin {
         const start = Date.now();
         
         try {
-            // Send response directly and calculate actual latency
+            // Send response and measure the time it actually took
             await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
+            
+            // Calculate final latency after sending
+            const finalLatency = Date.now() - start;
+            
+            // Send updated response with real timing if it's significantly different
+            if (finalLatency > 10) {
+                await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${finalLatency}ms`);
+            }
             
         } catch (error) {
             const errorLatency = Date.now() - start;
