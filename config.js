@@ -83,6 +83,7 @@ const config = {
     AUTO_READ: process.env.AUTO_READ === 'true' || false,
     AUTO_STATUS_VIEW: process.env.AUTO_STATUS_VIEW === 'true' || false,
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
+    REJECT_CALLS: process.env.REJECT_CALLS === 'true' || false,
 
     // Performance Settings
     MAX_CONCURRENT_MESSAGES: parseInt(process.env.MAX_CONCURRENT_MESSAGES) || 5,

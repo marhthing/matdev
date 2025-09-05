@@ -623,7 +623,12 @@ class SystemPlugin {
     async hotReloadConfig(key, value) {
         // Update relevant config properties directly
         if (config.hasOwnProperty(key)) {
-            config[key] = value;
+            // Convert string boolean values to actual booleans for config
+            if (value === 'true' || value === 'false') {
+                config[key] = value === 'true';
+            } else {
+                config[key] = value;
+            }
         }
 
         // If the changed key is PREFIX, update the config.PREFIX for immediate use
@@ -631,11 +636,31 @@ class SystemPlugin {
             config.PREFIX = value;
         }
 
-        // Add more specific hot-reloading logic for other config values if needed
-        // For example, if a configuration value affects bot behavior directly:
-        // if (key === 'AUTO_TYPING') {
-        //     this.bot.autoTyping = value.toLowerCase() === 'true';
-        // }
+        // Hot-reload auto features for immediate effect
+        if (key === 'AUTO_TYPING') {
+            config.AUTO_TYPING = value === 'true';
+            console.log(`🔄 Auto-typing ${config.AUTO_TYPING ? 'enabled' : 'disabled'}`);
+        }
+        
+        if (key === 'AUTO_READ') {
+            config.AUTO_READ = value === 'true';
+            console.log(`🔄 Auto-read ${config.AUTO_READ ? 'enabled' : 'disabled'}`);
+        }
+        
+        if (key === 'AUTO_STATUS_VIEW') {
+            config.AUTO_STATUS_VIEW = value === 'true';
+            console.log(`🔄 Auto-status-view ${config.AUTO_STATUS_VIEW ? 'enabled' : 'disabled'}`);
+        }
+        
+        if (key === 'REJECT_CALLS') {
+            config.REJECT_CALLS = value === 'true';
+            console.log(`🔄 Call rejection ${config.REJECT_CALLS ? 'enabled' : 'disabled'}`);
+        }
+        
+        if (key === 'ANTI_DELETE') {
+            config.ANTI_DELETE = value === 'true';
+            console.log(`🔄 Anti-delete ${config.ANTI_DELETE ? 'enabled' : 'disabled'}`);
+        }
     }
 
     /**
