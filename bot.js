@@ -730,32 +730,13 @@ class MATDEV {
                     await this.database.archiveMessage(message);
                 }
 
-                // Check if this is a deletion event (protocol message)
+                // Check if this is a deletion event (protocol message) 
+                // Skip this check here to avoid duplicate processing - let messages.update handle deletions
                 if (message.message?.protocolMessage?.type === 0 || message.message?.protocolMessage?.type === 'REVOKE') {
-                    const revokedKey = message.message.protocolMessage.key;
-                    if (revokedKey && revokedKey.id) {
-                        const messageId = revokedKey.id;
-                        const chatJid = revokedKey.remoteJid || message.key.remoteJid;
-                        
-                        logger.warn(`🗑️ DELETION DETECTED IN MESSAGES.UPSERT - ID: ${messageId}, Chat: ${chatJid}`);
-                        
-                        try {
-                            // Use the anti-delete plugin if available and enabled
-                            if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
-                                logger.info('🔄 Delegating to anti-delete plugin from messages.upsert');
-                                await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
-                            } else {
-                                // Fallback to built-in handling
-                                logger.info('🔄 Using built-in anti-delete handling from messages.upsert');
-                                await this.handleAntiDelete(messageId, chatJid);
-                            }
-                        } catch (error) {
-                            logger.error('Error processing deletion in messages.upsert:', error);
-                        }
-                        
-                        // Skip further processing since this is a deletion event
-                        continue;
-                    }
+                    // This is a deletion event, skip regular processing but don't handle here
+                    // The messages.update handler will catch this
+                    logger.debug('📝 Deletion event received in messages.upsert - will be handled by messages.update');
+                    continue;
                 }
 
                 // Skip processing our own messages unless it's a command

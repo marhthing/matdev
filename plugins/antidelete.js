@@ -91,7 +91,9 @@ class AntiDeletePlugin {
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             // Get the original message from our JSON storage
+            console.log(`🔍 ANTI-DELETE: Searching for message ID: ${messageId}`);
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
+            console.log(`🔍 ANTI-DELETE: Search result:`, originalMessage ? 'FOUND' : 'NOT FOUND');
 
             if (originalMessage) {
                 console.log('📋 ANTI-DELETE: Original message found in database:', {
@@ -243,21 +245,29 @@ class AntiDeletePlugin {
                     await this.bot.sock.sendMessage(targetJid, alertMessage);
                 }
             } else {
-                // For text messages, use simple text sending like .save command
+                // For text messages, use the previous styling with contextInfo tagging
                 const config = require('../config');
                 const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                console.log(`📤 ANTI-DELETE: Forwarding deleted text to: ${targetJid}`);
+                console.log(`📤 ANTI-DELETE: Sending styled deleted text to: ${targetJid}`);
 
-                // Create simple message like .save does
-                const deletedMessageText = `🗑️ *DELETED MESSAGE*\n\n` +
-                    `👤 *From:* ${senderNumber}\n` +
-                    `📱 *Chat:* ${isGroup ? groupName : 'Private Chat'}\n` +
-                    `🕐 *Time:* ${new Date(archivedMessage.timestamp * 1000).toLocaleString()}\n\n` +
-                    `💬 *Message:*\n${archivedMessage.content || '(No text content)'}`;
+                // Restore original message tagging format
+                const alertText = archivedMessage.content || 'deletedMessage';
+                const tagText = isGroup ? `deletedMessage • ${groupName}` : 'deletedMessage';
 
-                await this.bot.sock.sendMessage(targetJid, {
-                    text: deletedMessageText
-                });
+                const alertMessage = {
+                    text: alertText,
+                    contextInfo: {
+                        quotedMessage: {
+                            conversation: tagText
+                        },
+                        participant: senderJid,
+                        remoteJid: senderJid,
+                        fromMe: false,
+                        quotedMessageId: archivedMessage.id
+                    }
+                };
+
+                await this.bot.sock.sendMessage(targetJid, alertMessage);
             }
 
             console.log(`🗑️ Detected deleted message from ${senderNumber}`);
