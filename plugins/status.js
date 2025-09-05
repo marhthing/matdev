@@ -248,8 +248,8 @@ class StatusPlugin {
                 return;
             }
             
-            // Get bot's own number for private chat
-            const botPrivateChat = this.bot.getBotJid() || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+            // Get bot's own number for private chat (use owner number as bot personal chat)
+            const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
             
             console.log(`💾 Forwarding message to bot private chat`);
             
