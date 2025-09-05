@@ -228,20 +228,12 @@ class CorePlugin {
         try {
             const start = Date.now();
             
-            // Calculate latency
-            const latency = Date.now() - start;
-            
-            // Send ping response directly
-            const pingText = `🏓 *Pong!*\n\n` +
-                `⚡ *Response Time:* ${latency}ms\n` +
-                `🕐 *Timestamp:* ${new Date().toLocaleString()}\n` +
-                `📱 *Chat:* ${messageInfo.is_group ? 'Group' : 'Private'}`;
-            
-            await this.bot.messageHandler.reply(messageInfo, pingText);
+            // Send ping response and calculate actual response time
+            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
             
         } catch (error) {
             this.bot.logger.error('Ping command error:', error);
-            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! Response time: ${Date.now() - messageInfo.timestamp}ms`);
+            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
         }
     }
 
