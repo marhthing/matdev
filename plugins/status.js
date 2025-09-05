@@ -65,8 +65,8 @@ class StatusPlugin {
     registerCommands() {
         // Register save command
         this.bot.messageHandler.registerCommand('save', this.handleSaveCommand.bind(this), {
-            description: 'Save any replied message to bot private chat',
-            usage: `${config.PREFIX}save (reply to any message)`,
+            description: 'Forward any replied message to bot private chat or set default destination',
+            usage: `${config.PREFIX}save [jid] - Set default destination or forward message`,
             category: 'utility'
         });
     }
@@ -203,7 +203,7 @@ class StatusPlugin {
     }
 
     /**
-     * Handle .save command to forward any replied message to bot private chat
+     * Handle .save command to forward any replied message to bot private chat or set default destination
      */
     async handleSaveCommand(message) {
         try {
@@ -212,6 +212,30 @@ class StatusPlugin {
             if (!jids) {
                 console.error('Failed to extract JIDs from message');
                 return;
+            }
+
+            // Check if this is just setting the default destination
+            const args = message.message?.extendedTextMessage?.text?.split(' ') || 
+                        message.message?.conversation?.split(' ') || [];
+
+            if (args.length > 1 && args[1]) {
+                // Check if this is NOT a reply (meaning user wants to set default destination)
+                const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+                if (!quotedMessage) {
+                    // This is setting the default destination
+                    let newDefaultJid = args[1];
+
+                    // Normalize JID format
+                    if (!newDefaultJid.includes('@')) {
+                        newDefaultJid = `${newDefaultJid}@s.whatsapp.net`;
+                    }
+
+                    // Save the new default destination
+                    this.bot.database.setData('saveDefaultDestination', newDefaultJid);
+                    console.log(`✅ Default save destination set to: ${newDefaultJid}`);
+                    return;
+                }
             }
 
             // Check if this is a reply to any message
@@ -223,13 +247,13 @@ class StatusPlugin {
                 return;
             }
 
-            // Get bot's own number for private chat (use owner number as bot personal chat)
-            const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+            // Get saved default destination or fallback to bot private chat
+            let targetJid = this.bot.database.getData('saveDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
 
-            console.log(`💾 Forwarding message to bot owner chat`);
+            console.log(`💾 Forwarding message to ${targetJid}`);
 
-            // Use WhatsApp's native forward mechanism - directly forward to bot owner
-            await this.bot.sock.sendMessage(botPrivateChat, {
+            // Use WhatsApp's native forward mechanism - directly forward to destination
+            await this.bot.sock.sendMessage(targetJid, {
                 forward: {
                     key: contextInfo.stanzaId ? {
                         id: contextInfo.stanzaId,
@@ -241,7 +265,7 @@ class StatusPlugin {
                 }
             });
 
-            console.log(`✅ Message forwarded to bot owner chat`);
+            console.log(`✅ Message forwarded to destination`);
 
             // No confirmation message sent - using bot reactions instead
 
