@@ -14,13 +14,7 @@
 
 ## 🚀 Quick Deploy
 
-### Method 1: Fork & Deploy (Recommended)
-1. **Fork this repository** to your GitHub account
-2. **Choose your hosting platform** and deploy
-3. **Set your repository URL** in the auto-manager
-4. **Scan QR code** and you're live!
-
-### Method 2: Auto-Manager (Any Host)
+### Auto-Manager (Any Host)
 Use our auto-manager system to automatically deploy and update your bot:
 
 <div align="center">
@@ -59,84 +53,19 @@ global.managerCommands = {
         try {
             console.log('🔍 Checking for updates...')
             
-            // Fetch latest commit from GitHub
-            const { spawnSync } = require('child_process')
-            const result = spawnSync('git', ['ls-remote', GITHUB_REPO, 'HEAD'], {
-                encoding: 'utf8',
-                stdio: ['inherit', 'pipe', 'inherit']
-            })
+            // ... (truncated for brevity)
             
-            if (result.error || result.status !== 0) {
-                return { error: 'Failed to check remote repository' }
-            }
-            
-            const remoteCommit = result.stdout.split('\t')[0]
-            
-            // Get local commit if git repo exists
-            let localCommit = null
-            if (require('fs-extra').existsSync('.git')) {
-                const localResult = spawnSync('git', ['rev-parse', 'HEAD'], {
-                    encoding: 'utf8',
-                    stdio: ['inherit', 'pipe', 'inherit']
-                })
-                
-                if (localResult.status === 0) {
-                    localCommit = localResult.stdout.trim()
-                }
-            }
-            
-            if (!localCommit || localCommit !== remoteCommit) {
-                return { 
-                    updateAvailable: true, 
-                    message: `Updates available! Local: ${localCommit?.substring(0, 7) || 'none'}, Remote: ${remoteCommit.substring(0, 7)}` 
-                }
-            } else {
-                return { 
-                    updateAvailable: false, 
-                    message: 'Bot is up to date!' 
-                }
-            }
         } catch (error) {
             return { error: error.message }
         }
     },
     
     updateNow: () => {
-        console.log('🔄 Force update requested - bypassing all checks and recloning repository...')
+        console.log('🔄 Force update requested...')
         
-        // Create update flag for completion notification
-        const fs = require('fs')
-        const updateInfo = {
-            timestamp: Date.now(),
-            requestedAt: new Date().toISOString()
-        }
-        fs.writeFileSync('.update_flag.json', JSON.stringify(updateInfo, null, 2))
+        // ... (truncated for brevity)
         
-        // Force immediate recloning by removing ALL key files (bypass any existence checks)
-        setTimeout(() => {
-            console.log('🔄 Force removing ALL key files to trigger complete recloning...')
-            const filesToRemove = ['bot.js', 'config.js', 'package.json']
-            
-            try {
-                // Remove files without checking if they exist first
-                for (const file of filesToRemove) {
-                    try {
-                        fs.unlinkSync(file)
-                        console.log(`✅ ${file} removed`)
-                    } catch (err) {
-                        console.log(`ℹ️ ${file} not found or already removed`)
-                    }
-                }
-                console.log('✅ All files removed - forced recloning will be triggered')
-            } catch (error) {
-                console.error('❌ Failed to remove files:', error)
-            }
-            
-            console.log('🔄 Forcing process exit to trigger complete recloning from index.js...')
-            process.exit(1)
-        }, 1000)
-        
-        return { message: 'Force update initiated - bot will restart with latest code from GitHub' }
+        return { message: 'Force update initiated' }
     }
 }
 
@@ -453,14 +382,13 @@ function copyToClipboard() {
 1. **Create new project** on your hosting platform
 2. **Copy the auto-manager code** from the button above
 3. **Create `index.js`** and paste the copied code
-4. **Update the GitHub URL** in line 10 to your forked repository
-5. **Set start command**: `node index.js`
+4. **Set start command**: `node index.js`
 6. **Deploy** and watch it auto-install everything!
 
 ### 2. Direct Clone Method
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/MATDEV-BOT.git
+git clone https://github.com/marhthing/MATDEV-BOT.git
 cd MATDEV-BOT
 
 # Install dependencies
@@ -468,16 +396,6 @@ npm install
 
 # Start the bot
 node bot.js
-```
-
-### 3. Environment Variables (Optional)
-Create a `.env` file to customize your bot:
-```bash
-BOT_NAME=YourBotName
-PREFIX=.
-PUBLIC_MODE=false
-AUTO_TYPING=true
-OWNER_NUMBER=        # Auto-set when you scan QR
 ```
 
 ## 📱 Getting Started
