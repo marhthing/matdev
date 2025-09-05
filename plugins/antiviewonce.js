@@ -202,8 +202,10 @@ class AntiViewOncePlugin {
                     
                     // Send to destination
                     await this.bot.sock.sendMessage(targetJid, extractedMessage);
-                    const sourceMsg = usedSavedMedia ? ' (from saved media)' : '';
-                    // Successfully extracted and sent view once silently
+                    
+                    // Simple feedback
+                    const source = usedSavedMedia ? 'saved' : 'fresh';
+                    console.log(`✅ vv: ${contentType.replace('Message', '')} sent (${source})`);
                 }
                 
             } catch (error) {
