@@ -297,7 +297,7 @@ class MATDEV {
             // Create socket connection with enhanced options
             this.sock = makeWASocket({
                 auth: state,
-                logger: filteredLogger, // Use the filtered logger
+                logger: this.logger.getLogger(), // Use the logger with child method
                 printQRInTerminal: false, // We handle QR display ourselves
                 browser: ['MATDEV', 'Desktop', '1.0.0'],
                 defaultQueryTimeoutMs: 60000,
