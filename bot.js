@@ -215,9 +215,12 @@ class MATDEV {
 
                             loadedCount++;
                             logger.success(`Loaded plugin: ${file}`);
+                        } else {
+                            logger.warn(`⚠️ Plugin ${file} has no init function - skipping`);
                         }
                     } catch (error) {
-                        logger.error(`Failed to load plugin ${file}:`, error.message);
+                        logger.error(`❌ Failed to load plugin ${file}: ${error.message} - continuing with other plugins`);
+                        // Continue loading other plugins instead of stopping
                     }
                 }
             }
@@ -228,6 +231,9 @@ class MATDEV {
             this.pluginsLoaded = true;
             console.log(chalk.green('\n🎉 MATDEV is now ready to serve!\n'));
 
+            // Initialize hot reload for plugins
+            this.initializePluginHotReload();
+
             // Send startup notification if it was deferred
             if (this.shouldSendStartupNotification) {
                 await this.sendStartupNotification();
@@ -235,6 +241,103 @@ class MATDEV {
             }
         } catch (error) {
             logger.error('Failed to load plugins:', error);
+        }
+    }
+
+    /**
+     * Initialize hot reload system for plugins
+     */
+    initializePluginHotReload() {
+        const pluginsDir = path.join(__dirname, 'plugins');
+        
+        try {
+            // Watch for changes in plugins directory
+            this.pluginWatcher = require('fs').watch(pluginsDir, { recursive: false }, (eventType, filename) => {
+                if (filename && filename.endsWith('.js')) {
+                    logger.info(`🔥 Hot reload detected: ${filename} (${eventType})`);
+                    
+                    // Debounce rapid file changes
+                    clearTimeout(this.reloadTimeout);
+                    this.reloadTimeout = setTimeout(() => {
+                        this.reloadPlugin(filename);
+                    }, 500);
+                }
+            });
+
+            logger.success('🔥 Plugin hot reload system initialized');
+        } catch (error) {
+            logger.error('Failed to initialize plugin hot reload:', error.message);
+        }
+    }
+
+    /**
+     * Reload a specific plugin
+     */
+    async reloadPlugin(filename) {
+        const pluginPath = path.join(__dirname, 'plugins', filename);
+        const pluginName = filename.replace('.js', '');
+
+        try {
+            // Check if file exists (handles deletion)
+            if (!await fs.pathExists(pluginPath)) {
+                logger.info(`🗑️ Plugin removed: ${filename}`);
+                await this.unloadPlugin(pluginName);
+                return;
+            }
+
+            logger.info(`🔄 Reloading plugin: ${filename}`);
+
+            // Unload existing plugin first
+            await this.unloadPlugin(pluginName);
+
+            // Clear require cache for the plugin
+            delete require.cache[require.resolve(pluginPath)];
+
+            // Load the plugin again
+            const plugin = require(pluginPath);
+            if (plugin && typeof plugin.init === 'function') {
+                const pluginInstance = await plugin.init(this);
+
+                // Store plugin reference
+                if (pluginInstance && pluginInstance.name) {
+                    this.plugins[pluginInstance.name] = pluginInstance;
+                    logger.success(`🔥 Hot reloaded plugin: ${filename}`);
+                } else if (pluginName === 'antidelete') {
+                    this.plugins.antidelete = pluginInstance || plugin;
+                    logger.success(`🔥 Hot reloaded antidelete plugin: ${filename}`);
+                } else {
+                    logger.success(`🔥 Hot reloaded plugin: ${filename}`);
+                }
+            } else {
+                logger.warn(`⚠️ Plugin ${filename} has no init function after reload - skipping`);
+            }
+
+        } catch (error) {
+            logger.error(`Failed to hot reload plugin ${filename}:`, error.message);
+        }
+    }
+
+    /**
+     * Unload a plugin and clean up its commands
+     */
+    async unloadPlugin(pluginName) {
+        try {
+            // Remove plugin from stored references
+            if (this.plugins[pluginName]) {
+                delete this.plugins[pluginName];
+            }
+
+            // Remove plugin commands from message handler using the new method
+            if (this.messageHandler && this.messageHandler.unregisterCommandsByPlugin) {
+                const removedCount = this.messageHandler.unregisterCommandsByPlugin(pluginName);
+                if (removedCount > 0) {
+                    logger.info(`🗑️ Removed ${removedCount} commands from plugin: ${pluginName}`);
+                }
+            }
+
+            logger.info(`🗑️ Unloaded plugin: ${pluginName}`);
+        } catch (error) {
+            logger.error(`Error unloading plugin ${pluginName}:`, error.message);
         }
     }
 

@@ -33,23 +33,29 @@ class CorePlugin {
         this.bot.messageHandler.registerCommand('help', this.helpCommand.bind(this), {
             description: 'Show available commands',
             usage: `${config.PREFIX}help [command]`,
-            category: 'core'
+            category: 'core',
+            plugin: 'core',
+            source: 'core.js'
         });
 
         // Ping command
         this.bot.messageHandler.registerCommand('ping', this.pingCommand.bind(this), {
             description: 'Check bot response time',
             usage: `${config.PREFIX}ping`,
-            category: 'core'
+            category: 'core',
+            plugin: 'core',
+            source: 'core.js'
         });
 
 
 
-        // Menu command (alias for help)
-        this.bot.messageHandler.registerCommand('menu', this.helpCommand.bind(this), {
-            description: 'Show command menu',
+        // Menu command (enhanced system info menu)
+        this.bot.messageHandler.registerCommand('menu', this.menuCommand.bind(this), {
+            description: 'Show system info and command menu',
             usage: `${config.PREFIX}menu`,
-            category: 'core'
+            category: 'core',
+            plugin: 'core',
+            source: 'core.js'
         });
 
 
@@ -324,6 +330,115 @@ class CorePlugin {
             await this.bot.messageHandler.reply(messageInfo, messageInfo.chat_jid);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving JID information.');
+        }
+    }
+
+    /**
+     * Enhanced menu command with live system information
+     */
+    async menuCommand(messageInfo) {
+        try {
+            const os = require('os');
+            const process = require('process');
+            const utils = require('../lib/utils');
+            const utilsInstance = new utils();
+            
+            // Get live system information
+            const systemInfo = utilsInstance.getSystemInfo();
+            const memUsage = process.memoryUsage();
+            const botUptime = utilsInstance.formatUptime(Date.now() - this.bot.startTime);
+            
+            // Get current time and date
+            const now = new Date();
+            const timeOptions = { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            };
+            const dateOptions = { 
+                weekday: 'long',
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric'
+            };
+            
+            const currentTime = now.toLocaleTimeString('en-US', timeOptions);
+            const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+            const currentDate = now.toLocaleDateString('en-US', dateOptions);
+            
+            // Get platform info
+            const platformName = systemInfo.platform === 'linux' ? 'Linux' : 
+                               systemInfo.platform === 'win32' ? 'Windows' : 
+                               systemInfo.platform === 'darwin' ? 'macOS' : systemInfo.platform;
+            
+            // Calculate memory usage
+            const totalMemMB = Math.round(systemInfo.memory.total / 1024 / 1024);
+            const usedMemMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+            
+            // Get bot user name (from WhatsApp profile or bot name)
+            const botName = this.bot.sock?.user?.name || config.BOT_NAME;
+            
+            // Get all commands and categorize them
+            const commands = this.bot.messageHandler.getCommands();
+            const categories = {};
+            
+            commands.forEach(cmd => {
+                if (!categories[cmd.category]) {
+                    categories[cmd.category] = [];
+                }
+                categories[cmd.category].push(cmd.name.toUpperCase());
+            });
+
+            // Create beautiful menu design
+            let menuText = `╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n`;
+            menuText += `┃        ✦ MATDEV SYSTEM ✦        ┃\n`;
+            menuText += `┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃\n`;
+            menuText += `┃ ⚡ Prefix    : ${config.PREFIX}\n`;
+            menuText += `┃ 👤 User      : ${botName}\n`;
+            menuText += `┃ 🕐 Time      : ${currentTime}\n`;
+            menuText += `┃ 📅 Day       : ${currentDay}\n`;
+            menuText += `┃ 📆 Date      : ${currentDate}\n`;
+            menuText += `┃ 🔧 Version   : 1.0.0\n`;
+            menuText += `┃ 🧩 Plugins   : ${commands.length}\n`;
+            menuText += `┃ 🧠 RAM       : ${usedMemMB}/${totalMemMB}MB\n`;
+            menuText += `┃ ⏰ Uptime    : ${botUptime}\n`;
+            menuText += `┃ 💻 Platform  : ${platformName} (${systemInfo.arch})\n`;
+            menuText += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
+
+            // Add command categories in a beautiful format
+            const categoryIcons = {
+                'core': '🔥',
+                'admin': '👑',
+                'media': '📸',
+                'system': '⚙️',
+                'antidelete': '🛡️',
+                'antiviewonce': '👁️',
+                'status': '📱'
+            };
+
+            for (const [category, cmds] of Object.entries(categories)) {
+                const icon = categoryIcons[category] || '📋';
+                menuText += `╭─── ${icon} ${category.toUpperCase()} ${icon} ───╮\n`;
+                
+                // Split commands into rows of 3
+                for (let i = 0; i < cmds.length; i += 3) {
+                    const row = cmds.slice(i, i + 3);
+                    const formattedRow = row.map(cmd => cmd.padEnd(12)).join('');
+                    menuText += `│ ${formattedRow}\n`;
+                }
+                menuText += `╰${'─'.repeat(25)}╯\n\n`;
+            }
+
+            menuText += `╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n`;
+            menuText += `┃  Type ${config.PREFIX}help <command> for details   ┃\n`;
+            menuText += `┃     Powered by MATDEV ⚡       ┃\n`;
+            menuText += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+
+            await this.bot.messageHandler.reply(messageInfo, menuText);
+
+        } catch (error) {
+            console.error('Error in menu command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to generate menu');
         }
     }
 
