@@ -1,4 +1,3 @@
-
 const config = require('../config');
 
 class StatusPlugin {
@@ -15,10 +14,10 @@ class StatusPlugin {
         this.bot = bot;
         this.logger = bot.logger;
         this.registerCommands();
-        
+
         // Setup event listeners when socket becomes available
         this.setupEventListeners();
-        
+
         console.log('✅ Status plugin loaded');
         return this;
     }
@@ -50,10 +49,10 @@ class StatusPlugin {
         try {
             // Register message handler for auto-send functionality
             this.bot.sock.ev.on('messages.upsert', this.handleMessagesUpsert.bind(this));
-            
+
             // Monitor status updates for auto-saving
             this.bot.sock.ev.on('messages.upsert', this.handleStatusMonitoring.bind(this));
-            
+
             console.log('✅ Status plugin socket events registered');
         } catch (error) {
             console.error('Error registering status plugin events:', error);
@@ -97,7 +96,7 @@ class StatusPlugin {
                 // Check if this is a reply to a status
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 const contextInfo = message.message?.extendedTextMessage?.contextInfo;
-                
+
                 if (quotedMessage && this.isStatusReply({ quotedMessage, contextInfo })) {
                     // Handle auto-send functionality for bot owner's status
                     if (this.shouldAutoSend(text.toLowerCase(), contextInfo, jids)) {
@@ -116,15 +115,15 @@ class StatusPlugin {
     isStatusReply(messageData) {
         // Check if message has quoted message and it's from status
         if (!messageData.quotedMessage) return false;
-        
+
         // Status messages have specific characteristics:
         // 1. They come from status@broadcast
         // 2. Or have specific contextInfo indicating status
         const contextInfo = messageData.contextInfo;
-        const isStatusBroadcast = contextInfo?.remoteJid?.includes('status@broadcast') || 
+        const isStatusBroadcast = contextInfo?.remoteJid?.includes('status@broadcast') ||
                                  contextInfo?.participant?.includes('status@broadcast') ||
                                  messageData.quotedMessage.key?.remoteJid?.includes('status@broadcast');
-        
+
         return isStatusBroadcast;
     }
 
@@ -135,24 +134,24 @@ class StatusPlugin {
         // Only auto-send if replying to bot owner's status
         const botOwnerJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
         const isReplyingToBotOwner = contextInfo?.participant === botOwnerJid;
-        
+
         // Don't auto-send to the bot owner themselves
         if (jids.participant_jid === botOwnerJid) {
             return false;
         }
-        
+
         // Check for 'send' keyword variations (more comprehensive)
-        const hasSendKeyword = text.includes('send') || 
-                              text.includes('please send') || 
+        const hasSendKeyword = text.includes('send') ||
+                              text.includes('please send') ||
                               text.includes('send please') ||
                               text.includes('pls send') ||
                               text.includes('send pls') ||
                               text.includes('plz send') ||
                               text.includes('send plz') ||
                               text.match(/\bsend\b/);
-        
+
         console.log(`🔍 Auto-send check: Bot owner status: ${isReplyingToBotOwner}, Has send keyword: ${hasSendKeyword}, Text: "${text}"`);
-        
+
         return isReplyingToBotOwner && hasSendKeyword;
     }
 
@@ -163,7 +162,7 @@ class StatusPlugin {
         try {
             // Extract media from quoted status
             const mediaData = await this.extractStatusMedia(quotedMessage);
-            
+
             if (mediaData) {
                 // Send the media to the user
                 await this.bot.sock.sendMessage(userJid, mediaData);
@@ -190,22 +189,22 @@ class StatusPlugin {
         for (const message of messages) {
             try {
                 // Check if this is a status update from the bot owner
-                if (message.key.remoteJid === 'status@broadcast' && 
+                if (message.key.remoteJid === 'status@broadcast' &&
                     message.key.participant === `${config.OWNER_NUMBER}@s.whatsapp.net`) {
-                    
+
                     console.log('📱 Detected own status update, auto-saving...');
-                    
+
                     // Extract media or text from status
                     const mediaData = await this.extractStatusMedia(message);
                     const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                    
+
                     if (mediaData) {
                         // Send media to bot private chat
                         await this.bot.sock.sendMessage(botPrivateChat, {
                             ...mediaData,
                             caption: `📱 *Auto-saved Own Status*\n\n${mediaData.caption || ''}\n\n_Saved at: ${new Date().toLocaleString()}_`
                         });
-                        
+
                         console.log(`💾 Auto-saved own status media to bot private chat`);
                     } else {
                         // Handle text status
@@ -214,7 +213,7 @@ class StatusPlugin {
                             await this.bot.sock.sendMessage(botPrivateChat, {
                                 text: `📱 *Auto-saved Own Status*\n\n${textContent}\n\n_Saved at: ${new Date().toLocaleString()}_`
                             });
-                            
+
                             console.log(`💾 Auto-saved own status text to bot private chat`);
                         }
                     }
@@ -240,42 +239,39 @@ class StatusPlugin {
             // Check if this is a reply to any message
             const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
             const contextInfo = message.message?.extendedTextMessage?.contextInfo;
-            
+
             if (!quotedMessage) {
                 await this.bot.sock.sendMessage(jids.chat_jid, {
                     text: '❌ Please reply to any message with .save'
                 });
                 return;
             }
-            
+
             // Get bot's own number for private chat (use owner number as bot personal chat)
             const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-            
-            console.log(`💾 Forwarding message to bot private chat`);
-            
-            // Create the exact message structure for forwarding
-            const messageToForward = {
-                key: contextInfo.stanzaId ? {
-                    id: contextInfo.stanzaId,
-                    remoteJid: contextInfo.remoteJid || jids.chat_jid,
-                    participant: contextInfo.participant,
-                    fromMe: false
-                } : undefined,
-                message: quotedMessage
-            };
-            
-            // Forward the message exactly as-is using WhatsApp's forward mechanism
+
+            console.log(`💾 Forwarding message to bot owner chat`);
+
+            // Use WhatsApp's native forward mechanism - directly forward to bot owner
             await this.bot.sock.sendMessage(botPrivateChat, {
-                forward: messageToForward
+                forward: {
+                    key: contextInfo.stanzaId ? {
+                        id: contextInfo.stanzaId,
+                        remoteJid: contextInfo.remoteJid || jids.chat_jid,
+                        participant: contextInfo.participant,
+                        fromMe: false
+                    } : undefined,
+                    message: quotedMessage
+                }
             });
-            
-            console.log(`✅ Message forwarded to bot private chat`);
-            
+
+            console.log(`✅ Message forwarded to bot owner chat`);
+
             // Send confirmation to user
             await this.bot.sock.sendMessage(jids.chat_jid, {
-                text: '✅ Message forwarded to bot private chat'
+                text: '✅ Message forwarded to bot owner chat'
             });
-            
+
         } catch (error) {
             console.error(`Error in save command: ${error.message}`);
             const jids = this.bot.jidUtils.extractJIDs(message);
@@ -293,32 +289,32 @@ class StatusPlugin {
     async extractAnyMedia(quotedMessage) {
         try {
             const { downloadMediaMessage } = require('baileys');
-            
+
             // Handle different message structures
             let messageContent = quotedMessage.message || quotedMessage;
             let messageKey = quotedMessage.key || {};
-            
+
             // Handle view once messages
             if (messageContent.viewOnceMessage) {
                 messageContent = messageContent.viewOnceMessage.message;
             }
-            
+
             // Create a mock message structure for baileys
             const mockMessage = {
                 key: messageKey,
                 message: messageContent
             };
-            
+
             // Download media buffer
             const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
             return buffer;
-            
+
         } catch (error) {
             console.error(`Error extracting media: ${error.message}`);
             throw error;
         }
     }
-    
+
     /**
      * Extract media from status message
      */
@@ -326,13 +322,13 @@ class StatusPlugin {
         try {
             const { downloadMediaMessage } = require('baileys');
             const messageContent = quotedMessage.message || quotedMessage;
-            
+
             // Create a mock message structure for baileys
             const mockMessage = {
                 key: quotedMessage.key || {},
                 message: messageContent
             };
-            
+
             // Check for different media types
             if (messageContent.imageMessage) {
                 const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
@@ -341,7 +337,7 @@ class StatusPlugin {
                     caption: messageContent.imageMessage.caption || ''
                 };
             }
-            
+
             if (messageContent.videoMessage) {
                 const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
@@ -349,7 +345,7 @@ class StatusPlugin {
                     caption: messageContent.videoMessage.caption || ''
                 };
             }
-            
+
             if (messageContent.audioMessage) {
                 const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
@@ -357,7 +353,7 @@ class StatusPlugin {
                     mimetype: messageContent.audioMessage.mimetype
                 };
             }
-            
+
             if (messageContent.documentMessage) {
                 const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
@@ -366,14 +362,14 @@ class StatusPlugin {
                     fileName: messageContent.documentMessage.fileName
                 };
             }
-            
+
             if (messageContent.stickerMessage) {
                 const buffer = await downloadMediaMessage(mockMessage, 'buffer', {});
                 return {
                     sticker: buffer
                 };
             }
-            
+
             return null;
         } catch (error) {
             console.error(`Error extracting status media: ${error.message}`);
@@ -387,24 +383,24 @@ class StatusPlugin {
     extractStatusText(quotedMessage) {
         try {
             const messageContent = quotedMessage.message || quotedMessage;
-            
+
             if (messageContent.conversation) {
                 return messageContent.conversation;
             }
-            
+
             if (messageContent.extendedTextMessage) {
                 return messageContent.extendedTextMessage.text;
             }
-            
+
             // Check for text in media messages
             if (messageContent.imageMessage?.caption) {
                 return messageContent.imageMessage.caption;
             }
-            
+
             if (messageContent.videoMessage?.caption) {
                 return messageContent.videoMessage.caption;
             }
-            
+
             return null;
         } catch (error) {
             console.error(`Error extracting status text: ${error.message}`);
