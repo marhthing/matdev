@@ -45,7 +45,7 @@ class SystemPlugin {
 
 
 
-        
+
 
         // Configuration command
         this.bot.messageHandler.registerCommand('config', this.configCommand.bind(this), {
@@ -450,7 +450,7 @@ class SystemPlugin {
 
             const input = args.join(' ');
             const equalIndex = input.indexOf('=');
-            
+
             if (equalIndex === -1) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Usage: ${config.PREFIX}setenv <key>=<value>`
@@ -470,30 +470,37 @@ class SystemPlugin {
 
             // Protected configuration keys that cannot be modified via setenv (hidden values only)
             const protectedKeys = [
-                'SESSION_ID', 'OWNER_NUMBER', 'ANTI_BAN',
-                'RATE_LIMIT_WINDOW', 'RATE_LIMIT_MAX_REQUESTS',
-                'MAX_CONCURRENT_MESSAGES', 'MESSAGE_TIMEOUT',
-                'CACHE_TTL', 'LOG_LEVEL', 'LOG_TO_FILE',
-                'NODE_ENV', 'PLATFORM', 'PUBLIC_MODE'
+                'SESSION_ID', 'OWNER_NUMBER', 'BOT_NAME'
             ];
 
             if (protectedKeys.includes(key)) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `🔒 *${key}* is a protected configuration value and cannot be modified via setenv.\n\n` +
-                    `Use the bot's built-in configuration methods or edit the .env file directly.`
+                    `❌ Cannot modify protected configuration: ${key}`
                 );
                 return;
             }
 
-            // Update .env file
-            await this.updateEnvFile(key, value);
+            // Set the environment variable
+            const success = await this.setEnvValue(key, value);
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Environment variable updated:\n*${key}* = ${value}\n\n⚠️ *Restart required* to apply changes`
-            );
+            if (success) {
+                // Hot reload the configuration
+                await this.hotReloadConfig(key, value);
+
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ Environment variable updated:\n*${key}* = ${value}\n\n🔄 *Applied instantly* - no restart needed`
+                );
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Failed to update environment variable: ${key}`
+                );
+            }
 
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error updating environment variable.');
+            console.error('Error in setenv command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while setting environment variable'
+            );
         }
     }
 
@@ -529,7 +536,7 @@ class SystemPlugin {
                 // Hide sensitive values completely
                 const sensitiveKeys = ['SESSION_ID', 'OWNER_NUMBER', 'DATABASE_URL', 'REDIS_URL', 'API_KEY'];
                 const isSensitive = sensitiveKeys.some(sensitive => key.includes(sensitive));
-                
+
                 if (protectedKeys.includes(key)) {
                     await this.bot.messageHandler.reply(messageInfo, 
                         `🔒 *${key}* is a protected configuration value.\n\n` +
@@ -611,22 +618,43 @@ class SystemPlugin {
     }
 
     /**
+     * Hot reload configuration after environment variable change
+     */
+    async hotReloadConfig(key, value) {
+        // Update relevant config properties directly
+        if (config.hasOwnProperty(key)) {
+            config[key] = value;
+        }
+
+        // If the changed key is PREFIX, update the config.PREFIX for immediate use
+        if (key === 'PREFIX') {
+            config.PREFIX = value;
+        }
+
+        // Add more specific hot-reloading logic for other config values if needed
+        // For example, if a configuration value affects bot behavior directly:
+        // if (key === 'AUTO_TYPING') {
+        //     this.bot.autoTyping = value.toLowerCase() === 'true';
+        // }
+    }
+
+    /**
      * Update command - handles both check and force update
      */
     async updateCommand(messageInfo) {
         try {
             const { args } = messageInfo;
             const action = args[0]?.toLowerCase();
-            
+
             // Handle 'update now' to force update
             if (action === 'now') {
                 return await this.executeUpdateNow(messageInfo);
             }
-            
+
             // Default: check for updates and show commit differences
             try {
                 const result = await this.checkGitHubUpdates();
-                
+
                 if (result.error) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + result.error);
                 } else if (result.updateAvailable) {
@@ -653,29 +681,29 @@ class SystemPlugin {
         try {
             // First check if updates are available
             const updateResult = await this.checkGitHubUpdates();
-            
+
             if (updateResult.error) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Update check failed: ' + updateResult.error);
                 return;
             }
-            
+
             // If no updates available, just inform user
             if (!updateResult.updateAvailable) {
                 await this.bot.messageHandler.reply(messageInfo, '✅ Bot up to date');
                 return;
             }
-            
+
             // Updates are available, proceed with update process
             await this.bot.messageHandler.reply(messageInfo, '🔄 Updating now...');
-            
+
             console.log('🔄 Update available: Removing key files to trigger recloning...');
-            
+
             // Remove key files to trigger recloning by index.js
             // index.js checks for these files and reclones if they're missing
             setTimeout(async () => {
                 try {
                     const fs = require('fs-extra');
-                    
+
                     // Create update flag file to trigger completion message after restart
                     const updateFlag = {
                         timestamp: new Date().toISOString(),
@@ -684,10 +712,10 @@ class SystemPlugin {
                     };
                     await fs.writeFile('.update_flag.json', JSON.stringify(updateFlag, null, 2));
                     console.log('✅ Created update flag file');
-                    
+
                     // Remove the key files that index.js checks for
                     const filesToRemove = ['bot.js', 'config.js', 'package.json'];
-                    
+
                     console.log('🔄 Removing key files to trigger recloning...');
                     for (const file of filesToRemove) {
                         try {
@@ -699,7 +727,7 @@ class SystemPlugin {
                             console.log(`⚠️ Could not remove ${file}: ${err.message}`);
                         }
                     }
-                    
+
                     console.log('🔄 Key files removed, forcing process exit to trigger recloning...');
                     process.exit(1); // Exit to trigger index.js restart which will detect missing files and reclone
                 } catch (error) {
@@ -707,7 +735,7 @@ class SystemPlugin {
                     process.exit(1); // Exit anyway to trigger restart
                 }
             }, 1000);
-            
+
         } catch (error) {
             console.error('❌ Update now error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
@@ -754,51 +782,51 @@ class SystemPlugin {
     async checkGitHubUpdates() {
         const { spawn } = require('child_process');
         const GITHUB_REPO = 'https://github.com/marhthing/matdev.git';
-        
+
         return new Promise((resolve) => {
             try {
                 // Get remote latest commit
                 const remoteProcess = spawn('git', ['ls-remote', GITHUB_REPO, 'HEAD'], {
                     stdio: ['pipe', 'pipe', 'pipe']
                 });
-                
+
                 let remoteOutput = '';
                 let remoteError = '';
-                
+
                 remoteProcess.stdout.on('data', (data) => {
                     remoteOutput += data.toString();
                 });
-                
+
                 remoteProcess.stderr.on('data', (data) => {
                     remoteError += data.toString();
                 });
-                
+
                 remoteProcess.on('close', (code) => {
                     if (code !== 0) {
                         resolve({ error: 'Cannot access GitHub repository' });
                         return;
                     }
-                    
+
                     const remoteCommit = remoteOutput.split('\t')[0];
                     if (!remoteCommit) {
                         resolve({ error: 'Invalid response from GitHub' });
                         return;
                     }
-                    
+
                     // Get local commit if git repo exists
                     const localProcess = spawn('git', ['rev-parse', 'HEAD'], {
                         stdio: ['pipe', 'pipe', 'pipe']
                     });
-                    
+
                     let localOutput = '';
-                    
+
                     localProcess.stdout.on('data', (data) => {
                         localOutput += data.toString();
                     });
-                    
+
                     localProcess.on('close', (localCode) => {
                         const localCommit = localCode === 0 ? localOutput.trim() : null;
-                        
+
                         if (!localCommit) {
                             // No local git repo, consider update needed
                             resolve({
@@ -825,7 +853,7 @@ class SystemPlugin {
                         }
                     });
                 });
-                
+
             } catch (error) {
                 resolve({ error: error.message });
             }
