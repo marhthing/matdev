@@ -887,12 +887,7 @@ class CorePlugin {
                 // No argument provided - show status
                 const currentStatus = config.BOT_REACTIONS ? 'ON' : 'OFF';
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🤖 *Bot Auto-Reactions Status:* ${currentStatus}\n\n` +
-                    `Use \`${config.PREFIX}br on\` or \`${config.PREFIX}br off\` to toggle.\n\n` +
-                    `*Reaction Types:*\n` +
-                    `⏳ Loading while processing\n` +
-                    `✅ Success when completed\n` +
-                    `❌ Error if failed/not found`);
+                    `🤖 *Bot Auto-Reactions Status:* ${currentStatus}`);
             } else {
                 // Invalid argument provided - silently ignore
                 return;
