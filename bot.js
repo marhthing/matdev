@@ -558,14 +558,13 @@ class MATDEV {
                 const archivePromise = this.database.archiveMessage(message);
                 
                 // Process other operations in parallel
-                const cachePromise = cache.cacheMessage(message);
-                const statsUpdate = Promise.resolve(this.messageStats.received++);
+                const cacheResult = cache.cacheMessage(message);
+                const statsUpdate = this.messageStats.received++;
 
                 // Wait for archival to complete (most critical for anti-delete)
                 await archivePromise;
                 
-                // Let cache and stats update continue in background
-                cachePromise.catch(err => logger.warn('Cache error:', err.message));
+                // Cache operation is synchronous, no need for error handling
                 
                 return message;
             } catch (error) {
