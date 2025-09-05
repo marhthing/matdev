@@ -87,13 +87,42 @@ class AntiDeletePlugin {
 
             console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
 
-            // Add delay to ensure message is properly stored before checking
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Add longer delay to ensure message is properly stored before checking
+            await new Promise(resolve => setTimeout(resolve, 2500));
 
             // Get the original message from our JSON storage
             console.log(`🔍 ANTI-DELETE: Searching for message ID: ${messageId}`);
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
             console.log(`🔍 ANTI-DELETE: Search result:`, originalMessage ? 'FOUND' : 'NOT FOUND');
+
+            // If not found, try one more time with additional delay
+            if (!originalMessage) {
+                console.log('🔄 ANTI-DELETE: Message not found, retrying after additional delay...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const retryMessage = await this.bot.database.getArchivedMessage(messageId);
+                console.log(`🔍 ANTI-DELETE: Retry search result:`, retryMessage ? 'FOUND' : 'NOT FOUND');
+                
+                if (retryMessage) {
+                    // Process the found message
+                    console.log('📋 ANTI-DELETE: Original message found on retry:', {
+                        id: retryMessage.id,
+                        sender: retryMessage.sender_jid,
+                        participant: retryMessage.participant_jid,
+                        content: retryMessage.content?.substring(0, 50) + '...',
+                        timestamp: retryMessage.timestamp,
+                        from_me: retryMessage.from_me
+                    });
+
+                    const config = require('../config');
+                    if (config.OWNER_NUMBER && !retryMessage.from_me) {
+                        console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion (retry)');
+                        await this.sendDeletedMessageAlert(retryMessage, chatJid);
+                        await this.bot.database.markMessageDeleted(messageId, chatJid);
+                        console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
+                        return; // Exit early since we found and processed the message
+                    }
+                }
+            }
 
             if (originalMessage) {
                 console.log('📋 ANTI-DELETE: Original message found in database:', {
