@@ -123,7 +123,7 @@ const config = {
     NODE_ENV: process.env.NODE_ENV || 'production',
 
     // Regional Settings
-    TIMEZONE: process.env.TIMEZONE || 'UTC',
+    TIMEZONE: process.env.TIMEZONE || 'Africa/Lagos',
     LANGUAGE: process.env.LANGUAGE || 'en',
 
     // Hosting Platform Detection
