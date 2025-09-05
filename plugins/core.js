@@ -228,14 +228,8 @@ class CorePlugin {
         const start = Date.now();
         
         try {
-            // First send a temporary message
-            const tempMessage = await this.bot.messageHandler.reply(messageInfo, '🏓 Pong! Calculating...');
-            
-            // Calculate the time it took to send
-            const latency = Date.now() - start;
-            
-            // Update with actual latency (edit the message if possible, or send new one)
-            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${latency}ms`);
+            // Send response directly and calculate actual latency
+            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
             
         } catch (error) {
             const errorLatency = Date.now() - start;
