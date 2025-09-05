@@ -220,36 +220,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 </div>
 
-## 🎮 Essential Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `.ping` | Test bot response | `.ping` |
-| `.help` | Show all commands | `.help` |
-| `.status` | Show bot statistics | `.status` |
-| `.update` | Check for updates | `.update` |
-| `.updatenow` | Force update immediately | `.updatenow` |
-| `.restart` | Restart the bot | `.restart` |
-| `.save` | Forward message to owner | `.save` |
-| `.vv` | Save view-once media | `.vv` |
-
-## 💡 Pro Tips
-
-- **Fork First**: Always fork this repository before deploying
-- **Update Regularly**: Use `.update` to get latest features and security fixes
-- **Monitor Logs**: Keep an eye on console output for issues
-- **Backup Sessions**: Your session folder contains WhatsApp credentials
-- **Use Always-On**: Enable always-on feature in Replit for 24/7 operation
-- **Test Commands**: Use private chats to test new features safely
-
-## 📊 Performance Features
-
-- **Message Caching**: In-memory caching for faster response times
-- **Database Optimization**: SQLite with automatic cleanup
-- **Memory Management**: Automatic cleanup of temporary files
-- **Connection Stability**: Advanced reconnection handling
-- **Rate Limiting**: Built-in protection against spam and bans
-
 ---
 
 <div align="center">
