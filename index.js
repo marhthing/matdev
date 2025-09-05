@@ -104,9 +104,17 @@ function cloneAndSetup() {
     // Start the bot
     startBot(entryPoint);
     
-    // Send update completion notification after successful setup
+    // Send update completion notification after successful setup (if manager is available)
     setTimeout(() => {
-        managerCommands.sendUpdateCompleteNotification();
+        try {
+            if (global.managerCommands && global.managerCommands.sendUpdateCompleteNotification) {
+                global.managerCommands.sendUpdateCompleteNotification();
+            } else {
+                console.log('✅ Setup complete! Bot is ready to use.');
+            }
+        } catch (error) {
+            console.log('✅ Setup complete! Bot is ready to use.');
+        }
     }, 10000);
 }
 
