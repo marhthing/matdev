@@ -130,9 +130,9 @@ function cloneAndSetup() {
     console.log('📥 Cloning bot from GitHub...')
     console.log('🔗 Repository:', GITHUB_REPO)
 
-    // Remove any existing files (except this manager, node_modules, and session)
-    console.log('🧹 Cleaning workspace (preserving session folder)...')
-    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "node_modules" ! -name "session" -exec rm -rf {} +'], { stdio: 'inherit' })
+    // Remove any existing files (except this manager, node_modules, session, .env, and config.js)
+    console.log('🧹 Cleaning workspace (preserving session folder, .env, and config.js)...')
+    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "node_modules" ! -name "session" ! -name ".env" ! -name "config.js" -exec rm -rf {} +'], { stdio: 'inherit' })
 
     // Clone repository to a temporary directory
     const cloneResult = spawnSync('git', ['clone', GITHUB_REPO, 'temp_clone'], {
@@ -145,11 +145,17 @@ function cloneAndSetup() {
         process.exit(1)
     }
 
-    // Move files from temp directory to current directory
-    console.log('📁 Moving bot files...')
+    // Backup important files before copying
+    console.log('📁 Moving bot files (preserving existing .env and config.js)...')
+    spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true; cp config.js config.js.backup 2>/dev/null || true'], { stdio: 'inherit' })
+    
+    // Copy new files
     const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/* . && rm -rf temp_clone'], {
         stdio: 'inherit'
     })
+    
+    // Restore backed up files if they existed
+    spawnSync('bash', ['-c', 'mv .env.backup .env 2>/dev/null || true; mv config.js.backup config.js 2>/dev/null || true'], { stdio: 'inherit' })
 
     if (moveResult.error || moveResult.status !== 0) {
         console.error('❌ Failed to move bot files!')
