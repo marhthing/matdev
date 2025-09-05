@@ -225,15 +225,22 @@ class CorePlugin {
      * Ping command handler
      */
     async pingCommand(messageInfo) {
+        const start = Date.now();
+        
         try {
-            const start = Date.now();
+            // First send a temporary message
+            const tempMessage = await this.bot.messageHandler.reply(messageInfo, '🏓 Pong! Calculating...');
             
-            // Send ping response and calculate actual response time
-            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
+            // Calculate the time it took to send
+            const latency = Date.now() - start;
+            
+            // Update with actual latency (edit the message if possible, or send new one)
+            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${latency}ms`);
             
         } catch (error) {
+            const errorLatency = Date.now() - start;
             this.bot.logger.error('Ping command error:', error);
-            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${Date.now() - start}ms`);
+            await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! ${errorLatency}ms`);
         }
     }
 
