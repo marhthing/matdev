@@ -148,28 +148,19 @@ class AntiDeletePlugin {
                 }
             } else {
                 console.log('❌ ANTI-DELETE: Original message not found in database:', messageId);
-                // Only send notification if we're sure it wasn't our own message
+                // Only log to console if we're sure it wasn't our own message
                 // Check if the chat is with someone else (not status or our own number)
                 const isOtherPersonChat = chatJid !== 'status@broadcast' &&
                                         !chatJid.startsWith(config.OWNER_NUMBER) &&
                                         chatJid.includes('@s.whatsapp.net');
 
                 if (config.OWNER_NUMBER && isOtherPersonChat) {
-                    console.log('🚨 ANTI-DELETE: Sending unknown deletion alert');
-                    const unknownDeleteNotification = `🗑️ *MESSAGE DELETION DETECTED*\n\n` +
-                        `⚠️ *Warning:* A message was deleted but could not be recovered\n` +
-                        `📱 *Chat:* ${chatJid.split('@')[0]}\n` +
-                        `🆔 *Message ID:* ${messageId}\n` +
-                        `🕐 *Detected At:* ${new Date().toLocaleString()}\n\n` +
-                        `_This might be due to the message being sent before the bot started monitoring._`;
-
-                    // Get saved default destination or fallback to bot owner chat
-                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                    
-                    await this.bot.sock.sendMessage(targetJid, {
-                        text: unknownDeleteNotification
-                    });
-                    console.log('✅ ANTI-DELETE: Unknown deletion alert sent');
+                    console.log('🗑️ MESSAGE DELETION DETECTED');
+                    console.log(`⚠️ Warning: A message was deleted but could not be recovered`);
+                    console.log(`📱 Chat: ${chatJid.split('@')[0]}`);
+                    console.log(`🆔 Message ID: ${messageId}`);
+                    console.log(`🕐 Detected At: ${new Date().toLocaleString()}`);
+                    console.log(`This might be due to the message being sent before the bot started monitoring.`);
                 }
             }
         } catch (error) {
