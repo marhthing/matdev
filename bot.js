@@ -753,15 +753,19 @@ class MATDEV {
                     continue;
                 }
 
-                // Skip processing our own messages unless it's a command
+                // Skip processing our own messages unless it's a command or sticker command
                 if (message.key.fromMe) {
-                    // Check if it's a command from us
+                    // Check if it's a text command from us
                     const messageType = Object.keys(message.message || {})[0];
                     const content = message.message?.[messageType];
                     const text = typeof content === 'string' ? content : content?.text || '';
 
-                    if (text.startsWith(config.PREFIX)) {
-                        // Process our own commands
+                    // Check for text commands OR sticker commands
+                    const isTextCommand = text.startsWith(config.PREFIX);
+                    const isStickerMessage = messageType === 'stickerMessage';
+
+                    if (isTextCommand || isStickerMessage) {
+                        // Process our own commands (text or sticker)
                         await this.messageHandler.process(message);
                     }
                     continue;
