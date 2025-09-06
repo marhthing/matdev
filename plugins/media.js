@@ -345,6 +345,50 @@ class MediaPlugin {
                     }
                 }
 
+                // Method 10: Check global contextInfo recovery system that the bot uses
+                if (!quotedMsg) {
+                    console.log('🔍 Method 10: Checking global contextInfo from bot message processing...');
+                    console.log('🔍 Available messageInfo properties:', Object.keys(messageInfo));
+                    
+                    // Check if the message handler has already attached contextInfo
+                    if (messageInfo.contextInfo) {
+                        console.log('🔍 Found contextInfo in messageInfo!');
+                        try {
+                            let contextInfo = messageInfo.contextInfo;
+                            if (typeof contextInfo === 'string') {
+                                contextInfo = JSON.parse(contextInfo);
+                            }
+                            if (contextInfo && contextInfo.quotedMessage) {
+                                console.log('🎯 Found contextInfo from messageInfo.contextInfo!');
+                                quotedMsg = contextInfo.quotedMessage;
+                                quotedKey = contextInfo.stanzaId;
+                                quotedParticipant = contextInfo.participant || messageInfo.sender;
+                            }
+                        } catch (error) {
+                            console.log('⚠️ Error parsing messageInfo.contextInfo:', error.message);
+                        }
+                    }
+                    
+                    // Check if it's stored under a different property
+                    if (!quotedMsg && messageInfo.originalContextInfo) {
+                        console.log('🔍 Found originalContextInfo in messageInfo!');
+                        try {
+                            let contextInfo = messageInfo.originalContextInfo;
+                            if (typeof contextInfo === 'string') {
+                                contextInfo = JSON.parse(contextInfo);
+                            }
+                            if (contextInfo && contextInfo.quotedMessage) {
+                                console.log('🎯 Found contextInfo from messageInfo.originalContextInfo!');
+                                quotedMsg = contextInfo.quotedMessage;
+                                quotedKey = contextInfo.stanzaId;
+                                quotedParticipant = contextInfo.participant || messageInfo.sender;
+                            }
+                        } catch (error) {
+                            console.log('⚠️ Error parsing messageInfo.originalContextInfo:', error.message);
+                        }
+                    }
+                }
+
                 if (!quotedMsg) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
                     return;
