@@ -210,36 +210,55 @@ class MediaPlugin {
             // Import wa-sticker-formatter
             const { Sticker, StickerTypes } = require('wa-sticker-formatter');
             
-            // Check if message has quoted message (reply)
-            const quotedMsg = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            
-            if (!quotedMsg) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
-                return;
-            }
+            let messageToDownload = null;
+            let isImage = false;
+            let isVideo = false;
 
-            // Check if quoted message is image or video
-            const isImage = quotedMsg.imageMessage;
-            const isVideo = quotedMsg.videoMessage;
+            // Check if this is an image/video with .sticker as caption
+            const directImage = messageInfo.message?.imageMessage;
+            const directVideo = messageInfo.message?.videoMessage;
             
-            if (!isImage && !isVideo) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
-                return;
-            }
+            if (directImage || directVideo) {
+                // Direct image/video with .sticker caption
+                isImage = !!directImage;
+                isVideo = !!directVideo;
+                
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check if message has quoted message (reply)
+                const quotedMsg = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                
+                if (!quotedMsg) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
+                    return;
+                }
 
-            // Create proper message structure for Baileys download
-            const quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
-            const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-            
-            const messageToDownload = {
-                key: {
-                    remoteJid: messageInfo.chat_jid,
-                    fromMe: false,
-                    id: quotedKey,
-                    participant: quotedParticipant
-                },
-                message: quotedMsg
-            };
+                // Check if quoted message is image or video
+                isImage = quotedMsg.imageMessage;
+                isVideo = quotedMsg.videoMessage;
+                
+                if (!isImage && !isVideo) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
+                    return;
+                }
+
+                // Create proper message structure for Baileys download
+                const quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
+                const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
+                
+                messageToDownload = {
+                    key: {
+                        remoteJid: messageInfo.chat_jid,
+                        fromMe: false,
+                        id: quotedKey,
+                        participant: quotedParticipant
+                    },
+                    message: quotedMsg
+                };
+            }
 
             // Download media using Baileys directly
             console.log('📥 Downloading media for sticker conversion...');
