@@ -414,7 +414,7 @@ class MATDEV {
 
             // Initialize auth state
             const { state, saveCreds } = await useMultiFileAuthState(
-                path.join(__dirname, 'session')
+                path.join(__dirname, 'session', 'auth')
             );
 
             // Create socket connection
