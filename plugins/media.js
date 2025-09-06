@@ -218,6 +218,14 @@ class MediaPlugin {
             const directImage = messageInfo.message?.imageMessage;
             const directVideo = messageInfo.message?.videoMessage;
             
+            console.log(`📷 Direct media check - Image: ${!!directImage}, Video: ${!!directVideo}`);
+            if (directImage) {
+                console.log(`📷 Image caption: "${directImage.caption}"`);
+            }
+            if (directVideo) {
+                console.log(`🎥 Video caption: "${directVideo.caption}"`);
+            }
+            
             if (directImage || directVideo) {
                 // Direct image/video with .sticker caption
                 isImage = !!directImage;
@@ -227,6 +235,7 @@ class MediaPlugin {
                     key: messageInfo.key,
                     message: messageInfo.message
                 };
+                console.log(`📷 Using direct media for sticker creation`);
             } else {
                 // Check for quoted message in multiple possible locations
                 let quotedMsg = null;
