@@ -72,7 +72,7 @@ const config = {
     // Bot Identity
     BOT_NAME: process.env.BOT_NAME || 'MATDEV',
     SESSION_ID: process.env.SESSION_ID || '',
-    OWNER_NUMBER: process.env.OWNER_NUMBER || '2347046040727', // Your personal number
+    OWNER_NUMBER: process.env.OWNER_NUMBER || '', // Auto-detected from connected WhatsApp
 
     // Bot Behavior
     PREFIX: process.env.PREFIX || '.',
