@@ -1017,26 +1017,31 @@ class CorePlugin {
                 return;
             }
 
-            // Get sticker hash/URL for identification
+            // Get multiple sticker identifiers for robust matching
             const stickerData = quotedMessage.stickerMessage;
-            const stickerHash = stickerData.fileSha256 ? Buffer.from(stickerData.fileSha256).toString('hex') : stickerData.url;
+            const stickerIdentifiers = this.getStickerIdentifiers(stickerData);
             
-            if (!stickerHash) {
+            if (stickerIdentifiers.length === 0) {
                 console.log('❌ Could not identify sticker');
                 return;
             }
 
-            // Store sticker command binding
+            // Store sticker command binding with all identifiers
             const stickerCommands = this.bot.database.getData('stickerCommands') || {};
-            stickerCommands[stickerHash] = {
-                command: commandName,
-                boundAt: Date.now(),
-                boundBy: messageInfo.sender
-            };
+            
+            // Store the binding using all possible identifiers
+            stickerIdentifiers.forEach(identifier => {
+                stickerCommands[identifier] = {
+                    command: commandName,
+                    boundAt: Date.now(),
+                    boundBy: messageInfo.sender,
+                    identifiers: stickerIdentifiers // Store all identifiers for this sticker
+                };
+            });
             
             this.bot.database.setData('stickerCommands', stickerCommands);
             
-            console.log(`✅ Sticker bound to command: ${commandName}`);
+            console.log(`✅ Sticker bound to command: ${commandName} (${stickerIdentifiers.length} identifiers stored)`);
             
         } catch (error) {
             console.error(`Error in set sticker command: ${error.message}`);
@@ -1056,24 +1061,34 @@ class CorePlugin {
                 return;
             }
 
-            // Get sticker hash/URL for identification
+            // Get multiple sticker identifiers for robust matching
             const stickerData = quotedMessage.stickerMessage;
-            const stickerHash = stickerData.fileSha256 ? Buffer.from(stickerData.fileSha256).toString('hex') : stickerData.url;
+            const stickerIdentifiers = this.getStickerIdentifiers(stickerData);
             
-            if (!stickerHash) {
+            if (stickerIdentifiers.length === 0) {
                 console.log('❌ Could not identify sticker');
                 return;
             }
 
-            // Remove sticker command binding
+            // Remove sticker command binding using any matching identifier
             const stickerCommands = this.bot.database.getData('stickerCommands') || {};
+            let removedCommand = null;
+            let identifiersRemoved = 0;
             
-            if (stickerCommands[stickerHash]) {
-                const removedCommand = stickerCommands[stickerHash].command;
-                delete stickerCommands[stickerHash];
+            // Check all identifiers and remove any matches
+            stickerIdentifiers.forEach(identifier => {
+                if (stickerCommands[identifier]) {
+                    if (!removedCommand) {
+                        removedCommand = stickerCommands[identifier].command;
+                    }
+                    delete stickerCommands[identifier];
+                    identifiersRemoved++;
+                }
+            });
+            
+            if (removedCommand) {
                 this.bot.database.setData('stickerCommands', stickerCommands);
-                
-                console.log(`✅ Removed command binding: ${removedCommand}`);
+                console.log(`✅ Removed command binding: ${removedCommand} (${identifiersRemoved} identifiers removed)`);
             } else {
                 console.log('❌ This sticker has no command binding');
             }
@@ -1081,6 +1096,49 @@ class CorePlugin {
         } catch (error) {
             console.error(`Error in delete sticker command: ${error.message}`);
         }
+    }
+
+    /**
+     * Generate multiple sticker identifiers for robust matching
+     */
+    getStickerIdentifiers(stickerData) {
+        const identifiers = [];
+        
+        try {
+            // Method 1: File SHA256 hash (most reliable when available)
+            if (stickerData.fileSha256) {
+                const sha256Hash = Buffer.from(stickerData.fileSha256).toString('hex');
+                identifiers.push(`sha256:${sha256Hash}`);
+            }
+            
+            // Method 2: Direct URL (when available)
+            if (stickerData.url) {
+                identifiers.push(`url:${stickerData.url}`);
+            }
+            
+            // Method 3: Media key hash (another reliable identifier)
+            if (stickerData.mediaKey) {
+                const mediaKeyHash = Buffer.from(stickerData.mediaKey).toString('hex');
+                identifiers.push(`mediakey:${mediaKeyHash}`);
+            }
+            
+            // Method 4: File size + mime type combination (less reliable but useful)
+            if (stickerData.fileLength && stickerData.mimetype) {
+                identifiers.push(`size-mime:${stickerData.fileLength}-${stickerData.mimetype}`);
+            }
+            
+            // Method 5: Sticker pack info (if available)
+            if (stickerData.packname && stickerData.author) {
+                identifiers.push(`pack:${stickerData.packname}-${stickerData.author}`);
+            }
+            
+            console.log(`🔍 Generated ${identifiers.length} sticker identifiers:`, identifiers);
+            
+        } catch (error) {
+            console.error('Error generating sticker identifiers:', error);
+        }
+        
+        return identifiers;
     }
 }
 
