@@ -278,9 +278,18 @@ class MediaPlugin {
                 }
                 console.log('🎯 QuotedMsg found:', !!quotedMsg);
                 
-                // Method 6: Last resort - check if contextInfo is preserved at the root level of editedMessage
+                // Method 6: Check nested contextInfo in edited message structure
+                if (!quotedMsg && messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
+                    console.log('🔍 Method 6: Trying nested contextInfo in editedMessage.message...');
+                    quotedMsg = messageInfo.message.editedMessage.message.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.editedMessage.message.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.editedMessage.message.contextInfo.participant || messageInfo.sender;
+                    console.log('🎯 Nested contextInfo found:', !!quotedMsg);
+                }
+                
+                // Method 7: Last resort - check if contextInfo is preserved at the root level of editedMessage
                 if (!quotedMsg && messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
-                    console.log('🔍 Method 6: Trying root level contextInfo in editedMessage...');
+                    console.log('🔍 Method 7: Trying root level contextInfo in editedMessage...');
                     quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
