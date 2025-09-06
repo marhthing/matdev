@@ -218,15 +218,15 @@ class MATDEV {
                             const pluginName = file.replace('.js', '');
                             if (pluginInstance && pluginInstance.name) {
                                 this.plugins[pluginInstance.name] = pluginInstance;
-                                logger.info(`📌 Stored plugin reference: ${pluginInstance.name}`);
+                                // Plugin reference stored
                             } else if (pluginName === 'antidelete') {
                                 // Special handling for antidelete plugin
                                 this.plugins.antidelete = pluginInstance || plugin;
-                                logger.info(`📌 Stored antidelete plugin reference`);
+                                // Plugin reference stored
                             }
 
                             loadedCount++;
-                            logger.success(`Loaded plugin: ${file}`);
+                            // Plugin loaded
                         } else {
                             logger.warn(`⚠️ Plugin ${file} has no init function - skipping`);
                         }
@@ -237,7 +237,7 @@ class MATDEV {
                 }
             }
 
-            logger.success(`✅ Loaded ${loadedCount} plugins successfully`);
+            logger.success(`🔌 Bot ready - ${loadedCount} plugins loaded`);
 
             // Mark plugins as loaded and show ready message
             this.pluginsLoaded = true;

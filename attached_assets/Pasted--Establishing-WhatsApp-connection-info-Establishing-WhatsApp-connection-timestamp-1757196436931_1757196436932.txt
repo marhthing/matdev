@@ -1,0 +1,113 @@
+ℹ️  🔌 Establishing WhatsApp connection...
+info: 🔌 Establishing WhatsApp connection... {"timestamp":"2025-09-06 22:06:21"}
+ℹ️  ⏳ Connecting to WhatsApp...
+info: ⏳ Connecting to WhatsApp... {"timestamp":"2025-09-06 22:06:21"}
+ℹ️  📡 Connection update: undefined
+info: 📡 Connection update: undefined {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📡 Connection update: undefined
+info: 📡 Connection update: undefined {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📡 Connection update: undefined
+info: 📡 Connection update: undefined {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  🟢 Session established successfully - preserving authentication
+info: 🟢 Session established successfully - preserving authentication {"timestamp":"2025-09-06 22:06:22"}
+✅ ✅ Successfully connected to WhatsApp!
+info: SUCCESS: ✅ Successfully connected to WhatsApp! {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📱 Bot Number: 2347018091555
+info: 📱 Bot Number: 2347018091555 {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  👤 Bot Name: POF
+info: 👤 Bot Name: POF {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  ✅ Owner number confirmed: 2347018091555
+info: ✅ Owner number confirmed: 2347018091555 {"timestamp":"2025-09-06 22:06:22"}
+✅ 🛡️ Security manager initialized
+info: SUCCESS: 🛡️ Security manager initialized {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📡 Connection update: open
+info: 📡 Connection update: open {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  ✅ WhatsApp connection established
+info: ✅ WhatsApp connection established {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  🔧 Bot JID set globally: 2347018091555@s.whatsapp.net
+info: 🔧 Bot JID set globally: 2347018091555@s.whatsapp.net {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📡 Connection update: open
+info: 📡 Connection update: open {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  ✅ WhatsApp connection established
+info: ✅ WhatsApp connection established {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  🔧 Bot JID set globally: 2347018091555@s.whatsapp.net
+info: 🔧 Bot JID set globally: 2347018091555@s.whatsapp.net {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  🔗 WhatsApp connection ready - proceeding with initialization...
+info: 🔗 WhatsApp connection ready - proceeding with initialization... {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📂 Loaded 15 archived messages
+info: 📂 Loaded 15 archived messages {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  🕐 Automatic storage cleanup scheduled every 6 hours
+info: 🕐 Automatic storage cleanup scheduled every 6 hours {"timestamp":"2025-09-06 22:06:22"}
+✅ 📂 JSON Storage initialized successfully
+info: SUCCESS: 📂 JSON Storage initialized successfully {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  📦 Loading plugins...
+info: 📦 Loading plugins... {"timestamp":"2025-09-06 22:06:22"}
+📝 Registered command: delete
+✅ Anti-delete plugin ready to handle deletions via direct calls
+✅ Anti-delete plugin loaded
+ℹ️  📌 Stored plugin reference: antidelete
+info: 📌 Stored plugin reference: antidelete {"timestamp":"2025-09-06 22:06:22"}
+✅ Loaded plugin: antidelete.js
+info: SUCCESS: Loaded plugin: antidelete.js {"timestamp":"2025-09-06 22:06:22"}
+✅ Anti-View Once plugin loaded
+📝 Registered command: vv
+ℹ️  📌 Stored plugin reference: antiviewonce
+info: 📌 Stored plugin reference: antiviewonce {"timestamp":"2025-09-06 22:06:22"}
+✅ Loaded plugin: antiviewonce.js
+info: SUCCESS: Loaded plugin: antiviewonce.js {"timestamp":"2025-09-06 22:06:22"}
+📝 Registered command: help
+📝 Registered command: ping
+📝 Registered command: menu
+📝 Registered command: jid
+📝 Registered command: restart
+📝 Registered command: shutdown
+📝 Registered command: allow
+📝 Registered command: disallow
+📝 Registered command: permissions
+📝 Registered command: rg
+📝 Registered command: clearlid
+📝 Registered command: lidinfo
+📝 Registered command: br
+📝 Registered command: setcmd
+📝 Registered command: delcmd
+✅ Core plugin loaded
+✅ Loaded plugin: core.js
+info: SUCCESS: Loaded plugin: core.js {"timestamp":"2025-09-06 22:06:22"}
+📝 Registered command: mediainfo
+📝 Registered command: convert
+📝 Registered command: sticker
+📝 Registered command: take
+📝 Registered command: photo
+📝 Registered command: compress
+📝 Registered command: toaudio
+📝 Registered command: tomp3
+📝 Registered command: tovideo
+📝 Registered command: toimage
+✅ Media plugin loaded
+✅ Loaded plugin: media.js
+info: SUCCESS: Loaded plugin: media.js {"timestamp":"2025-09-06 22:06:22"}
+📝 Registered command: save
+✅ Status plugin socket events registered
+✅ Status plugin loaded
+ℹ️  📌 Stored plugin reference: status
+info: 📌 Stored plugin reference: status {"timestamp":"2025-09-06 22:06:22"}
+✅ Loaded plugin: status.js
+info: SUCCESS: Loaded plugin: status.js {"timestamp":"2025-09-06 22:06:22"}
+📝 Registered command: config
+📝 Registered command: update
+📝 Registered command: setenv
+📝 Registered command: getenv
+✅ System plugin loaded
+✅ Loaded plugin: system.js
+info: SUCCESS: Loaded plugin: system.js {"timestamp":"2025-09-06 22:06:22"}
+✅ ✅ Loaded 6 plugins successfully
+info: SUCCESS: ✅ Loaded 6 plugins successfully {"timestamp":"2025-09-06 22:06:22"}
+
+🎉 MATDEV is now ready to serve!
+
+✅ 🔥 Plugin hot reload system initialized
+info: SUCCESS: 🔥 Plugin hot reload system initialized {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  ✅ Startup confirmation sent to bot private chat
+info: ✅ Startup confirmation sent to bot private chat {"timestamp":"2025-09-06 22:06:22"}
+ℹ️  ✅ Anti-delete plugin reference established
+info: ✅ Anti-delete plugin reference established {"timestamp":"2025-09-06 22:06:22"}
