@@ -243,12 +243,10 @@ class MediaPlugin {
                 let quotedParticipant = null;
                 
                 // Method 1: Standard reply structure (including restored contextInfo from edited messages)
-                console.log('🔍 DEBUG: messageInfo.message structure:', JSON.stringify(messageInfo.message, null, 2));
                 if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-                    console.log('✅ Found quoted message in Method 1');
                 }
                 // Method 2: Edited message with reply structure
                 else if (messageInfo.message?.editedMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
