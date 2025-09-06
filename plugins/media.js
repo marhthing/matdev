@@ -243,6 +243,17 @@ class MediaPlugin {
                 let quotedParticipant = null;
                 
                 // Method 1: Standard reply structure (including restored contextInfo from edited messages)
+                console.log('🔍 Method 1 DEBUG: Checking messageInfo.message structure...');
+                console.log('🔍 messageInfo.message keys:', Object.keys(messageInfo.message || {}));
+                if (messageInfo.message?.extendedTextMessage) {
+                    console.log('🔍 extendedTextMessage keys:', Object.keys(messageInfo.message.extendedTextMessage));
+                    console.log('🔍 extendedTextMessage.contextInfo exists:', !!messageInfo.message.extendedTextMessage.contextInfo);
+                    if (messageInfo.message.extendedTextMessage.contextInfo) {
+                        console.log('🔍 contextInfo keys:', Object.keys(messageInfo.message.extendedTextMessage.contextInfo));
+                        console.log('🔍 quotedMessage exists:', !!messageInfo.message.extendedTextMessage.contextInfo.quotedMessage);
+                    }
+                }
+                
                 if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
