@@ -807,13 +807,7 @@ class MATDEV {
      */
     async handleMessageUpdates(messages) {
         for (const message of messages) {
-            logger.info('📥 Message update received:', {
-                key: message.key?.id,
-                remoteJid: message.key?.remoteJid,
-                updateKeys: Object.keys(message.update || {}),
-                messageStubType: message.update?.messageStubType,
-                protocolType: message.update?.message?.protocolMessage?.type
-            });
+            logger.info('📨 Message update received');
 
             // Check for different types of message deletions
             let deletionDetected = false;
