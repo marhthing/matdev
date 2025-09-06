@@ -180,7 +180,15 @@ class MATDEV {
      * Ensure required directories exist
      */
     async ensureDirectories() {
-        const dirs = ['session', 'tmp', 'plugins'];
+        const dirs = [
+            'session', 
+            'session/auth',  // For WhatsApp authentication files
+            'session/media', // For media files
+            'session/storage', // For storage files  
+            'session/viewonce', // For viewonce files
+            'tmp', 
+            'plugins'
+        ];
 
         for (const dir of dirs) {
             await fs.ensureDir(path.join(__dirname, dir));
