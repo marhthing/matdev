@@ -32,5 +32,4 @@ args = "node index.js"
 outputType = "console"
 
 [deployment]
-run = ["node", "index.js"]
 deploymentTarget = "vm"
