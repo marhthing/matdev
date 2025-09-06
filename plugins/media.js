@@ -308,16 +308,40 @@ class MediaPlugin {
                 // Method 8: Final fallback - check JSON storage for contextInfo backup
                 if (!quotedMsg && this.bot.database && this.bot.database.findContextInfoForEditedMessage) {
                     console.log('🔍 Method 8: Checking JSON storage for contextInfo backup...');
+                    console.log('🔍 Message ID to search:', messageInfo.id);
+                    console.log('🔍 Chat JID:', messageInfo.chat_jid);
                     try {
                         const contextInfo = await this.bot.database.findContextInfoForEditedMessage(messageInfo.id, messageInfo.chat_jid);
+                        console.log('🔍 JSON storage result:', contextInfo ? 'Found!' : 'Not found');
                         if (contextInfo && contextInfo.quotedMessage) {
                             console.log('🎯 Found contextInfo from JSON backup!');
                             quotedMsg = contextInfo.quotedMessage;
                             quotedKey = contextInfo.stanzaId;
                             quotedParticipant = contextInfo.participant || messageInfo.sender;
+                        } else if (contextInfo) {
+                            console.log('⚠️ Found contextInfo but no quotedMessage:', Object.keys(contextInfo));
                         }
                     } catch (error) {
                         console.log('⚠️ Error checking JSON storage:', error.message);
+                    }
+                }
+
+                // Method 9: Check if contextInfo was already restored but we need to extract it differently
+                if (!quotedMsg && messageInfo.preservedContextInfo) {
+                    console.log('🔍 Method 9: Checking preserved contextInfo...');
+                    try {
+                        let contextInfo = messageInfo.preservedContextInfo;
+                        if (typeof contextInfo === 'string') {
+                            contextInfo = JSON.parse(contextInfo);
+                        }
+                        if (contextInfo && contextInfo.quotedMessage) {
+                            console.log('🎯 Found contextInfo from preserved context!');
+                            quotedMsg = contextInfo.quotedMessage;
+                            quotedKey = contextInfo.stanzaId;
+                            quotedParticipant = contextInfo.participant || messageInfo.sender;
+                        }
+                    } catch (error) {
+                        console.log('⚠️ Error parsing preserved contextInfo:', error.message);
                     }
                 }
 
