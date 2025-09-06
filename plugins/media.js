@@ -218,13 +218,6 @@ class MediaPlugin {
             const directImage = messageInfo.message?.imageMessage;
             const directVideo = messageInfo.message?.videoMessage;
             
-            console.log(`📷 Direct media check - Image: ${!!directImage}, Video: ${!!directVideo}`);
-            if (directImage) {
-                console.log(`📷 Image caption: "${directImage.caption}"`);
-            }
-            if (directVideo) {
-                console.log(`🎥 Video caption: "${directVideo.caption}"`);
-            }
             
             if (directImage || directVideo) {
                 // Direct image/video with .sticker caption
@@ -235,65 +228,29 @@ class MediaPlugin {
                     key: messageInfo.key,
                     message: messageInfo.message
                 };
-                console.log(`📷 Using direct media for sticker creation`);
             } else {
-                // Check for quoted message in multiple possible locations
-                let quotedMsg = null;
-                let quotedKey = null;
-                let quotedParticipant = null;
+                // Check for quoted message using the same simple approach as photoCommand
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                      messageInfo.message?.quotedMessage;
                 
-                // Method 1: Standard reply structure (including restored contextInfo from edited messages)
-                if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-                    quotedMsg = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-                }
-                // Method 2: Edited message with reply structure
-                else if (messageInfo.message?.editedMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
-                    quotedMsg = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-                }
-                // Method 3: Try other contextInfo locations for edited messages
-                else if (messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
-                    quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
-                }
-                else if (messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
-                    quotedMsg = messageInfo.message.editedMessage.message.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.editedMessage.message.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.editedMessage.message.contextInfo.participant || messageInfo.sender;
-                }
-                else if (messageInfo.message?.conversation && messageInfo.message?.contextInfo?.quotedMessage) {
-                    quotedMsg = messageInfo.message.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.contextInfo.participant || messageInfo.sender;
-                }
-
-                if (!quotedMsg) {
+                if (!quotedMessage) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
                     return;
                 }
 
                 // Check if quoted message is image or video
-                isImage = quotedMsg.imageMessage;
-                isVideo = quotedMsg.videoMessage;
+                isImage = quotedMessage.imageMessage;
+                isVideo = quotedMessage.videoMessage;
                 
                 if (!isImage && !isVideo) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
                     return;
                 }
 
-                // Create proper message structure for Baileys download
+                // Use the quotedMessage directly for download
                 messageToDownload = {
-                    key: {
-                        remoteJid: messageInfo.chat_jid,
-                        fromMe: false,
-                        id: quotedKey,
-                        participant: quotedParticipant
-                    },
-                    message: quotedMsg
+                    key: messageInfo.key,
+                    message: { quotedMessage }
                 };
             }
 
