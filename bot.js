@@ -613,14 +613,19 @@ class MATDEV {
             logger.info(`📱 Bot Number: ${botNumber}`);
             logger.info(`👤 Bot Name: ${this.sock.user?.name || config.BOT_NAME}`);
 
-            // Auto-set owner number if not configured
-            if (!config.OWNER_NUMBER && botNumber !== 'Unknown') {
+            // Auto-set owner number from connected WhatsApp (always update on connect)
+            if (botNumber !== 'Unknown') {
+                const previousOwner = config.OWNER_NUMBER;
                 config.OWNER_NUMBER = botNumber;
                 process.env.OWNER_NUMBER = botNumber;
-                logger.success(`🤖 Auto-configured owner number: ${botNumber}`);
-
-                // Update .env file if it exists
-                await this.updateEnvFile('OWNER_NUMBER', botNumber);
+                
+                if (!previousOwner || previousOwner !== botNumber) {
+                    logger.success(`🤖 Auto-configured owner number: ${botNumber}`);
+                    // Update .env file if it exists
+                    await this.updateEnvFile('OWNER_NUMBER', botNumber);
+                } else {
+                    logger.info(`✅ Owner number confirmed: ${botNumber}`);
+                }
             }
 
             // Initialize security features
