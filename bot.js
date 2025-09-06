@@ -764,6 +764,12 @@ class MATDEV {
 
                 // Process all messages (incoming and outgoing) through the MessageHandler
                 // logger.info(`🔄 Calling MessageHandler to process command...`);
+                
+                // Increment received messages counter for non-outgoing messages
+                if (!message.key.fromMe) {
+                    this.messageStats.received++;
+                }
+                
                 await this.messageHandler.process(message);
                 // logger.info(`✅ MessageHandler processing completed`);
 
@@ -1037,10 +1043,14 @@ class MATDEV {
             }
         }, 2 * 60 * 60 * 1000);
 
-        // Status report every 6 hours
+        // Status report every 6 hours (wait 6 hours before first report)
         if (config.OWNER_NUMBER) {
-            setInterval(() => {
+            setTimeout(() => {
                 this.sendStatusReport();
+                // Then set up regular 6-hour intervals
+                setInterval(() => {
+                    this.sendStatusReport();
+                }, 6 * 60 * 60 * 1000);
             }, 6 * 60 * 60 * 1000);
         }
     }
