@@ -228,8 +228,29 @@ class MediaPlugin {
                     message: messageInfo.message
                 };
             } else {
-                // Check if message has quoted message (reply)
-                const quotedMsg = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                // Check for quoted message in multiple possible locations
+                let quotedMsg = null;
+                let quotedKey = null;
+                let quotedParticipant = null;
+                
+                // Method 1: Standard reply structure
+                if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+                    quotedMsg = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
+                }
+                // Method 2: Edited message with reply structure
+                else if (messageInfo.message?.editedMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+                    quotedMsg = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
+                }
+                // Method 3: Direct conversation with contextInfo (for edited messages)
+                else if (messageInfo.message?.conversation && messageInfo.message?.contextInfo?.quotedMessage) {
+                    quotedMsg = messageInfo.message.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.contextInfo.participant || messageInfo.sender;
+                }
                 
                 if (!quotedMsg) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
@@ -246,9 +267,6 @@ class MediaPlugin {
                 }
 
                 // Create proper message structure for Baileys download
-                const quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
-                const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-                
                 messageToDownload = {
                     key: {
                         remoteJid: messageInfo.chat_jid,
