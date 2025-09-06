@@ -243,22 +243,10 @@ class MediaPlugin {
                 let quotedParticipant = null;
                 
                 // Method 1: Standard reply structure (including restored contextInfo from edited messages)
-                console.log('🔍 Method 1 DEBUG: Checking messageInfo.message structure...');
-                console.log('🔍 messageInfo.message keys:', Object.keys(messageInfo.message || {}));
-                if (messageInfo.message?.extendedTextMessage) {
-                    console.log('🔍 extendedTextMessage keys:', Object.keys(messageInfo.message.extendedTextMessage));
-                    console.log('🔍 extendedTextMessage.contextInfo exists:', !!messageInfo.message.extendedTextMessage.contextInfo);
-                    if (messageInfo.message.extendedTextMessage.contextInfo) {
-                        console.log('🔍 contextInfo keys:', Object.keys(messageInfo.message.extendedTextMessage.contextInfo));
-                        console.log('🔍 quotedMessage exists:', !!messageInfo.message.extendedTextMessage.contextInfo.quotedMessage);
-                    }
-                }
-                
                 if (messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
-                    console.log('🎯 Found contextInfo in extendedTextMessage (Method 1)');
                 }
                 // Method 2: Edited message with reply structure
                 else if (messageInfo.message?.editedMessage?.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
@@ -266,139 +254,21 @@ class MediaPlugin {
                     quotedKey = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
                 }
-                // Method 3: Edited message - check if contextInfo is at the editedMessage level
+                // Method 3: Try other contextInfo locations for edited messages
                 else if (messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
                 }
-                // Method 4: Edited message - check conversation with contextInfo
-                else if (messageInfo.message?.editedMessage?.message?.conversation && messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
+                else if (messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.editedMessage.message.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.editedMessage.message.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.editedMessage.message.contextInfo.participant || messageInfo.sender;
                 }
-                // Method 5: Direct conversation with contextInfo (for edited messages)
                 else if (messageInfo.message?.conversation && messageInfo.message?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.contextInfo.participant || messageInfo.sender;
-                }
-                
-                // Debug logging to see the message structure
-                console.log('🔍 Sticker command debugging:');
-                console.log('📱 Message structure keys:', Object.keys(messageInfo.message || {}));
-                if (messageInfo.message?.editedMessage) {
-                    console.log('✏️ EditedMessage keys:', Object.keys(messageInfo.message.editedMessage));
-                    if (messageInfo.message.editedMessage.message) {
-                        console.log('📝 EditedMessage.message keys:', Object.keys(messageInfo.message.editedMessage.message));
-                    }
-                    if (messageInfo.message.editedMessage.contextInfo) {
-                        console.log('🔗 EditedMessage.contextInfo found:', !!messageInfo.message.editedMessage.contextInfo.quotedMessage);
-                    }
-                }
-                console.log('🎯 QuotedMsg found:', !!quotedMsg);
-                
-                // Method 6: Check nested contextInfo in edited message structure
-                if (!quotedMsg && messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
-                    console.log('🔍 Method 6: Trying nested contextInfo in editedMessage.message...');
-                    quotedMsg = messageInfo.message.editedMessage.message.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.editedMessage.message.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.editedMessage.message.contextInfo.participant || messageInfo.sender;
-                    console.log('🎯 Nested contextInfo found:', !!quotedMsg);
-                }
-                
-                // Method 7: Last resort - check if contextInfo is preserved at the root level of editedMessage
-                if (!quotedMsg && messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
-                    console.log('🔍 Method 7: Trying root level contextInfo in editedMessage...');
-                    quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
-                    quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
-                    quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
-                    console.log('🎯 Root level contextInfo found:', !!quotedMsg);
-                }
-                
-                // Method 8: Final fallback - check JSON storage for contextInfo backup
-                if (!quotedMsg && this.bot.database && this.bot.database.findContextInfoForEditedMessage) {
-                    console.log('🔍 Method 8: Checking JSON storage for contextInfo backup...');
-                    console.log('🔍 Message ID to search:', messageInfo.id);
-                    console.log('🔍 Chat JID:', messageInfo.chat_jid);
-                    try {
-                        const contextInfo = await this.bot.database.findContextInfoForEditedMessage(messageInfo.id, messageInfo.chat_jid);
-                        console.log('🔍 JSON storage result:', contextInfo ? 'Found!' : 'Not found');
-                        if (contextInfo && contextInfo.quotedMessage) {
-                            console.log('🎯 Found contextInfo from JSON backup!');
-                            quotedMsg = contextInfo.quotedMessage;
-                            quotedKey = contextInfo.stanzaId;
-                            quotedParticipant = contextInfo.participant || messageInfo.sender;
-                        } else if (contextInfo) {
-                            console.log('⚠️ Found contextInfo but no quotedMessage:', Object.keys(contextInfo));
-                        }
-                    } catch (error) {
-                        console.log('⚠️ Error checking JSON storage:', error.message);
-                    }
-                }
-
-                // Method 9: Check if contextInfo was already restored but we need to extract it differently
-                if (!quotedMsg && messageInfo.preservedContextInfo) {
-                    console.log('🔍 Method 9: Checking preserved contextInfo...');
-                    try {
-                        let contextInfo = messageInfo.preservedContextInfo;
-                        if (typeof contextInfo === 'string') {
-                            contextInfo = JSON.parse(contextInfo);
-                        }
-                        if (contextInfo && contextInfo.quotedMessage) {
-                            console.log('🎯 Found contextInfo from preserved context!');
-                            quotedMsg = contextInfo.quotedMessage;
-                            quotedKey = contextInfo.stanzaId;
-                            quotedParticipant = contextInfo.participant || messageInfo.sender;
-                        }
-                    } catch (error) {
-                        console.log('⚠️ Error parsing preserved contextInfo:', error.message);
-                    }
-                }
-
-                // Method 10: Check global contextInfo recovery system that the bot uses
-                if (!quotedMsg) {
-                    console.log('🔍 Method 10: Checking global contextInfo from bot message processing...');
-                    console.log('🔍 Available messageInfo properties:', Object.keys(messageInfo));
-                    
-                    // Check if the message handler has already attached contextInfo
-                    if (messageInfo.contextInfo) {
-                        console.log('🔍 Found contextInfo in messageInfo!');
-                        try {
-                            let contextInfo = messageInfo.contextInfo;
-                            if (typeof contextInfo === 'string') {
-                                contextInfo = JSON.parse(contextInfo);
-                            }
-                            if (contextInfo && contextInfo.quotedMessage) {
-                                console.log('🎯 Found contextInfo from messageInfo.contextInfo!');
-                                quotedMsg = contextInfo.quotedMessage;
-                                quotedKey = contextInfo.stanzaId;
-                                quotedParticipant = contextInfo.participant || messageInfo.sender;
-                            }
-                        } catch (error) {
-                            console.log('⚠️ Error parsing messageInfo.contextInfo:', error.message);
-                        }
-                    }
-                    
-                    // Check if it's stored under a different property
-                    if (!quotedMsg && messageInfo.originalContextInfo) {
-                        console.log('🔍 Found originalContextInfo in messageInfo!');
-                        try {
-                            let contextInfo = messageInfo.originalContextInfo;
-                            if (typeof contextInfo === 'string') {
-                                contextInfo = JSON.parse(contextInfo);
-                            }
-                            if (contextInfo && contextInfo.quotedMessage) {
-                                console.log('🎯 Found contextInfo from messageInfo.originalContextInfo!');
-                                quotedMsg = contextInfo.quotedMessage;
-                                quotedKey = contextInfo.stanzaId;
-                                quotedParticipant = contextInfo.participant || messageInfo.sender;
-                            }
-                        } catch (error) {
-                            console.log('⚠️ Error parsing messageInfo.originalContextInfo:', error.message);
-                        }
-                    }
                 }
 
                 if (!quotedMsg) {
@@ -428,7 +298,6 @@ class MediaPlugin {
             }
 
             // Download media using Baileys directly
-            console.log('📥 Downloading media for sticker conversion...');
             const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
                 logger: console,
                 reuploadRequest: this.bot.sock.updateMediaMessage
@@ -439,10 +308,7 @@ class MediaPlugin {
                 return;
             }
 
-            console.log(`✅ Media downloaded successfully: ${buffer.length} bytes`);
-
             // Create proper WhatsApp sticker using wa-sticker-formatter
-            console.log('🎨 Converting to WhatsApp sticker format...');
             
             // Configure sticker options based on media type
             const stickerOptions = {
