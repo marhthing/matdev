@@ -207,6 +207,9 @@ class MediaPlugin {
      */
     async stickerCommand(messageInfo) {
         try {
+            // Import wa-sticker-formatter
+            const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+            
             // Check if message has quoted message (reply)
             const quotedMsg = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
             
@@ -252,23 +255,32 @@ class MediaPlugin {
 
             console.log(`✅ Media downloaded successfully: ${buffer.length} bytes`);
 
-            // Prepare sticker message with proper format
-            const stickerMessage = {
-                sticker: buffer,
-                packname: config.BOT_NAME || 'MATDEV',
-                author: config.BOT_NAME || 'MATDEV'
-            };
+            // Create proper WhatsApp sticker using wa-sticker-formatter
+            console.log('🎨 Converting to WhatsApp sticker format...');
+            
+            const sticker = new Sticker(buffer, {
+                pack: config.BOT_NAME || 'MATDEV',
+                author: config.BOT_NAME || 'MATDEV', 
+                type: StickerTypes.FULL,
+                categories: ['🤖'], // Bot category
+                quality: 100
+            });
 
-            // Handle video stickers
-            if (isVideo) {
-                stickerMessage.isAnimated = true;
-                console.log('🎬 Creating animated sticker from video');
-            } else {
-                console.log('🖼️ Creating static sticker from image');
+            // Convert to proper WebP format with embedded metadata
+            const stickerBuffer = await sticker.toBuffer();
+            
+            if (!stickerBuffer || stickerBuffer.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to create sticker. Please try again.');
+                return;
             }
 
-            // Send the sticker
-            await this.bot.sock.sendMessage(messageInfo.sender, stickerMessage);
+            console.log(`✅ Sticker created successfully: ${stickerBuffer.length} bytes`);
+
+            // Send the properly formatted sticker
+            await this.bot.sock.sendMessage(messageInfo.sender, {
+                sticker: stickerBuffer
+            });
+            
             console.log('✅ Sticker sent successfully');
 
         } catch (error) {
