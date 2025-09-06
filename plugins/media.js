@@ -258,13 +258,24 @@ class MediaPlugin {
             // Create proper WhatsApp sticker using wa-sticker-formatter
             console.log('🎨 Converting to WhatsApp sticker format...');
             
-            const sticker = new Sticker(buffer, {
+            // Configure sticker options based on media type
+            const stickerOptions = {
                 pack: config.BOT_NAME || 'MATDEV',
                 author: config.BOT_NAME || 'MATDEV', 
                 type: StickerTypes.FULL,
                 categories: ['🤖'], // Bot category
-                quality: 100
-            });
+                quality: isVideo ? 60 : 90 // Lower quality for videos to meet size limits
+            };
+
+            // For video stickers, add specific handling
+            if (isVideo) {
+                console.log('🎬 Processing video sticker with optimized settings...');
+                // Additional options for video processing can be added here
+            } else {
+                console.log('🖼️ Processing image sticker...');
+            }
+            
+            const sticker = new Sticker(buffer, stickerOptions);
 
             // Convert to proper WebP format with embedded metadata
             const stickerBuffer = await sticker.toBuffer();
