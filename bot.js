@@ -39,6 +39,7 @@ class MATDEV {
         this.maxReconnectAttempts = 50;
         this.startTime = Date.now();
         this.initialConnection = true; // Track if this is initial connection
+        this.lastReportTime = null; // Track last status report time
         this.messageStats = {
             received: 0,
             sent: 0,
@@ -1043,15 +1044,24 @@ class MATDEV {
             }
         }, 2 * 60 * 60 * 1000);
 
-        // Status report every 6 hours (wait 6 hours before first report)
+        // Status report every 6 hours consistently
         if (config.OWNER_NUMBER) {
-            setTimeout(() => {
-                this.sendStatusReport();
-                // Then set up regular 6-hour intervals
-                setInterval(() => {
-                    this.sendStatusReport();
-                }, 6 * 60 * 60 * 1000);
-            }, 6 * 60 * 60 * 1000);
+            const sixHours = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+            
+            // Set up interval that checks if 6 hours have passed since startup
+            setInterval(() => {
+                const timeSinceStart = Date.now() - this.startTime;
+                const hoursSinceStart = timeSinceStart / (60 * 60 * 1000);
+                
+                // Send report every 6 hours exactly (at 6h, 12h, 18h, etc.)
+                if (hoursSinceStart >= 6 && Math.floor(hoursSinceStart) % 6 === 0) {
+                    // Check if we haven't sent a report in the last hour to avoid duplicates
+                    if (!this.lastReportTime || (Date.now() - this.lastReportTime) >= (5 * 60 * 60 * 1000)) {
+                        this.sendStatusReport();
+                        this.lastReportTime = Date.now();
+                    }
+                }
+            }, 60 * 60 * 1000); // Check every hour
         }
     }
 
