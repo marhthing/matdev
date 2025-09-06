@@ -245,11 +245,46 @@ class MediaPlugin {
                     quotedKey = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.editedMessage.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
                 }
-                // Method 3: Direct conversation with contextInfo (for edited messages)
+                // Method 3: Edited message - check if contextInfo is at the editedMessage level
+                else if (messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
+                    quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
+                }
+                // Method 4: Edited message - check conversation with contextInfo
+                else if (messageInfo.message?.editedMessage?.message?.conversation && messageInfo.message?.editedMessage?.message?.contextInfo?.quotedMessage) {
+                    quotedMsg = messageInfo.message.editedMessage.message.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.editedMessage.message.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.editedMessage.message.contextInfo.participant || messageInfo.sender;
+                }
+                // Method 5: Direct conversation with contextInfo (for edited messages)
                 else if (messageInfo.message?.conversation && messageInfo.message?.contextInfo?.quotedMessage) {
                     quotedMsg = messageInfo.message.contextInfo.quotedMessage;
                     quotedKey = messageInfo.message.contextInfo.stanzaId;
                     quotedParticipant = messageInfo.message.contextInfo.participant || messageInfo.sender;
+                }
+                
+                // Debug logging to see the message structure
+                console.log('🔍 Sticker command debugging:');
+                console.log('📱 Message structure keys:', Object.keys(messageInfo.message || {}));
+                if (messageInfo.message?.editedMessage) {
+                    console.log('✏️ EditedMessage keys:', Object.keys(messageInfo.message.editedMessage));
+                    if (messageInfo.message.editedMessage.message) {
+                        console.log('📝 EditedMessage.message keys:', Object.keys(messageInfo.message.editedMessage.message));
+                    }
+                    if (messageInfo.message.editedMessage.contextInfo) {
+                        console.log('🔗 EditedMessage.contextInfo found:', !!messageInfo.message.editedMessage.contextInfo.quotedMessage);
+                    }
+                }
+                console.log('🎯 QuotedMsg found:', !!quotedMsg);
+                
+                // Method 6: Last resort - check if contextInfo is preserved at the root level of editedMessage
+                if (!quotedMsg && messageInfo.message?.editedMessage?.contextInfo?.quotedMessage) {
+                    console.log('🔍 Method 6: Trying root level contextInfo in editedMessage...');
+                    quotedMsg = messageInfo.message.editedMessage.contextInfo.quotedMessage;
+                    quotedKey = messageInfo.message.editedMessage.contextInfo.stanzaId;
+                    quotedParticipant = messageInfo.message.editedMessage.contextInfo.participant || messageInfo.sender;
+                    console.log('🎯 Root level contextInfo found:', !!quotedMsg);
                 }
                 
                 if (!quotedMsg) {
