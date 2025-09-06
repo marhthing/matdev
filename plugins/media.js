@@ -207,50 +207,73 @@ class MediaPlugin {
      */
     async stickerCommand(messageInfo) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+            // Check if message has quoted message (reply)
+            const quotedMsg = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
             
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
-                return;
-            }
-            const mediaType = Object.keys(quotedMessage)[0];
-
-            if (!['imageMessage', 'videoMessage'].includes(mediaType)) {
+            if (!quotedMsg) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
                 return;
             }
 
-            const buffer = await this.downloadMedia(quotedMessage, mediaType);
+            // Check if quoted message is image or video
+            const isImage = quotedMsg.imageMessage;
+            const isVideo = quotedMsg.videoMessage;
             
-            if (!buffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
+            if (!isImage && !isVideo) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image or video.');
                 return;
             }
 
-            // Prepare sticker message with proper metadata
-            const stickerMessage = {
-                sticker: buffer.buffer
+            // Create proper message structure for Baileys download
+            const quotedKey = messageInfo.message.extendedTextMessage.contextInfo.stanzaId;
+            const quotedParticipant = messageInfo.message.extendedTextMessage.contextInfo.participant || messageInfo.sender;
+            
+            const messageToDownload = {
+                key: {
+                    remoteJid: messageInfo.chat_jid,
+                    fromMe: false,
+                    id: quotedKey,
+                    participant: quotedParticipant
+                },
+                message: quotedMsg
             };
 
-            // Add metadata - these should be at the top level for WhatsApp to recognize them
-            if (config.BOT_NAME) {
-                stickerMessage.packname = config.BOT_NAME;
-                stickerMessage.author = config.BOT_NAME;
+            // Download media using Baileys directly
+            console.log('📥 Downloading media for sticker conversion...');
+            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
+
+            if (!buffer || buffer.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media. Please try again.');
+                return;
             }
 
-            // For video stickers, ensure they meet WhatsApp requirements
-            if (mediaType === 'videoMessage') {
-                // Video stickers should be short (max 6 seconds) and optimized
+            console.log(`✅ Media downloaded successfully: ${buffer.length} bytes`);
+
+            // Prepare sticker message with proper format
+            const stickerMessage = {
+                sticker: buffer,
+                packname: config.BOT_NAME || 'MATDEV',
+                author: config.BOT_NAME || 'MATDEV'
+            };
+
+            // Handle video stickers
+            if (isVideo) {
                 stickerMessage.isAnimated = true;
+                console.log('🎬 Creating animated sticker from video');
+            } else {
+                console.log('🖼️ Creating static sticker from image');
             }
 
+            // Send the sticker
             await this.bot.sock.sendMessage(messageInfo.sender, stickerMessage);
+            console.log('✅ Sticker sent successfully');
 
         } catch (error) {
-            console.log('Sticker error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker. Video must be under 6 seconds for animated stickers.');
+            console.error('❌ Sticker creation error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker. Please try again with a smaller image or shorter video (max 6 seconds).');
         }
     }
 
