@@ -759,13 +759,16 @@ class MATDEV {
                     const messageType = Object.keys(message.message || {})[0];
                     const content = message.message?.[messageType];
                     const text = typeof content === 'string' ? content : content?.text || '';
+                    const caption = content?.caption || '';
 
-                    // Check for text commands OR sticker commands
+                    // Check for text commands OR sticker commands OR media captions
                     const isTextCommand = text.startsWith(config.PREFIX);
+                    const isCaptionCommand = caption.startsWith(config.PREFIX);
                     const isStickerMessage = messageType === 'stickerMessage';
 
-                    if (isTextCommand || isStickerMessage) {
-                        // Process our own commands (text or sticker)
+                    if (isTextCommand || isCaptionCommand || isStickerMessage) {
+                        // Process our own commands (text, caption, or sticker)
+                        console.log(`🤖 Processing own message - Text: "${text}", Caption: "${caption}", Type: ${messageType}`);
                         await this.messageHandler.process(message);
                     }
                     continue;
