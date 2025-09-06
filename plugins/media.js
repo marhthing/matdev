@@ -305,6 +305,22 @@ class MediaPlugin {
                     console.log('🎯 Root level contextInfo found:', !!quotedMsg);
                 }
                 
+                // Method 8: Final fallback - check JSON storage for contextInfo backup
+                if (!quotedMsg && this.bot.database && this.bot.database.findContextInfoForEditedMessage) {
+                    console.log('🔍 Method 8: Checking JSON storage for contextInfo backup...');
+                    try {
+                        const contextInfo = await this.bot.database.findContextInfoForEditedMessage(messageInfo.id, messageInfo.chat_jid);
+                        if (contextInfo && contextInfo.quotedMessage) {
+                            console.log('🎯 Found contextInfo from JSON backup!');
+                            quotedMsg = contextInfo.quotedMessage;
+                            quotedKey = contextInfo.stanzaId;
+                            quotedParticipant = contextInfo.participant || messageInfo.sender;
+                        }
+                    } catch (error) {
+                        console.log('⚠️ Error checking JSON storage:', error.message);
+                    }
+                }
+
                 if (!quotedMsg) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
                     return;
