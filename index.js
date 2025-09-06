@@ -48,7 +48,7 @@ function cloneAndSetup() {
 
     // Clean workspace (preserve important files)
     console.log('🧹 Cleaning workspace (preserving session folder, .env, and config.js)...');
-    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "node_modules" ! -name "session" ! -name ".env" ! -name "config.js" -exec rm -rf {} +'], { stdio: 'inherit' });
+    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "session" ! -name ".env" ! -name "config.js" -exec rm -rf {} +'], { stdio: 'inherit' });
 
     // Clone repository
     const cloneResult = spawnSync('git', ['clone', GITHUB_REPO, 'temp_clone'], {
