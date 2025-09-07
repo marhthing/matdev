@@ -247,8 +247,14 @@ class MediaPlugin {
                     return;
                 }
 
-                // Use the downloadMedia method like photoCommand does
-                const mediaResult = await this.downloadMedia(quotedMessage, isImage ? 'imageMessage' : 'videoMessage');
+                // Use the downloadMedia method like photoCommand does - create proper message structure
+                const messageToProcess = {
+                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || 
+                         messageInfo.key, // fallback to current message key
+                    message: quotedMessage
+                };
+
+                const mediaResult = await this.downloadMedia(messageToProcess, isImage ? 'imageMessage' : 'videoMessage');
                 
                 if (!mediaResult || !mediaResult.buffer) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
