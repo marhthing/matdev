@@ -116,7 +116,7 @@ class UpscalePlugin {
                 // Send the upscaled image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: upscaledBuffer,
-                    caption: '✨ *Image Upscaled by MATDEV AI*\n\nYour image has been enhanced with AI upscaling!'
+                    caption: '_✨ Image Upscaled by MATDEV AI_'
                 });
 
                 // Edit processing message to show completion
@@ -279,70 +279,104 @@ class UpscalePlugin {
             
             // Get image metadata
             const metadata = await sharp(imageBuffer).metadata();
-            const newWidth = metadata.width * 2;
-            const newHeight = metadata.height * 2;
+            const scaleFactor = 2;
+            const newWidth = Math.round(metadata.width * scaleFactor);
+            const newHeight = Math.round(metadata.height * scaleFactor);
             
             console.log(`Upscaling from ${metadata.width}x${metadata.height} to ${newWidth}x${newHeight}`);
             
-            // Apply multi-step upscaling for better quality
+            // Multi-stage upscaling for better quality
             let processedImage = sharp(imageBuffer);
             
-            // Step 1: Sharpen the original image slightly
-            processedImage = processedImage.sharpen({
-                sigma: 0.5,
-                flat: 1.0,
-                jagged: 1.5
-            });
+            // Step 1: Pre-process the image for better upscaling
+            processedImage = processedImage
+                .sharpen({
+                    sigma: 1.2,
+                    flat: 1.0,
+                    jagged: 2.0
+                })
+                .modulate({
+                    brightness: 1.02,
+                    saturation: 1.05,
+                    hue: 0
+                });
             
-            // Step 2: Use Lanczos3 interpolation (better than cubic for upscaling)
+            // Step 2: Use high-quality interpolation for upscaling
             processedImage = processedImage.resize(newWidth, newHeight, {
                 kernel: sharp.kernel.lanczos3,
-                withoutEnlargement: false
+                withoutEnlargement: false,
+                fastShrinkOnLoad: false
             });
             
-            // Step 3: Apply unsharp mask for better details
-            processedImage = processedImage.sharpen({
-                sigma: 1.0,
-                flat: 1.0,
-                jagged: 2.0
-            });
+            // Step 3: Post-process for detail enhancement
+            processedImage = processedImage
+                .sharpen({
+                    sigma: 1.5,
+                    flat: 1.0,
+                    jagged: 2.5
+                })
+                .modulate({
+                    brightness: 1.03,
+                    contrast: 1.15,
+                    saturation: 1.08
+                });
             
-            // Step 4: Slightly enhance contrast
-            processedImage = processedImage.modulate({
-                brightness: 1.05,
-                contrast: 1.1
-            });
-            
-            // Step 5: Apply noise reduction if image is too small originally
-            if (metadata.width < 500 || metadata.height < 500) {
-                processedImage = processedImage.blur(0.3);
+            // Step 4: Apply adaptive enhancement based on image size
+            if (metadata.width < 800 || metadata.height < 800) {
+                // For smaller images, apply more aggressive enhancement
+                processedImage = processedImage
+                    .sharpen({
+                        sigma: 2.0,
+                        flat: 1.0,
+                        jagged: 3.0
+                    })
+                    .modulate({
+                        brightness: 1.05,
+                        contrast: 1.25
+                    });
             }
             
+            // Step 5: Final output with high quality
             const upscaledBuffer = await processedImage
                 .jpeg({ 
-                    quality: 98,
+                    quality: 100,
                     progressive: true,
-                    mozjpeg: true 
+                    mozjpeg: true,
+                    force: true
                 })
                 .toBuffer();
                 
-            console.log('✅ Advanced upscaling completed with enhanced details');
+            console.log(`✅ Advanced upscaling completed: ${metadata.width}x${metadata.height} -> ${newWidth}x${newHeight}`);
             return upscaledBuffer;
+            
         } catch (error) {
             console.error('Error in advanced fallback upscaling:', error);
             
-            // Simple fallback if advanced fails
+            // Simple but effective fallback
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
                 const metadata = await sharp(imageBuffer).metadata();
                 
+                console.log('Using simple fallback upscaling...');
                 return await sharp(imageBuffer)
                     .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.lanczos3
+                        kernel: sharp.kernel.lanczos3,
+                        withoutEnlargement: false
                     })
-                    .sharpen()
-                    .jpeg({ quality: 95 })
+                    .sharpen({
+                        sigma: 1.5,
+                        flat: 1.0,
+                        jagged: 2.0
+                    })
+                    .modulate({
+                        brightness: 1.05,
+                        contrast: 1.2
+                    })
+                    .jpeg({ 
+                        quality: 95,
+                        progressive: true
+                    })
                     .toBuffer();
             } catch (simpleError) {
                 console.error('Simple fallback also failed:', simpleError);
