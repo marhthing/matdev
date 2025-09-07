@@ -145,6 +145,18 @@ class AntiViewOncePlugin {
                 const messageId = this.generateMessageId(viewOnceMessage, contentType);
                 const savedFilePath = await this.getSavedMediaPath(messageId, contentType);
 
+                // Debug: Show what we're looking for
+                console.log(`🔍 Debug - Generated message ID: ${messageId}`);
+                console.log(`🔍 Debug - Looking for saved file: ${savedFilePath}`);
+                
+                // Debug: List all files in viewonce directory
+                try {
+                    const viewOnceFiles = await fs.readdir(this.viewOnceDir);
+                    console.log(`🔍 Debug - Files in viewonce directory: ${viewOnceFiles.join(', ')}`);
+                } catch (error) {
+                    console.log(`🔍 Debug - Error reading viewonce directory: ${error.message}`);
+                }
+
                 let buffer = null;
                 let usedSavedMedia = false;
 
@@ -168,7 +180,11 @@ class AntiViewOncePlugin {
                 }
 
                 // If WhatsApp extraction failed or returned invalid data, check saved media
-                if (!buffer && await fs.pathExists(savedFilePath)) {
+                console.log(`🔍 Debug - Checking if file exists: ${savedFilePath}`);
+                const fileExists = await fs.pathExists(savedFilePath);
+                console.log(`🔍 Debug - File exists: ${fileExists}`);
+                
+                if (!buffer && fileExists) {
                     try {
                         buffer = await fs.readFile(savedFilePath);
                         if (buffer && buffer.length > 0) {
@@ -238,6 +254,15 @@ class AntiViewOncePlugin {
         const messageContent = viewOnceMessage.viewOnceMessage?.message || viewOnceMessage.message || viewOnceMessage;
         const content = messageContent[contentType];
 
+        // Debug: Show what properties we're using for ID generation
+        console.log(`🔍 Debug - Content properties for ID:`, {
+            url: content?.url || 'missing',
+            directPath: content?.directPath || 'missing',
+            mediaKey: content?.mediaKey || 'missing',
+            fileLength: content?.fileLength || 'missing',
+            mimetype: content?.mimetype || 'missing'
+        });
+
         // Use various properties to create a unique identifier
         const identifier = [
             content?.url || '',
@@ -248,7 +273,11 @@ class AntiViewOncePlugin {
             Date.now().toString() // Add timestamp as fallback
         ].filter(Boolean).join('|');
 
-        return crypto.createHash('md5').update(identifier).digest('hex').substring(0, 12);
+        console.log(`🔍 Debug - Generated identifier string: ${identifier}`);
+        const messageId = crypto.createHash('md5').update(identifier).digest('hex').substring(0, 12);
+        console.log(`🔍 Debug - Final message ID: ${messageId}`);
+
+        return messageId;
     }
 
     /**
