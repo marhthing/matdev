@@ -1180,101 +1180,51 @@ class CorePlugin {
     }
 
     /**
-     * Clear recent bot messages from the current chat
+     * Clear entire chat history (like WhatsApp's Clear Chat button)
      */
     async clearCommand(messageInfo) {
         try {
-            const { args } = messageInfo;
             const chatJid = messageInfo.chat_jid;
             
-            // Default to clearing last 10 messages, max 50
-            let count = 10;
-            if (args.length > 0) {
-                const userCount = parseInt(args[0]);
-                if (userCount && userCount > 0 && userCount <= 50) {
-                    count = userCount;
-                }
-            }
-
-            // Get recent bot messages from storage
-            const recentBotMessages = await this.getRecentBotMessages(chatJid, count + 5); // Get a few extra to account for filtering
+            // Send confirmation first before clearing
+            const confirmationText = '🗑️ Clearing entire chat history...';
+            await this.bot.messageHandler.reply(messageInfo, confirmationText);
             
-            if (recentBotMessages.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ No recent bot messages found to clear.');
-                return;
-            }
-
-            // Filter to get the most recent messages up to the count
-            const messagesToDelete = recentBotMessages.slice(0, count);
-            let deletedCount = 0;
-
-            // Delete messages one by one with a small delay to avoid rate limiting
-            for (const msg of messagesToDelete) {
+            // Small delay to ensure confirmation message is sent
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            try {
+                // Method 1: Use chatModify to clear the entire chat history
+                await this.bot.sock.chatModify({
+                    clear: { messages: [] }
+                }, chatJid);
+                
+                console.log(`✅ Chat history cleared for ${chatJid}`);
+                
+            } catch (chatModifyError) {
+                console.log('First clear method failed, trying alternative:', chatModifyError.message);
+                
                 try {
-                    await this.bot.sock.sendMessage(chatJid, {
-                        delete: {
-                            id: msg.id,
-                            fromMe: true,
-                            remoteJid: chatJid
-                        }
-                    });
-                    deletedCount++;
+                    // Method 2: Alternative clear approach
+                    await this.bot.sock.chatModify({ clear: {} }, chatJid);
+                    console.log(`✅ Chat history cleared (alternative method) for ${chatJid}`);
                     
-                    // Small delay between deletions
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                } catch (deleteError) {
-                    console.log(`⚠️ Could not delete message ${msg.id}:`, deleteError.message);
+                } catch (fallbackError) {
+                    console.error('Both clear methods failed:', fallbackError.message);
+                    
+                    // Send error message to user
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Failed to clear chat history. This feature may not be available for this chat type.');
+                    return;
                 }
             }
-
-            // Send confirmation message
-            const confirmationText = deletedCount > 0 
-                ? `✅ Cleared ${deletedCount} bot message${deletedCount > 1 ? 's' : ''} from this chat.`
-                : '❌ No messages could be deleted.';
             
-            const confirmMsg = await this.bot.messageHandler.reply(messageInfo, confirmationText);
-            
-            // Auto-delete the confirmation message after 3 seconds
-            setTimeout(async () => {
-                try {
-                    await this.bot.sock.sendMessage(chatJid, {
-                        delete: confirmMsg.key
-                    });
-                } catch (error) {
-                    // Silently ignore if deletion fails
-                }
-            }, 3000);
-
         } catch (error) {
             console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing messages.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat history.');
         }
     }
 
-    /**
-     * Get recent bot messages from a specific chat
-     */
-    async getRecentBotMessages(chatJid, limit = 10) {
-        try {
-            const allMessages = Array.from(this.bot.database.messages.values());
-            
-            // Filter for bot messages in the specific chat, sort by timestamp (newest first)
-            const botMessages = allMessages
-                .filter(msg => {
-                    return msg.chat_jid === chatJid && 
-                           msg.from_me === true && 
-                           !msg.is_deleted &&
-                           msg.timestamp > Date.now() - (24 * 60 * 60 * 1000); // Only last 24 hours
-                })
-                .sort((a, b) => b.timestamp - a.timestamp)
-                .slice(0, limit);
-
-            return botMessages;
-        } catch (error) {
-            console.error('Error getting recent bot messages:', error);
-            return [];
-        }
-    }
 }
 
 // Export function for plugin initialization
