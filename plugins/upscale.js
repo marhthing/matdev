@@ -44,16 +44,18 @@ class UpscalePlugin {
      */
     async upscaleCommand(messageInfo) {
         try {
-            // Check if this is a reply to a message
-            if (!messageInfo.quoted_message) {
+            // Check for quoted message using the same approach as media plugin
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please reply to an image to upscale it.\nUsage: Reply to an image and type .upscale');
                 return;
             }
 
             // Check if the quoted message has an image
-            const quotedMsg = messageInfo.quoted_message;
-            if (!quotedMsg.message || (!quotedMsg.message.imageMessage && !quotedMsg.message.stickerMessage)) {
+            if (!quotedMessage.imageMessage && !quotedMessage.stickerMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ The message you replied to must contain an image.');
                 return;
@@ -73,8 +75,8 @@ class UpscalePlugin {
 
             try {
                 // Download the image
-                const mediaMessage = quotedMsg.message.imageMessage || quotedMsg.message.stickerMessage;
-                const buffer = await downloadMediaMessage(quotedMsg, 'buffer', {});
+                const mediaMessage = quotedMessage.imageMessage || quotedMessage.stickerMessage;
+                const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
                 
                 if (!buffer) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
