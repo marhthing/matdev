@@ -67,8 +67,7 @@ class YouTubePlugin {
                 return;
             }
 
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video...\n⏳ Please wait, this may take a moment.');
+            // No processing message needed
 
             try {
                 // Get video info
@@ -78,10 +77,7 @@ class YouTubePlugin {
                 // Check video length (limit to 10 minutes for file size)
                 const duration = parseInt(videoDetails.lengthSeconds);
                 if (duration > 600) { // 10 minutes
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`,
-                        quoted: processingMsg
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`);
                     return;
                 }
 
@@ -113,39 +109,23 @@ class YouTubePlugin {
                 // Read video file
                 const videoBuffer = await fs.readFile(tempFile);
                 
-                // Create caption with video info
-                const caption = `🎬 *YouTube Video Downloaded*\n\n` +
-                               `📝 *Title:* ${videoDetails.title}\n` +
-                               `👤 *Channel:* ${videoDetails.author.name}\n` +
-                               `⏱️ *Duration:* ${this.formatDuration(duration)}\n` +
-                               `👀 *Views:* ${this.formatNumber(videoDetails.viewCount)}\n` +
-                               `📅 *Published:* ${videoDetails.publishDate}\n\n` +
-                               `📱 *Downloaded by:* ${config.BOT_NAME}`;
+                // No caption needed
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: videoBuffer,
-                    caption: caption,
                     mimetype: 'video/mp4'
                 });
 
                 // Clean up temp file
                 await fs.unlink(tempFile).catch(() => {});
 
-                // Delete processing message
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
-                } catch (e) {
-                    // Ignore delete errors
-                }
+                // No processing message to delete
 
             } catch (downloadError) {
                 console.error('YouTube download error:', downloadError);
                 
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Failed to download YouTube video.\n\nPossible reasons:\n• Video is private, age-restricted, or deleted\n• Video is too large or long\n• Network connection issue\n• YouTube server restrictions\n\nPlease try again with a different video.',
-                    quoted: processingMsg
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download YouTube video.');
             }
 
         } catch (error) {
@@ -168,8 +148,7 @@ class YouTubePlugin {
 
             const searchQuery = args.join(' ');
             
-            // Send processing message
-            await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
+            // No processing message needed
 
             try {
                 const searchResults = await ytsr(searchQuery, { limit: 5 });

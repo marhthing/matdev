@@ -58,8 +58,7 @@ class TikTokPlugin {
                 return;
             }
 
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing TikTok video...\n⏳ Please wait, this may take a moment.');
+            // No processing message needed
 
             try {
                 // Download video info and link
@@ -99,41 +98,21 @@ class TikTokPlugin {
                     throw new Error('Failed to download video data');
                 }
 
-                // Create caption with video info
-                const title = videoData.title || videoData.desc || 'TikTok Video';
-                const author = videoData.author?.nickname || videoData.author?.username || 'Unknown';
-                const stats = videoData.stats || {};
-                
-                const caption = `🎵 *TikTok Video Downloaded*\n\n` +
-                               `👤 *Author:* ${author}\n` +
-                               `📝 *Title:* ${title.length > 100 ? title.substring(0, 100) + '...' : title}\n` +
-                               `❤️ *Likes:* ${this.formatNumber(stats.likeCount || 0)}\n` +
-                               `💬 *Comments:* ${this.formatNumber(stats.commentCount || 0)}\n` +
-                               `🔄 *Shares:* ${this.formatNumber(stats.shareCount || 0)}\n\n` +
-                               `📱 *Downloaded by:* ${config.BOT_NAME}`;
+                // No caption needed
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: Buffer.from(videoResponse.data),
-                    caption: caption,
                     mimetype: 'video/mp4'
                 });
 
-                // Delete processing message
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
-                } catch (e) {
-                    // Ignore delete errors
-                }
+                // No processing message to delete
 
             } catch (downloadError) {
                 console.error('TikTok download error:', downloadError);
                 
-                // Update processing message with error
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Failed to download TikTok video.\n\nPossible reasons:\n• Video is private or deleted\n• Network connection issue\n• TikTok server blocked the request\n\nPlease try again with a different video.',
-                    quoted: processingMsg
-                });
+                // Send simple error message
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download TikTok video.');
             }
 
         } catch (error) {
