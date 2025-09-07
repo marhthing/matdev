@@ -61,13 +61,7 @@ class UpscalePlugin {
                 return;
             }
 
-            // Check if API key exists
-            const apiKey = process.env.UPSCALE_API_KEY;
-            if (!apiKey) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No upscaling API key found. Use .setenv UPSCALE_API_KEY=<key>');
-                return;
-            }
+            // No API key needed for free service!
 
             // Send processing indicator
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
@@ -109,7 +103,7 @@ class UpscalePlugin {
                 });
 
                 // Upscale the image
-                const upscaledBuffer = await this.upscaleImage(tempFilePath, apiKey);
+                const upscaledBuffer = await this.upscaleImage(tempFilePath);
 
                 if (!upscaledBuffer) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -161,66 +155,77 @@ class UpscalePlugin {
     }
 
     /**
-     * Upscale image using AI service
+     * Upscale image using free Waifu2x service
      */
     async upscaleImage(imagePath, apiKey) {
         try {
-            // Using Replicate API for Real-ESRGAN upscaling
+            // Using free Waifu2x API for upscaling
             const imageBuffer = await fs.readFile(imagePath);
-            const base64Image = imageBuffer.toString('base64');
+            
+            // Create form data for the API request
+            const FormData = require('form-data');
+            const form = new FormData();
+            
+            form.append('file', imageBuffer, {
+                filename: 'image.jpg',
+                contentType: 'image/jpeg'
+            });
+            form.append('style', 'art'); // 'art' or 'photo'
+            form.append('noise', '1'); // noise reduction level (0, 1, 2, 3)
+            form.append('scale', '2'); // upscaling factor (1, 2)
 
-            const response = await axios.post('https://api.replicate.com/v1/predictions', {
-                version: "f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa", // Updated Real-ESRGAN model
-                input: {
-                    image: `data:image/jpeg;base64,${base64Image}`,
-                    scale: 2 // 2x upscaling
-                }
-            }, {
+            const response = await axios.post('https://api.waifu2x.udp.jp/api', form, {
                 headers: {
-                    'Authorization': `Token ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
+                    ...form.getHeaders(),
+                },
+                responseType: 'arraybuffer',
+                timeout: 60000 // 60 seconds timeout
             });
 
-            const predictionId = response.data.id;
-
-            // Poll for completion
-            let result = null;
-            let attempts = 0;
-            const maxAttempts = 30; // 30 seconds timeout
-
-            while (attempts < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-                
-                const statusResponse = await axios.get(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-                    headers: {
-                        'Authorization': `Token ${apiKey}`
-                    }
-                });
-
-                if (statusResponse.data.status === 'succeeded') {
-                    result = statusResponse.data.output;
-                    break;
-                } else if (statusResponse.data.status === 'failed') {
-                    throw new Error('Upscaling failed on server');
-                }
-
-                attempts++;
+            if (response.status === 200) {
+                return Buffer.from(response.data);
+            } else {
+                throw new Error(`Waifu2x API returned status ${response.status}`);
             }
-
-            if (!result) {
-                throw new Error('Upscaling timeout - please try again');
-            }
-
-            // Download the upscaled image
-            const imageResponse = await axios.get(result, { responseType: 'arraybuffer' });
-            return Buffer.from(imageResponse.data);
 
         } catch (error) {
             console.error('Error in upscaleImage:', error);
-            if (error.response) {
-                console.error('API Response:', error.response.data);
+            
+            // Fallback to a simple image processing method
+            try {
+                console.log('Trying fallback upscaling method...');
+                return await this.fallbackUpscale(imagePath);
+            } catch (fallbackError) {
+                console.error('Fallback upscaling also failed:', fallbackError);
+                return null;
             }
+        }
+    }
+
+    /**
+     * Fallback upscaling using Sharp (simple interpolation)
+     */
+    async fallbackUpscale(imagePath) {
+        try {
+            const sharp = require('sharp');
+            const imageBuffer = await fs.readFile(imagePath);
+            
+            // Get image metadata
+            const metadata = await sharp(imageBuffer).metadata();
+            const newWidth = metadata.width * 2;
+            const newHeight = metadata.height * 2;
+            
+            // Upscale using bicubic interpolation
+            const upscaledBuffer = await sharp(imageBuffer)
+                .resize(newWidth, newHeight, {
+                    kernel: sharp.kernel.cubic
+                })
+                .jpeg({ quality: 95 })
+                .toBuffer();
+                
+            return upscaledBuffer;
+        } catch (error) {
+            console.error('Error in fallback upscaling:', error);
             return null;
         }
     }
