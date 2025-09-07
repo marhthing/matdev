@@ -184,46 +184,13 @@ class AntiViewOncePlugin {
                 const fileExists = await fs.pathExists(savedFilePath);
                 console.log(`🔍 Debug - File exists: ${fileExists}`);
                 
-                // If exact file doesn't exist, try to find any matching files for this content type
-                let alternativeFile = null;
-                if (!buffer && !fileExists) {
+                if (!buffer && fileExists) {
                     try {
-                        const viewOnceFiles = await fs.readdir(this.viewOnceDir);
-                        const extension = contentType === 'imageMessage' ? '.jpg' : '.mp4';
-                        const matchingFiles = viewOnceFiles.filter(file => 
-                            file.endsWith(extension) && !file.endsWith('.json')
-                        );
-                        
-                        if (matchingFiles.length > 0) {
-                            // For now, use the most recent file as fallback
-                            // This could be improved with better matching logic
-                            const mostRecent = matchingFiles
-                                .map(file => ({
-                                    name: file,
-                                    path: path.join(this.viewOnceDir, file),
-                                    stats: fs.statSync(path.join(this.viewOnceDir, file))
-                                }))
-                                .sort((a, b) => b.stats.mtime - a.stats.mtime)[0];
-                            
-                            alternativeFile = mostRecent.path;
-                            console.log(`🔍 Debug - Found alternative file: ${mostRecent.name}`);
-                        }
-                    } catch (error) {
-                        console.log(`🔍 Debug - Error searching for alternative files: ${error.message}`);
-                    }
-                }
-                
-                if (!buffer && (fileExists || alternativeFile)) {
-                    const fileToUse = fileExists ? savedFilePath : alternativeFile;
-                    try {
-                        buffer = await fs.readFile(fileToUse);
+                        buffer = await fs.readFile(savedFilePath);
                         if (buffer && buffer.length > 0) {
                             usedSavedMedia = true;
-                            const fileName = path.basename(fileToUse);
+                            const fileName = path.basename(savedFilePath);
                             console.log(`📁 Using saved view-once media: ${fileName}`);
-                            if (alternativeFile) {
-                                console.log(`📁 Used alternative file due to ID mismatch`);
-                            }
                         } else {
                             console.log('⚠️ Saved media file exists but is empty or corrupted');
                             buffer = null;
@@ -232,6 +199,8 @@ class AntiViewOncePlugin {
                         console.log('Error loading saved media:', error.message);
                         buffer = null;
                     }
+                } else if (!buffer && !fileExists) {
+                    console.log(`❌ Saved media file not found: ${path.basename(savedFilePath)}`);
                 }
 
                 if (!buffer) {
