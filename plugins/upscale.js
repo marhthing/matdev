@@ -47,7 +47,7 @@ class UpscalePlugin {
             // Check for quoted message using the same approach as media plugin
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please reply to an image to upscale it.\nUsage: Reply to an image and type .upscale');
@@ -70,7 +70,7 @@ class UpscalePlugin {
             try {
                 // Get the proper quoted message structure
                 const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
-                
+
                 if (!contextInfo || !contextInfo.quotedMessage) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ Could not access the quoted message.',
@@ -95,7 +95,7 @@ class UpscalePlugin {
 
                 console.log('Downloading media from quoted message...');
                 const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
-                
+
                 if (!buffer || buffer.length === 0) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ Failed to download the image or image is empty.',
@@ -134,11 +134,11 @@ class UpscalePlugin {
                 try {
                     const sharp = require('sharp');
                     const metadata = await sharp(upscaledBuffer).metadata();
-                    
+
                     if (!metadata.width || !metadata.height || metadata.width < 10 || metadata.height < 10) {
                         throw new Error('Invalid image dimensions');
                     }
-                    
+
                     console.log(`Upscaled image validation: ${metadata.width}x${metadata.height}`);
                 } catch (validationError) {
                     console.error('Image validation failed:', validationError);
@@ -167,7 +167,7 @@ class UpscalePlugin {
 
             } catch (processError) {
                 console.error('Upscaling process error:', processError);
-                
+
                 let errorMessage = '❌ Error during image processing. Please try again.';
                 if (processError.message.includes('API_KEY_INVALID')) {
                     errorMessage = '❌ Invalid upscaling API key. Please check your UPSCALE_API_KEY.';
@@ -176,7 +176,7 @@ class UpscalePlugin {
                 } else if (processError.message.includes('FILE_TOO_LARGE')) {
                     errorMessage = '❌ Image file is too large. Please try with a smaller image.';
                 }
-                
+
                 // Edit the processing message to show error
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: errorMessage,
@@ -195,7 +195,7 @@ class UpscalePlugin {
      */
     async upscaleImage(imagePath, apiKey) {
         const imageBuffer = await fs.readFile(imagePath);
-        
+
         // Try multiple free APIs in order of preference
         const freeApis = [
             this.tryWaifu2xOriginal.bind(this),
@@ -227,7 +227,7 @@ class UpscalePlugin {
     async tryWaifu2xOriginal(imageBuffer) {
         const FormData = require('form-data');
         const form = new FormData();
-        
+
         form.append('file', imageBuffer, {
             filename: 'image.jpg',
             contentType: 'image/jpeg'
@@ -254,7 +254,7 @@ class UpscalePlugin {
     async tryWaifu2xAlternative(imageBuffer) {
         const FormData = require('form-data');
         const form = new FormData();
-        
+
         form.append('file', imageBuffer, {
             filename: 'image.png',
             contentType: 'image/png'
@@ -279,7 +279,7 @@ class UpscalePlugin {
      */
     async tryImageUpscalerAPI(imageBuffer) {
         const base64Image = imageBuffer.toString('base64');
-        
+
         const response = await axios.post('https://api.upscaler.ai/v1/upscale', {
             image: base64Image,
             scale: 2,
@@ -312,74 +312,103 @@ class UpscalePlugin {
         try {
             const sharp = require('sharp');
             const imageBuffer = await fs.readFile(imagePath);
-            
+
             // Validate input image first
             const inputMetadata = await sharp(imageBuffer).metadata();
-            
+
             if (!inputMetadata.width || !inputMetadata.height) {
                 throw new Error('Invalid input image metadata');
             }
-            
+
             console.log(`Input image: ${inputMetadata.width}x${inputMetadata.height}, format: ${inputMetadata.format}`);
-            
+
             const scaleFactor = 2;
             const newWidth = Math.round(inputMetadata.width * scaleFactor);
             const newHeight = Math.round(inputMetadata.height * scaleFactor);
-            
+
             console.log(`Upscaling from ${inputMetadata.width}x${inputMetadata.height} to ${newWidth}x${newHeight}`);
-            
-            // Simple but effective upscaling approach
-            const upscaledBuffer = await sharp(imageBuffer)
+
+            // High-quality upscaling with multiple enhancement steps
+            let sharpProcessor = sharp(imageBuffer)
                 .resize(newWidth, newHeight, {
                     kernel: sharp.kernel.lanczos3,
                     withoutEnlargement: false,
                     fastShrinkOnLoad: false
-                })
-                .sharpen({
-                    sigma: 1.5,
-                    flat: 1.0,
-                    jagged: 2.0
-                })
-                .modulate({
-                    brightness: 1.05,
-                    contrast: 1.15,
-                    saturation: 1.05
-                })
-                .jpeg({ 
-                    quality: 95,
-                    progressive: true,
-                    optimizeScans: true,
-                    force: true
-                })
-                .toBuffer();
-                
+                });
+
+            // Apply enhancements based on image type
+            if (inputMetadata.hasAlpha) {
+                // Handle images with transparency
+                sharpProcessor = sharpProcessor
+                    .sharpen({ sigma: 1.2, flat: 1.0, jagged: 1.5 })
+                    .png({ quality: 95, progressive: true, force: true });
+            } else {
+                // Regular images
+                sharpProcessor = sharpProcessor
+                    .sharpen({ sigma: 1.5, flat: 1.0, jagged: 2.0 })
+                    .modulate({
+                        brightness: 1.02,
+                        contrast: 1.1,
+                        saturation: 1.05
+                    })
+                    .jpeg({ 
+                        quality: 95,
+                        progressive: true,
+                        optimizeScans: true,
+                        force: true
+                    });
+            }
+
+            const upscaledBuffer = await sharpProcessor.toBuffer();
+
             // Validate output
             const outputMetadata = await sharp(upscaledBuffer).metadata();
-            console.log(`✅ Upscaling completed: ${inputMetadata.width}x${inputMetadata.height} -> ${outputMetadata.width}x${outputMetadata.height}`);
+            console.log(`✅ Advanced upscaling completed: ${inputMetadata.width}x${inputMetadata.height} -> ${outputMetadata.width}x${outputMetadata.height}`);
             console.log(`Output buffer size: ${upscaledBuffer.length} bytes`);
-            
+
+            // Ensure the output is significantly larger than input to confirm upscaling worked
+            if (upscaledBuffer.length < imageBuffer.length * 1.5) {
+                throw new Error('Upscaled image is not significantly larger than original');
+            }
+
             return upscaledBuffer;
-            
+
         } catch (error) {
             console.error('Error in advanced fallback upscaling:', error);
-            
-            // Very simple fallback - just resize without any effects
+
+            // Simple but reliable fallback
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
                 const metadata = await sharp(imageBuffer).metadata();
-                
-                console.log('Using minimal fallback upscaling...');
+
+                console.log('Using simple fallback upscaling...');
+
                 const simpleUpscaled = await sharp(imageBuffer)
                     .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.cubic
+                        kernel: sharp.kernel.lanczos3,
+                        withoutEnlargement: false
                     })
-                    .jpeg({ quality: 90 })
+                    .jpeg({ 
+                        quality: 90,
+                        progressive: true,
+                        force: true
+                    })
                     .toBuffer();
-                    
+
                 console.log(`Simple fallback completed: ${simpleUpscaled.length} bytes`);
-                return simpleUpscaled;
-                
+
+                // Final validation
+                const finalMetadata = await sharp(simpleUpscaled).metadata();
+                if (finalMetadata.width && finalMetadata.height && 
+                    finalMetadata.width === metadata.width * 2 &&
+                    finalMetadata.height === metadata.height * 2) {
+                    console.log('✅ Simple fallback validation passed');
+                    return simpleUpscaled;
+                }
+
+                throw new Error('Simple fallback validation failed');
+
             } catch (simpleError) {
                 console.error('Simple fallback also failed:', simpleError);
                 return null;
