@@ -11,7 +11,7 @@ const path = require('path');
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
-        this.description = 'YouTube video and shorts downloader via Y2mate';
+        this.description = 'YouTube video and shorts downloader with multiple service fallbacks';
         this.version = '2.0.0';
 
         // Rate limiting and safety
@@ -30,13 +30,48 @@ class YouTubePlugin {
         this.maxRequestsPerMinute = 8;
         this.requestTimes = [];
 
-        // Y2mate API endpoints
-        this.y2mateEndpoints = [
-            'https://www.y2mate.com/mates/analyzeV2/ajax',
-            'https://www.y2mate.com/mates/convertV2/index',
-            'https://www.y2mate.com/mates/en68/analyze/ajax',
-            'https://www.y2mate.com/mates/en68/convert'
-        ];
+        // Multiple service endpoints for fallback support
+        this.downloadServices = {
+            y2mate: {
+                name: 'Y2mate',
+                analyzeEndpoints: [
+                    'https://www.y2mate.com/mates/analyzeV2/ajax',
+                    'https://www.y2mate.com/mates/en68/analyze/ajax'
+                ],
+                convertEndpoints: [
+                    'https://www.y2mate.com/mates/convertV2/index',
+                    'https://www.y2mate.com/mates/en68/convert'
+                ]
+            },
+            ninexconvert: {
+                name: '9Convert',
+                endpoints: [
+                    'https://9convert.com/api/ajaxSearch/index',
+                    'https://9convert.com/api/ajaxConvert/index'
+                ]
+            },
+            savefrom: {
+                name: 'SaveFrom',
+                endpoints: [
+                    'https://worker.sf-tools.com/youtube',
+                    'https://api.savefrom.net/info'
+                ]
+            },
+            ytmp3: {
+                name: 'YTMP3',
+                endpoints: [
+                    'https://ytmp3.nu/api/convert',
+                    'https://www.ytmp3.cc/api/convert'
+                ]
+            },
+            ytdl: {
+                name: 'YTDL',
+                endpoints: [
+                    'https://ytdl.org/api/convert',
+                    'https://www.ytdl.org/download'
+                ]
+            }
+        };
     }
 
     /**
@@ -46,7 +81,7 @@ class YouTubePlugin {
         this.bot = bot;
         this.registerCommands();
         this.setupSafetyMeasures();
-        console.log('✅ YouTube plugin loaded with Y2mate integration');
+        console.log('✅ YouTube plugin loaded with multi-service fallback support');
     }
 
     /**
@@ -121,15 +156,45 @@ class YouTubePlugin {
     }
 
     /**
-     * Extract video info using Y2mate API
+     * Extract video info using multiple services with fallback
      */
-    async getVideoInfoFromY2mate(url) {
+    async getVideoInfoFromServices(url) {
         const userAgent = this.getRandomUserAgent();
 
-        for (const endpoint of this.y2mateEndpoints) {
+        // Try each service in order
+        for (const [serviceKey, service] of Object.entries(this.downloadServices)) {
             try {
-                // Analyze video
-                const analyzeResponse = await axios.post(endpoint.replace('convert', 'analyze'), {
+                console.log(`Trying ${service.name} service...`);
+                
+                if (serviceKey === 'y2mate') {
+                    return await this.tryY2mate(url, userAgent);
+                } else if (serviceKey === 'ninexconvert') {
+                    return await this.try9Convert(url, userAgent);
+                } else if (serviceKey === 'savefrom') {
+                    return await this.trySaveFrom(url, userAgent);
+                } else if (serviceKey === 'ytmp3') {
+                    return await this.tryYTMP3(url, userAgent);
+                } else if (serviceKey === 'ytdl') {
+                    return await this.tryYTDL(url, userAgent);
+                }
+            } catch (error) {
+                console.log(`${service.name} service failed:`, error.message);
+                continue;
+            }
+        }
+
+        throw new Error('All download services failed');
+    }
+
+    /**
+     * Try Y2mate service
+     */
+    async tryY2mate(url, userAgent) {
+        const service = this.downloadServices.y2mate;
+        
+        for (const endpoint of service.analyzeEndpoints) {
+            try {
+                const analyzeResponse = await axios.post(endpoint, {
                     k_query: url,
                     k_page: 'home',
                     hl: 'en',
@@ -146,39 +211,206 @@ class YouTubePlugin {
                 });
 
                 if (analyzeResponse.data && analyzeResponse.data.status === 'ok') {
+                    analyzeResponse.data.service = 'y2mate';
                     return analyzeResponse.data;
                 }
             } catch (error) {
-                console.log(`Y2mate endpoint ${endpoint} failed:`, error.message);
                 continue;
             }
         }
-
-        throw new Error('All Y2mate endpoints failed');
+        throw new Error('Y2mate failed');
     }
 
     /**
-     * Get download link using Y2mate API
+     * Try 9Convert service
      */
-    async getDownloadLinkFromY2mate(videoId, ftype, fquality) {
+    async try9Convert(url, userAgent) {
+        try {
+            const response = await axios.post('https://9convert.com/api/ajaxSearch/index', {
+                q: url,
+                vt: 'home'
+            }, {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Origin': 'https://9convert.com',
+                    'Referer': 'https://9convert.com/'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.status === 'ok') {
+                response.data.service = '9convert';
+                return response.data;
+            }
+        } catch (error) {
+            throw new Error('9Convert failed');
+        }
+    }
+
+    /**
+     * Try SaveFrom service
+     */
+    async trySaveFrom(url, userAgent) {
+        try {
+            const response = await axios.get(`https://worker.sf-tools.com/youtube?url=${encodeURIComponent(url)}`, {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Referer': 'https://savefrom.net/'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.url) {
+                const videoInfo = {
+                    service: 'savefrom',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {}
+                    },
+                    downloadUrl: response.data.url
+                };
+
+                // Parse quality from response
+                if (response.data.quality) {
+                    videoInfo.links.mp4[response.data.quality] = {
+                        f: 'mp4',
+                        q: response.data.quality
+                    };
+                }
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('SaveFrom failed');
+        }
+    }
+
+    /**
+     * Try YTMP3 service
+     */
+    async tryYTMP3(url, userAgent) {
+        try {
+            const response = await axios.post('https://ytmp3.nu/api/convert', {
+                url: url,
+                format: 'mp4'
+            }, {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Content-Type': 'application/json',
+                    'Origin': 'https://ytmp3.nu'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.success) {
+                const videoInfo = {
+                    service: 'ytmp3',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {
+                            '360': { f: 'mp4', q: '360' }
+                        }
+                    },
+                    downloadUrl: response.data.download_url
+                };
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('YTMP3 failed');
+        }
+    }
+
+    /**
+     * Try YTDL service
+     */
+    async tryYTDL(url, userAgent) {
+        try {
+            const response = await axios.post('https://ytdl.org/api/convert', {
+                url: url,
+                quality: 'auto'
+            }, {
+                headers: {
+                    'User-Agent': userAgent,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.status === 'success') {
+                const videoInfo = {
+                    service: 'ytdl',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {
+                            '480': { f: 'mp4', q: '480' }
+                        }
+                    },
+                    downloadUrl: response.data.url
+                };
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('YTDL failed');
+        }
+    }
+
+    /**
+     * Get download link using the appropriate service
+     */
+    async getDownloadLinkFromService(videoInfo, videoFormat) {
         const userAgent = this.getRandomUserAgent();
 
-        for (const endpoint of this.y2mateEndpoints) {
-            try {
-                const convertEndpoint = endpoint.includes('analyze') 
-                    ? endpoint.replace('analyze/ajax', 'convert') 
-                    : endpoint;
+        // If direct download URL is available, return it
+        if (videoInfo.downloadUrl) {
+            return videoInfo.downloadUrl;
+        }
 
-                const convertResponse = await axios.post(convertEndpoint, {
-                    vid: videoId,
-                    k: ftype + fquality
+        // Handle Y2mate specifically
+        if (videoInfo.service === 'y2mate') {
+            const service = this.downloadServices.y2mate;
+            
+            for (const endpoint of service.convertEndpoints) {
+                try {
+                    const convertResponse = await axios.post(endpoint, {
+                        vid: videoInfo.vid,
+                        k: videoFormat.f + videoFormat.q
+                    }, {
+                        headers: {
+                            'User-Agent': userAgent,
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Origin': 'https://www.y2mate.com',
+                            'Referer': 'https://www.y2mate.com/en68',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        timeout: 20000
+                    });
+
+                    if (convertResponse.data && convertResponse.data.status === 'ok') {
+                        return convertResponse.data.dlink;
+                    }
+                } catch (error) {
+                    continue;
+                }
+            }
+        }
+
+        // Handle 9Convert
+        if (videoInfo.service === '9convert') {
+            try {
+                const convertResponse = await axios.post('https://9convert.com/api/ajaxConvert/index', {
+                    vid: videoInfo.vid,
+                    k: videoFormat.k || (videoFormat.f + videoFormat.q)
                 }, {
                     headers: {
                         'User-Agent': userAgent,
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Origin': 'https://www.y2mate.com',
-                        'Referer': 'https://www.y2mate.com/en68',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'Origin': 'https://9convert.com'
                     },
                     timeout: 20000
                 });
@@ -187,12 +419,11 @@ class YouTubePlugin {
                     return convertResponse.data.dlink;
                 }
             } catch (error) {
-                console.log(`Y2mate convert endpoint failed:`, error.message);
-                continue;
+                // Continue to fallback
             }
         }
 
-        throw new Error('Failed to get download link from Y2mate');
+        throw new Error('Failed to get download link from any service');
     }
 
     /**
@@ -253,11 +484,11 @@ class YouTubePlugin {
             this.trackRequest();
             await this.addHumanDelay();
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video via Y2mate...\n⏳ Please wait...');
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video...\n⏳ Trying multiple services...');
 
             try {
-                // Get video info from Y2mate
-                const videoInfo = await this.getVideoInfoFromY2mate(url);
+                // Get video info from multiple services with fallback
+                const videoInfo = await this.getVideoInfoFromServices(url);
 
                 if (!videoInfo.links || !videoInfo.links.mp4) {
                     throw new Error('No MP4 formats available');
@@ -284,12 +515,12 @@ class YouTubePlugin {
 
                 // Update processing message
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🔄 Downloading video...\n📹 *${title}*\n📊 *Quality:* ${preferredQuality}p\n⏱️ *Duration:* ${this.formatDuration(duration)}\n⏳ Getting download link...`,
+                    text: `🔄 Downloading video...\n📹 *${title}*\n📊 *Quality:* ${preferredQuality}p\n⏱️ *Duration:* ${this.formatDuration(duration)}\n🔧 *Service:* ${videoInfo.service || 'Unknown'}\n⏳ Getting download link...`,
                     quoted: processingMsg
                 });
 
                 // Get download link
-                const downloadLink = await this.getDownloadLinkFromY2mate(videoInfo.vid, videoFormat.f, videoFormat.q);
+                const downloadLink = await this.getDownloadLinkFromService(videoInfo, videoFormat);
 
                 if (!downloadLink) {
                     throw new Error('Failed to get download link');
@@ -330,7 +561,7 @@ class YouTubePlugin {
                     video: videoBuffer,
                     mimetype: 'video/mp4',
                     fileName: `${title.replace(/[^\w\s]/gi, '')}.mp4`,
-                    caption: `📹 *${title}*\n⏱️ *Duration:* ${this.formatDuration(duration)}\n📊 *Quality:* ${preferredQuality}p\n🤖 *Downloaded by:* ${config.BOT_NAME}`
+                    caption: `📹 *${title}*\n⏱️ *Duration:* ${this.formatDuration(duration)}\n📊 *Quality:* ${preferredQuality}p\n🔧 *Service:* ${videoInfo.service || 'Unknown'}\n🤖 *Downloaded by:* ${config.BOT_NAME}`
                 });
 
                 // Delete processing message
@@ -341,9 +572,9 @@ class YouTubePlugin {
                 }
 
             } catch (downloadError) {
-                console.error('Y2mate download error:', downloadError);
+                console.error('Download service error:', downloadError);
 
-                let errorMessage = '❌ Failed to download YouTube video via Y2mate.';
+                let errorMessage = '❌ Failed to download YouTube video from all available services.';
 
                 if (downloadError.message?.includes('timeout')) {
                     errorMessage = '❌ Download timeout. The video may be too large or connection is slow.';
