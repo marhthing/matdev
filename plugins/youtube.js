@@ -893,8 +893,6 @@ class YouTubePlugin {
             this.trackRequest();
             await this.addHumanDelay();
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video...\n⏳ Trying multiple services...');
-
             try {
                 // Get video info from multiple services with fallback
                 const videoInfo = await this.getVideoInfoFromServices(url);
@@ -921,12 +919,6 @@ class YouTubePlugin {
                                        qualities[0];
 
                 const videoFormat = videoInfo.links.mp4[preferredQuality];
-
-                // Update processing message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🔄 Downloading video...\n📹 *${title}*\n📊 *Quality:* ${preferredQuality}p\n⏱️ *Duration:* ${this.formatDuration(duration)}\n🔧 *Service:* ${videoInfo.service || 'Unknown'}\n⏳ Getting download link...`,
-                    quoted: processingMsg
-                });
 
                 // Get download link with fallback retry
                 let downloadLink = null;
@@ -997,12 +989,6 @@ class YouTubePlugin {
                     throw new Error('Failed to get download link from all services');
                 }
 
-                // Update processing message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🔄 Downloading video file...\n📹 *${title}*\n⏳ Please wait while we download the video...`,
-                    quoted: processingMsg
-                });
-
                 // Download the video file
                 const response = await axios.get(downloadLink, {
                     responseType: 'arraybuffer',
@@ -1027,20 +1013,12 @@ class YouTubePlugin {
                     return;
                 }
 
-                // Send video
+                // Send video without caption
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: videoBuffer,
                     mimetype: 'video/mp4',
-                    fileName: `${title.replace(/[^\w\s]/gi, '')}.mp4`,
-                    caption: `📹 *${title}*\n⏱️ *Duration:* ${this.formatDuration(duration)}\n📊 *Quality:* ${preferredQuality}p\n🔧 *Service:* ${videoInfo.service || 'Unknown'}\n🤖 *Downloaded by:* ${config.BOT_NAME}`
+                    fileName: `${title.replace(/[^\w\s]/gi, '')}.mp4`
                 });
-
-                // Delete processing message
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
-                } catch (e) {
-                    // Ignore delete errors
-                }
 
             } catch (downloadError) {
                 console.error('Download service error:', downloadError);
