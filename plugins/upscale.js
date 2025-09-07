@@ -170,11 +170,10 @@ class UpscalePlugin {
             const base64Image = imageBuffer.toString('base64');
 
             const response = await axios.post('https://api.replicate.com/v1/predictions', {
-                version: "42fed1c4974146d4d2414e2be2c5277c7fcf05fcc972f6bf2b8b4c7b7e3c4c61", // Real-ESRGAN model
+                version: "f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa", // Updated Real-ESRGAN model
                 input: {
                     image: `data:image/jpeg;base64,${base64Image}`,
-                    scale: 2, // 2x upscaling
-                    face_enhance: false
+                    scale: 2 // 2x upscaling
                 }
             }, {
                 headers: {
