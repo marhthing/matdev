@@ -51,13 +51,20 @@ class CorePlugin {
 
         // Menu command (enhanced system info menu)
         this.bot.messageHandler.registerCommand('menu', this.menuCommand.bind(this), {
-            description: 'Show system info and command menu',
+            description: 'Display bot menu and information',
             usage: `${config.PREFIX}menu`,
-            category: 'core',
+            category: 'utility',
             plugin: 'core',
             source: 'core.js'
         });
 
+        this.bot.messageHandler.registerCommand('time', this.timeCommand.bind(this), {
+            description: 'Show current bot time in Lagos timezone',
+            usage: `${config.PREFIX}time`,
+            category: 'utility',
+            plugin: 'core',
+            source: 'core.js'
+        });
 
         // JID command
         this.bot.messageHandler.registerCommand('jid', this.jidCommand.bind(this), {
@@ -335,6 +342,26 @@ class CorePlugin {
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving JID information.');
         }
+    }
+
+    /**
+     * Time command - Show current bot time
+     */
+    async timeCommand(messageInfo) {
+        const moment = require('moment-timezone');
+        const config = require('../config');
+
+        const lagosTime = moment().tz(config.TIMEZONE);
+        const utcTime = moment().utc();
+
+        const timeInfo = `🕐 *Bot Time Information*\n\n` +
+                        `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}\n` +
+                        `🌍 *UTC Time:* ${utcTime.format('DD/MM/YYYY HH:mm:ss')}\n` +
+                        `⏰ *Timezone:* ${config.TIMEZONE}\n` +
+                        `📍 *Offset:* UTC${lagosTime.format('Z')}\n\n` +
+                        `_Use this time for scheduling messages_`;
+
+        await this.bot.messageHandler.reply(messageInfo, timeInfo);
     }
 
     /**

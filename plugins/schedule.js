@@ -109,7 +109,7 @@ class SchedulePlugin {
      * Check for schedules that need to be sent
      */
     async checkPendingSchedules() {
-        const now = moment().tz(config.TIMEZONE);
+        const now = moment().tz(config.TIMEZONE); // Use Lagos time (UTC+1)
         const toSend = [];
         
         for (const [id, schedule] of this.schedules) {
@@ -217,7 +217,7 @@ class SchedulePlugin {
                 throw new Error('Invalid date/time format');
             }
             
-            // Create moment object in Lagos timezone
+            // Create moment object in Lagos timezone (UTC+1)
             const scheduleTime = moment.tz({ 
                 year, 
                 month: month - 1, // moment months are 0-indexed
@@ -227,8 +227,8 @@ class SchedulePlugin {
                 second: 0 
             }, config.TIMEZONE);
             
-            // Check if the scheduled time is in the future
-            if (scheduleTime.isSameOrBefore(moment())) {
+            // Check if the scheduled time is in the future (in Lagos timezone)
+            if (scheduleTime.isSameOrBefore(moment().tz(config.TIMEZONE))) {</old_str>
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
                 });
