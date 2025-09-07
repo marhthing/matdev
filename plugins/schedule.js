@@ -195,20 +195,7 @@ class SchedulePlugin {
             const dateStr = args[0];
             const timeStr = args[1];
             
-            // Target JID - if only 2 args provided and we have quoted message, use current chat
-            let targetJid;
-            if (args.length >= 3) {
-                targetJid = args[2];
-            } else if (actualQuotedMessage) {
-                targetJid = fromJid; // Send to current chat when replying
-            } else {
-                await this.bot.sock.sendMessage(fromJid, { 
-                    text: '❌ Please provide target JID or reply to a message!' 
-                });
-                return;
-            }
-            
-            // Parse date and time
+            // Parse date and time first to validate format
             const [day, month, year] = dateStr.split(':').map(Number);
             const [hour, minute] = timeStr.split(':').map(Number);
             
@@ -235,26 +222,51 @@ class SchedulePlugin {
                 return;
             }
             
-            // Get message content
-            let messageContent = '';
-            
-            // Check for quoted message in multiple possible locations
+            // Check for quoted message first
             const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
             const actualQuotedMessage = contextInfo?.quotedMessage || quotedMessage;
             
+            let targetJid = '';
+            let messageContent = '';
+            
             if (actualQuotedMessage) {
-                // Extract content from any type of quoted message
+                // If replying to a message, require JID parameter
+                if (args.length < 3) {
+                    await this.bot.sock.sendMessage(fromJid, { 
+                        text: '❌ Please provide target JID when replying to a message!\n\n*Usage:*\n' +
+                              `${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>\n\n*Example:*\n` +
+                              `${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net`
+                    });
+                    return;
+                }
+                
+                targetJid = args[2];
                 messageContent = this.extractMessageContent(actualQuotedMessage);
                 
                 if (!messageContent) {
                     messageContent = 'Message content (will be forwarded)';
                 }
-            } else if (args.length > 2) {
-                // Use provided message (after jid parameter)
-                messageContent = args.slice(2).join(' ');
             } else {
+                // No quoted message, need both JID and message content
+                if (args.length < 4) {
+                    await this.bot.sock.sendMessage(fromJid, { 
+                        text: '❌ Incomplete schedule information!\n\n*Usage:*\n' +
+                              `${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> <message>\n\n*Example:*\n` +
+                              `${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net Happy Birthday!\n\n` +
+                              `*Or reply to a message:*\n` +
+                              `${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>`
+                    });
+                    return;
+                }
+                
+                targetJid = args[2];
+                messageContent = args.slice(3).join(' ');
+            }
+            
+            // Final validation - ensure we have both JID and message content
+            if (!targetJid || !messageContent || messageContent.trim() === '') {
                 await this.bot.sock.sendMessage(fromJid, { 
-                    text: '❌ No message content provided! Either reply to a message or include message text.' 
+                    text: '❌ Missing required information!\n\nBoth target JID and message content are required.' 
                 });
                 return;
             }
