@@ -191,35 +191,89 @@ class YouTubePlugin {
             // Process video silently
 
             try {
-                // Get video info using youtube-dl-exec with latest 2025 bypass methods
-                const info = await youtubedl(url, {
-                    dumpSingleJson: true,
-                    noWarnings: true,
-                    noCheckCertificates: true,
-                    preferFreeFormats: true,
-                    userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                    referer: 'https://m.youtube.com/',
-                    extractorArgs: {
-                        youtube: {
-                            player_client: ['android']
-                        }
+                // Try multiple bypass methods in order of effectiveness
+                const bypassMethods = [
+                    // Method 1: Android client (most reliable)
+                    {
+                        dumpSingleJson: true,
+                        noWarnings: true,
+                        noCheckCertificates: true,
+                        preferFreeFormats: true,
+                        userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                        referer: 'https://m.youtube.com/',
+                        extractorArgs: {
+                            youtube: {
+                                player_client: ['android']
+                            }
+                        },
+                        youtubeSkipDashManifest: true,
+                        noMarkWatched: true,
+                        noPlaylist: true,
+                        sleepInterval: 3,
+                        maxSleepInterval: 6
                     },
-                    youtubeSkipDashManifest: true,
-                    noMarkWatched: true,
-                    noPlaylist: true,
-                    sleepInterval: 2,
-                    maxSleepInterval: 4,
-                    addHeader: [
-                        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language: en-US,en;q=0.5',
-                        'Accept-Encoding: gzip, deflate',
-                        'Connection: keep-alive',
-                        'Upgrade-Insecure-Requests: 1',
-                        'Sec-Fetch-Dest: document',
-                        'Sec-Fetch-Mode: navigate',
-                        'Sec-Fetch-Site: none'
-                    ]
-                });
+                    // Method 2: iOS client fallback
+                    {
+                        dumpSingleJson: true,
+                        noWarnings: true,
+                        noCheckCertificates: true,
+                        preferFreeFormats: true,
+                        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                        referer: 'https://m.youtube.com/',
+                        extractorArgs: {
+                            youtube: {
+                                player_client: ['ios']
+                            }
+                        },
+                        youtubeSkipDashManifest: true,
+                        noMarkWatched: true,
+                        noPlaylist: true,
+                        sleepInterval: 4,
+                        maxSleepInterval: 8
+                    },
+                    // Method 3: Web client with enhanced headers
+                    {
+                        dumpSingleJson: true,
+                        noWarnings: true,
+                        noCheckCertificates: true,
+                        preferFreeFormats: true,
+                        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        referer: 'https://www.youtube.com/',
+                        extractorArgs: {
+                            youtube: {
+                                player_client: ['web']
+                            }
+                        },
+                        youtubeSkipDashManifest: true,
+                        noMarkWatched: true,
+                        noPlaylist: true,
+                        sleepInterval: 5,
+                        maxSleepInterval: 10
+                    }
+                ];
+                
+                let info = null;
+                let lastError = null;
+                
+                for (let i = 0; i < bypassMethods.length; i++) {
+                    try {
+                        console.log(`Attempting YouTube bypass method ${i + 1}/${bypassMethods.length}`);
+                        info = await youtubedl(url, bypassMethods[i]);
+                        console.log(`✅ YouTube bypass method ${i + 1} successful`);
+                        break;
+                    } catch (error) {
+                        lastError = error;
+                        console.log(`❌ YouTube bypass method ${i + 1} failed: ${error.message}`);
+                        if (i < bypassMethods.length - 1) {
+                            console.log('Waiting 3 seconds before trying next method...');
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                        }
+                    }
+                }
+                
+                if (!info) {
+                    throw lastError || new Error('All YouTube bypass methods failed');
+                }
                 
                 const videoDetails = info;
 
@@ -258,35 +312,90 @@ class YouTubePlugin {
                     }, 300000); // 5 minute timeout
 
                     try {
-                        // Use youtube-dl-exec with latest 2025 bypass methods
-                        await youtubedl(url, {
-                            output: tempFile,
-                            format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
-                            noWarnings: true,
-                            noCheckCertificates: true,
-                            userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                            referer: 'https://m.youtube.com/',
-                            extractorArgs: {
-                                youtube: {
-                                    player_client: ['android']
-                                }
+                        // Try multiple download methods in order
+                        const downloadMethods = [
+                            // Method 1: Android client
+                            {
+                                output: tempFile,
+                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
+                                noWarnings: true,
+                                noCheckCertificates: true,
+                                userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                                referer: 'https://m.youtube.com/',
+                                extractorArgs: {
+                                    youtube: {
+                                        player_client: ['android']
+                                    }
+                                },
+                                youtubeSkipDashManifest: true,
+                                noMarkWatched: true,
+                                noPlaylist: true,
+                                sleepInterval: 3,
+                                maxSleepInterval: 6
                             },
-                            youtubeSkipDashManifest: true,
-                            noMarkWatched: true,
-                            noPlaylist: true,
-                            sleepInterval: 2,
-                            maxSleepInterval: 4,
-                            addHeader: [
-                                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                                'Accept-Language: en-US,en;q=0.5',
-                                'Accept-Encoding: gzip, deflate',
-                                'Connection: keep-alive',
-                                'Upgrade-Insecure-Requests: 1',
-                                'Sec-Fetch-Dest: document',
-                                'Sec-Fetch-Mode: navigate',
-                                'Sec-Fetch-Site: none'
-                            ]
-                        });
+                            // Method 2: iOS client
+                            {
+                                output: tempFile,
+                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
+                                noWarnings: true,
+                                noCheckCertificates: true,
+                                userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                                referer: 'https://m.youtube.com/',
+                                extractorArgs: {
+                                    youtube: {
+                                        player_client: ['ios']
+                                    }
+                                },
+                                youtubeSkipDashManifest: true,
+                                noMarkWatched: true,
+                                noPlaylist: true,
+                                sleepInterval: 4,
+                                maxSleepInterval: 8
+                            },
+                            // Method 3: Web client
+                            {
+                                output: tempFile,
+                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
+                                noWarnings: true,
+                                noCheckCertificates: true,
+                                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                referer: 'https://www.youtube.com/',
+                                extractorArgs: {
+                                    youtube: {
+                                        player_client: ['web']
+                                    }
+                                },
+                                youtubeSkipDashManifest: true,
+                                noMarkWatched: true,
+                                noPlaylist: true,
+                                sleepInterval: 5,
+                                maxSleepInterval: 10
+                            }
+                        ];
+                        
+                        let downloadSuccess = false;
+                        let lastDownloadError = null;
+                        
+                        for (let i = 0; i < downloadMethods.length; i++) {
+                            try {
+                                console.log(`Attempting download method ${i + 1}/${downloadMethods.length}`);
+                                await youtubedl(url, downloadMethods[i]);
+                                console.log(`✅ Download method ${i + 1} successful`);
+                                downloadSuccess = true;
+                                break;
+                            } catch (error) {
+                                lastDownloadError = error;
+                                console.log(`❌ Download method ${i + 1} failed: ${error.message}`);
+                                if (i < downloadMethods.length - 1) {
+                                    console.log('Waiting 5 seconds before trying next download method...');
+                                    await new Promise(resolve => setTimeout(resolve, 5000));
+                                }
+                            }
+                        }
+                        
+                        if (!downloadSuccess) {
+                            throw lastDownloadError || new Error('All download methods failed');
+                        }
                         
                         clearTimeout(timeout);
                         resolve();
@@ -382,32 +491,64 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
-                // Search using youtube-dl-exec with latest 2025 bypass methods
-                const searchResults = await youtubedl(`ytsearch5:${searchQuery}`, {
-                    dumpSingleJson: true,
-                    noWarnings: true,
-                    flatPlaylist: true,
-                    userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                    referer: 'https://m.youtube.com/',
-                    extractorArgs: {
-                        youtube: {
-                            player_client: ['android']
-                        }
+                // Try multiple search methods
+                const searchMethods = [
+                    // Method 1: Android client
+                    {
+                        dumpSingleJson: true,
+                        noWarnings: true,
+                        flatPlaylist: true,
+                        userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                        referer: 'https://m.youtube.com/',
+                        extractorArgs: {
+                            youtube: {
+                                player_client: ['android']
+                            }
+                        },
+                        youtubeSkipDashManifest: true,
+                        sleepInterval: 3,
+                        maxSleepInterval: 6
                     },
-                    youtubeSkipDashManifest: true,
-                    sleepInterval: 2,
-                    maxSleepInterval: 4,
-                    addHeader: [
-                        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language: en-US,en;q=0.5',
-                        'Accept-Encoding: gzip, deflate',
-                        'Connection: keep-alive',
-                        'Upgrade-Insecure-Requests: 1',
-                        'Sec-Fetch-Dest: document',
-                        'Sec-Fetch-Mode: navigate',
-                        'Sec-Fetch-Site: none'
-                    ]
-                });
+                    // Method 2: iOS client
+                    {
+                        dumpSingleJson: true,
+                        noWarnings: true,
+                        flatPlaylist: true,
+                        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+                        referer: 'https://m.youtube.com/',
+                        extractorArgs: {
+                            youtube: {
+                                player_client: ['ios']
+                            }
+                        },
+                        youtubeSkipDashManifest: true,
+                        sleepInterval: 4,
+                        maxSleepInterval: 8
+                    }
+                ];
+                
+                let searchResults = null;
+                let lastSearchError = null;
+                
+                for (let i = 0; i < searchMethods.length; i++) {
+                    try {
+                        console.log(`Attempting search method ${i + 1}/${searchMethods.length}`);
+                        searchResults = await youtubedl(`ytsearch5:${searchQuery}`, searchMethods[i]);
+                        console.log(`✅ Search method ${i + 1} successful`);
+                        break;
+                    } catch (error) {
+                        lastSearchError = error;
+                        console.log(`❌ Search method ${i + 1} failed: ${error.message}`);
+                        if (i < searchMethods.length - 1) {
+                            console.log('Waiting 3 seconds before trying next search method...');
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                        }
+                    }
+                }
+                
+                if (!searchResults) {
+                    throw lastSearchError || new Error('All search methods failed');
+                }
                 const videos = searchResults.entries || [searchResults];
 
                 if (videos.length === 0) {
