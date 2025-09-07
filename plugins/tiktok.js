@@ -191,9 +191,15 @@ class TikTokPlugin {
                 return;
             }
 
-            // Download the video
+            // Create temporary file path
+            const tempFile = path.join(__dirname, '..', 'tmp', `tiktok_${Date.now()}.mp4`);
+            
+            // Ensure tmp directory exists
+            await fs.ensureDir(path.dirname(tempFile));
+
+            // Download the video to temporary file
             const videoResponse = await axios.get(videoUrl, {
-                responseType: 'arraybuffer',
+                responseType: 'stream',
                 timeout: 60000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -206,11 +212,27 @@ class TikTokPlugin {
                 return;
             }
 
+            // Write video to temp file
+            await new Promise((resolve, reject) => {
+                const writeStream = fs.createWriteStream(tempFile);
+                videoResponse.data.pipe(writeStream);
+                
+                videoResponse.data.on('error', reject);
+                writeStream.on('error', reject);
+                writeStream.on('finish', resolve);
+            });
+
+            // Read video file as buffer
+            const videoBuffer = await fs.readFile(tempFile);
+
             // Send video
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                video: Buffer.from(videoResponse.data),
+                video: videoBuffer,
                 mimetype: 'video/mp4'
             });
+
+            // Clean up temp file
+            await fs.unlink(tempFile).catch(() => {});
 
         } catch (error) {
             console.error('Error in TikTok command:', error);
