@@ -821,14 +821,14 @@ class MATDEV {
                 messageId = message.key.id;
                 chatJid = message.key.remoteJid;
                 deletionDetected = true;
-                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 68 - ID: ${messageId}, Chat: ${chatJid}`);
+                // logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 68 - ID: ${messageId}, Chat: ${chatJid}`);
             }
             // Method 2: Check legacy stub type 6 (for compatibility)
             else if (message.update?.messageStubType === 6) {
                 messageId = message.key.id;
                 chatJid = message.key.remoteJid;
                 deletionDetected = true;
-                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 6 - ID: ${messageId}, Chat: ${chatJid}`);
+                // logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 6 - ID: ${messageId}, Chat: ${chatJid}`);
             }
             // Method 3: Protocol message revoke (type 0 = MESSAGE_DELETE)
             else if (message.update?.message?.protocolMessage?.type === 0) {
@@ -855,7 +855,7 @@ class MATDEV {
                 messageId = message.key.id;
                 chatJid = message.key.remoteJid;
                 deletionDetected = true;
-                logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: ${messageId}, Chat: ${chatJid}`);
+                // logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: ${messageId}, Chat: ${chatJid}`);
             }
 
             // Process deletion if detected
@@ -863,7 +863,7 @@ class MATDEV {
                 try {
                     // Use the anti-delete plugin if available and enabled
                     if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
-                        logger.info('🔄 Delegating to anti-delete plugin');
+                        // logger.info('🔄 Delegating to anti-delete plugin');
                         await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
                     } else {
                         // Fallback to built-in handling

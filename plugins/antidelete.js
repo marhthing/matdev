@@ -81,73 +81,73 @@ class AntiDeletePlugin {
         try {
             // Filter out status and newsletter messages
             if (this.shouldIgnoreChat(chatJid)) {
-                console.log('ℹ️ ANTI-DELETE: Ignoring deletion from filtered chat:', chatJid);
+                // console.log('ℹ️ ANTI-DELETE: Ignoring deletion from filtered chat:', chatJid);
                 return;
             }
 
-            console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
+            // console.log('🗑️ ANTI-DELETE: Detected deleted message:', messageId, 'in chat:', chatJid);
 
             // Add longer delay to ensure message is properly stored before checking
             await new Promise(resolve => setTimeout(resolve, 2500));
 
             // Get the original message from our JSON storage
-            console.log(`🔍 ANTI-DELETE: Searching for message ID: ${messageId}`);
+            // console.log(`🔍 ANTI-DELETE: Searching for message ID: ${messageId}`);
             const originalMessage = await this.bot.database.getArchivedMessage(messageId);
-            console.log(`🔍 ANTI-DELETE: Search result:`, originalMessage ? 'FOUND' : 'NOT FOUND');
+            // console.log(`🔍 ANTI-DELETE: Search result:`, originalMessage ? 'FOUND' : 'NOT FOUND');
 
             // If not found, try one more time with additional delay
             if (!originalMessage) {
-                console.log('🔄 ANTI-DELETE: Message not found, retrying after additional delay...');
+                // console.log('🔄 ANTI-DELETE: Message not found, retrying after additional delay...');
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 const retryMessage = await this.bot.database.getArchivedMessage(messageId);
-                console.log(`🔍 ANTI-DELETE: Retry search result:`, retryMessage ? 'FOUND' : 'NOT FOUND');
+                // console.log(`🔍 ANTI-DELETE: Retry search result:`, retryMessage ? 'FOUND' : 'NOT FOUND');
                 
                 if (retryMessage) {
                     // Process the found message
-                    console.log('📋 ANTI-DELETE: Original message found on retry:', {
-                        id: retryMessage.id,
-                        sender: retryMessage.sender_jid,
-                        participant: retryMessage.participant_jid,
-                        content: retryMessage.content?.substring(0, 50) + '...',
-                        timestamp: retryMessage.timestamp,
-                        from_me: retryMessage.from_me
-                    });
+                    // console.log('📋 ANTI-DELETE: Original message found on retry:', {
+                    //     id: retryMessage.id,
+                    //     sender: retryMessage.sender_jid,
+                    //     participant: retryMessage.participant_jid,
+                    //     content: retryMessage.content?.substring(0, 50) + '...',
+                    //     timestamp: retryMessage.timestamp,
+                    //     from_me: retryMessage.from_me
+                    // });
 
                     const config = require('../config');
                     if (config.OWNER_NUMBER && !retryMessage.from_me) {
-                        console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion (retry)');
+                        // console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion (retry)');
                         await this.sendDeletedMessageAlert(retryMessage, chatJid);
                         await this.bot.database.markMessageDeleted(messageId, chatJid);
-                        console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
+                        // console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
                         return; // Exit early since we found and processed the message
                     }
                 }
             }
 
             if (originalMessage) {
-                console.log('📋 ANTI-DELETE: Original message found in database:', {
-                    id: originalMessage.id,
-                    sender: originalMessage.sender_jid,
-                    participant: originalMessage.participant_jid,
-                    content: originalMessage.content?.substring(0, 50) + '...',
-                    timestamp: originalMessage.timestamp,
-                    from_me: originalMessage.from_me
-                });
+                // console.log('📋 ANTI-DELETE: Original message found in database:', {
+                //     id: originalMessage.id,
+                //     sender: originalMessage.sender_jid,
+                //     participant: originalMessage.participant_jid,
+                //     content: originalMessage.content?.substring(0, 50) + '...',
+                //     timestamp: originalMessage.timestamp,
+                //     from_me: originalMessage.from_me
+                // });
 
                 // Send alert to owner for incoming messages (use centralized from_me flag)
                 const config = require('../config');
                 if (config.OWNER_NUMBER && !originalMessage.from_me) {
-                    console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion');
+                    // console.log('🚨 ANTI-DELETE: Sending alert for incoming message deletion');
                     await this.sendDeletedMessageAlert(originalMessage, chatJid);
                     await this.bot.database.markMessageDeleted(messageId, chatJid);
-                    console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
+                    // console.log('✅ ANTI-DELETE: Alert sent for message:', messageId);
                 } else if (originalMessage.from_me) {
-                    console.log('ℹ️ ANTI-DELETE: Skipping own message deletion:', messageId);
+                    // console.log('ℹ️ ANTI-DELETE: Skipping own message deletion:', messageId);
                 } else {
-                    console.log('⚠️ ANTI-DELETE: No owner number configured, skipping alert');
+                    // console.log('⚠️ ANTI-DELETE: No owner number configured, skipping alert');
                 }
             } else {
-                console.log('❌ ANTI-DELETE: Original message not found in database:', messageId);
+                // console.log('❌ ANTI-DELETE: Original message not found in database:', messageId);
                 // Only log to console if we're sure it wasn't our own message
                 // Check if the chat is with someone else (not status or our own number)
                 const isOtherPersonChat = chatJid !== 'status@broadcast' &&
@@ -155,12 +155,12 @@ class AntiDeletePlugin {
                                         chatJid.includes('@s.whatsapp.net');
 
                 if (config.OWNER_NUMBER && isOtherPersonChat) {
-                    console.log('🗑️ MESSAGE DELETION DETECTED');
-                    console.log(`⚠️ Warning: A message was deleted but could not be recovered`);
-                    console.log(`📱 Chat: ${chatJid.split('@')[0]}`);
-                    console.log(`🆔 Message ID: ${messageId}`);
-                    console.log(`🕐 Detected At: ${new Date().toLocaleString()}`);
-                    console.log(`This might be due to the message being sent before the bot started monitoring.`);
+                    // console.log('🗑️ MESSAGE DELETION DETECTED');
+                    // console.log(`⚠️ Warning: A message was deleted but could not be recovered`);
+                    // console.log(`📱 Chat: ${chatJid.split('@')[0]}`);
+                    // console.log(`🆔 Message ID: ${messageId}`);
+                    // console.log(`🕐 Detected At: ${new Date().toLocaleString()}`);
+                    // console.log(`This might be due to the message being sent before the bot started monitoring.`);
                 }
             }
         } catch (error) {
