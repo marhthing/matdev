@@ -876,7 +876,7 @@ class MATDEV {
             } else {
                 // Check if this is a message edit (not a deletion)
                 if (message.update?.message && message.key?.id) {
-                    logger.info('📝 Message edit detected - processing for commands and archival');
+                    // logger.info('📝 Message edit detected - processing for commands and archival');
                     
                     // Create a proper message object structure for edited content
                     const editedMessage = {
@@ -893,7 +893,7 @@ class MATDEV {
                     // Process the edited message for commands and archival
                     try {
                         await this.messageHandler.process(editedMessage);
-                        logger.info('✅ Edited message processed and archived');
+                        // logger.info('✅ Edited message processed and archived');
                     } catch (error) {
                         logger.error('Error processing edited message:', error);
                     }

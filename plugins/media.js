@@ -274,10 +274,10 @@ class MediaPlugin {
 
                 // For video stickers, add specific handling
                 if (isVideo) {
-                    console.log('🎬 Processing video sticker with optimized settings...');
+                    // console.log('🎬 Processing video sticker with optimized settings...');
                     // Additional options for video processing can be added here
                 } else {
-                    console.log('🖼️ Processing image sticker...');
+                    // console.log('🖼️ Processing image sticker...');
                 }
                 
                 const sticker = new Sticker(mediaResult.buffer, stickerOptions);
@@ -290,14 +290,14 @@ class MediaPlugin {
                     return;
                 }
 
-                console.log(`✅ Sticker created successfully: ${stickerBuffer.length} bytes`);
+                console.log('✅ Sticker');
 
                 // Send the properly formatted sticker
                 await this.bot.sock.sendMessage(messageInfo.sender, {
                     sticker: stickerBuffer
                 });
                 
-                console.log('✅ Sticker sent successfully');
+                // console.log('✅ Sticker sent successfully');
                 return;
             }
 
@@ -325,10 +325,10 @@ class MediaPlugin {
 
             // For video stickers, add specific handling
             if (isVideo) {
-                console.log('🎬 Processing video sticker with optimized settings...');
+                // console.log('🎬 Processing video sticker with optimized settings...');
                 // Additional options for video processing can be added here
             } else {
-                console.log('🖼️ Processing image sticker...');
+                // console.log('🖼️ Processing image sticker...');
             }
             
             const sticker = new Sticker(buffer, stickerOptions);
@@ -341,14 +341,14 @@ class MediaPlugin {
                 return;
             }
 
-            console.log(`✅ Sticker created successfully: ${stickerBuffer.length} bytes`);
+            console.log('✅ Sticker');
 
             // Send the properly formatted sticker
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 sticker: stickerBuffer
             });
             
-            console.log('✅ Sticker sent successfully');
+            // console.log('✅ Sticker sent successfully');
 
         } catch (error) {
             console.error('❌ Sticker creation error:', error);
@@ -699,11 +699,11 @@ class MediaPlugin {
         let mediaBuffer = null;
         let mediaInfo = {};
 
-        console.log(`📥 Starting media download for type: ${messageType}`);
+        // console.log(`📥 Starting media download for type: ${messageType}`);
 
         try {
             // Method 1: Try to get from cached files in session/media folder
-            console.log('🔍 Method 1: Checking session/media folder...');
+            // console.log('🔍 Method 1: Checking session/media folder...');
             const messageId = message.key?.id;
             if (messageId) {
                 const mediaDir = path.join(process.cwd(), 'session', 'media');
@@ -713,7 +713,7 @@ class MediaPlugin {
                 const mediaFile = files.find(file => file.includes(messageId));
                 if (mediaFile) {
                     const filePath = path.join(mediaDir, mediaFile);
-                    console.log(`📁 Found cached media file: ${mediaFile}`);
+                    // console.log(`📁 Found cached media file: ${mediaFile}`);
 
                     const stats = await fs.stat(filePath);
                     if (stats.size > 0) {
@@ -723,7 +723,7 @@ class MediaPlugin {
                             size: stats.size,
                             source: 'session_cache'
                         };
-                        console.log(`✅ Successfully loaded from session cache: ${mediaFile} (${stats.size} bytes)`);
+                        // console.log(`✅ Successfully loaded from session cache: ${mediaFile} (${stats.size} bytes)`);
                     }
                 }
             }
@@ -732,7 +732,7 @@ class MediaPlugin {
             // This part assumes a `this.bot.database.getArchivedMedia` method exists
             // If it doesn't, this block will fail or be skipped.
             if (!mediaBuffer && messageId && this.bot.database && typeof this.bot.database.getArchivedMedia === 'function') {
-                console.log('🔍 Method 2: Checking database archived media...');
+                // console.log('🔍 Method 2: Checking database archived media...');
                 const archivedMedia = await this.bot.database.getArchivedMedia(messageId);
                 if (archivedMedia && archivedMedia.buffer && archivedMedia.buffer.length > 0) {
                     mediaBuffer = archivedMedia.buffer;
@@ -741,13 +741,13 @@ class MediaPlugin {
                         size: archivedMedia.buffer.length,
                         source: 'database_archive'
                     };
-                    console.log(`✅ Successfully loaded from database: ${mediaInfo.filename} (${mediaInfo.size} bytes)`);
+                    // console.log(`✅ Successfully loaded from database: ${mediaInfo.filename} (${mediaInfo.size} bytes)`);
                 }
             }
 
             // Method 3: Direct baileys download as last resort
             if (!mediaBuffer) {
-                console.log('🔍 Method 3: Direct baileys download...');
+                // console.log('🔍 Method 3: Direct baileys download...');
                 try {
                     // Ensure we pass the correct message structure to downloadMediaMessage
                     const messageToDownload = message.message ? message : { message: message };
@@ -762,7 +762,7 @@ class MediaPlugin {
                             size: mediaBuffer.length,
                             source: 'direct_download'
                         };
-                        console.log(`✅ Successfully downloaded directly: ${mediaInfo.size} bytes`);
+                        // console.log(`✅ Successfully downloaded directly: ${mediaInfo.size} bytes`);
                     }
                 } catch (directError) {
                     console.log(`❌ Direct download failed: ${directError.message}`);
@@ -793,7 +793,7 @@ class MediaPlugin {
             }
 
 
-            console.log(`📊 Final media info:`, mediaInfo);
+            // console.log(`📊 Final media info:`, mediaInfo);
             return { buffer: mediaBuffer, info: mediaInfo };
 
         } catch (error) {
