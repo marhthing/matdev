@@ -768,7 +768,7 @@ class MATDEV {
 
                     if (isTextCommand || isCaptionCommand || isStickerMessage) {
                         // Process our own commands (text, caption, or sticker)
-                        console.log(`🤖 Processing own message - Text: "${text}", Caption: "${caption}", Type: ${messageType}`);
+                        // console.log(`🤖 Processing own message - Text: "${text}", Caption: "${caption}", Type: ${messageType}`);
                         await this.messageHandler.process(message);
                     }
                     continue;
