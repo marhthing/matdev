@@ -184,12 +184,46 @@ class AntiViewOncePlugin {
                 const fileExists = await fs.pathExists(savedFilePath);
                 console.log(`🔍 Debug - File exists: ${fileExists}`);
                 
-                if (!buffer && fileExists) {
+                // If exact file doesn't exist, try to find any matching files for this content type
+                let alternativeFile = null;
+                if (!buffer && !fileExists) {
                     try {
-                        buffer = await fs.readFile(savedFilePath);
+                        const viewOnceFiles = await fs.readdir(this.viewOnceDir);
+                        const extension = contentType === 'imageMessage' ? '.jpg' : '.mp4';
+                        const matchingFiles = viewOnceFiles.filter(file => 
+                            file.endsWith(extension) && !file.endsWith('.json')
+                        );
+                        
+                        if (matchingFiles.length > 0) {
+                            // For now, use the most recent file as fallback
+                            // This could be improved with better matching logic
+                            const mostRecent = matchingFiles
+                                .map(file => ({
+                                    name: file,
+                                    path: path.join(this.viewOnceDir, file),
+                                    stats: fs.statSync(path.join(this.viewOnceDir, file))
+                                }))
+                                .sort((a, b) => b.stats.mtime - a.stats.mtime)[0];
+                            
+                            alternativeFile = mostRecent.path;
+                            console.log(`🔍 Debug - Found alternative file: ${mostRecent.name}`);
+                        }
+                    } catch (error) {
+                        console.log(`🔍 Debug - Error searching for alternative files: ${error.message}`);
+                    }
+                }
+                
+                if (!buffer && (fileExists || alternativeFile)) {
+                    const fileToUse = fileExists ? savedFilePath : alternativeFile;
+                    try {
+                        buffer = await fs.readFile(fileToUse);
                         if (buffer && buffer.length > 0) {
                             usedSavedMedia = true;
-                            console.log(`📁 Using saved view-once media: ${path.basename(savedFilePath)}`);
+                            const fileName = path.basename(fileToUse);
+                            console.log(`📁 Using saved view-once media: ${fileName}`);
+                            if (alternativeFile) {
+                                console.log(`📁 Used alternative file due to ID mismatch`);
+                            }
                         } else {
                             console.log('⚠️ Saved media file exists but is empty or corrupted');
                             buffer = null;
@@ -264,14 +298,23 @@ class AntiViewOncePlugin {
         });
 
         // Use various properties to create a unique identifier
+        // Don't use timestamp to ensure consistent IDs between save and retrieve
         const identifier = [
             content?.url || '',
             content?.directPath || '',
             content?.mediaKey || '',
-            content?.fileLength || '',
+            content?.fileLength?.toString() || '',
             content?.mimetype || '',
-            Date.now().toString() // Add timestamp as fallback
+            content?.fileSha256 || '',
+            content?.fileEncSha256 || ''
         ].filter(Boolean).join('|');
+
+        // If no properties available, use a generic placeholder
+        // This will at least be consistent for the same session
+        if (!identifier) {
+            console.log('⚠️ No unique properties found - using fallback ID');
+            return 'unknown_viewonce';
+        }
 
         console.log(`🔍 Debug - Generated identifier string: ${identifier}`);
         const messageId = crypto.createHash('md5').update(identifier).digest('hex').substring(0, 12);
