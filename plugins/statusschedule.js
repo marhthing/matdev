@@ -159,23 +159,40 @@ class StatusSchedulePlugin {
     async postScheduledStatus(schedule) {
         const { type, content, caption, mediaPath } = schedule;
         
-        if (type === 'text') {
-            // Post text status
-            await this.bot.sock.sendMessage('status@broadcast', { text: content });
-        } else if (type === 'image' && mediaPath && fs.existsSync(mediaPath)) {
-            // Post image status
-            const buffer = await fs.readFile(mediaPath);
-            await this.bot.sock.sendMessage('status@broadcast', { 
-                image: buffer, 
-                caption: caption || '' 
-            });
-        } else if (type === 'video' && mediaPath && fs.existsSync(mediaPath)) {
-            // Post video status
-            const buffer = await fs.readFile(mediaPath);
-            await this.bot.sock.sendMessage('status@broadcast', { 
-                video: buffer, 
-                caption: caption || '' 
-            });
+        try {
+            if (type === 'text') {
+                // Post text status
+                await this.bot.sock.sendMessage('status@broadcast', { 
+                    text: content 
+                }, {
+                    backgroundColor: '#000000', // Optional: set background color
+                    statusJidList: [] // Empty array means all contacts can see
+                });
+                console.log(`📱 Posted text status: ${content.substring(0, 50)}...`);
+            } else if (type === 'image' && mediaPath && fs.existsSync(mediaPath)) {
+                // Post image status
+                const buffer = await fs.readFile(mediaPath);
+                await this.bot.sock.sendMessage('status@broadcast', { 
+                    image: buffer, 
+                    caption: caption || '' 
+                }, {
+                    statusJidList: [] // Empty array means all contacts can see
+                });
+                console.log(`📱 Posted image status with caption: ${caption || 'No caption'}`);
+            } else if (type === 'video' && mediaPath && fs.existsSync(mediaPath)) {
+                // Post video status
+                const buffer = await fs.readFile(mediaPath);
+                await this.bot.sock.sendMessage('status@broadcast', { 
+                    video: buffer, 
+                    caption: caption || '' 
+                }, {
+                    statusJidList: [] // Empty array means all contacts can see
+                });
+                console.log(`📱 Posted video status with caption: ${caption || 'No caption'}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error posting status: ${error.message}`);
+            throw error;
         }
     }
 
