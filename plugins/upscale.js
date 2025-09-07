@@ -74,9 +74,20 @@ class UpscalePlugin {
                 '🔄 Processing image for upscaling...');
 
             try {
-                // Download the image
+                // Create proper message structure for downloadMediaMessage
                 const mediaMessage = quotedMessage.imageMessage || quotedMessage.stickerMessage;
-                const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                
+                // Create a complete message object that downloadMediaMessage expects
+                const messageToDownload = {
+                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || {
+                        remoteJid: messageInfo.chat_jid,
+                        fromMe: false,
+                        id: 'quoted-media-' + Date.now()
+                    },
+                    message: quotedMessage
+                };
+
+                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
                 
                 if (!buffer) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
