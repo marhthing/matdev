@@ -155,57 +155,124 @@ class UpscalePlugin {
     }
 
     /**
-     * Upscale image using free Waifu2x service
+     * Upscale image using multiple free services
      */
     async upscaleImage(imagePath, apiKey) {
-        try {
-            // Using free Waifu2x API for upscaling
-            const imageBuffer = await fs.readFile(imagePath);
-            
-            // Create form data for the API request
-            const FormData = require('form-data');
-            const form = new FormData();
-            
-            form.append('file', imageBuffer, {
-                filename: 'image.jpg',
-                contentType: 'image/jpeg'
-            });
-            form.append('style', 'art'); // 'art' or 'photo'
-            form.append('noise', '1'); // noise reduction level (0, 1, 2, 3)
-            form.append('scale', '2'); // upscaling factor (1, 2)
+        const imageBuffer = await fs.readFile(imagePath);
+        
+        // Try multiple free APIs in order of preference
+        const freeApis = [
+            this.tryWaifu2xOriginal.bind(this),
+            this.tryWaifu2xAlternative.bind(this),
+            this.tryImageUpscalerAPI.bind(this),
+            this.tryAdvancedFallback.bind(this)
+        ];
 
-            const response = await axios.post('https://api.waifu2x.udp.jp/api', form, {
-                headers: {
-                    ...form.getHeaders(),
-                },
-                responseType: 'arraybuffer',
-                timeout: 60000 // 60 seconds timeout
-            });
-
-            if (response.status === 200) {
-                return Buffer.from(response.data);
-            } else {
-                throw new Error(`Waifu2x API returned status ${response.status}`);
-            }
-
-        } catch (error) {
-            console.error('Error in upscaleImage:', error);
-            
-            // Fallback to a simple image processing method
+        for (const apiFunction of freeApis) {
             try {
-                console.log('Trying fallback upscaling method...');
-                return await this.fallbackUpscale(imagePath);
-            } catch (fallbackError) {
-                console.error('Fallback upscaling also failed:', fallbackError);
-                return null;
+                console.log(`Trying ${apiFunction.name}...`);
+                const result = await apiFunction(imageBuffer, imagePath);
+                if (result) {
+                    return result;
+                }
+            } catch (error) {
+                console.log(`${apiFunction.name} failed:`, error.message);
+                continue;
             }
         }
+
+        console.error('All upscaling methods failed');
+        return null;
     }
 
     /**
-     * Fallback upscaling using Sharp (simple interpolation)
+     * Try original Waifu2x API
      */
-    async fallbackUpscale(imagePath) {
+    async tryWaifu2xOriginal(imageBuffer) {
+        const FormData = require('form-data');
+        const form = new FormData();
+        
+        form.append('file', imageBuffer, {
+            filename: 'image.jpg',
+            contentType: 'image/jpeg'
+        });
+        form.append('style', 'photo');
+        form.append('noise', '2');
+        form.append('scale', '2');
+
+        const response = await axios.post('https://api.waifu2x.udp.jp/api', form, {
+            headers: { ...form.getHeaders() },
+            responseType: 'arraybuffer',
+            timeout: 45000
+        });
+
+        if (response.status === 200) {
+            return Buffer.from(response.data);
+        }
+        throw new Error(`Waifu2x returned status ${response.status}`);
+    }
+
+    /**
+     * Try alternative Waifu2x endpoint
+     */
+    async tryWaifu2xAlternative(imageBuffer) {
+        const FormData = require('form-data');
+        const form = new FormData();
+        
+        form.append('file', imageBuffer, {
+            filename: 'image.png',
+            contentType: 'image/png'
+        });
+        form.append('scale', '2');
+        form.append('denoise', '1');
+
+        const response = await axios.post('https://waifu2x.booru.pics/Home/FromFile', form, {
+            headers: { ...form.getHeaders() },
+            responseType: 'arraybuffer',
+            timeout: 45000
+        });
+
+        if (response.status === 200 && response.data.byteLength > 1000) {
+            return Buffer.from(response.data);
+        }
+        throw new Error('Waifu2x alternative failed');
+    }
+
+    /**
+     * Try ImageUpscaler API
+     */
+    async tryImageUpscalerAPI(imageBuffer) {
+        const base64Image = imageBuffer.toString('base64');
+        
+        const response = await axios.post('https://api.upscaler.ai/v1/upscale', {
+            image: base64Image,
+            scale: 2,
+            format: 'jpg'
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 45000
+        });
+
+        if (response.data && response.data.image) {
+            return Buffer.from(response.data.image, 'base64');
+        }
+        throw new Error('ImageUpscaler API failed');
+    }
+
+    /**
+     * Advanced fallback with better algorithms
+     */
+    async tryAdvancedFallback(imageBuffer, imagePath) {
+        console.log('Using advanced local upscaling...');
+        return await this.advancedFallback(imagePath);
+    }
+
+    /**
+     * Advanced fallback upscaling using multiple techniques
+     */
+    async advancedFallback(imagePath) {
         try {
             const sharp = require('sharp');
             const imageBuffer = await fs.readFile(imagePath);
@@ -215,18 +282,72 @@ class UpscalePlugin {
             const newWidth = metadata.width * 2;
             const newHeight = metadata.height * 2;
             
-            // Upscale using bicubic interpolation
-            const upscaledBuffer = await sharp(imageBuffer)
-                .resize(newWidth, newHeight, {
-                    kernel: sharp.kernel.cubic
+            console.log(`Upscaling from ${metadata.width}x${metadata.height} to ${newWidth}x${newHeight}`);
+            
+            // Apply multi-step upscaling for better quality
+            let processedImage = sharp(imageBuffer);
+            
+            // Step 1: Sharpen the original image slightly
+            processedImage = processedImage.sharpen({
+                sigma: 0.5,
+                flat: 1.0,
+                jagged: 1.5
+            });
+            
+            // Step 2: Use Lanczos3 interpolation (better than cubic for upscaling)
+            processedImage = processedImage.resize(newWidth, newHeight, {
+                kernel: sharp.kernel.lanczos3,
+                withoutEnlargement: false
+            });
+            
+            // Step 3: Apply unsharp mask for better details
+            processedImage = processedImage.sharpen({
+                sigma: 1.0,
+                flat: 1.0,
+                jagged: 2.0
+            });
+            
+            // Step 4: Slightly enhance contrast
+            processedImage = processedImage.modulate({
+                brightness: 1.05,
+                contrast: 1.1
+            });
+            
+            // Step 5: Apply noise reduction if image is too small originally
+            if (metadata.width < 500 || metadata.height < 500) {
+                processedImage = processedImage.blur(0.3);
+            }
+            
+            const upscaledBuffer = await processedImage
+                .jpeg({ 
+                    quality: 98,
+                    progressive: true,
+                    mozjpeg: true 
                 })
-                .jpeg({ quality: 95 })
                 .toBuffer();
                 
+            console.log('✅ Advanced upscaling completed with enhanced details');
             return upscaledBuffer;
         } catch (error) {
-            console.error('Error in fallback upscaling:', error);
-            return null;
+            console.error('Error in advanced fallback upscaling:', error);
+            
+            // Simple fallback if advanced fails
+            try {
+                const sharp = require('sharp');
+                const imageBuffer = await fs.readFile(imagePath);
+                const metadata = await sharp(imageBuffer).metadata();
+                
+                return await sharp(imageBuffer)
+                    .resize(metadata.width * 2, metadata.height * 2, {
+                        kernel: sharp.kernel.lanczos3
+                    })
+                    .sharpen()
+                    .jpeg({ quality: 95 })
+                    .toBuffer();
+            } catch (simpleError) {
+                console.error('Simple fallback also failed:', simpleError);
+                return null;
+            }
         }
     }
 
