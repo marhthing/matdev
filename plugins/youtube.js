@@ -484,9 +484,15 @@ class YouTubePlugin {
     }
 
     /**
-     * Cleanup method
+     * Get plugin statistics for monitoring
      */
-    async cleanup() {
+    getStats() {
+        return {
+            totalRequests: this.requestCount,
+            recentRequests: this.requestTimes.length,
+            rateLimited: this.isRateLimited()
+        };
+    }
         // Clean up any remaining temp files
         const tmpDir = path.join(__dirname, '..', 'tmp');
         try {
