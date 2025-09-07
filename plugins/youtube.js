@@ -1,24 +1,18 @@
+
 /**
  * MATDEV YouTube Downloader Plugin
- * Download YouTube videos and shorts
+ * Download YouTube videos and shorts using yt-dlp
  */
 
-const ytdl = require('@distube/ytdl-core');
-const ytsr = require('ytsr');
+const { exec } = require('child_process');
 const config = require('../config');
-const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
+const { promisify } = require('util');
+
+const execAsync = promisify(exec);
 
 // Anti-detection measures for YouTube
-const YOUTUBE_USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0'
-];
-
-const getRandomYTUserAgent = () => YOUTUBE_USER_AGENTS[Math.floor(Math.random() * YOUTUBE_USER_AGENTS.length)];
-
 const humanDelayYT = (min = 1000, max = 3000) => {
     const delay = Math.floor(Math.random() * (max - min + 1)) + min;
     return new Promise(resolve => setTimeout(resolve, delay));
@@ -68,12 +62,13 @@ class YouTubePlugin {
      */
     async downloadYouTube(messageInfo) {
         let tempFile;
+        let tempDir;
         try {
             // Rate limiting - prevent spam requests
             const userId = messageInfo.sender_jid;
             const now = Date.now();
             
-            // Global rate limit - minimum 3 seconds between any requests (YouTube is stricter)
+            // Global rate limit - minimum 3 seconds between any requests
             const timeSinceLastRequest = now - this.lastRequest;
             if (timeSinceLastRequest < 3000) {
                 await humanDelayYT(3000 - timeSinceLastRequest, 4000);
@@ -147,85 +142,113 @@ class YouTubePlugin {
                 return;
             }
 
-            // No processing message needed
-
             try {
-                // Human-like delay before fetching video info
-                await humanDelayYT(1000, 2000);
+                // Create temporary directory for this download
+                tempDir = path.join(__dirname, '..', 'tmp', `yt_${Date.now()}`);
+                await fs.ensureDir(tempDir);
                 
-                // Create temporary directory for ytdl cache files
-                const ytdlTempDir = path.join(__dirname, '..', 'tmp', 'ytdl_cache');
-                await fs.ensureDir(ytdlTempDir);
+                // Human-like delay before download
+                await humanDelayYT(1500, 2500);
 
-                // Get video info with custom options and temp directory
-                const info = await ytdl.getInfo(url, {
-                    requestOptions: {
-                        headers: {
-                            'User-Agent': getRandomYTUserAgent(),
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.5',
-                            'Accept-Encoding': 'gzip, deflate',
-                            'DNT': '1',
-                            'Connection': 'keep-alive',
-                            'Upgrade-Insecure-Requests': '1'
+                // Use youtube-dl python package or fallback methods
+                let downloadSuccess = false;
+                
+                // Method 1: Try with python3 and yt-dlp
+                try {
+                    const ytDlpCmd = `cd "${tempDir}" && python3 -m pip install --user yt-dlp --quiet && python3 -m yt_dlp -f "best[height<=720][ext=mp4]/best[ext=mp4]/best" --max-filesize 50M "${url}" -o "video.%(ext)s"`;
+                    await execAsync(ytDlpCmd, { timeout: 60000 });
+                    
+                    const videoFiles = await fs.readdir(tempDir);
+                    const videoFile = videoFiles.find(f => f.startsWith('video.') && (f.endsWith('.mp4') || f.endsWith('.webm')));
+                    
+                    if (videoFile) {
+                        tempFile = path.join(tempDir, videoFile);
+                        downloadSuccess = true;
+                    }
+                } catch (ytDlpError) {
+                    // Try Method 2: Alternative approach with curl and ffmpeg
+                    try {
+                        // Get video info first
+                        const infoCmd = `python3 -c "
+import re, urllib.request, json, sys
+url = '${url}'
+page = urllib.request.urlopen(url).read().decode()
+video_id = re.search(r'videoId\":\"([^\"]+)', page)
+if video_id:
+    print(video_id.group(1))
+else:
+    sys.exit(1)
+"`;
+                        const { stdout: videoId } = await execAsync(infoCmd, { timeout: 10000 });
+                        
+                        if (videoId.trim()) {
+                            // Try to download using a simple approach
+                            const simpleCmd = `cd "${tempDir}" && wget -q --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" -O video.mp4 "https://www.youtube.com/watch?v=${videoId.trim()}"`;
+                            await execAsync(simpleCmd, { timeout: 45000 });
+                            
+                            tempFile = path.join(tempDir, 'video.mp4');
+                            const stats = await fs.stat(tempFile);
+                            if (stats.size > 1000) { // At least 1KB
+                                downloadSuccess = true;
+                            }
+                        }
+                    } catch (altError) {
+                        // Method 3: Use a public API service
+                        try {
+                            const videoId = this.extractVideoId(url);
+                            if (videoId) {
+                                const apiUrl = `https://api.cobalt.tools/api/json`;
+                                const response = await fetch(apiUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        url: url,
+                                        vQuality: '720',
+                                        vFormat: 'mp4',
+                                        isAudioOnly: false
+                                    })
+                                });
+                                
+                                const data = await response.json();
+                                if (data.status === 'success' && data.url) {
+                                    const downloadCmd = `cd "${tempDir}" && wget -q --user-agent="Mozilla/5.0" -O video.mp4 "${data.url}"`;
+                                    await execAsync(downloadCmd, { timeout: 45000 });
+                                    
+                                    tempFile = path.join(tempDir, 'video.mp4');
+                                    const stats = await fs.stat(tempFile);
+                                    if (stats.size > 1000) {
+                                        downloadSuccess = true;
+                                    }
+                                }
+                            }
+                        } catch (apiError) {
+                            // All methods failed
                         }
                     }
-                });
-                const videoDetails = info.videoDetails;
+                }
 
-                // Check video length (limit to 10 minutes for file size)
-                const duration = parseInt(videoDetails.lengthSeconds);
-                if (duration > 600) { // 10 minutes
-                    await this.bot.messageHandler.reply(messageInfo, `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`);
+                if (!downloadSuccess || !tempFile || !(await fs.pathExists(tempFile))) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download YouTube video. The video may be private, age-restricted, or temporarily unavailable.');
                     return;
                 }
 
-                // Get best quality format that's not too large
-                const format = ytdl.chooseFormat(info.formats, { 
-                    quality: 'highest',
-                    filter: format => format.container === 'mp4' && format.hasVideo && format.hasAudio
-                }) || ytdl.chooseFormat(info.formats, { quality: 'lowest' });
-
-                if (!format) {
-                    throw new Error('No suitable video format found');
+                // Check file size
+                const stats = await fs.stat(tempFile);
+                if (stats.size > 50 * 1024 * 1024) { // 50MB limit
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Video file is too large (>50MB). Please try a shorter video.');
+                    return;
                 }
 
-                // Create temporary file path
-                tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}.mp4`);
-
-                // Human-like delay before starting download
-                await humanDelayYT(1500, 2500);
-
-                // Download video with proper temp handling
-                await new Promise((resolve, reject) => {
-                    const stream = ytdl(url, { 
-                        format: format,
-                        requestOptions: {
-                            headers: {
-                                'User-Agent': getRandomYTUserAgent()
-                            }
-                        }
-                    });
-                    const writeStream = fs.createWriteStream(tempFile);
-
-                    stream.pipe(writeStream);
-
-                    stream.on('error', (error) => {
-                        writeStream.destroy();
-                        reject(error);
-                    });
-                    writeStream.on('error', reject);
-                    writeStream.on('finish', () => {
-                        // Clean up any ytdl temp files immediately
-                        this.cleanupYtdlTempFiles().catch(() => {});
-                        resolve();
-                    });
-                });
+                if (stats.size < 1000) { // Less than 1KB is probably not a valid video
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Downloaded file appears to be invalid. Please try again.');
+                    return;
+                }
 
                 // Read video file
                 const videoBuffer = await fs.readFile(tempFile);
-
-                // No caption needed
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -233,58 +256,30 @@ class YouTubePlugin {
                     mimetype: 'video/mp4'
                 });
 
-                // Clean up temp file
-                await fs.unlink(tempFile).catch(() => {});
-
-                // No processing message to delete
-
             } catch (downloadError) {
                 console.error('YouTube download error:', downloadError);
-
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download YouTube video.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download YouTube video. Please try again later.');
             }
 
         } catch (error) {
             console.error('Error in YouTube command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the YouTube video. Please try again.');
         } finally {
-            // Ensure temp file is deleted even if an error occurs before reading it
-            if (tempFile) {
-                await fs.unlink(tempFile).catch(() => {});
+            // Clean up temporary files and directory
+            if (tempDir) {
+                await fs.remove(tempDir).catch(() => {});
             }
             
-            // Clean up any ytdl temporary files
-            await this.cleanupYtdlTempFiles().catch(() => {});
+            // Clean up any remaining temporary files
+            await this.cleanupTempFiles().catch(() => {});
         }
     }
 
     /**
-     * Search YouTube videos command
+     * Search YouTube videos command (simplified)
      */
     async searchYouTube(messageInfo) {
         try {
-            // Light rate limiting for search
-            const userId = messageInfo.sender_jid;
-            const now = Date.now();
-            
-            if (!this.requestTracker.has(`search_${userId}`)) {
-                this.requestTracker.set(`search_${userId}`, []);
-            }
-            
-            const searchRequests = this.requestTracker.get(`search_${userId}`);
-            const recentSearches = searchRequests.filter(time => now - time < 30000);
-            
-            if (recentSearches.length >= 3) {
-                await this.bot.messageHandler.reply(messageInfo, '⏳ Please wait before searching again. (Search limit: 3 per 30 seconds)');
-                return;
-            }
-            
-            recentSearches.push(now);
-            this.requestTracker.set(`search_${userId}`, recentSearches);
-            
-            // Human-like delay
-            await humanDelayYT(800, 1500);
-
             const { args } = messageInfo;
 
             if (!args || args.length === 0) {
@@ -293,42 +288,35 @@ class YouTubePlugin {
             }
 
             const searchQuery = args.join(' ');
-
-            // No processing message needed
-
+            
+            // Simple search using web scraping
             try {
-                // Human-like delay before search
-                await humanDelayYT(1000, 1800);
+                const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+                const searchCmd = `python3 -c "
+import re, urllib.request
+import urllib.parse
+query = '${searchQuery.replace(/'/g, "\\'")}'
+url = 'https://www.youtube.com/results?search_query=' + urllib.parse.quote(query)
+page = urllib.request.urlopen(url).read().decode()
+videos = re.findall(r'\"videoId\":\"([^\"]+)\".*?\"title\":{\"runs\":\\[{\"text\":\"([^\"]+)\"', page)
+for i, (vid_id, title) in enumerate(videos[:5]):
+    print(f'{i+1}. {title}')
+    print(f'https://youtu.be/{vid_id}')
+    print()
+"`;
                 
-                const searchResults = await ytsr(searchQuery, { 
-                    limit: 5,
-                    requestOptions: {
-                        headers: {
-                            'User-Agent': getRandomYTUserAgent()
-                        }
-                    }
-                });
-                const videos = searchResults.items.filter(item => item.type === 'video').slice(0, 5);
-
-                if (videos.length === 0) {
+                const { stdout } = await execAsync(searchCmd, { timeout: 15000 });
+                
+                if (stdout.trim()) {
+                    let resultText = `🔍 *YouTube Search Results*\n\nQuery: *${searchQuery}*\n\n`;
+                    resultText += stdout.trim();
+                    resultText += `\n\n💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
+                    
+                    await this.bot.messageHandler.reply(messageInfo, resultText);
+                } else {
                     await this.bot.messageHandler.reply(messageInfo, '❌ No videos found for your search query.');
-                    return;
                 }
-
-                let resultText = `🔍 *YouTube Search Results*\n\nQuery: *${searchQuery}*\n\n`;
-
-                videos.forEach((video, index) => {
-                    resultText += `${index + 1}. *${video.title}*\n`;
-                    resultText += `👤 ${video.author.name}\n`;
-                    resultText += `⏱️ ${video.duration}\n`;
-                    resultText += `👀 ${video.views} views\n`;
-                    resultText += `🔗 ${video.url}\n\n`;
-                });
-
-                resultText += `💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
-
-                await this.bot.messageHandler.reply(messageInfo, resultText);
-
+                
             } catch (searchError) {
                 console.error('YouTube search error:', searchError);
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to search YouTube. Please try again.');
@@ -338,6 +326,22 @@ class YouTubePlugin {
             console.error('Error in YouTube search command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while searching YouTube. Please try again.');
         }
+    }
+
+    /**
+     * Extract video ID from YouTube URL
+     */
+    extractVideoId(url) {
+        const patterns = [
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+            /youtube\.com\/.*[?&]v=([a-zA-Z0-9_-]{11})/
+        ];
+        
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match) return match[1];
+        }
+        return null;
     }
 
     /**
@@ -355,42 +359,51 @@ class YouTubePlugin {
     }
 
     /**
+     * Clean up temporary files
+     */
+    async cleanupTempFiles() {
+        try {
+            // Clean up root directory temp files
+            const rootDir = path.join(__dirname, '..');
+            const rootFiles = await fs.readdir(rootDir);
+            
+            for (const file of rootFiles) {
+                if (file.includes('-watch.html') || file.includes('ytdl-') || file.startsWith('watch-')) {
+                    const filePath = path.join(rootDir, file);
+                    await fs.unlink(filePath).catch(() => {});
+                }
+            }
+
+            // Clean up tmp directory
+            const tmpDir = path.join(__dirname, '..', 'tmp');
+            if (await fs.pathExists(tmpDir)) {
+                const tmpFiles = await fs.readdir(tmpDir);
+                for (const file of tmpFiles) {
+                    if (file.startsWith('yt_') || file.includes('ytdl') || file.includes('watch')) {
+                        const filePath = path.join(tmpDir, file);
+                        const stat = await fs.stat(filePath).catch(() => null);
+                        if (stat) {
+                            if (stat.isDirectory()) {
+                                await fs.remove(filePath).catch(() => {});
+                            } else {
+                                await fs.unlink(filePath).catch(() => {});
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // Silent cleanup
+        }
+    }
+
+    /**
      * Format duration from seconds to MM:SS
      */
     formatDuration(seconds) {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-
-    /**
-     * Clean up ytdl temporary files
-     */
-    async cleanupYtdlTempFiles() {
-        try {
-            // Clean up root directory ytdl files
-            const rootDir = path.join(__dirname, '..');
-            const rootFiles = await fs.readdir(rootDir);
-            
-            for (const file of rootFiles) {
-                if (file.includes('-watch.html') || file.includes('ytdl-')) {
-                    const filePath = path.join(rootDir, file);
-                    await fs.unlink(filePath).catch(() => {});
-                }
-            }
-
-            // Clean up ytdl cache directory
-            const ytdlTempDir = path.join(__dirname, '..', 'tmp', 'ytdl_cache');
-            if (await fs.pathExists(ytdlTempDir)) {
-                const cacheFiles = await fs.readdir(ytdlTempDir);
-                for (const file of cacheFiles) {
-                    const filePath = path.join(ytdlTempDir, file);
-                    await fs.unlink(filePath).catch(() => {});
-                }
-            }
-        } catch (error) {
-            // Silent cleanup - don't log errors
-        }
     }
 
     /**
