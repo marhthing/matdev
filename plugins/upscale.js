@@ -68,28 +68,43 @@ class UpscalePlugin {
                 '🔄 Processing image for upscaling...');
 
             try {
-                // Create proper message structure for downloadMediaMessage
-                const mediaMessage = quotedMessage.imageMessage || quotedMessage.stickerMessage;
+                // Get the proper quoted message structure
+                const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
                 
-                // Create a complete message object that downloadMediaMessage expects
-                const messageToDownload = {
-                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || {
-                        remoteJid: messageInfo.chat_jid,
-                        fromMe: false,
-                        id: 'quoted-media-' + Date.now()
-                    },
-                    message: quotedMessage
-                };
-
-                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
-                
-                if (!buffer) {
+                if (!contextInfo || !contextInfo.quotedMessage) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Failed to download the image.',
+                        text: '❌ Could not access the quoted message.',
                         edit: processingMsg.key
                     });
                     return;
                 }
+
+                // Create proper message structure with original message key
+                const messageToDownload = {
+                    key: contextInfo.stanzaId ? {
+                        remoteJid: messageInfo.chat_jid,
+                        fromMe: contextInfo.participant === this.bot.botJid,
+                        id: contextInfo.stanzaId
+                    } : {
+                        remoteJid: messageInfo.chat_jid,
+                        fromMe: false,
+                        id: 'quoted-media-' + Date.now()
+                    },
+                    message: contextInfo.quotedMessage
+                };
+
+                console.log('Downloading media from quoted message...');
+                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+                
+                if (!buffer || buffer.length === 0) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ Failed to download the image or image is empty.',
+                        edit: processingMsg.key
+                    });
+                    return;
+                }
+
+                console.log(`Downloaded image buffer: ${buffer.length} bytes`);
 
                 // Save image temporarily
                 const tempFileName = `upscale_${Date.now()}.jpg`;
@@ -105,9 +120,30 @@ class UpscalePlugin {
                 // Upscale the image
                 const upscaledBuffer = await this.upscaleImage(tempFilePath);
 
-                if (!upscaledBuffer) {
+                if (!upscaledBuffer || upscaledBuffer.length === 0) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ Failed to upscale the image. Please try again.',
+                        edit: processingMsg.key
+                    });
+                    return;
+                }
+
+                console.log(`Upscaled image buffer: ${upscaledBuffer.length} bytes`);
+
+                // Validate the upscaled image is not corrupted
+                try {
+                    const sharp = require('sharp');
+                    const metadata = await sharp(upscaledBuffer).metadata();
+                    
+                    if (!metadata.width || !metadata.height || metadata.width < 10 || metadata.height < 10) {
+                        throw new Error('Invalid image dimensions');
+                    }
+                    
+                    console.log(`Upscaled image validation: ${metadata.width}x${metadata.height}`);
+                } catch (validationError) {
+                    console.error('Image validation failed:', validationError);
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ Upscaled image is corrupted. Please try with a different image.',
                         edit: processingMsg.key
                     });
                     return;
@@ -277,107 +313,73 @@ class UpscalePlugin {
             const sharp = require('sharp');
             const imageBuffer = await fs.readFile(imagePath);
             
-            // Get image metadata
-            const metadata = await sharp(imageBuffer).metadata();
+            // Validate input image first
+            const inputMetadata = await sharp(imageBuffer).metadata();
+            
+            if (!inputMetadata.width || !inputMetadata.height) {
+                throw new Error('Invalid input image metadata');
+            }
+            
+            console.log(`Input image: ${inputMetadata.width}x${inputMetadata.height}, format: ${inputMetadata.format}`);
+            
             const scaleFactor = 2;
-            const newWidth = Math.round(metadata.width * scaleFactor);
-            const newHeight = Math.round(metadata.height * scaleFactor);
+            const newWidth = Math.round(inputMetadata.width * scaleFactor);
+            const newHeight = Math.round(inputMetadata.height * scaleFactor);
             
-            console.log(`Upscaling from ${metadata.width}x${metadata.height} to ${newWidth}x${newHeight}`);
+            console.log(`Upscaling from ${inputMetadata.width}x${inputMetadata.height} to ${newWidth}x${newHeight}`);
             
-            // Multi-stage upscaling for better quality
-            let processedImage = sharp(imageBuffer);
-            
-            // Step 1: Pre-process the image for better upscaling
-            processedImage = processedImage
+            // Simple but effective upscaling approach
+            const upscaledBuffer = await sharp(imageBuffer)
+                .resize(newWidth, newHeight, {
+                    kernel: sharp.kernel.lanczos3,
+                    withoutEnlargement: false,
+                    fastShrinkOnLoad: false
+                })
                 .sharpen({
-                    sigma: 1.2,
+                    sigma: 1.5,
                     flat: 1.0,
                     jagged: 2.0
                 })
                 .modulate({
-                    brightness: 1.02,
-                    saturation: 1.05,
-                    hue: 0
-                });
-            
-            // Step 2: Use high-quality interpolation for upscaling
-            processedImage = processedImage.resize(newWidth, newHeight, {
-                kernel: sharp.kernel.lanczos3,
-                withoutEnlargement: false,
-                fastShrinkOnLoad: false
-            });
-            
-            // Step 3: Post-process for detail enhancement
-            processedImage = processedImage
-                .sharpen({
-                    sigma: 1.5,
-                    flat: 1.0,
-                    jagged: 2.5
-                })
-                .modulate({
-                    brightness: 1.03,
+                    brightness: 1.05,
                     contrast: 1.15,
-                    saturation: 1.08
-                });
-            
-            // Step 4: Apply adaptive enhancement based on image size
-            if (metadata.width < 800 || metadata.height < 800) {
-                // For smaller images, apply more aggressive enhancement
-                processedImage = processedImage
-                    .sharpen({
-                        sigma: 2.0,
-                        flat: 1.0,
-                        jagged: 3.0
-                    })
-                    .modulate({
-                        brightness: 1.05,
-                        contrast: 1.25
-                    });
-            }
-            
-            // Step 5: Final output with high quality
-            const upscaledBuffer = await processedImage
+                    saturation: 1.05
+                })
                 .jpeg({ 
-                    quality: 100,
+                    quality: 95,
                     progressive: true,
-                    mozjpeg: true,
+                    optimizeScans: true,
                     force: true
                 })
                 .toBuffer();
                 
-            console.log(`✅ Advanced upscaling completed: ${metadata.width}x${metadata.height} -> ${newWidth}x${newHeight}`);
+            // Validate output
+            const outputMetadata = await sharp(upscaledBuffer).metadata();
+            console.log(`✅ Upscaling completed: ${inputMetadata.width}x${inputMetadata.height} -> ${outputMetadata.width}x${outputMetadata.height}`);
+            console.log(`Output buffer size: ${upscaledBuffer.length} bytes`);
+            
             return upscaledBuffer;
             
         } catch (error) {
             console.error('Error in advanced fallback upscaling:', error);
             
-            // Simple but effective fallback
+            // Very simple fallback - just resize without any effects
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
                 const metadata = await sharp(imageBuffer).metadata();
                 
-                console.log('Using simple fallback upscaling...');
-                return await sharp(imageBuffer)
+                console.log('Using minimal fallback upscaling...');
+                const simpleUpscaled = await sharp(imageBuffer)
                     .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.lanczos3,
-                        withoutEnlargement: false
+                        kernel: sharp.kernel.cubic
                     })
-                    .sharpen({
-                        sigma: 1.5,
-                        flat: 1.0,
-                        jagged: 2.0
-                    })
-                    .modulate({
-                        brightness: 1.05,
-                        contrast: 1.2
-                    })
-                    .jpeg({ 
-                        quality: 95,
-                        progressive: true
-                    })
+                    .jpeg({ quality: 90 })
                     .toBuffer();
+                    
+                console.log(`Simple fallback completed: ${simpleUpscaled.length} bytes`);
+                return simpleUpscaled;
+                
             } catch (simpleError) {
                 console.error('Simple fallback also failed:', simpleError);
                 return null;
