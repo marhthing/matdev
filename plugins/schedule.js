@@ -233,7 +233,7 @@ class SchedulePlugin {
                     text: '❌ Cannot schedule messages in the past!' 
                 });
                 return;
-            }</old_str>
+            }
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
                 });
