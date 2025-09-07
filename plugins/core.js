@@ -145,6 +145,15 @@ class CorePlugin {
             ownerOnly: true
         });
 
+        // Clear command
+        this.bot.messageHandler.registerCommand('clear', this.clearCommand.bind(this), {
+            description: 'Clear recent bot messages from this chat',
+            usage: `${config.PREFIX}clear [number]`,
+            category: 'utility',
+            plugin: 'core',
+            source: 'core.js'
+        });
+
         // Sticker command binding commands (owner only)
         this.bot.messageHandler.registerCommand('setcmd', this.setStickerCommand.bind(this), {
             description: 'Bind a command to a sticker (reply to sticker)',
@@ -1168,6 +1177,103 @@ class CorePlugin {
         }
 
         return identifiers;
+    }
+
+    /**
+     * Clear recent bot messages from the current chat
+     */
+    async clearCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            const chatJid = messageInfo.chat_jid;
+            
+            // Default to clearing last 10 messages, max 50
+            let count = 10;
+            if (args.length > 0) {
+                const userCount = parseInt(args[0]);
+                if (userCount && userCount > 0 && userCount <= 50) {
+                    count = userCount;
+                }
+            }
+
+            // Get recent bot messages from storage
+            const recentBotMessages = await this.getRecentBotMessages(chatJid, count + 5); // Get a few extra to account for filtering
+            
+            if (recentBotMessages.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ No recent bot messages found to clear.');
+                return;
+            }
+
+            // Filter to get the most recent messages up to the count
+            const messagesToDelete = recentBotMessages.slice(0, count);
+            let deletedCount = 0;
+
+            // Delete messages one by one with a small delay to avoid rate limiting
+            for (const msg of messagesToDelete) {
+                try {
+                    await this.bot.sock.sendMessage(chatJid, {
+                        delete: {
+                            id: msg.id,
+                            fromMe: true,
+                            remoteJid: chatJid
+                        }
+                    });
+                    deletedCount++;
+                    
+                    // Small delay between deletions
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (deleteError) {
+                    console.log(`⚠️ Could not delete message ${msg.id}:`, deleteError.message);
+                }
+            }
+
+            // Send confirmation message
+            const confirmationText = deletedCount > 0 
+                ? `✅ Cleared ${deletedCount} bot message${deletedCount > 1 ? 's' : ''} from this chat.`
+                : '❌ No messages could be deleted.';
+            
+            const confirmMsg = await this.bot.messageHandler.reply(messageInfo, confirmationText);
+            
+            // Auto-delete the confirmation message after 3 seconds
+            setTimeout(async () => {
+                try {
+                    await this.bot.sock.sendMessage(chatJid, {
+                        delete: confirmMsg.key
+                    });
+                } catch (error) {
+                    // Silently ignore if deletion fails
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('Error in clear command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing messages.');
+        }
+    }
+
+    /**
+     * Get recent bot messages from a specific chat
+     */
+    async getRecentBotMessages(chatJid, limit = 10) {
+        try {
+            const allMessages = Array.from(this.bot.database.messages.values());
+            
+            // Filter for bot messages in the specific chat, sort by timestamp (newest first)
+            const botMessages = allMessages
+                .filter(msg => {
+                    return msg.chat_jid === chatJid && 
+                           msg.from_me === true && 
+                           !msg.is_deleted &&
+                           msg.timestamp > Date.now() - (24 * 60 * 60 * 1000); // Only last 24 hours
+                })
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, limit);
+
+            return botMessages;
+        } catch (error) {
+            console.error('Error getting recent bot messages:', error);
+            return [];
+        }
     }
 }
 
