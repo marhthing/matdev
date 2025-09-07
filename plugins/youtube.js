@@ -71,6 +71,20 @@ class YouTubePlugin {
                     'https://www.ytdl.org/download'
                 ]
             },
+            loader: {
+                name: 'Loader',
+                endpoints: [
+                    'https://loader.to/ajax/search.php',
+                    'https://ab.cococococ.com/ajax/download.php'
+                ]
+            },
+            ssyoutube: {
+                name: 'SSYouTube',
+                endpoints: [
+                    'https://www.ssyoutube.com/api/convert',
+                    'https://ssyoutube.com/api/convert'
+                ]
+            },
             ytshorts: {
                 name: 'YTShorts',
                 endpoints: [
@@ -215,6 +229,10 @@ class YouTubePlugin {
                     return await this.tryYTShorts(url, userAgent);
                 } else if (serviceKey === 'downloadyt') {
                     return await this.tryDownloadYT(url, userAgent);
+                } else if (serviceKey === 'loader') {
+                    return await this.tryLoader(url, userAgent);
+                } else if (serviceKey === 'ssyoutube') {
+                    return await this.trySSYouTube(url, userAgent);
                 }
             } catch (error) {
                 console.log(`${service.name} service failed:`, error.message);
@@ -230,14 +248,22 @@ class YouTubePlugin {
      */
     async tryY2mate(url, userAgent) {
         const service = this.downloadServices.y2mate;
+        let token = null;
         
         for (const endpoint of service.analyzeEndpoints) {
             try {
-                // First, visit the main page to get cookies/session
-                await axios.get('https://www.y2mate.com/en68', {
+                // First, visit the main page to get cookies/session and extract token
+                const mainPageResponse = await axios.get('https://www.y2mate.com/en68', {
                     headers: this.getRealisticHeaders(),
                     timeout: 15000
                 });
+
+                // Extract token from the page if available
+                const tokenMatch = mainPageResponse.data.match(/k_token['"]\s*:\s*['"]([^'"]+)['"]/);
+                if (tokenMatch) {
+                    token = tokenMatch[1];
+                    console.log('Extracted Y2mate token:', token);
+                }
 
                 await this.addHumanDelay();
 
@@ -247,6 +273,10 @@ class YouTubePlugin {
                     hl: 'en',
                     q_auto: 0
                 });
+
+                if (token) {
+                    payload.append('k_token', token);
+                }
 
                 const analyzeResponse = await axios.post(endpoint, payload.toString(), {
                     headers: {
@@ -262,6 +292,7 @@ class YouTubePlugin {
 
                 if (analyzeResponse.data && analyzeResponse.data.status === 'ok') {
                     analyzeResponse.data.service = 'y2mate';
+                    analyzeResponse.data.token = token; // Store token for conversion
                     
                     // Ensure we have video ID for conversion
                     if (!analyzeResponse.data.vid && analyzeResponse.data.id) {
@@ -500,6 +531,95 @@ class YouTubePlugin {
     }
 
     /**
+     * Try Loader service
+     */
+    async tryLoader(url, userAgent) {
+        try {
+            // Visit main page first
+            await axios.get('https://loader.to/', {
+                headers: this.getRealisticHeaders(),
+                timeout: 15000
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const response = await axios.post('https://loader.to/ajax/search.php', new URLSearchParams({
+                query: url,
+                lang: 'en'
+            }).toString(), {
+                headers: {
+                    ...this.getRealisticHeaders('https://loader.to/'),
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.success && response.data.links) {
+                const videoInfo = {
+                    service: 'loader',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {}
+                    }
+                };
+
+                // Parse available formats
+                if (response.data.links.mp4) {
+                    for (const [quality, format] of Object.entries(response.data.links.mp4)) {
+                        videoInfo.links.mp4[quality] = {
+                            f: 'mp4',
+                            q: quality,
+                            url: format.url
+                        };
+                    }
+                }
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('Loader failed');
+        }
+    }
+
+    /**
+     * Try SSYouTube service
+     */
+    async trySSYouTube(url, userAgent) {
+        try {
+            const response = await axios.post('https://www.ssyoutube.com/api/convert', {
+                url: url,
+                format: 'mp4'
+            }, {
+                headers: {
+                    ...this.getRealisticHeaders('https://www.ssyoutube.com/'),
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.success) {
+                const videoInfo = {
+                    service: 'ssyoutube',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {
+                            '720': { f: 'mp4', q: '720' }
+                        }
+                    },
+                    downloadUrl: response.data.url
+                };
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('SSYouTube failed');
+        }
+    }
+
+    /**
      * Get download link using the appropriate service
      */
     async getDownloadLinkFromService(videoInfo, videoFormat) {
@@ -527,6 +647,11 @@ class YouTubePlugin {
                         vid: videoInfo.vid,
                         k: videoFormat.k || (videoFormat.f + videoFormat.q)
                     });
+
+                    // Add token if available
+                    if (videoInfo.token) {
+                        payload.append('k_token', videoInfo.token);
+                    }
 
                     const convertResponse = await axios.post(endpoint, payload.toString(), {
                         headers: {
@@ -733,6 +858,12 @@ class YouTubePlugin {
                                     break;
                                 case 'downloadyt':
                                     methodName = 'tryDownloadYT';
+                                    break;
+                                case 'loader':
+                                    methodName = 'tryLoader';
+                                    break;
+                                case 'ssyoutube':
+                                    methodName = 'trySSYouTube';
                                     break;
                                 default:
                                     console.log(`Unknown service: ${serviceKey}`);
