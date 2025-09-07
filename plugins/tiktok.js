@@ -58,13 +58,17 @@ class TikTokPlugin {
                 return;
             }
 
-            // Try different API versions
+            // Try multiple approaches to get TikTok video
             let videoUrl = null;
+            
+            // Method 1: Try @tobyg74/tiktok-api-dl with different versions
             const versions = ["v2", "v1", "v3"];
             
             for (const version of versions) {
                 try {
+                    console.log(`Trying TikTok API version ${version}...`);
                     const result = await TiktokDL.Downloader(url, { version });
+                    console.log(`API ${version} result:`, JSON.stringify(result, null, 2));
                     
                     if (result && result.status === "success" && result.result) {
                         const videoData = result.result;
@@ -83,12 +87,32 @@ class TikTokPlugin {
                         }
                         
                         if (videoUrl) {
+                            console.log(`Found video URL with ${version}:`, videoUrl);
                             break; // Found a working URL, exit loop
                         }
                     }
                 } catch (versionError) {
-                    // Try next version
+                    console.log(`Version ${version} failed:`, versionError.message);
                     continue;
+                }
+            }
+
+            // Method 2: If API fails, try alternative approach using direct scraping
+            if (!videoUrl) {
+                try {
+                    console.log('Trying alternative TikTok scraping method...');
+                    const response = await axios.get(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+                    
+                    if (response.data && response.data.thumbnail_url) {
+                        // This is a fallback - at least we know the video exists
+                        console.log('Video exists but no direct download available');
+                    }
+                } catch (oembedError) {
+                    console.log('OEmbed check failed:', oembedError.message);
                 }
             }
 
