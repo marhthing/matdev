@@ -170,11 +170,12 @@ class SchedulePlugin {
     /**
      * Schedule command handler
      */
-    async scheduleCommand(sock, messageInfo) {
-        const { args, quotedMessage, fromJid } = messageInfo || {};
+    async scheduleCommand(messageInfo) {
+        const { args, quotedMessage, chat_jid } = messageInfo || {};
+        const fromJid = chat_jid;
         
-        if (args.length < 3) {
-            await sock.sendMessage(fromJid, { 
+        if (!args || args.length < 3) {
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message]\n\n*Or reply to a message:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>\n\n*Example:*\n${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net Happy Birthday!` 
             });
             return;
@@ -206,7 +207,7 @@ class SchedulePlugin {
             
             // Check if the scheduled time is in the future
             if (scheduleTime.isSameOrBefore(moment())) {
-                await sock.sendMessage(fromJid, { 
+                await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
                 });
                 return;
@@ -226,7 +227,7 @@ class SchedulePlugin {
                 // Use provided message
                 messageContent = args.slice(3).join(' ');
             } else {
-                await sock.sendMessage(fromJid, { 
+                await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ No message content provided! Either reply to a message or include message text.' 
                 });
                 return;
@@ -243,7 +244,7 @@ class SchedulePlugin {
                 message: messageContent,
                 fromJid,
                 createdAt: moment().toISOString(),
-                createdBy: messageInfo.senderName || 'Unknown'
+                createdBy: messageInfo.participant_jid?.split('@')[0] || 'Unknown'
             };
             
             // Save schedule
@@ -258,12 +259,12 @@ class SchedulePlugin {
                                `🆔 *Schedule ID:* ${scheduleId}\n\n` +
                                `⏰ *Time until send:* ${moment().to(scheduleTime)}`;
             
-            await sock.sendMessage(fromJid, { text: confirmation });
+            await this.bot.sock.sendMessage(fromJid, { text: confirmation });
             
             console.log(`📅 New schedule created: ${scheduleId} for ${scheduleTime.format('DD/MM/YYYY HH:mm')}`);
             
         } catch (error) {
-            await sock.sendMessage(fromJid, { 
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Error creating schedule: ${error.message}\n\n*Please check your date/time format:*\ndd:mm:yyyy hh:mm (e.g., 25:12:2024 15:30)` 
             });
         }
@@ -272,11 +273,12 @@ class SchedulePlugin {
     /**
      * List all pending schedules
      */
-    async listSchedules(sock, messageInfo) {
-        const { fromJid } = messageInfo || {};
+    async listSchedules(messageInfo) {
+        const { chat_jid } = messageInfo || {};
+        const fromJid = chat_jid;
         
         if (this.schedules.size === 0) {
-            await sock.sendMessage(fromJid, { 
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: '📅 No pending schedules found.' 
             });
             return;
@@ -300,17 +302,18 @@ class SchedulePlugin {
             response += `─────────────────\n`;
         }
         
-        await sock.sendMessage(fromJid, { text: response });
+        await this.bot.sock.sendMessage(fromJid, { text: response });
     }
 
     /**
      * Cancel a scheduled message
      */
-    async cancelSchedule(sock, messageInfo) {
-        const { args, fromJid } = messageInfo || {};
+    async cancelSchedule(messageInfo) {
+        const { args, chat_jid } = messageInfo || {};
+        const fromJid = chat_jid;
         
-        if (args.length === 0) {
-            await sock.sendMessage(fromJid, { 
+        if (!args || args.length === 0) {
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Please provide a schedule ID!\n\nUsage: ${config.PREFIX}cancelschedule <schedule_id>` 
             });
             return;
@@ -325,7 +328,7 @@ class SchedulePlugin {
             
             const scheduleTime = moment(schedule.time).tz(config.TIMEZONE);
             
-            await sock.sendMessage(fromJid, { 
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: `✅ *Schedule Cancelled Successfully!*\n\n` +
                       `📅 *Was scheduled for:* ${scheduleTime.format('DD/MM/YYYY HH:mm')} (Lagos Time)\n` +
                       `📝 *Message:* ${schedule.message.length > 50 ? schedule.message.substring(0, 50) + '...' : schedule.message}` 
@@ -333,7 +336,7 @@ class SchedulePlugin {
             
             console.log(`🗑️  Schedule cancelled: ${scheduleId}`);
         } else {
-            await sock.sendMessage(fromJid, { 
+            await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Schedule ID not found: ${scheduleId}\n\nUse ${config.PREFIX}schedules to see all pending schedules.` 
             });
         }
