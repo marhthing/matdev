@@ -50,12 +50,12 @@ class DownloadPlugin {
     /**
      * Download file command
      */
-    async downloadFile(sock, chatJid, senderJid, message, args) {
+    async downloadFile(messageInfo) {
         try {
+            const { args } = messageInfo;
+            
             if (!args || args.length === 0) {
-                await sock.sendMessage(chatJid, {
-                    text: `❌ Please provide a download URL\n\nUsage: ${config.PREFIX}download <url>\n\nExample: ${config.PREFIX}download https://example.com/file.pdf\n\n⚠️ *Note:* Only direct file links are supported (max 50MB)`
-                });
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a download URL\n\nUsage: ${config.PREFIX}download <url>\n\nExample: ${config.PREFIX}download https://example.com/file.pdf\n\n⚠️ *Note:* Only direct file links are supported (max 50MB)`);
                 return;
             }
 
@@ -63,16 +63,12 @@ class DownloadPlugin {
             
             // Validate URL
             if (!this.isValidUrl(downloadUrl)) {
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Invalid URL. Please provide a valid direct download link.'
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid URL. Please provide a valid direct download link.');
                 return;
             }
 
             // Send processing message
-            const processingMsg = await sock.sendMessage(chatJid, {
-                text: '🔄 Checking file...\n⏳ Please wait while we verify the download.'
-            });
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Checking file...\n⏳ Please wait while we verify the download.');
 
             try {
                 // Head request to check file info
@@ -88,9 +84,10 @@ class DownloadPlugin {
                 
                 // Check file size
                 if (contentLength > this.maxFileSize) {
-                    await sock.sendMessage(chatJid, {
-                        text: `❌ File is too large (${this.formatFileSize(contentLength)}). Maximum allowed size is ${this.formatFileSize(this.maxFileSize)}.`
-                    }, { quoted: processingMsg });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `❌ File is too large (${this.formatFileSize(contentLength)}). Maximum allowed size is ${this.formatFileSize(this.maxFileSize)}.`,
+                        quoted: processingMsg
+                    });
                     return;
                 }
 
@@ -105,9 +102,10 @@ class DownloadPlugin {
                 }
 
                 // Update processing message
-                await sock.sendMessage(chatJid, {
-                    text: `🔄 Downloading file...\n📁 *File:* ${filename}\n📊 *Size:* ${this.formatFileSize(contentLength)}\n⏳ Please wait...`
-                }, { quoted: processingMsg });
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🔄 Downloading file...\n📁 *File:* ${filename}\n📊 *Size:* ${this.formatFileSize(contentLength)}\n⏳ Please wait...`,
+                    quoted: processingMsg
+                });
 
                 // Download the file
                 const response = await axios.get(downloadUrl, {
@@ -162,11 +160,11 @@ class DownloadPlugin {
                 }
 
                 // Send the file
-                await sock.sendMessage(chatJid, messageOptions);
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, messageOptions);
 
                 // Delete processing message
                 try {
-                    await sock.sendMessage(chatJid, { delete: processingMsg.key });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
                 } catch (e) {
                     // Ignore delete errors
                 }
@@ -192,16 +190,15 @@ class DownloadPlugin {
                 errorMessage += '• Server blocks automated downloads\n\n';
                 errorMessage += 'Please ensure the URL is a direct file link.';
 
-                await sock.sendMessage(chatJid, {
-                    text: errorMessage
-                }, { quoted: processingMsg });
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: errorMessage,
+                    quoted: processingMsg
+                });
             }
 
         } catch (error) {
             console.error('Error in download command:', error);
-            await sock.sendMessage(chatJid, {
-                text: '❌ An error occurred while processing the download. Please try again.'
-            });
+            await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the download. Please try again.');
         }
     }
 

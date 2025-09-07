@@ -41,12 +41,12 @@ class TikTokPlugin {
     /**
      * Download TikTok video command
      */
-    async downloadTikTok(sock, chatJid, senderJid, message, args) {
+    async downloadTikTok(messageInfo) {
         try {
+            const { args } = messageInfo;
+            
             if (!args || args.length === 0) {
-                await sock.sendMessage(chatJid, {
-                    text: `❌ Please provide a TikTok URL\n\nUsage: ${config.PREFIX}tiktok <url>\n\nExample: ${config.PREFIX}tiktok https://vm.tiktok.com/ZMxxxxxl/`
-                });
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a TikTok URL\n\nUsage: ${config.PREFIX}tiktok <url>\n\nExample: ${config.PREFIX}tiktok https://vm.tiktok.com/ZMxxxxxl/`);
                 return;
             }
 
@@ -54,16 +54,12 @@ class TikTokPlugin {
             
             // Validate TikTok URL
             if (!this.isValidTikTokUrl(url)) {
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Invalid TikTok URL. Please provide a valid TikTok video link.'
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid TikTok URL. Please provide a valid TikTok video link.');
                 return;
             }
 
             // Send processing message
-            const processingMsg = await sock.sendMessage(chatJid, {
-                text: '🔄 Processing TikTok video...\n⏳ Please wait, this may take a moment.'
-            });
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing TikTok video...\n⏳ Please wait, this may take a moment.');
 
             try {
                 // Download video info and link
@@ -117,7 +113,7 @@ class TikTokPlugin {
                                `📱 *Downloaded by:* ${config.BOT_NAME}`;
 
                 // Send video
-                await sock.sendMessage(chatJid, {
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: Buffer.from(videoResponse.data),
                     caption: caption,
                     mimetype: 'video/mp4'
@@ -125,7 +121,7 @@ class TikTokPlugin {
 
                 // Delete processing message
                 try {
-                    await sock.sendMessage(chatJid, { delete: processingMsg.key });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
                 } catch (e) {
                     // Ignore delete errors
                 }
@@ -134,16 +130,15 @@ class TikTokPlugin {
                 console.error('TikTok download error:', downloadError);
                 
                 // Update processing message with error
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Failed to download TikTok video.\n\nPossible reasons:\n• Video is private or deleted\n• Network connection issue\n• TikTok server blocked the request\n\nPlease try again with a different video.'
-                }, { quoted: processingMsg });
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '❌ Failed to download TikTok video.\n\nPossible reasons:\n• Video is private or deleted\n• Network connection issue\n• TikTok server blocked the request\n\nPlease try again with a different video.',
+                    quoted: processingMsg
+                });
             }
 
         } catch (error) {
             console.error('Error in TikTok command:', error);
-            await sock.sendMessage(chatJid, {
-                text: '❌ An error occurred while processing the TikTok video. Please try again.'
-            });
+            await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the TikTok video. Please try again.');
         }
     }
 

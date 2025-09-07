@@ -50,12 +50,12 @@ class YouTubePlugin {
     /**
      * Download YouTube video command
      */
-    async downloadYouTube(sock, chatJid, senderJid, message, args) {
+    async downloadYouTube(messageInfo) {
         try {
+            const { args } = messageInfo;
+            
             if (!args || args.length === 0) {
-                await sock.sendMessage(chatJid, {
-                    text: `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>\n\nExample: ${config.PREFIX}ytv https://www.youtube.com/watch?v=dQw4w9WgXcQ`
-                });
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>\n\nExample: ${config.PREFIX}ytv https://www.youtube.com/watch?v=dQw4w9WgXcQ`);
                 return;
             }
 
@@ -63,16 +63,12 @@ class YouTubePlugin {
             
             // Validate YouTube URL
             if (!this.isValidYouTubeUrl(url)) {
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Invalid YouTube URL. Please provide a valid YouTube video link.'
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid YouTube URL. Please provide a valid YouTube video link.');
                 return;
             }
 
             // Send processing message
-            const processingMsg = await sock.sendMessage(chatJid, {
-                text: '🔄 Processing YouTube video...\n⏳ Please wait, this may take a moment.'
-            });
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video...\n⏳ Please wait, this may take a moment.');
 
             try {
                 // Get video info
@@ -82,9 +78,10 @@ class YouTubePlugin {
                 // Check video length (limit to 10 minutes for file size)
                 const duration = parseInt(videoDetails.lengthSeconds);
                 if (duration > 600) { // 10 minutes
-                    await sock.sendMessage(chatJid, {
-                        text: `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`
-                    }, { quoted: processingMsg });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`,
+                        quoted: processingMsg
+                    });
                     return;
                 }
 
@@ -126,7 +123,7 @@ class YouTubePlugin {
                                `📱 *Downloaded by:* ${config.BOT_NAME}`;
 
                 // Send video
-                await sock.sendMessage(chatJid, {
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: videoBuffer,
                     caption: caption,
                     mimetype: 'video/mp4'
@@ -137,7 +134,7 @@ class YouTubePlugin {
 
                 // Delete processing message
                 try {
-                    await sock.sendMessage(chatJid, { delete: processingMsg.key });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
                 } catch (e) {
                     // Ignore delete errors
                 }
@@ -145,46 +142,41 @@ class YouTubePlugin {
             } catch (downloadError) {
                 console.error('YouTube download error:', downloadError);
                 
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Failed to download YouTube video.\n\nPossible reasons:\n• Video is private, age-restricted, or deleted\n• Video is too large or long\n• Network connection issue\n• YouTube server restrictions\n\nPlease try again with a different video.'
-                }, { quoted: processingMsg });
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '❌ Failed to download YouTube video.\n\nPossible reasons:\n• Video is private, age-restricted, or deleted\n• Video is too large or long\n• Network connection issue\n• YouTube server restrictions\n\nPlease try again with a different video.',
+                    quoted: processingMsg
+                });
             }
 
         } catch (error) {
             console.error('Error in YouTube command:', error);
-            await sock.sendMessage(chatJid, {
-                text: '❌ An error occurred while processing the YouTube video. Please try again.'
-            });
+            await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the YouTube video. Please try again.');
         }
     }
 
     /**
      * Search YouTube videos command
      */
-    async searchYouTube(sock, chatJid, senderJid, message, args) {
+    async searchYouTube(messageInfo) {
         try {
+            const { args } = messageInfo;
+            
             if (!args || args.length === 0) {
-                await sock.sendMessage(chatJid, {
-                    text: `❌ Please provide search terms\n\nUsage: ${config.PREFIX}yts <search term>\n\nExample: ${config.PREFIX}yts funny cats`
-                });
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide search terms\n\nUsage: ${config.PREFIX}yts <search term>\n\nExample: ${config.PREFIX}yts funny cats`);
                 return;
             }
 
             const searchQuery = args.join(' ');
             
             // Send processing message
-            await sock.sendMessage(chatJid, {
-                text: '🔍 Searching YouTube...'
-            });
+            await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
                 const searchResults = await ytsr(searchQuery, { limit: 5 });
                 const videos = searchResults.items.filter(item => item.type === 'video').slice(0, 5);
 
                 if (videos.length === 0) {
-                    await sock.sendMessage(chatJid, {
-                        text: '❌ No videos found for your search query.'
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ No videos found for your search query.');
                     return;
                 }
 
@@ -200,22 +192,16 @@ class YouTubePlugin {
 
                 resultText += `💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
 
-                await sock.sendMessage(chatJid, {
-                    text: resultText
-                });
+                await this.bot.messageHandler.reply(messageInfo, resultText);
 
             } catch (searchError) {
                 console.error('YouTube search error:', searchError);
-                await sock.sendMessage(chatJid, {
-                    text: '❌ Failed to search YouTube. Please try again.'
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to search YouTube. Please try again.');
             }
 
         } catch (error) {
             console.error('Error in YouTube search command:', error);
-            await sock.sendMessage(chatJid, {
-                text: '❌ An error occurred while searching YouTube. Please try again.'
-            });
+            await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while searching YouTube. Please try again.');
         }
     }
 
