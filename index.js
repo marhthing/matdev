@@ -1,8 +1,8 @@
 const { spawn, spawnSync } = require('child_process');
 const { existsSync } = require('fs');
 
-// console.log('🎯 MATDEV Bot Auto-Manager');
-// console.log('📍 Working in:', __dirname);
+console.log('🎯 MATDEV Bot Auto-Manager');
+console.log('📍 Working in:', __dirname);
 
 // Your GitHub repository - UPDATE THIS WITH YOUR ACTUAL REPO URL
 const GITHUB_REPO = 'https://github.com/marhthing/matdev.git';
@@ -13,9 +13,9 @@ const isForcedUpdate = existsSync('.update_flag.json');
 
 if (isInitialSetup || isForcedUpdate) {
     if (isForcedUpdate) {
-        // console.log('🔄 Forced update detected - recloning from GitHub...');
+        console.log('🔄 Forced update detected - recloning from GitHub...');
     } else {
-        // console.log('🔧 Initial setup detected - cloning from GitHub...');
+        console.log('🔧 Initial setup detected - cloning from GitHub...');
     }
     cloneAndSetup();
 } else {
@@ -25,7 +25,7 @@ if (isInitialSetup || isForcedUpdate) {
         const managerCommands = new ManagerCommands(GITHUB_REPO);
         
         // Expose essential manager commands globally  
-        // console.log('🔧 Setting up manager commands...');
+        console.log('🔧 Setting up manager commands...');
         global.managerCommands = {
             restart: () => managerCommands.restart(),
             shutdown: () => managerCommands.shutdown(),
@@ -33,21 +33,21 @@ if (isInitialSetup || isForcedUpdate) {
             updateNow: () => managerCommands.updateNow()
         };
         
-        // console.log('✅ Manager commands ready and available globally');
+        console.log('✅ Manager commands ready and available globally');
     } catch (error) {
-        // console.log('⚠️  Manager commands not available (files may be missing)');
+        console.log('⚠️  Manager commands not available (files may be missing)');
     }
     
-    // console.log('🚀 Starting MATDEV bot...');
+    console.log('🚀 Starting MATDEV bot...');
     startBot();
 }
 
 function cloneAndSetup() {
-    // console.log('📥 Cloning bot from GitHub...');
-    // console.log('🔗 Repository:', GITHUB_REPO);
+    console.log('📥 Cloning bot from GitHub...');
+    console.log('🔗 Repository:', GITHUB_REPO);
 
     // Clean workspace (preserve important files)
-    // console.log('🧹 Cleaning workspace (preserving session folder, .env, and config.js)...');
+    console.log('🧹 Cleaning workspace (preserving session folder, .env, and config.js)...');
     spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "session" ! -name ".env" ! -name "config.js" -exec rm -rf {} +'], { stdio: 'inherit' });
 
     // Clone repository
@@ -62,7 +62,7 @@ function cloneAndSetup() {
     }
 
     // Backup and move files
-    // console.log('📁 Moving bot files (preserving existing .env and config.js)...');
+    console.log('📁 Moving bot files (preserving existing .env and config.js)...');
     spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true; cp config.js config.js.backup 2>/dev/null || true'], { stdio: 'inherit' });
     
     const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/. . && rm -rf temp_clone'], {
@@ -77,7 +77,7 @@ function cloneAndSetup() {
         process.exit(1);
     }
 
-    // console.log('✅ Bot files moved successfully!');
+    console.log('✅ Bot files moved successfully!');
 
     // Find entry point
     let entryPoint = findEntryPoint();
@@ -85,11 +85,11 @@ function cloneAndSetup() {
         console.error('❌ No bot entry point found!');
         process.exit(1);
     }
-    // console.log(`✅ Found bot entry point: ${entryPoint}`);
+    console.log(`✅ Found bot entry point: ${entryPoint}`);
 
     // Install dependencies
     if (existsSync('package.json')) {
-        // console.log('📦 Installing dependencies...');
+        console.log('📦 Installing dependencies...');
         const installResult = spawnSync('npm', ['install', '--production'], {
             stdio: 'inherit'
         });
@@ -98,7 +98,7 @@ function cloneAndSetup() {
             console.error('❌ Failed to install dependencies');
             process.exit(1);
         }
-        // console.log('✅ Dependencies installed!');
+        console.log('✅ Dependencies installed!');
     }
 
     // Start the bot
@@ -110,10 +110,10 @@ function cloneAndSetup() {
             if (global.managerCommands && global.managerCommands.sendUpdateCompleteNotification) {
                 global.managerCommands.sendUpdateCompleteNotification();
             } else {
-                // console.log('✅ Setup complete! Bot is ready to use.');
+                console.log('✅ Setup complete! Bot is ready to use.');
             }
         } catch (error) {
-            // console.log('✅ Setup complete! Bot is ready to use.');
+            console.log('✅ Setup complete! Bot is ready to use.');
         }
     }, 10000);
 }
@@ -135,7 +135,7 @@ function findEntryPoint() {
                 return packageJson.main;
             }
         } catch (err) {
-            // console.log('⚠️ Could not read package.json main field');
+            console.log('⚠️ Could not read package.json main field');
         }
     }
 
@@ -143,7 +143,7 @@ function findEntryPoint() {
 }
 
 function startBot(entryPoint = 'bot.js') {
-    // console.log(`🚀 Starting bot: ${entryPoint}`);
+    console.log(`🚀 Starting bot: ${entryPoint}`);
 
     const botProcess = spawn('node', [entryPoint], {
         stdio: 'inherit'
@@ -153,11 +153,11 @@ function startBot(entryPoint = 'bot.js') {
     const maxRestarts = 5;
 
     botProcess.on('exit', (code, signal) => {
-        // console.log(`🔄 Bot exited with code ${code}, signal ${signal}`);
+        console.log(`🔄 Bot exited with code ${code}, signal ${signal}`);
         
         if (signal !== 'SIGTERM' && signal !== 'SIGINT') {
             if (code === 0) {
-                // console.log(`🔄 Restarting bot as requested...`);
+                console.log(`🔄 Restarting bot as requested...`);
                 setTimeout(() => startBot(entryPoint), 2000);
             } else {
                 // Check for update requests
@@ -165,14 +165,14 @@ function startBot(entryPoint = 'bot.js') {
                 const isForcedUpdate = existsSync('.update_flag.json');
                 
                 if (isInitialSetup || isForcedUpdate) {
-                    // console.log('🔄 Update triggered - initiating recloning process...');
+                    console.log('🔄 Update triggered - initiating recloning process...');
                     cloneAndSetup();
                     return;
                 }
                 
                 restartCount++;
                 if (restartCount <= maxRestarts) {
-                    // console.log(`🔄 Restarting bot after crash... (${restartCount}/${maxRestarts})`);
+                    console.log(`🔄 Restarting bot after crash... (${restartCount}/${maxRestarts})`);
                     setTimeout(() => startBot(entryPoint), 2000);
                 } else {
                     console.error('❌ Too many crash restarts, stopping');
@@ -180,7 +180,7 @@ function startBot(entryPoint = 'bot.js') {
                 }
             }
         } else {
-            // console.log('🛑 Bot stopped by manager');
+            console.log('🛑 Bot stopped by manager');
         }
     });
 
@@ -190,19 +190,19 @@ function startBot(entryPoint = 'bot.js') {
 
     // Handle process signals
     process.on('SIGUSR1', () => {
-        // console.log('🔄 Received restart signal, restarting bot...');
+        console.log('🔄 Received restart signal, restarting bot...');
         botProcess.kill('SIGTERM');
         setTimeout(() => startBot(entryPoint), 2000);
     });
 
     process.on('SIGTERM', () => {
-        // console.log('🛑 Received shutdown signal, stopping bot...');
+        console.log('🛑 Received shutdown signal, stopping bot...');
         botProcess.kill('SIGTERM');
         process.exit(0);
     });
 
     process.on('SIGINT', () => {
-        // console.log('🛑 Received interrupt signal, stopping bot...');
+        console.log('🛑 Received interrupt signal, stopping bot...');
         botProcess.kill('SIGINT');
         process.exit(0);
     });
