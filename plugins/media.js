@@ -397,19 +397,36 @@ class MediaPlugin {
                 return;
             }
 
-            // Prepare sticker message with proper metadata structure
-            const stickerMessage = {
-                sticker: buffer.buffer,
-                packname: packname,
-                author: author
+            // Use wa-sticker-formatter to properly embed metadata
+            const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+
+            // Configure sticker options with custom metadata
+            const stickerOptions = {
+                pack: packname,
+                author: author,
+                type: StickerTypes.FULL,
+                categories: ['🤖'],
+                quality: 90
             };
 
             // Check if original was animated and preserve that
             if (quotedMessage.stickerMessage.isAnimated) {
-                stickerMessage.isAnimated = true;
+                stickerOptions.animated = true;
             }
 
-            await this.bot.sock.sendMessage(messageInfo.sender, stickerMessage);
+            // Create sticker with embedded metadata
+            const sticker = new Sticker(buffer.buffer, stickerOptions);
+            const stickerBuffer = await sticker.toBuffer();
+
+            if (!stickerBuffer || stickerBuffer.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process sticker with metadata.');
+                return;
+            }
+
+            // Send the sticker with embedded metadata
+            await this.bot.sock.sendMessage(messageInfo.sender, {
+                sticker: stickerBuffer
+            });
 
         } catch (error) {
             console.log('Take error:', error);
