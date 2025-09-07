@@ -584,7 +584,30 @@ class YouTubePlugin {
                     for (const serviceKey of otherServices) {
                         try {
                             console.log(`Trying ${this.downloadServices[serviceKey].name} as fallback...`);
-                            const fallbackVideoInfo = await this[`try${serviceKey.charAt(0).toUpperCase() + serviceKey.slice(1).replace('ninex', '9').replace('convert', 'Convert')}`](url, this.getRandomUserAgent());
+                            
+                            let methodName;
+                            switch (serviceKey) {
+                                case 'ninexconvert':
+                                    methodName = 'try9Convert';
+                                    break;
+                                case 'savefrom':
+                                    methodName = 'trySaveFrom';
+                                    break;
+                                case 'ytmp3':
+                                    methodName = 'tryYTMP3';
+                                    break;
+                                case 'ytdl':
+                                    methodName = 'tryYTDL';
+                                    break;
+                                case 'y2mate':
+                                    methodName = 'tryY2mate';
+                                    break;
+                                default:
+                                    console.log(`Unknown service: ${serviceKey}`);
+                                    continue;
+                            }
+                            
+                            const fallbackVideoInfo = await this[methodName](url, this.getRandomUserAgent());
                             
                             if (fallbackVideoInfo) {
                                 downloadLink = await this.getDownloadLinkFromService(fallbackVideoInfo, videoFormat);
