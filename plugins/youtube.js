@@ -221,14 +221,14 @@ class YouTubePlugin {
                 // Check video length (limit to 10 minutes for file size)
                 const duration = parseInt(videoDetails.lengthSeconds);
                 if (duration > 600) { // 10 minutes
-                    await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                    await this.bot.messageHandler.reply(messageInfo, 
                         `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`);
                     return;
                 }
 
                 // Check if video is available
                 if (videoDetails.isLiveContent) {
-                    await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                    await this.bot.messageHandler.reply(messageInfo, 
                         '❌ Cannot download live streams. Please use recorded videos.');
                     return;
                 }
@@ -243,8 +243,8 @@ class YouTubePlugin {
                     throw new Error('No suitable video format found');
                 }
 
-                // Update processing message
-                await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                // Send downloading status
+                await this.bot.messageHandler.reply(messageInfo, 
                     '⬇️ Downloading video... This may take a moment.');
 
                 // Create temporary file path
@@ -299,7 +299,7 @@ class YouTubePlugin {
 
                 // Check file size (limit to 100MB for WhatsApp)
                 if (stats.size > 100 * 1024 * 1024) {
-                    await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                    await this.bot.messageHandler.reply(messageInfo, 
                         '❌ Video file is too large (>100MB). Please use a shorter video.');
                     return;
                 }
@@ -307,8 +307,8 @@ class YouTubePlugin {
                 // Read video file
                 const videoBuffer = await fs.readFile(tempFile);
 
-                // Update processing message
-                await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                // Send uploading status
+                await this.bot.messageHandler.reply(messageInfo, 
                     '📤 Uploading video...');
 
                 // Create caption with video info
@@ -322,8 +322,7 @@ class YouTubePlugin {
                     fileName: `${videoDetails.title.replace(/[^\w\s]/gi, '')}.mp4`
                 });
 
-                // Delete processing message
-                await this.bot.messageHandler.deleteMessage(messageInfo, processingMsg);
+                // Processing completed - video sent
 
             } catch (downloadError) {
                 console.error('YouTube download error:', downloadError);
@@ -338,7 +337,7 @@ class YouTubePlugin {
                     errorMessage = '❌ No compatible video format found for this video.';
                 }
 
-                await this.bot.messageHandler.editMessage(messageInfo, processingMsg, errorMessage);
+                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
@@ -397,7 +396,7 @@ class YouTubePlugin {
                 const videos = searchResults.items.filter(item => item.type === 'video').slice(0, 5);
 
                 if (videos.length === 0) {
-                    await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                    await this.bot.messageHandler.reply(messageInfo, 
                         '❌ No videos found for your search query.');
                     return;
                 }
@@ -414,11 +413,11 @@ class YouTubePlugin {
 
                 resultText += `💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
 
-                await this.bot.messageHandler.editMessage(messageInfo, processingMsg, resultText);
+                await this.bot.messageHandler.reply(messageInfo, resultText);
 
             } catch (searchError) {
                 console.error('YouTube search error:', searchError);
-                await this.bot.messageHandler.editMessage(messageInfo, processingMsg, 
+                await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to search YouTube. Please try again later.');
             }
 
