@@ -160,13 +160,17 @@ class StatusSchedulePlugin {
         const { type, content, caption, mediaPath } = schedule;
         
         try {
+            // Get bot's own JID for statusJidList (critical for status visibility)
+            const botJid = global.botJid || this.bot.sock?.user?.id?.split(':')[0] + '@s.whatsapp.net';
+            const statusJidList = botJid ? [botJid] : [];
+            
             if (type === 'text') {
                 // Post text status
                 await this.bot.sock.sendMessage('status@broadcast', { 
                     text: content 
                 }, {
                     backgroundColor: '#000000', // Optional: set background color
-                    statusJidList: [] // Empty array means all contacts can see
+                    statusJidList: statusJidList // Include bot JID for visibility
                 });
                 console.log(`📱 Posted text status: ${content.substring(0, 50)}...`);
             } else if (type === 'image' && mediaPath && fs.existsSync(mediaPath)) {
@@ -176,7 +180,7 @@ class StatusSchedulePlugin {
                     image: buffer, 
                     caption: caption || '' 
                 }, {
-                    statusJidList: [] // Empty array means all contacts can see
+                    statusJidList: statusJidList // Include bot JID for visibility
                 });
                 console.log(`📱 Posted image status with caption: ${caption || 'No caption'}`);
             } else if (type === 'video' && mediaPath && fs.existsSync(mediaPath)) {
@@ -186,7 +190,7 @@ class StatusSchedulePlugin {
                     video: buffer, 
                     caption: caption || '' 
                 }, {
-                    statusJidList: [] // Empty array means all contacts can see
+                    statusJidList: statusJidList // Include bot JID for visibility
                 });
                 console.log(`📱 Posted video status with caption: ${caption || 'No caption'}`);
             }
