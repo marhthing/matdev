@@ -1,0 +1,45 @@
+info: ✅ Anti-delete plugin reference established {"timestamp":"2025-09-07 01:52:39"}
+⚠️  🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: F1E0D4C741D8D7624C2BE66ACD24AFD6, Chat: 2347046040727@s.whatsapp.net
+warn: 🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: F1E0D4C741D8D7624C2BE66ACD24AFD6, Chat: 2347046040727@s.whatsapp.net {"timestamp":"2025-09-07 01:52:44"}
+ℹ️  🔄 Delegating to anti-delete plugin
+info: 🔄 Delegating to anti-delete plugin {"timestamp":"2025-09-07 01:52:44"}
+🗑️ ANTI-DELETE: Detected deleted message: F1E0D4C741D8D7624C2BE66ACD24AFD6 in chat: 2347046040727@s.whatsapp.net
+🔍 ANTI-DELETE: Searching for message ID: F1E0D4C741D8D7624C2BE66ACD24AFD6
+🔍 ANTI-DELETE: Search result: FOUND
+📋 ANTI-DELETE: Original message found in database: {
+  id: 'F1E0D4C741D8D7624C2BE66ACD24AFD6',
+  sender: '2347046040727@s.whatsapp.net',
+  participant: '2347046040727@s.whatsapp.net',
+  content: 'Bjdjd...',
+  timestamp: 1757209961,
+  from_me: false
+}
+🚨 ANTI-DELETE: Sending alert for incoming message deletion
+📤 ANTI-DELETE: Sending styled deleted text to: 2347018091555@s.whatsapp.net
+🗑️ Detected deleted message from 2347046040727
+✅ ANTI-DELETE: Alert sent for message: F1E0D4C741D8D7624C2BE66ACD24AFD6
+ℹ️  📼 Media download and archived
+info: 📼 Media download and archived {"timestamp":"2025-09-07 01:53:11"}
+No text content found in message. Available types: stickerMessage, messageContextInfo
+✅ 📼 Media download and archived
+info: SUCCESS: 📼 Media download and archived {"timestamp":"2025-09-07 01:53:11"}
+⚠️  🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: B2409018D733856ECEFAAB92A70E5E95, Chat: 2347046040727@s.whatsapp.net
+warn: 🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: B2409018D733856ECEFAAB92A70E5E95, Chat: 2347046040727@s.whatsapp.net {"timestamp":"2025-09-07 01:53:19"}
+ℹ️  🔄 Delegating to anti-delete plugin
+info: 🔄 Delegating to anti-delete plugin {"timestamp":"2025-09-07 01:53:19"}
+🗑️ ANTI-DELETE: Detected deleted message: B2409018D733856ECEFAAB92A70E5E95 in chat: 2347046040727@s.whatsapp.net
+🔍 ANTI-DELETE: Searching for message ID: B2409018D733856ECEFAAB92A70E5E95
+🔍 ANTI-DELETE: Search result: FOUND
+📋 ANTI-DELETE: Original message found in database: {
+  id: 'B2409018D733856ECEFAAB92A70E5E95',
+  sender: '2347046040727@s.whatsapp.net',
+  participant: '2347046040727@s.whatsapp.net',
+  content: '...',
+  timestamp: 1757209991,
+  from_me: false
+}
+🚨 ANTI-DELETE: Sending alert for incoming message deletion
+📤 ANTI-DELETE: Sending text alert to: 2347018091555@s.whatsapp.net
+📎 Recovered and sent deleted stickerMessage
+🗑️ Detected deleted message from 2347046040727
+✅ ANTI-DELETE: Alert sent for message: B2409018D733856ECEFAAB92A70E5E95
