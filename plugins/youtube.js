@@ -195,6 +195,13 @@ class YouTubePlugin {
                 // Get video info using play-dl
                 const info = await play.video_basic_info(url);
                 const videoDetails = info.video_details;
+                
+                // Debug: Check the info structure
+                console.log('Video info structure:', {
+                    hasVideoDetails: !!videoDetails,
+                    hasUrl: !!videoDetails?.url,
+                    title: videoDetails?.title
+                });
 
                 // Check video length (limit to 10 minutes for file size)
                 const duration = parseInt(videoDetails.lengthSeconds);
@@ -233,8 +240,8 @@ class YouTubePlugin {
                     }, 300000); // 5 minute timeout
 
                     try {
-                        // Use stream_from_info for better control
-                        const stream = await play.stream_from_info(info);
+                        // Use stream with the original URL instead of stream_from_info
+                        const stream = await play.stream(url);
                         const writeStream = fs.createWriteStream(tempFile);
 
                         stream.stream.pipe(writeStream);
