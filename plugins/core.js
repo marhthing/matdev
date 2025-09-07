@@ -21,7 +21,7 @@ class CorePlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        
+
         console.log('✅ Core plugin loaded');
     }
 
@@ -167,13 +167,13 @@ class CorePlugin {
             //     is_group: messageInfo.is_group
             // });
             const { args } = messageInfo;
-            
+
             if (args.length > 0) {
                 // Show specific command help
                 const commandName = args[0].toLowerCase();
                 const commands = this.bot.messageHandler.getCommands();
                 const command = commands.find(cmd => cmd.name === commandName);
-                
+
                 if (command) {
                     const helpText = `*${command.name.toUpperCase()}*\n\n` +
                         `📝 *Description:* ${command.description}\n` +
@@ -182,7 +182,7 @@ class CorePlugin {
                         `${command.ownerOnly ? '👑 *Owner Only*' : ''}\n` +
                         `${command.groupOnly ? '👥 *Group Only*' : ''}\n` +
                         `${command.privateOnly ? '💬 *Private Only*' : ''}`;
-                    
+
                     await this.bot.messageHandler.reply(messageInfo, helpText.trim());
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Command "${commandName}" not found.`);
@@ -191,16 +191,16 @@ class CorePlugin {
                 // Show all commands grouped by category
                 const commands = this.bot.messageHandler.getCommands();
                 const categories = {};
-                
+
                 commands.forEach(cmd => {
                     if (!categories[cmd.category]) {
                         categories[cmd.category] = [];
                     }
                     categories[cmd.category].push(cmd);
                 });
-                
+
                 let helpText = `*🤖 MATDEV COMMAND MENU*\n\n`;
-                
+
                 for (const [category, cmds] of Object.entries(categories)) {
                     helpText += `*${category.toUpperCase()}*\n`;
                     cmds.forEach(cmd => {
@@ -208,10 +208,10 @@ class CorePlugin {
                     });
                     helpText += '\n';
                 }
-                
+
                 helpText += `_Total Commands: ${commands.length}_\n`;
                 helpText += `_Type ${config.PREFIX}help <command> for detailed info_`;
-                
+
                 await this.bot.messageHandler.reply(messageInfo, helpText);
             }
         } catch (error) {
@@ -226,14 +226,14 @@ class CorePlugin {
      */
     async pingCommand(messageInfo) {
         const start = Date.now();
-        
+
         try {
             // Send initial message
             const sentMessage = await this.bot.messageHandler.reply(messageInfo, `🏓 Pong! 0ms`);
-            
+
             // Calculate actual latency after sending
             const latency = Date.now() - start;
-            
+
             // Edit the message with actual latency
             if (sentMessage && sentMessage.key) {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -241,7 +241,7 @@ class CorePlugin {
                     edit: sentMessage.key
                 });
             }
-            
+
         } catch (error) {
             const errorLatency = Date.now() - start;
             this.bot.logger.error('Ping command error:', error);
@@ -257,7 +257,7 @@ class CorePlugin {
             const uptime = utils.formatUptime(Date.now() - this.bot.startTime);
             const memUsage = process.memoryUsage();
             const stats = this.bot.messageHandler.getStats();
-            
+
             const statusText = `*🤖 MATDEV STATUS*\n\n` +
                 `🟢 *Status:* Online\n` +
                 `⏰ *Uptime:* ${uptime}\n` +
@@ -269,7 +269,7 @@ class CorePlugin {
                 `🛡️ *Security Status:* Active\n` +
                 `🌐 *Platform:* ${config.PLATFORM}\n` +
                 `⚙️ *Node Version:* ${process.version}`;
-            
+
             await this.bot.messageHandler.reply(messageInfo, statusText);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving status.');
@@ -283,13 +283,13 @@ class CorePlugin {
         try {
             const uptime = utils.formatUptime(Date.now() - this.bot.startTime);
             const systemUptime = utils.formatUptime(require('os').uptime() * 1000);
-            
+
             const uptimeText = `*⏰ UPTIME INFORMATION*\n\n` +
                 `🤖 *Bot Uptime:* ${uptime}\n` +
                 `💻 *System Uptime:* ${systemUptime}\n` +
                 `🕐 *Started At:* ${new Date(this.bot.startTime).toLocaleString()}\n` +
                 `🔄 *Reconnections:* ${this.bot.reconnectAttempts}`;
-            
+
             await this.bot.messageHandler.reply(messageInfo, uptimeText);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving uptime.');
@@ -319,7 +319,7 @@ class CorePlugin {
                 `• Smart rate limiting\n` +
                 `• Discreet operation mode\n\n` +
                 `_Designed for superior performance and reliability._`;
-            
+
             await this.bot.messageHandler.reply(messageInfo, aboutText);
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying about information.');
@@ -346,46 +346,48 @@ class CorePlugin {
             const process = require('process');
             const utils = require('../lib/utils');
             const utilsInstance = new utils();
-            
+            const moment = require('moment-timezone'); // Added for timezone handling
+
             // Get live system information
             const systemInfo = utilsInstance.getSystemInfo();
             const memUsage = process.memoryUsage();
             const botUptime = utilsInstance.formatUptime(Date.now() - this.bot.startTime);
-            
-            // Get current time and date
+
+            // Get current time and date using config timezone
             const now = new Date();
-            const timeOptions = { 
-                hour: '2-digit', 
+            const timeOptions = {
+                hour: '2-digit',
                 minute: '2-digit',
-                hour12: true 
+                hour12: true
             };
-            const dateOptions = { 
+            const dateOptions = {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'numeric',
                 day: 'numeric'
             };
-            
-            const currentTime = now.toLocaleTimeString('en-US', timeOptions);
-            const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
-            const currentDate = now.toLocaleDateString('en-US', dateOptions);
-            
+
+            // Use moment-timezone for accurate time display based on config.TIMEZONE
+            const currentTime = moment().tz(config.TIMEZONE).format('hh:mm:ss A');
+            const currentDay = moment().tz(config.TIMEZONE).format('dddd');
+            const currentDate = moment().tz(config.TIMEZONE).format('MM/DD/YYYY');
+
             // Get platform info
-            const platformName = systemInfo.platform === 'linux' ? 'Linux' : 
-                               systemInfo.platform === 'win32' ? 'Windows' : 
+            const platformName = systemInfo.platform === 'linux' ? 'Linux' :
+                               systemInfo.platform === 'win32' ? 'Windows' :
                                systemInfo.platform === 'darwin' ? 'macOS' : systemInfo.platform;
-            
+
             // Calculate memory usage
             const totalMemMB = Math.round(systemInfo.memory.total / 1024 / 1024);
             const usedMemMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-            
+
             // Get bot user name (from WhatsApp profile or bot name)
             const botName = this.bot.sock?.user?.name || config.BOT_NAME;
-            
+
             // Get all commands and categorize them
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
-            
+
             commands.forEach(cmd => {
                 if (!categories[cmd.category]) {
                     categories[cmd.category] = [];
@@ -399,7 +401,7 @@ class CorePlugin {
             menuText += `┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃\n`;
             menuText += `┃ ⚡ Prefix    : ${config.PREFIX}\n`;
             menuText += `┃ 👤 User      : ${botName}\n`;
-            menuText += `┃ 🕐 Time      : ${currentTime}\n`;
+            menuText += `┃ ⏰ Time      : ${currentTime}\n`; // Displaying time with timezone
             menuText += `┃ 📅 Day       : ${currentDay}\n`;
             menuText += `┃ 📆 Date      : ${currentDate}\n`;
             menuText += `┃ 🔧 Version   : 1.0.0\n`;
@@ -423,7 +425,7 @@ class CorePlugin {
             for (const [category, cmds] of Object.entries(categories)) {
                 const icon = categoryIcons[category] || '📋';
                 menuText += `╭─── ${icon} ${category.toUpperCase()} ${icon} ───╮\n`;
-                
+
                 // Split commands into rows of 3
                 for (let i = 0; i < cmds.length; i += 3) {
                     const row = cmds.slice(i, i + 3);
@@ -452,14 +454,14 @@ class CorePlugin {
     async restartCommand(messageInfo) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🔄 Restarting MATDEV bot...');
-            
+
             // Store restart info for completion message
             const restartInfo = {
                 chatJid: messageInfo.chat_jid,
                 timestamp: Date.now()
             };
             require('fs-extra').writeFileSync('.restart_info.json', JSON.stringify(restartInfo));
-            
+
             // Use manager restart if available
             if (global.managerCommands && global.managerCommands.restart) {
                 setTimeout(() => {
@@ -471,7 +473,7 @@ class CorePlugin {
                     process.exit(0);
                 }, 2000);
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during restart.');
         }
@@ -483,7 +485,7 @@ class CorePlugin {
     async shutdownCommand(messageInfo) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🛑 Shutting down MATDEV bot...');
-            
+
             // Use manager shutdown if available
             if (global.managerCommands && global.managerCommands.shutdown) {
                 setTimeout(() => {
@@ -495,7 +497,7 @@ class CorePlugin {
                     this.bot.shutdown();
                 }, 2000);
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during shutdown.');
         }
@@ -507,14 +509,14 @@ class CorePlugin {
     async updateCommand(messageInfo) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🔍 Checking for updates...');
-            
+
             if (global.managerCommands && global.managerCommands.checkUpdates) {
                 const result = await global.managerCommands.checkUpdates();
-                
+
                 if (result.error) {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Update check failed: ${result.error}`);
                 } else if (result.updateAvailable) {
-                    await this.bot.messageHandler.reply(messageInfo, 
+                    await this.bot.messageHandler.reply(messageInfo,
                         `🔄 ${result.message}\n\nUse ${config.PREFIX}updatenow to update immediately.`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, `✅ ${result.message}`);
@@ -533,7 +535,7 @@ class CorePlugin {
                     `2. Restart the bot process\n` +
                     `3. Session will be preserved automatically\n\n` +
                     `_Always backup your session before updating_`;
-                
+
                 await this.bot.messageHandler.reply(messageInfo, updateText);
             }
         } catch (error) {
@@ -547,7 +549,7 @@ class CorePlugin {
     async updateNowCommand(messageInfo) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '⚠️ Force updating from GitHub...\n\n🔄 Bot will restart with latest code shortly.');
-            
+
             if (global.managerCommands && global.managerCommands.updateNow) {
                 setTimeout(() => {
                     global.managerCommands.updateNow();
@@ -566,38 +568,38 @@ class CorePlugin {
     async evalCommand(messageInfo) {
         try {
             const { args } = messageInfo;
-            
+
             if (args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please provide code to execute.');
                 return;
             }
-            
+
             const code = args.join(' ');
-            
+
             // Security warning
             if (code.includes('process.exit') || code.includes('require(')) {
                 await this.bot.messageHandler.reply(messageInfo, '⚠️ Potentially dangerous code detected.');
                 return;
             }
-            
+
             try {
                 let result = eval(code);
-                
+
                 if (typeof result === 'object') {
                     result = JSON.stringify(result, null, 2);
                 }
-                
+
                 const resultText = `*📝 EVAL RESULT*\n\n` +
                     `*Code:* \`${code}\`\n\n` +
                     `*Result:*\n\`\`\`${result}\`\`\``;
-                
+
                 await this.bot.messageHandler.reply(messageInfo, resultText);
-                
+
             } catch (evalError) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ *Execution Error:*\n\`\`\`${evalError.message}\`\`\``);
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during code execution.');
         }
@@ -609,30 +611,30 @@ class CorePlugin {
     async broadcastCommand(messageInfo) {
         try {
             const { args } = messageInfo;
-            
+
             if (args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please provide a message to broadcast.');
                 return;
             }
-            
+
             const message = args.join(' ');
-            
-            await this.bot.messageHandler.reply(messageInfo, 
+
+            await this.bot.messageHandler.reply(messageInfo,
                 '📢 Broadcasting message... This may take a while.');
-            
+
             // This is a simplified broadcast - in production you'd want to track chats
             // For now, we'll just confirm the broadcast was initiated
             const broadcastText = `📢 *BROADCAST MESSAGE*\n\n${message}\n\n_This is an automated message from MATDEV bot._`;
-            
+
             // In a real implementation, you would:
             // 1. Get all chat IDs from your database/cache
             // 2. Loop through them with rate limiting
             // 3. Track success/failure rates
             // 4. Provide detailed statistics
-            
-            await this.bot.messageHandler.reply(messageInfo, 
+
+            await this.bot.messageHandler.reply(messageInfo,
                 '✅ Broadcast initiated. Note: This is a basic implementation.');
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during broadcast.');
         }
@@ -645,19 +647,19 @@ class CorePlugin {
     async allowCommand(messageInfo) {
         try {
             const { args, sender } = messageInfo;
-            
+
             if (args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Usage: `.allow <jid> <cmd>` or when in their chat: `.allow <cmd>`');
                 return;
             }
 
             let jid, command;
-            
+
             if (args.length === 1) {
                 // Check if message is a reply to someone (quoted message)
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo;
-                
+
                 if (quotedMessage && quotedMessage.participant) {
                     // Grant permission to the quoted message author
                     jid = quotedMessage.participant;
@@ -683,24 +685,24 @@ class CorePlugin {
             // Validate command exists
             const commands = this.bot.messageHandler.getCommands();
             const commandExists = commands.some(cmd => cmd.name === command);
-            
+
             if (!commandExists) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ Command "${command}" does not exist. Use \`.help\` to see available commands.`);
                 return;
             }
 
             // Add permission using database
             const success = await this.bot.database.addPermission(jid, command);
-            
+
             if (success) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `✅ Permission granted! User ${jid} can now use \`.${command}\``);
             } else {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Failed to add permission. Please try again.');
             }
-            
+
         } catch (err) {
             this.bot.logger.error('Allow command error:', err);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing allow command.');
@@ -714,15 +716,15 @@ class CorePlugin {
     async disallowCommand(messageInfo) {
         try {
             const { args, sender } = messageInfo;
-            
+
             if (args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Usage: `.disallow <jid> <cmd>` or when in their chat: `.disallow <cmd>`');
                 return;
             }
 
             let jid, command;
-            
+
             if (args.length === 1) {
                 // When in their chat: .disallow <cmd>
                 jid = sender;
@@ -740,15 +742,15 @@ class CorePlugin {
 
             // Remove permission using database
             const success = await this.bot.database.removePermission(jid, command);
-            
+
             if (success) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ Permission removed! User ${jid} can no longer use \`.${command}\``);
             } else {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ User ${jid} did not have permission for \`.${command}\``);
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing disallow command.');
         }
@@ -761,17 +763,17 @@ class CorePlugin {
     async permissionsCommand(messageInfo) {
         try {
             const { args } = messageInfo;
-            
+
             if (args.length === 0) {
                 // Show all permissions
                 const allPermissions = this.bot.database.getAllPermissions();
-                
+
                 if (Object.keys(allPermissions).length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, 
+                    await this.bot.messageHandler.reply(messageInfo,
                         '📋 No permissions have been granted yet.');
                     return;
                 }
-                
+
                 let permissionsText = '*📋 USER PERMISSIONS*\n\n';
                 for (const [jid, commands] of Object.entries(allPermissions)) {
                     const displayJid = jid.split('@')[0]; // Show just the number
@@ -781,32 +783,32 @@ class CorePlugin {
                     });
                     permissionsText += '\n';
                 }
-                
+
                 await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
-                
+
             } else {
                 // Show permissions for specific user
                 let jid = args[0];
                 if (!jid.includes('@')) {
                     jid = `${jid}@s.whatsapp.net`;
                 }
-                
+
                 const userPermissions = this.bot.database.getUserPermissions(jid);
                 const displayJid = jid.split('@')[0];
-                
+
                 if (userPermissions.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, 
+                    await this.bot.messageHandler.reply(messageInfo,
                         `📋 User ${displayJid} has no permissions.`);
                 } else {
                     let permissionsText = `*📋 PERMISSIONS FOR ${displayJid}*\n\n`;
                     userPermissions.forEach(cmd => {
                         permissionsText += `• .${cmd}\n`;
                     });
-                    
+
                     await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
                 }
             }
-            
+
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving permissions.');
         }
@@ -820,7 +822,7 @@ class CorePlugin {
         try {
             // Verify this is a group
             if (!messageInfo.is_group) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ This command only works in groups.');
                 return;
             }
@@ -834,14 +836,14 @@ class CorePlugin {
             // Extract the sender's LID from the message
             const message = messageInfo.key ? { key: messageInfo.key } : null;
             if (!message) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Unable to extract message information.');
                 return;
             }
 
             // Look for LID information in the message key
             let senderLid = null;
-            
+
             // Check for senderLid in the original message (multiple possible locations)
             if (messageInfo.key && messageInfo.key.senderLid) {
                 senderLid = messageInfo.key.senderLid;
@@ -883,7 +885,7 @@ class CorePlugin {
 
         } catch (error) {
             console.error('Register Group LID command error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
+            await this.bot.messageHandler.reply(messageInfo,
                 '❌ An error occurred while registering the group LID.');
         }
     }
@@ -896,19 +898,19 @@ class CorePlugin {
             const result = await this.bot.database.clearGroupLid();
 
             if (result.success) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `✅ *Group LID Cleared*\n\n` +
                     `🗑️ *Previous LID:* ${result.previousLid}\n` +
                     `📅 *Cleared:* ${new Date().toLocaleString()}\n\n` +
                     `_The .rg command is now available for registration again._`);
             } else {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ *Clear Failed*\n\n${result.message}`);
             }
 
         } catch (error) {
             console.error('Clear Group LID command error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
+            await this.bot.messageHandler.reply(messageInfo,
                 '❌ An error occurred while clearing the group LID.');
         }
     }
@@ -919,7 +921,7 @@ class CorePlugin {
     async groupLidInfoCommand(messageInfo) {
         try {
             if (!this.bot.database.isGroupLidRegistered()) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `📋 *Group LID Status*\n\n` +
                     `❌ *Status:* No group LID registered\n` +
                     `💡 *Info:* Use .rg in a group to register a LID\n\n` +
@@ -931,7 +933,7 @@ class CorePlugin {
             const registeredAt = new Date(lidData.registeredAt).toLocaleString();
             const registeredBy = lidData.registeredBy.split('@')[0];
 
-            await this.bot.messageHandler.reply(messageInfo, 
+            await this.bot.messageHandler.reply(messageInfo,
                 `📋 *Group LID Information*\n\n` +
                 `✅ *Status:* Registered\n` +
                 `🆔 *LID:* ${lidData.lid}\n` +
@@ -944,7 +946,7 @@ class CorePlugin {
 
         } catch (error) {
             console.error('Group LID Info command error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
+            await this.bot.messageHandler.reply(messageInfo,
                 '❌ An error occurred while retrieving group LID information.');
         }
     }
@@ -992,18 +994,18 @@ class CorePlugin {
     async setStickerCommand(messageInfo) {
         try {
             const { args } = messageInfo;
-            
+
             if (args.length === 0) {
                 console.log('❌ No command specified for sticker binding');
                 return;
             }
 
             const commandName = args[0].toLowerCase();
-            
+
             // Check if the command exists
             const commands = this.bot.messageHandler.getCommands();
             const command = commands.find(cmd => cmd.name === commandName);
-            
+
             if (!command) {
                 console.log(`❌ Command "${commandName}" not found`);
                 return;
@@ -1011,7 +1013,7 @@ class CorePlugin {
 
             // Check if this is a reply to a sticker
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.stickerMessage) {
                 console.log('❌ Please reply to a sticker when using .setcmd');
                 return;
@@ -1020,7 +1022,7 @@ class CorePlugin {
             // Get multiple sticker identifiers for robust matching
             const stickerData = quotedMessage.stickerMessage;
             const stickerIdentifiers = this.getStickerIdentifiers(stickerData);
-            
+
             if (stickerIdentifiers.length === 0) {
                 console.log('❌ Could not identify sticker');
                 return;
@@ -1028,7 +1030,7 @@ class CorePlugin {
 
             // Store sticker command binding with all identifiers
             const stickerCommands = this.bot.database.getData('stickerCommands') || {};
-            
+
             // Store the binding using all possible identifiers
             stickerIdentifiers.forEach(identifier => {
                 stickerCommands[identifier] = {
@@ -1038,11 +1040,11 @@ class CorePlugin {
                     identifiers: stickerIdentifiers // Store all identifiers for this sticker
                 };
             });
-            
+
             this.bot.database.setData('stickerCommands', stickerCommands);
-            
+
             console.log(`✅ Sticker bound to command: ${commandName} (${stickerIdentifiers.length} identifiers stored)`);
-            
+
         } catch (error) {
             console.error(`Error in set sticker command: ${error.message}`);
         }
@@ -1055,7 +1057,7 @@ class CorePlugin {
         try {
             // Check if this is a reply to a sticker
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.stickerMessage) {
                 console.log('❌ Please reply to a sticker when using .delcmd');
                 return;
@@ -1064,7 +1066,7 @@ class CorePlugin {
             // Get multiple sticker identifiers for robust matching
             const stickerData = quotedMessage.stickerMessage;
             const stickerIdentifiers = this.getStickerIdentifiers(stickerData);
-            
+
             if (stickerIdentifiers.length === 0) {
                 console.log('❌ Could not identify sticker');
                 return;
@@ -1074,7 +1076,7 @@ class CorePlugin {
             const stickerCommands = this.bot.database.getData('stickerCommands') || {};
             let removedCommand = null;
             let identifiersRemoved = 0;
-            
+
             // Check all identifiers and remove any matches
             stickerIdentifiers.forEach(identifier => {
                 if (stickerCommands[identifier]) {
@@ -1085,14 +1087,14 @@ class CorePlugin {
                     identifiersRemoved++;
                 }
             });
-            
+
             if (removedCommand) {
                 this.bot.database.setData('stickerCommands', stickerCommands);
                 console.log(`✅ Removed command binding: ${removedCommand} (${identifiersRemoved} identifiers removed)`);
             } else {
                 console.log('❌ This sticker has no command binding');
             }
-            
+
         } catch (error) {
             console.error(`Error in delete sticker command: ${error.message}`);
         }
@@ -1103,41 +1105,41 @@ class CorePlugin {
      */
     getStickerIdentifiers(stickerData) {
         const identifiers = [];
-        
+
         try {
             // Method 1: File SHA256 hash (most reliable when available)
             if (stickerData.fileSha256) {
                 const sha256Hash = Buffer.from(stickerData.fileSha256).toString('hex');
                 identifiers.push(`sha256:${sha256Hash}`);
             }
-            
+
             // Method 2: Direct URL (when available)
             if (stickerData.url) {
                 identifiers.push(`url:${stickerData.url}`);
             }
-            
+
             // Method 3: Media key hash (another reliable identifier)
             if (stickerData.mediaKey) {
                 const mediaKeyHash = Buffer.from(stickerData.mediaKey).toString('hex');
                 identifiers.push(`mediakey:${mediaKeyHash}`);
             }
-            
+
             // Method 4: File size + mime type combination (less reliable but useful)
             if (stickerData.fileLength && stickerData.mimetype) {
                 identifiers.push(`size-mime:${stickerData.fileLength}-${stickerData.mimetype}`);
             }
-            
+
             // Method 5: Sticker pack info (if available)
             if (stickerData.packname && stickerData.author) {
                 identifiers.push(`pack:${stickerData.packname}-${stickerData.author}`);
             }
-            
+
             console.log(`🔍 Generated ${identifiers.length} sticker identifiers:`, identifiers);
-            
+
         } catch (error) {
             console.error('Error generating sticker identifiers:', error);
         }
-        
+
         return identifiers;
     }
 }

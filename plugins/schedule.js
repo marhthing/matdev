@@ -26,6 +26,7 @@ class SchedulePlugin {
      */
     async init(bot) {
         this.bot = bot;
+        this.nextId = 1; // Start counter for simple IDs
         this.loadSchedules();
         this.startScheduleChecker();
         this.registerCommands();
@@ -41,9 +42,16 @@ class SchedulePlugin {
             if (fs.existsSync(this.schedulePath)) {
                 const data = fs.readJsonSync(this.schedulePath);
                 
+                let maxId = 0;
                 // Convert array back to Map and validate dates
                 for (const schedule of data) {
                     const scheduleTime = moment.tz(schedule.time, config.TIMEZONE);
+                    
+                    // Track highest ID for next counter
+                    const idNum = parseInt(schedule.id);
+                    if (!isNaN(idNum) && idNum > maxId) {
+                        maxId = idNum;
+                    }
                     
                     // Only load future schedules
                     if (scheduleTime.isAfter(moment())) {
@@ -53,6 +61,9 @@ class SchedulePlugin {
                         });
                     }
                 }
+                
+                // Set next ID to be one higher than the highest found
+                this.nextId = maxId + 1;
                 
                 console.log(`📅 Loaded ${this.schedules.size} pending schedules`);
             } else {
@@ -250,8 +261,9 @@ class SchedulePlugin {
                 return;
             }
             
-            // Generate unique ID
-            const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            // Generate simple incremental ID
+            const scheduleId = this.nextId.toString();
+            this.nextId++; // Increment for next schedule
             
             // Create schedule object
             const schedule = {
