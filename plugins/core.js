@@ -147,8 +147,8 @@ class CorePlugin {
 
         // Clear command
         this.bot.messageHandler.registerCommand('clear', this.clearCommand.bind(this), {
-            description: 'Clear recent bot messages from this chat',
-            usage: `${config.PREFIX}clear [number]`,
+            description: 'Clear entire chat history (like WhatsApp Clear Chat)',
+            usage: `${config.PREFIX}clear`,
             category: 'utility',
             plugin: 'core',
             source: 'core.js'
