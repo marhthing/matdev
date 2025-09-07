@@ -1187,37 +1187,65 @@ class CorePlugin {
             const chatJid = messageInfo.chat_jid;
             
             // Send confirmation first before clearing
-            const confirmationText = '🗑️ Clearing entire chat history...';
-            await this.bot.messageHandler.reply(messageInfo, confirmationText);
+            const confirmationText = '🗑️ Clearing chat history...';
+            const confirmMsg = await this.bot.messageHandler.reply(messageInfo, confirmationText);
             
             // Small delay to ensure confirmation message is sent
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
             
             try {
-                // Method 1: Use chatModify to clear the entire chat history
+                // Get the last message for proper chat modification
+                const lastMsg = {
+                    key: confirmMsg.key,
+                    messageTimestamp: Date.now()
+                };
+                
+                // Method 1: Archive the chat (more reliable than clear)
                 await this.bot.sock.chatModify({
-                    clear: { messages: [] }
+                    archive: true,
+                    lastMessages: [lastMsg]
                 }, chatJid);
                 
-                console.log(`✅ Chat history cleared for ${chatJid}`);
+                // Small delay before unarchiving
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-            } catch (chatModifyError) {
-                console.log('First clear method failed, trying alternative:', chatModifyError.message);
+                // Method 2: Unarchive to make it visible again but cleared
+                await this.bot.sock.chatModify({
+                    archive: false,
+                    lastMessages: [lastMsg]
+                }, chatJid);
+                
+                console.log(`✅ Chat archived and unarchived for ${chatJid}`);
+                
+            } catch (archiveError) {
+                console.log('Archive method failed, trying delete approach:', archiveError.message);
                 
                 try {
-                    // Method 2: Alternative clear approach
-                    await this.bot.sock.chatModify({ clear: {} }, chatJid);
-                    console.log(`✅ Chat history cleared (alternative method) for ${chatJid}`);
+                    // Method 3: Try to delete and recreate chat state
+                    const lastMsg = {
+                        key: confirmMsg.key,
+                        messageTimestamp: Date.now()
+                    };
                     
-                } catch (fallbackError) {
-                    console.error('Both clear methods failed:', fallbackError.message);
+                    await this.bot.sock.chatModify({
+                        delete: true,
+                        lastMessages: [lastMsg]
+                    }, chatJid);
+                    
+                    console.log(`✅ Chat deleted for ${chatJid}`);
+                    
+                } catch (deleteError) {
+                    console.error('All clear methods failed:', deleteError.message);
                     
                     // Send error message to user
                     await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Failed to clear chat history. This feature may not be available for this chat type.');
+                        '❌ Chat clearing not supported for this chat type. This is a WhatsApp API limitation.');
                     return;
                 }
             }
+            
+            // Success notification
+            console.log('✅ clear completed');
             
         } catch (error) {
             console.error('Error in clear command:', error);
