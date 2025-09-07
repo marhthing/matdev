@@ -350,4 +350,11 @@ class SchedulePlugin {
     }
 }
 
-module.exports = SchedulePlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new SchedulePlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
