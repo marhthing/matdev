@@ -56,7 +56,7 @@ class GeminiPlugin {
             }
 
             // Send typing indicator
-            await this.bot.messageHandler.reply(messageInfo, '🤖 Thinking...');
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🤖 Thinking...');
 
             try {
                 // Initialize Gemini AI
@@ -69,27 +69,36 @@ class GeminiPlugin {
                 const text = response.text();
 
                 if (!text || text.trim().length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Gemini returned an empty response.');
+                    // Edit the thinking message to show error
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ Gemini returned an empty response.',
+                        edit: thinkingMsg.key
+                    });
                     return;
                 }
 
-                // Send the AI response
-                await this.bot.messageHandler.reply(messageInfo, `🤖 *Gemini AI Response:*\n\n${text}`);
+                // Edit the thinking message with the actual AI response
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🤖 *Gemini AI Response:*\n\n${text}`,
+                    edit: thinkingMsg.key
+                });
                 console.log('✅ Gemini response sent');
 
             } catch (apiError) {
                 console.error('Gemini API error:', apiError);
                 
+                let errorMessage = '❌ Error communicating with Gemini AI. Please try again.';
                 if (apiError.message.includes('API_KEY_INVALID')) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Invalid API key. Please check your GEMINI_API_KEY.');
+                    errorMessage = '❌ Invalid API key. Please check your GEMINI_API_KEY.';
                 } else if (apiError.message.includes('QUOTA_EXCEEDED')) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ API quota exceeded. Please try again later.');
-                } else {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Error communicating with Gemini AI. Please try again.');
+                    errorMessage = '❌ API quota exceeded. Please try again later.';
                 }
+                
+                // Edit the thinking message to show error
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: errorMessage,
+                    edit: thinkingMsg.key
+                });
             }
 
         } catch (error) {
