@@ -70,6 +70,20 @@ class YouTubePlugin {
                     'https://ytdl.org/api/convert',
                     'https://www.ytdl.org/download'
                 ]
+            },
+            ytshorts: {
+                name: 'YTShorts',
+                endpoints: [
+                    'https://ytshorts.savetube.me/api/v1/temat',
+                    'https://api.vevioz.com/api/button/mp4/720'
+                ]
+            },
+            downloadyt: {
+                name: 'DownloadYT',
+                endpoints: [
+                    'https://api.downloadyt.com/file/download',
+                    'https://www.downloadyt.com/api/widgetv2'
+                ]
             }
         };
     }
@@ -106,6 +120,27 @@ class YouTubePlugin {
     async addHumanDelay() {
         const delay = Math.random() * 3000 + 2000; // 2-5 seconds
         await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    /**
+     * Generate more realistic browser headers
+     */
+    getRealisticHeaders(referer = 'https://www.google.com/') {
+        const userAgent = this.getRandomUserAgent();
+        return {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'cross-site',
+            'Referer': referer,
+            'Cache-Control': 'max-age=0'
+        };
     }
 
     /**
@@ -176,6 +211,10 @@ class YouTubePlugin {
                     return await this.tryYTMP3(url, userAgent);
                 } else if (serviceKey === 'ytdl') {
                     return await this.tryYTDL(url, userAgent);
+                } else if (serviceKey === 'ytshorts') {
+                    return await this.tryYTShorts(url, userAgent);
+                } else if (serviceKey === 'downloadyt') {
+                    return await this.tryDownloadYT(url, userAgent);
                 }
             } catch (error) {
                 console.log(`${service.name} service failed:`, error.message);
@@ -194,6 +233,14 @@ class YouTubePlugin {
         
         for (const endpoint of service.analyzeEndpoints) {
             try {
+                // First, visit the main page to get cookies/session
+                await axios.get('https://www.y2mate.com/en68', {
+                    headers: this.getRealisticHeaders(),
+                    timeout: 15000
+                });
+
+                await this.addHumanDelay();
+
                 const payload = new URLSearchParams({
                     k_query: url,
                     k_page: 'home',
@@ -203,13 +250,10 @@ class YouTubePlugin {
 
                 const analyzeResponse = await axios.post(endpoint, payload.toString(), {
                     headers: {
-                        'User-Agent': userAgent,
+                        ...this.getRealisticHeaders('https://www.y2mate.com/en68'),
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Origin': 'https://www.y2mate.com',
-                        'Referer': 'https://www.y2mate.com/en68',
                         'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json, text/javascript, */*; q=0.01',
-                        'Accept-Language': 'en-US,en;q=0.9'
+                        'Accept': 'application/json, text/javascript, */*; q=0.01'
                     },
                     timeout: 20000
                 });
@@ -239,24 +283,36 @@ class YouTubePlugin {
      */
     async try9Convert(url, userAgent) {
         try {
-            const response = await axios.post('https://9convert.com/api/ajaxSearch/index', {
+            // Visit main page first
+            await axios.get('https://9convert.com/', {
+                headers: this.getRealisticHeaders(),
+                timeout: 15000
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+            const payload = new URLSearchParams({
                 q: url,
                 vt: 'home'
-            }, {
+            });
+
+            const response = await axios.post('https://9convert.com/api/ajaxSearch/index', payload.toString(), {
                 headers: {
-                    'User-Agent': userAgent,
+                    ...this.getRealisticHeaders('https://9convert.com/'),
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Origin': 'https://9convert.com',
-                    'Referer': 'https://9convert.com/'
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 timeout: 15000
             });
+
+            console.log('9Convert response:', response.data);
 
             if (response.data && response.data.status === 'ok') {
                 response.data.service = '9convert';
                 return response.data;
             }
         } catch (error) {
+            console.log('9Convert error:', error.message);
             throw new Error('9Convert failed');
         }
     }
@@ -370,6 +426,76 @@ class YouTubePlugin {
             }
         } catch (error) {
             throw new Error('YTDL failed');
+        }
+    }
+
+    /**
+     * Try YTShorts service
+     */
+    async tryYTShorts(url, userAgent) {
+        try {
+            const response = await axios.post('https://ytshorts.savetube.me/api/v1/temat', {
+                url: url
+            }, {
+                headers: {
+                    ...this.getRealisticHeaders('https://ytshorts.savetube.me/'),
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.data && response.data.data.video_url) {
+                const videoInfo = {
+                    service: 'ytshorts',
+                    title: response.data.data.title || 'YouTube Video',
+                    t: response.data.data.duration || 0,
+                    links: {
+                        mp4: {
+                            '720': { f: 'mp4', q: '720' }
+                        }
+                    },
+                    downloadUrl: response.data.data.video_url
+                };
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('YTShorts failed');
+        }
+    }
+
+    /**
+     * Try DownloadYT service
+     */
+    async tryDownloadYT(url, userAgent) {
+        try {
+            const response = await axios.post('https://www.downloadyt.com/api/widgetv2', {
+                url: url
+            }, {
+                headers: {
+                    ...this.getRealisticHeaders('https://www.downloadyt.com/'),
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            if (response.data && response.data.success && response.data.download_url) {
+                const videoInfo = {
+                    service: 'downloadyt',
+                    title: response.data.title || 'YouTube Video',
+                    t: response.data.duration || 0,
+                    links: {
+                        mp4: {
+                            '360': { f: 'mp4', q: '360' }
+                        }
+                    },
+                    downloadUrl: response.data.download_url
+                };
+
+                return videoInfo;
+            }
+        } catch (error) {
+            throw new Error('DownloadYT failed');
         }
     }
 
@@ -601,6 +727,12 @@ class YouTubePlugin {
                                     break;
                                 case 'y2mate':
                                     methodName = 'tryY2mate';
+                                    break;
+                                case 'ytshorts':
+                                    methodName = 'tryYTShorts';
+                                    break;
+                                case 'downloadyt':
+                                    methodName = 'tryDownloadYT';
                                     break;
                                 default:
                                     console.log(`Unknown service: ${serviceKey}`);
