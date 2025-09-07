@@ -247,14 +247,55 @@ class MediaPlugin {
                     return;
                 }
 
-                // Use the quotedMessage directly for download
-                messageToDownload = {
-                    key: messageInfo.key,
-                    message: { quotedMessage }
+                // Use the downloadMedia method like photoCommand does
+                const mediaResult = await this.downloadMedia(quotedMessage, isImage ? 'imageMessage' : 'videoMessage');
+                
+                if (!mediaResult || !mediaResult.buffer) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
+                    return;
+                }
+
+                // Create proper WhatsApp sticker using wa-sticker-formatter
+                
+                // Configure sticker options based on media type
+                const stickerOptions = {
+                    pack: config.BOT_NAME || 'MATDEV',
+                    author: config.BOT_NAME || 'MATDEV', 
+                    type: StickerTypes.FULL,
+                    categories: ['🤖'], // Bot category
+                    quality: isVideo ? 60 : 90 // Lower quality for videos to meet size limits
                 };
+
+                // For video stickers, add specific handling
+                if (isVideo) {
+                    console.log('🎬 Processing video sticker with optimized settings...');
+                    // Additional options for video processing can be added here
+                } else {
+                    console.log('🖼️ Processing image sticker...');
+                }
+                
+                const sticker = new Sticker(mediaResult.buffer, stickerOptions);
+
+                // Convert to proper WebP format with embedded metadata
+                const stickerBuffer = await sticker.toBuffer();
+                
+                if (!stickerBuffer || stickerBuffer.length === 0) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to create sticker. Please try again.');
+                    return;
+                }
+
+                console.log(`✅ Sticker created successfully: ${stickerBuffer.length} bytes`);
+
+                // Send the properly formatted sticker
+                await this.bot.sock.sendMessage(messageInfo.sender, {
+                    sticker: stickerBuffer
+                });
+                
+                console.log('✅ Sticker sent successfully');
+                return;
             }
 
-            // Download media using Baileys directly
+            // Download media using Baileys directly for non-quoted messages
             const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
                 logger: console,
                 reuploadRequest: this.bot.sock.updateMediaMessage
