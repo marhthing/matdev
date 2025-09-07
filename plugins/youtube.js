@@ -150,16 +150,21 @@ class YouTubePlugin {
             await humanDelayYT(1500, 2500);
 
             try {
-                // Install yt-dlp if not available
-                await execAsync('pip install --user yt-dlp --quiet', { timeout: 30000 }).catch(() => {});
+                // Ensure yt-dlp is available
+                try {
+                    await execAsync('yt-dlp --version', { timeout: 5000 });
+                } catch (versionError) {
+                    console.log('Installing yt-dlp...');
+                    await execAsync('pip install --upgrade yt-dlp', { timeout: 60000 });
+                }
 
                 // Download with yt-dlp using safer options
-                const command = `yt-dlp -f "best[height<=720][filesize<50M]/best[filesize<50M]/best" --no-playlist --extract-flat --no-check-certificate "${url}" -o "${tempFile}"`;
+                const command = `yt-dlp -f "best[height<=720][filesize<50M]/best[filesize<50M]/best" --no-playlist --no-check-certificate "${url}" -o "${tempFile}"`;
 
                 console.log('Executing yt-dlp command...');
                 const { stdout, stderr } = await execAsync(command, {
-                    timeout: 90000,
-                    maxBuffer: 1024 * 1024 * 10 // 10MB buffer
+                    timeout: 120000,
+                    maxBuffer: 1024 * 1024 * 50 // 50MB buffer
                 });
 
                 // Check if file was created and has content
@@ -193,12 +198,18 @@ class YouTubePlugin {
 
                 // Try alternative method with youtube-dl
                 try {
-                    await execAsync('pip install --user youtube-dl --quiet', { timeout: 30000 }).catch(() => {});
+                    // Ensure youtube-dl is available
+                    try {
+                        await execAsync('youtube-dl --version', { timeout: 5000 });
+                    } catch (ytdlVersionError) {
+                        console.log('Installing youtube-dl...');
+                        await execAsync('pip install --upgrade youtube-dl', { timeout: 60000 });
+                    }
 
                     const altCommand = `youtube-dl -f "best[height<=720][filesize<50M]/best[filesize<50M]" --no-playlist "${url}" -o "${tempFile}"`;
 
                     console.log('Trying youtube-dl fallback...');
-                    await execAsync(altCommand, { timeout: 90000 });
+                    await execAsync(altCommand, { timeout: 120000 });
 
                     if (await fs.pathExists(tempFile)) {
                         const stats = await fs.stat(tempFile);
