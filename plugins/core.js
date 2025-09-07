@@ -154,6 +154,16 @@ class CorePlugin {
             source: 'core.js'
         });
 
+        // Set environment variable command
+        this.bot.messageHandler.registerCommand('setenv', this.setenvCommand.bind(this), {
+            description: 'Set environment variables (Owner only)',
+            usage: `${config.PREFIX}setenv KEY=value`,
+            category: 'system',
+            plugin: 'core',
+            source: 'core.js',
+            ownerOnly: true
+        });
+
         // Sticker command binding commands (owner only)
         this.bot.messageHandler.registerCommand('setcmd', this.setStickerCommand.bind(this), {
             description: 'Bind a command to a sticker (reply to sticker)',
@@ -1259,6 +1269,70 @@ class CorePlugin {
         } catch (error) {
             console.error('Error getting last message:', error);
             return null;
+        }
+    }
+
+    /**
+     * Set environment variable command (Owner only)
+     */
+    async setenvCommand(messageInfo) {
+        try {
+            const input = messageInfo.args.join(' ').trim();
+            
+            if (!input || !input.includes('=')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Invalid format. Use: .setenv KEY=value\n\nExample: .setenv GEMINI_API_KEY=your_api_key_here');
+                return;
+            }
+            
+            const [key, ...valueParts] = input.split('=');
+            const value = valueParts.join('=').trim();
+            
+            if (!key || !value) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Both key and value are required.\n\nExample: .setenv GEMINI_API_KEY=your_api_key_here');
+                return;
+            }
+            
+            // Set the environment variable
+            process.env[key.trim()] = value;
+            
+            // Also save to .env file for persistence
+            try {
+                const envPath = path.join(process.cwd(), '.env');
+                let envContent = '';
+                
+                if (await fs.pathExists(envPath)) {
+                    envContent = await fs.readFile(envPath, 'utf8');
+                }
+                
+                const lines = envContent.split('\n');
+                const keyIndex = lines.findIndex(line => line.startsWith(`${key.trim()}=`));
+                
+                if (keyIndex !== -1) {
+                    // Update existing key
+                    lines[keyIndex] = `${key.trim()}=${value}`;
+                } else {
+                    // Add new key
+                    lines.push(`${key.trim()}=${value}`);
+                }
+                
+                await fs.writeFile(envPath, lines.filter(line => line.trim()).join('\n') + '\n');
+                
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ Environment variable ${key.trim()} has been set and saved to .env file`);
+                
+                console.log(`✅ Environment variable ${key.trim()} set by owner`);
+                
+            } catch (envError) {
+                console.error('Error saving to .env file:', envError);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ Environment variable ${key.trim()} has been set (runtime only - .env file write failed)`);
+            }
+            
+        } catch (error) {
+            console.error('Error in setenv command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error setting environment variable.');
         }
     }
 
