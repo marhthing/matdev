@@ -147,7 +147,7 @@ class CorePlugin {
 
         // Clear command
         this.bot.messageHandler.registerCommand('clear', this.clearCommand.bind(this), {
-            description: 'Clear entire chat history (like WhatsApp Clear Chat)',
+            description: 'Delete entire chat (like WhatsApp Delete Chat)',
             usage: `${config.PREFIX}clear`,
             category: 'utility',
             plugin: 'core',
@@ -1180,76 +1180,85 @@ class CorePlugin {
     }
 
     /**
-     * Clear entire chat history (like WhatsApp's Clear Chat button)
+     * Delete entire chat (like WhatsApp's Delete Chat button)
      */
     async clearCommand(messageInfo) {
         try {
             const chatJid = messageInfo.chat_jid;
             
-            // Send confirmation first before clearing
-            const confirmationText = '🗑️ Clearing chat history...';
-            const confirmMsg = await this.bot.messageHandler.reply(messageInfo, confirmationText);
+            // Get the last message from our storage to use for deletion
+            const lastMessage = await this.getLastMessageForChat(chatJid);
             
-            // Small delay to ensure confirmation message is sent
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            try {
-                // Get the last message for proper chat modification
-                const lastMsg = {
-                    key: confirmMsg.key,
-                    messageTimestamp: Date.now()
-                };
-                
-                // Method 1: Archive the chat (more reliable than clear)
-                await this.bot.sock.chatModify({
-                    archive: true,
-                    lastMessages: [lastMsg]
-                }, chatJid);
-                
-                // Small delay before unarchiving
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Method 2: Unarchive to make it visible again but cleared
-                await this.bot.sock.chatModify({
-                    archive: false,
-                    lastMessages: [lastMsg]
-                }, chatJid);
-                
-                console.log(`✅ Chat archived and unarchived for ${chatJid}`);
-                
-            } catch (archiveError) {
-                console.log('Archive method failed, trying delete approach:', archiveError.message);
-                
-                try {
-                    // Method 3: Try to delete and recreate chat state
-                    const lastMsg = {
-                        key: confirmMsg.key,
-                        messageTimestamp: Date.now()
-                    };
-                    
-                    await this.bot.sock.chatModify({
-                        delete: true,
-                        lastMessages: [lastMsg]
-                    }, chatJid);
-                    
-                    console.log(`✅ Chat deleted for ${chatJid}`);
-                    
-                } catch (deleteError) {
-                    console.error('All clear methods failed:', deleteError.message);
-                    
-                    // Send error message to user
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Chat clearing not supported for this chat type. This is a WhatsApp API limitation.');
-                    return;
-                }
+            if (!lastMessage) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ No messages found in this chat to delete.');
+                return;
             }
             
-            // Success notification
-            console.log('✅ clear completed');
+            // Send confirmation
+            const confirmationText = '🗑️ Deleting entire chat...';
+            await this.bot.messageHandler.reply(messageInfo, confirmationText);
+            
+            // Small delay to ensure confirmation is sent
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            try {
+                // Delete the entire chat using the last message
+                await this.bot.sock.chatModify({
+                    delete: true,
+                    lastMessages: [{
+                        key: lastMessage.key,
+                        messageTimestamp: lastMessage.messageTimestamp || Date.now()
+                    }]
+                }, chatJid);
+                
+                console.log(`✅ Chat deleted entirely for ${chatJid}`);
+                
+            } catch (deleteError) {
+                console.error('Chat deletion failed:', deleteError.message);
+                
+                // Send error message to user
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to delete chat. This may be a limitation of WhatsApp\'s API for this chat type.');
+            }
             
         } catch (error) {
             console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat history.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error deleting chat.');
+        }
+    }
+
+    /**
+     * Get the last message from a chat for deletion purposes
+     */
+    async getLastMessageForChat(chatJid) {
+        try {
+            // Get messages from our storage
+            const allMessages = Array.from(this.bot.database.messages.values());
+            
+            // Find the most recent message in this chat
+            const chatMessages = allMessages
+                .filter(msg => msg.chat_jid === chatJid)
+                .sort((a, b) => b.timestamp - a.timestamp);
+            
+            if (chatMessages.length === 0) {
+                return null;
+            }
+            
+            const lastMsg = chatMessages[0];
+            
+            // Return in the format needed for chatModify
+            return {
+                key: {
+                    id: lastMsg.id,
+                    fromMe: lastMsg.from_me,
+                    remoteJid: chatJid
+                },
+                messageTimestamp: lastMsg.timestamp
+            };
+            
+        } catch (error) {
+            console.error('Error getting last message:', error);
+            return null;
         }
     }
 
