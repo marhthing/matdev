@@ -169,10 +169,6 @@ class YouTubePlugin {
                             'Connection': 'keep-alive',
                             'Upgrade-Insecure-Requests': '1'
                         }
-                    },
-                    agent: {
-                        localAddress: undefined,
-                        jar: true
                     }
                 });
                 const videoDetails = info.videoDetails;
