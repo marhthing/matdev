@@ -188,8 +188,7 @@ class YouTubePlugin {
             // Add human-like delay
             await this.addHumanDelay();
 
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing video... Please wait.');
+            // Process video silently
 
             try {
                 // Get video info using youtube-dl-exec
@@ -226,9 +225,7 @@ class YouTubePlugin {
                     throw new Error('No suitable video format found');
                 }
 
-                // Send downloading status
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '⬇️ Downloading video... This may take a moment.');
+                // Download video silently
 
                 // Create temporary file path
                 tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp4`);
@@ -279,18 +276,15 @@ class YouTubePlugin {
                 // Read video file
                 const videoBuffer = await fs.readFile(tempFile);
 
-                // Send uploading status
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '📤 Uploading video...');
+                // Upload video silently
 
-                // Create caption with video info
-                const caption = `🎬 *${videoDetails.title}*\n👤 ${videoDetails.uploader || videoDetails.channel || 'Unknown'}\n⏱️ ${this.formatDuration(duration)}\n📊 ${this.formatNumber(parseInt(videoDetails.view_count || 0))} views`;
+                // Send video without caption
+                const caption = '';
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: videoBuffer,
                     mimetype: 'video/mp4',
-                    caption: caption,
                     fileName: `${videoDetails.title.replace(/[^\w\s]/gi, '')}.mp4`
                 });
 
