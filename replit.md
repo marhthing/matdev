@@ -20,13 +20,28 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - **COMPLETED**: Set up workflow "MATDEV Bot" with proper console output monitoring
 - **COMPLETED**: Configured VM deployment for continuous 24/7 operation
 - **COMPLETED**: Bot starts successfully and connects to WhatsApp automatically
-- **COMPLETED**: All 6 plugins load correctly (antidelete, antiviewonce, core, media, status, system)
+- **COMPLETED**: All 7 plugins load correctly (antidelete, antiviewonce, core, media, schedule, status, system)
 - **COMPLETED**: Environment configuration validated (.env file auto-created with defaults)
 - **COMPLETED**: Owner number auto-detection and configuration working
 - **COMPLETED**: Security manager initialized with anti-ban protection
 - **COMPLETED**: JSON storage system operational for message archiving
 - **COMPLETED**: Hot reload system enabled for plugin development
 - **STATUS**: Bot is fully operational, connected, and processing messages successfully
+
+## September 7, 2025 - Console Output Cleanup & Scheduling Plugin ✅
+- **COMPLETED**: Cleaned up console output by commenting out verbose logging
+- **COMPLETED**: Removed spammy message processing, archival, and command execution logs
+- **COMPLETED**: Fixed sticker creation output to show only "✅ Sticker" confirmation
+- **COMPLETED**: Set timezone to Lagos/Nigeria (Africa/Lagos) in configuration
+- **NEW FEATURE**: Complete scheduling plugin with persistent storage
+- Added `.schedule dd:mm:yyyy hh:mm <jid> [message]` command for direct message scheduling
+- Added support for replying to messages and scheduling them with `.schedule dd:mm:yyyy hh:mm <jid>`
+- Added `.schedules` command to list all pending schedules with timing information
+- Added `.cancelschedule <id>` command to cancel specific scheduled messages
+- **PERSISTENT**: Schedules survive bot restarts and updates via JSON storage
+- **TIMEZONE**: All scheduling uses Lagos/Nigeria timezone for accurate timing
+- **AUTO-CHECK**: System automatically checks and sends scheduled messages every minute
+- Console now shows clean, professional output with essential information only
 
 # User Preferences
 
@@ -117,3 +132,12 @@ The system follows a modular, object-oriented design with clear separation of co
 - **Owner Management** - Bot owner can clear registrations and view LID information
 - **Business Account Support** - Handles WhatsApp's new LID format for business accounts
 - **Registration Prevention** - Once registered, prevents additional registrations until cleared
+
+## Message Scheduling System
+- **Persistent Storage** - Schedules saved to JSON file and survive bot restarts/updates
+- **Timezone Support** - All scheduling uses Lagos/Nigeria timezone (Africa/Lagos)
+- **Dual Format Support** - Direct message scheduling or reply-to-message scheduling
+- **Auto-execution** - Automatic message sending system with minute-level precision
+- **Schedule Management** - List, view, and cancel pending schedules
+- **Startup Recovery** - Automatically loads and resumes pending schedules on bot restart
+- **Cleanup System** - Past schedules automatically cleaned up to prevent storage bloat

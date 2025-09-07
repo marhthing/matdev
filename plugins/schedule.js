@@ -171,7 +171,7 @@ class SchedulePlugin {
      * Schedule command handler
      */
     async scheduleCommand(sock, messageInfo) {
-        const { args, quotedMessage, fromJid } = messageInfo;
+        const { args, quotedMessage, fromJid } = messageInfo || {};
         
         if (args.length < 3) {
             await sock.sendMessage(fromJid, { 
@@ -273,7 +273,7 @@ class SchedulePlugin {
      * List all pending schedules
      */
     async listSchedules(sock, messageInfo) {
-        const { fromJid } = messageInfo;
+        const { fromJid } = messageInfo || {};
         
         if (this.schedules.size === 0) {
             await sock.sendMessage(fromJid, { 
@@ -307,7 +307,7 @@ class SchedulePlugin {
      * Cancel a scheduled message
      */
     async cancelSchedule(sock, messageInfo) {
-        const { args, fromJid } = messageInfo;
+        const { args, fromJid } = messageInfo || {};
         
         if (args.length === 0) {
             await sock.sendMessage(fromJid, { 
