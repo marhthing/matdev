@@ -9,11 +9,29 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 
+// Anti-detection measures
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+];
+
+const getRandomUserAgent = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
+const humanDelay = (min = 1000, max = 3000) => {
+    const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+    return new Promise(resolve => setTimeout(resolve, delay));
+};
+
 class TikTokPlugin {
     constructor() {
         this.name = 'tiktok';
         this.description = 'TikTok video downloader';
         this.version = '1.0.0';
+        this.requestTracker = new Map(); // Track requests per user
+        this.lastRequest = 0; // Global rate limiting
     }
 
     /**
@@ -43,6 +61,36 @@ class TikTokPlugin {
      */
     async downloadTikTok(messageInfo) {
         try {
+            // Rate limiting - prevent spam requests
+            const userId = messageInfo.sender_jid;
+            const now = Date.now();
+            
+            // Global rate limit - minimum 2 seconds between any requests
+            const timeSinceLastRequest = now - this.lastRequest;
+            if (timeSinceLastRequest < 2000) {
+                await humanDelay(2000 - timeSinceLastRequest, 3000);
+            }
+            
+            // Per-user rate limit - max 3 requests per minute
+            if (!this.requestTracker.has(userId)) {
+                this.requestTracker.set(userId, []);
+            }
+            
+            const userRequests = this.requestTracker.get(userId);
+            const recentRequests = userRequests.filter(time => now - time < 60000);
+            
+            if (recentRequests.length >= 3) {
+                await this.bot.messageHandler.reply(messageInfo, '⏳ Please wait a moment before making another TikTok request. (Rate limit: 3 per minute)');
+                return;
+            }
+            
+            recentRequests.push(now);
+            this.requestTracker.set(userId, recentRequests);
+            this.lastRequest = now;
+            
+            // Human-like delay before processing
+            await humanDelay(800, 1500);
+
             const { args } = messageInfo;
             let url = null;
 
@@ -99,7 +147,9 @@ class TikTokPlugin {
             
             for (const version of versions) {
                 try {
-                    // console.log(`Trying TikTok API version ${version}...`);
+                    // Human-like delay between API attempts
+                    await humanDelay(500, 1200);
+                    
                     const result = await TiktokDL.Downloader(url, { version });
                     // console.log(`API ${version} result:`, JSON.stringify(result, null, 2));
                     
@@ -153,12 +203,23 @@ class TikTokPlugin {
 
                 for (const api of fallbackAPIs) {
                     try {
-                        // console.log(`Trying ${api.name}...`);
+                        // Human-like delay between different API attempts
+                        await humanDelay(1000, 2000);
+                        
                         const response = await axios({
                             method: api.method,
                             url: api.endpoint,
                             headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                'User-Agent': getRandomUserAgent(),
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language': 'en-US,en;q=0.5',
+                                'Accept-Encoding': 'gzip, deflate, br',
+                                'DNT': '1',
+                                'Connection': 'keep-alive',
+                                'Upgrade-Insecure-Requests': '1',
+                                'Sec-Fetch-Dest': 'document',
+                                'Sec-Fetch-Mode': 'navigate',
+                                'Sec-Fetch-Site': 'none',
                                 ...api.headers
                             },
                             data: api.data,
@@ -197,10 +258,21 @@ class TikTokPlugin {
             // Method 3: Direct URL extraction from TikTok page
             if (!videoUrl) {
                 try {
-                    // console.log('Trying direct TikTok page scraping...');
+                    // Human-like delay before direct scraping
+                    await humanDelay(1500, 2500);
+                    
                     const response = await axios.get(url, {
                         headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            'User-Agent': getRandomUserAgent(),
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache',
+                            'Sec-Fetch-Dest': 'document',
+                            'Sec-Fetch-Mode': 'navigate',
+                            'Sec-Fetch-Site': 'none',
+                            'Sec-Fetch-User': '?1'
                         },
                         timeout: 10000
                     });
@@ -230,13 +302,24 @@ class TikTokPlugin {
             // Ensure tmp directory exists
             await fs.ensureDir(path.dirname(tempFile));
 
+            // Human-like delay before downloading
+            await humanDelay(1000, 1800);
+            
             // Download the video to temporary file
             const videoResponse = await axios.get(videoUrl, {
                 responseType: 'stream',
                 timeout: 60000,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Referer': 'https://www.tiktok.com/'
+                    'User-Agent': getRandomUserAgent(),
+                    'Referer': 'https://www.tiktok.com/',
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Sec-Fetch-Dest': 'video',
+                    'Sec-Fetch-Mode': 'no-cors',
+                    'Sec-Fetch-Site': 'cross-site'
                 }
             });
 

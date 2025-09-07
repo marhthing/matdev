@@ -10,11 +10,27 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 
+// Anti-detection measures for YouTube
+const YOUTUBE_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0'
+];
+
+const getRandomYTUserAgent = () => YOUTUBE_USER_AGENTS[Math.floor(Math.random() * YOUTUBE_USER_AGENTS.length)];
+
+const humanDelayYT = (min = 1000, max = 3000) => {
+    const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+    return new Promise(resolve => setTimeout(resolve, delay));
+};
+
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
         this.description = 'YouTube video and shorts downloader';
         this.version = '1.0.0';
+        this.requestTracker = new Map(); // Track requests per user
+        this.lastRequest = 0; // Global rate limiting
     }
 
     /**
@@ -53,6 +69,36 @@ class YouTubePlugin {
     async downloadYouTube(messageInfo) {
         let tempFile;
         try {
+            // Rate limiting - prevent spam requests
+            const userId = messageInfo.sender_jid;
+            const now = Date.now();
+            
+            // Global rate limit - minimum 3 seconds between any requests (YouTube is stricter)
+            const timeSinceLastRequest = now - this.lastRequest;
+            if (timeSinceLastRequest < 3000) {
+                await humanDelayYT(3000 - timeSinceLastRequest, 4000);
+            }
+            
+            // Per-user rate limit - max 2 requests per minute for YouTube
+            if (!this.requestTracker.has(userId)) {
+                this.requestTracker.set(userId, []);
+            }
+            
+            const userRequests = this.requestTracker.get(userId);
+            const recentRequests = userRequests.filter(time => now - time < 60000);
+            
+            if (recentRequests.length >= 2) {
+                await this.bot.messageHandler.reply(messageInfo, '⏳ Please wait a moment before making another YouTube request. (Rate limit: 2 per minute)');
+                return;
+            }
+            
+            recentRequests.push(now);
+            this.requestTracker.set(userId, recentRequests);
+            this.lastRequest = now;
+            
+            // Human-like delay before processing
+            await humanDelayYT(1200, 2500);
+
             const { args } = messageInfo;
             let url = null;
 
@@ -104,8 +150,23 @@ class YouTubePlugin {
             // No processing message needed
 
             try {
-                // Get video info
-                const info = await ytdl.getInfo(url);
+                // Human-like delay before fetching video info
+                await humanDelayYT(1000, 2000);
+                
+                // Get video info with custom options
+                const info = await ytdl.getInfo(url, {
+                    requestOptions: {
+                        headers: {
+                            'User-Agent': getRandomYTUserAgent(),
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'DNT': '1',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1'
+                        }
+                    }
+                });
                 const videoDetails = info.videoDetails;
 
                 // Check video length (limit to 10 minutes for file size)
@@ -127,6 +188,9 @@ class YouTubePlugin {
 
                 // Create temporary file path
                 tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}.mp4`);
+
+                // Human-like delay before starting download
+                await humanDelayYT(1500, 2500);
 
                 // Download video
                 await new Promise((resolve, reject) => {
@@ -178,6 +242,28 @@ class YouTubePlugin {
      */
     async searchYouTube(messageInfo) {
         try {
+            // Light rate limiting for search
+            const userId = messageInfo.sender_jid;
+            const now = Date.now();
+            
+            if (!this.requestTracker.has(`search_${userId}`)) {
+                this.requestTracker.set(`search_${userId}`, []);
+            }
+            
+            const searchRequests = this.requestTracker.get(`search_${userId}`);
+            const recentSearches = searchRequests.filter(time => now - time < 30000);
+            
+            if (recentSearches.length >= 3) {
+                await this.bot.messageHandler.reply(messageInfo, '⏳ Please wait before searching again. (Search limit: 3 per 30 seconds)');
+                return;
+            }
+            
+            recentSearches.push(now);
+            this.requestTracker.set(`search_${userId}`, recentSearches);
+            
+            // Human-like delay
+            await humanDelayYT(800, 1500);
+
             const { args } = messageInfo;
 
             if (!args || args.length === 0) {
@@ -190,7 +276,17 @@ class YouTubePlugin {
             // No processing message needed
 
             try {
-                const searchResults = await ytsr(searchQuery, { limit: 5 });
+                // Human-like delay before search
+                await humanDelayYT(1000, 1800);
+                
+                const searchResults = await ytsr(searchQuery, { 
+                    limit: 5,
+                    requestOptions: {
+                        headers: {
+                            'User-Agent': getRandomYTUserAgent()
+                        }
+                    }
+                });
                 const videos = searchResults.items.filter(item => item.type === 'video').slice(0, 5);
 
                 if (videos.length === 0) {
