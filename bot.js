@@ -810,7 +810,7 @@ class MATDEV {
      */
     async handleMessageUpdates(messages) {
         for (const message of messages) {
-            logger.info('📨 Message update received');
+            // logger.info('📨 Message update received');
 
             // Check for different types of message deletions
             let deletionDetected = false;
