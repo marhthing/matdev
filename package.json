@@ -30,6 +30,7 @@
     "sqlite3": "^5.1.7",
     "wa-sticker-formatter": "^4.4.4",
     "winston": "^3.17.0",
+    "y2mate-dl": "^1.0.4",
     "youtube-dl-exec": "^3.0.25",
     "ytdl-core": "^4.11.5",
     "ytsr": "^3.8.4"
