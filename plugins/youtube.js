@@ -191,15 +191,33 @@ class YouTubePlugin {
             // Process video silently
 
             try {
-                // Get video info using youtube-dl-exec
+                // Get video info using youtube-dl-exec with latest 2025 bypass methods
                 const info = await youtubedl(url, {
                     dumpSingleJson: true,
                     noWarnings: true,
                     noCheckCertificates: true,
                     preferFreeFormats: true,
+                    userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                    referer: 'https://m.youtube.com/',
+                    extractorArgs: {
+                        youtube: {
+                            player_client: ['android']
+                        }
+                    },
+                    youtubeSkipDashManifest: true,
+                    noMarkWatched: true,
+                    noPlaylist: true,
+                    sleepInterval: 2,
+                    maxSleepInterval: 4,
                     addHeader: [
-                        'referer:youtube.com',
-                        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language: en-US,en;q=0.5',
+                        'Accept-Encoding: gzip, deflate',
+                        'Connection: keep-alive',
+                        'Upgrade-Insecure-Requests: 1',
+                        'Sec-Fetch-Dest: document',
+                        'Sec-Fetch-Mode: navigate',
+                        'Sec-Fetch-Site: none'
                     ]
                 });
                 
@@ -240,15 +258,33 @@ class YouTubePlugin {
                     }, 300000); // 5 minute timeout
 
                     try {
-                        // Use youtube-dl-exec to download directly
+                        // Use youtube-dl-exec with latest 2025 bypass methods
                         await youtubedl(url, {
                             output: tempFile,
                             format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
                             noWarnings: true,
                             noCheckCertificates: true,
+                            userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                            referer: 'https://m.youtube.com/',
+                            extractorArgs: {
+                                youtube: {
+                                    player_client: ['android']
+                                }
+                            },
+                            youtubeSkipDashManifest: true,
+                            noMarkWatched: true,
+                            noPlaylist: true,
+                            sleepInterval: 2,
+                            maxSleepInterval: 4,
                             addHeader: [
-                                'referer:youtube.com',
-                                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                                'Accept-Language: en-US,en;q=0.5',
+                                'Accept-Encoding: gzip, deflate',
+                                'Connection: keep-alive',
+                                'Upgrade-Insecure-Requests: 1',
+                                'Sec-Fetch-Dest: document',
+                                'Sec-Fetch-Mode: navigate',
+                                'Sec-Fetch-Site: none'
                             ]
                         });
                         
@@ -346,11 +382,31 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
-                // Search using youtube-dl-exec
+                // Search using youtube-dl-exec with latest 2025 bypass methods
                 const searchResults = await youtubedl(`ytsearch5:${searchQuery}`, {
                     dumpSingleJson: true,
                     noWarnings: true,
-                    flatPlaylist: true
+                    flatPlaylist: true,
+                    userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+                    referer: 'https://m.youtube.com/',
+                    extractorArgs: {
+                        youtube: {
+                            player_client: ['android']
+                        }
+                    },
+                    youtubeSkipDashManifest: true,
+                    sleepInterval: 2,
+                    maxSleepInterval: 4,
+                    addHeader: [
+                        'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language: en-US,en;q=0.5',
+                        'Accept-Encoding: gzip, deflate',
+                        'Connection: keep-alive',
+                        'Upgrade-Insecure-Requests: 1',
+                        'Sec-Fetch-Dest: document',
+                        'Sec-Fetch-Mode: navigate',
+                        'Sec-Fetch-Site: none'
+                    ]
                 });
                 const videos = searchResults.entries || [searchResults];
 
