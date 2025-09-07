@@ -44,13 +44,46 @@ class TikTokPlugin {
     async downloadTikTok(messageInfo) {
         try {
             const { args } = messageInfo;
+            let url = null;
+
+            // Check for quoted/tagged message first
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
             
-            if (!args || args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a TikTok URL\n\nUsage: ${config.PREFIX}tiktok <url>\n\nExample: ${config.PREFIX}tiktok https://vm.tiktok.com/ZMxxxxxl/`);
+            if (quotedMessage) {
+                // Extract URL from quoted message
+                let quotedText = '';
+                
+                if (quotedMessage.conversation) {
+                    quotedText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    quotedText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    quotedText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    quotedText = quotedMessage.videoMessage.caption;
+                }
+                
+                // Look for TikTok URL in the quoted text
+                const urlRegex = /https?:\/\/[^\s]+/g;
+                const urls = quotedText.match(urlRegex) || [];
+                const tiktokUrl = urls.find(u => this.isValidTikTokUrl(u));
+                
+                if (tiktokUrl) {
+                    url = tiktokUrl;
+                }
+            }
+            
+            // If no URL from quoted message, check args
+            if (!url && args && args.length > 0) {
+                url = args[0];
+            }
+            
+            // If still no URL, show usage
+            if (!url) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a TikTok URL or reply to a message containing one\n\nUsage: ${config.PREFIX}tiktok <url>\nOr reply to a message: ${config.PREFIX}tiktok\n\nExample: ${config.PREFIX}tiktok https://vm.tiktok.com/ZMxxxxxl/`);
                 return;
             }
-
-            const url = args[0];
             
             // Validate TikTok URL
             if (!this.isValidTikTokUrl(url)) {

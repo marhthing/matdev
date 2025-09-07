@@ -51,16 +51,50 @@ class YouTubePlugin {
      * Download YouTube video command
      */
     async downloadYouTube(messageInfo) {
+        let tempFile;
         try {
             const { args } = messageInfo;
-            
-            if (!args || args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>\n\nExample: ${config.PREFIX}ytv https://www.youtube.com/watch?v=dQw4w9WgXcQ`);
+            let url = null;
+
+            // Check for quoted/tagged message first
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            if (quotedMessage) {
+                // Extract URL from quoted message
+                let quotedText = '';
+
+                if (quotedMessage.conversation) {
+                    quotedText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    quotedText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    quotedText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    quotedText = quotedMessage.videoMessage.caption;
+                }
+
+                // Look for YouTube URL in the quoted text
+                const urlRegex = /https?:\/\/[^\s]+/g;
+                const urls = quotedText.match(urlRegex) || [];
+                const youtubeUrl = urls.find(u => this.isValidYouTubeUrl(u));
+
+                if (youtubeUrl) {
+                    url = youtubeUrl;
+                }
+            }
+
+            // If no URL from quoted message, check args
+            if (!url && args && args.length > 0) {
+                url = args[0];
+            }
+
+            // If still no URL, show usage
+            if (!url) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a YouTube URL or reply to a message containing one\n\nUsage: ${config.PREFIX}ytv <url>\nOr reply to a message: ${config.PREFIX}ytv\n\nExample: ${config.PREFIX}ytv https://youtu.be/dQw4w9WgXcQ`);
                 return;
             }
 
-            const url = args[0];
-            
             // Validate YouTube URL
             if (!this.isValidYouTubeUrl(url)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Invalid YouTube URL. Please provide a valid YouTube video link.');
@@ -92,15 +126,15 @@ class YouTubePlugin {
                 }
 
                 // Create temporary file path
-                const tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}.mp4`);
-                
+                tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}.mp4`);
+
                 // Download video
                 await new Promise((resolve, reject) => {
                     const stream = ytdl(url, { format: format });
                     const writeStream = fs.createWriteStream(tempFile);
-                    
+
                     stream.pipe(writeStream);
-                    
+
                     stream.on('error', reject);
                     writeStream.on('error', reject);
                     writeStream.on('finish', resolve);
@@ -108,7 +142,7 @@ class YouTubePlugin {
 
                 // Read video file
                 const videoBuffer = await fs.readFile(tempFile);
-                
+
                 // No caption needed
 
                 // Send video
@@ -124,13 +158,18 @@ class YouTubePlugin {
 
             } catch (downloadError) {
                 console.error('YouTube download error:', downloadError);
-                
+
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download YouTube video.');
             }
 
         } catch (error) {
             console.error('Error in YouTube command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the YouTube video. Please try again.');
+        } finally {
+            // Ensure temp file is deleted even if an error occurs before reading it
+            if (tempFile) {
+                await fs.unlink(tempFile).catch(() => {});
+            }
         }
     }
 
@@ -140,14 +179,14 @@ class YouTubePlugin {
     async searchYouTube(messageInfo) {
         try {
             const { args } = messageInfo;
-            
+
             if (!args || args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, `❌ Please provide search terms\n\nUsage: ${config.PREFIX}yts <search term>\n\nExample: ${config.PREFIX}yts funny cats`);
                 return;
             }
 
             const searchQuery = args.join(' ');
-            
+
             // No processing message needed
 
             try {
@@ -160,7 +199,7 @@ class YouTubePlugin {
                 }
 
                 let resultText = `🔍 *YouTube Search Results*\n\nQuery: *${searchQuery}*\n\n`;
-                
+
                 videos.forEach((video, index) => {
                     resultText += `${index + 1}. *${video.title}*\n`;
                     resultText += `👤 ${video.author.name}\n`;
@@ -194,7 +233,7 @@ class YouTubePlugin {
             /(?:https?:\/\/)?youtu\.be\/[\w-]+/,
             /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/[\w-]+/
         ];
-        
+
         return youtubePatterns.some(pattern => pattern.test(url));
     }
 

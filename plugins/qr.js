@@ -44,13 +44,37 @@ class QRPlugin {
         let tempFile;
         try {
             const { args } = messageInfo;
+            let inputText = '';
+
+            // Check for quoted/tagged message first
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
             
-            if (!args || args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide text or URL to generate QR code\n\nUsage: ${config.PREFIX}qr <text/url>\n\nExample: ${config.PREFIX}qr https://github.com`);
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    inputText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    inputText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    inputText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    inputText = quotedMessage.videoMessage.caption;
+                } else if (quotedMessage.documentMessage?.caption) {
+                    inputText = quotedMessage.documentMessage.caption;
+                }
+            }
+            
+            // If no text from quoted message, check args
+            if (!inputText && args && args.length > 0) {
+                inputText = args.join(' ');
+            }
+            
+            // If still no text, show usage
+            if (!inputText || inputText.trim() === '') {
+                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide text or URL to generate QR code or reply to a message\n\nUsage: ${config.PREFIX}qr <text/url>\nOr reply to a message: ${config.PREFIX}qr\n\nExample: ${config.PREFIX}qr https://github.com`);
                 return;
             }
-
-            const inputText = args.join(' ');
             
             // Create temporary file path
             tempFile = path.join(__dirname, '..', 'tmp', `qr_${Date.now()}.png`);
