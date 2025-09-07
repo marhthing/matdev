@@ -143,10 +143,8 @@ class SchedulePlugin {
     async sendScheduledMessage(schedule) {
         const { jid, message, fromJid } = schedule;
         
-        // Add a small indicator that this is a scheduled message
-        const scheduledMessage = `📅 *Scheduled Message*\n\n${message}`;
-        
-        await this.bot.sock.sendMessage(jid, { text: scheduledMessage });
+        // Send the message directly without any prefix
+        await this.bot.sock.sendMessage(jid, { text: message });
     }
 
     /**
