@@ -164,6 +164,11 @@ class StatusSchedulePlugin {
             const botJid = global.botJid || this.bot.sock?.user?.id?.split(':')[0] + '@s.whatsapp.net';
             const statusJidList = botJid ? [botJid] : [];
             
+            console.log(`🔍 Debug - global.botJid: ${global.botJid}`);
+            console.log(`🔍 Debug - sock.user.id: ${this.bot.sock?.user?.id}`);
+            console.log(`🔍 Debug - botJid: ${botJid}`);
+            console.log(`🔍 Debug - statusJidList: ${JSON.stringify(statusJidList)}`);
+            
             if (type === 'text') {
                 // Post text status
                 await this.bot.sock.sendMessage('status@broadcast', { 
