@@ -281,39 +281,36 @@ class AntiViewOncePlugin {
     }
 
     /**
-     * Generate a unique identifier for the view once message
+     * Generate a unique identifier for the view once message using WhatsApp-independent properties
      */
     generateMessageId(viewOnceMessage, contentType) {
-        // Create a hash based on message content and timestamp
+        // Use message key properties that WhatsApp cannot strip
+        const messageKey = viewOnceMessage.key || {};
         const messageContent = viewOnceMessage.viewOnceMessage?.message || viewOnceMessage.message || viewOnceMessage;
         const content = messageContent[contentType];
 
-        // Debug: Show what properties we're using for ID generation
-        console.log(`🔍 Debug - Content properties for ID:`, {
-            url: content?.url || 'missing',
-            directPath: content?.directPath || 'missing',
-            mediaKey: content?.mediaKey || 'missing',
+        // Create identifier using WhatsApp-independent properties
+        const identifier = [
+            messageKey.id || '',                    // WhatsApp message ID - never stripped
+            messageKey.fromMe?.toString() || '',    // Message direction - never stripped
+            messageKey.remoteJid || '',            // Chat JID - never stripped
+            contentType || '',                     // Content type - never stripped
+            content?.fileLength?.toString() || '', // File size - usually preserved
+            content?.mimetype || ''                // MIME type - usually preserved
+        ].filter(Boolean).join('|');
+
+        console.log(`🔍 Debug - Using WhatsApp-independent properties for ID:`, {
+            messageId: messageKey.id || 'missing',
+            fromMe: messageKey.fromMe || 'missing',
+            remoteJid: messageKey.remoteJid || 'missing',
+            contentType: contentType || 'missing',
             fileLength: content?.fileLength || 'missing',
             mimetype: content?.mimetype || 'missing'
         });
 
-        // Use various properties to create a unique identifier
-        // Don't use timestamp to ensure consistent IDs between save and retrieve
-        const identifier = [
-            content?.url || '',
-            content?.directPath || '',
-            content?.mediaKey || '',
-            content?.fileLength?.toString() || '',
-            content?.mimetype || '',
-            content?.fileSha256 || '',
-            content?.fileEncSha256 || ''
-        ].filter(Boolean).join('|');
-
-        // If no properties available, use a generic placeholder
-        // This will at least be consistent for the same session
         if (!identifier) {
-            console.log('⚠️ No unique properties found - using fallback ID');
-            return 'unknown_viewonce';
+            console.log('⚠️ No properties found for ID generation - using fallback');
+            return `fallback_${Date.now()}`;
         }
 
         console.log(`🔍 Debug - Generated identifier string: ${identifier}`);
