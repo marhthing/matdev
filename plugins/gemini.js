@@ -3,8 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 class GeminiPlugin {
-    constructor(bot) {
-        this.bot = bot;
+    constructor() {
         this.name = 'gemini';
         this.description = 'Google Gemini AI integration for intelligent responses';
         this.version = '1.0.0';
@@ -14,7 +13,8 @@ class GeminiPlugin {
     /**
      * Initialize the plugin
      */
-    async init() {
+    async init(bot) {
+        this.bot = bot;
         try {
             // Register the gemini command
             this.bot.messageHandler.registerCommand('gemini', this.geminiCommand.bind(this), {
