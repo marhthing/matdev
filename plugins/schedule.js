@@ -231,7 +231,9 @@ class SchedulePlugin {
             if (scheduleTime.isSameOrBefore(moment().tz(config.TIMEZONE))) {
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
-                });</old_str>
+                });
+                return;
+            }</old_str>
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
                 });
