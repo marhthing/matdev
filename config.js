@@ -44,7 +44,7 @@ function ensureEnvFileIfMissing() {
         BOT_REACTIONS: 'true',
         PORT: '8000',
         NODE_ENV: 'production',
-        TIMEZONE: 'UTC',
+        TIMEZONE: 'Africa/Lagos',
         LANGUAGE: 'en'
     };
     
