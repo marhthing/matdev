@@ -174,7 +174,8 @@ class SchedulePlugin {
         const { args, quotedMessage, chat_jid } = messageInfo || {};
         const fromJid = chat_jid;
         
-        if (!args || args.length < 3) {
+        // Ensure args exists and has minimum required length
+        if (!args || !Array.isArray(args) || args.length < 2) {
             await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message]\n\n*Or reply to a message:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>\n\n*Example:*\n${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net Happy Birthday!` 
             });
@@ -184,7 +185,19 @@ class SchedulePlugin {
         try {
             const dateStr = args[0];
             const timeStr = args[1];
-            const targetJid = args[2];
+            
+            // Target JID - if only 2 args provided and we have quoted message, use current chat
+            let targetJid;
+            if (args.length >= 3) {
+                targetJid = args[2];
+            } else if (actualQuotedMessage) {
+                targetJid = fromJid; // Send to current chat when replying
+            } else {
+                await this.bot.sock.sendMessage(fromJid, { 
+                    text: '❌ Please provide target JID or reply to a message!' 
+                });
+                return;
+            }
             
             // Parse date and time
             const [day, month, year] = dateStr.split(':').map(Number);
@@ -216,16 +229,20 @@ class SchedulePlugin {
             // Get message content
             let messageContent = '';
             
-            if (quotedMessage) {
-                // Use quoted message content
-                messageContent = quotedMessage.conversation || 
-                               quotedMessage.extendedTextMessage?.text ||
-                               quotedMessage.imageMessage?.caption ||
-                               quotedMessage.videoMessage?.caption ||
-                               'Media message (will be sent as text notification)';
-            } else if (args.length > 3) {
-                // Use provided message
-                messageContent = args.slice(3).join(' ');
+            // Check for quoted message in multiple possible locations
+            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
+            const actualQuotedMessage = contextInfo?.quotedMessage || quotedMessage;
+            
+            if (actualQuotedMessage) {
+                // Extract content from any type of quoted message
+                messageContent = this.extractMessageContent(actualQuotedMessage);
+                
+                if (!messageContent) {
+                    messageContent = 'Message content (will be forwarded)';
+                }
+            } else if (args.length > 2) {
+                // Use provided message (after jid parameter)
+                messageContent = args.slice(2).join(' ');
             } else {
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ No message content provided! Either reply to a message or include message text.' 
@@ -339,6 +356,67 @@ class SchedulePlugin {
             await this.bot.sock.sendMessage(fromJid, { 
                 text: `❌ Schedule ID not found: ${scheduleId}\n\nUse ${config.PREFIX}schedules to see all pending schedules.` 
             });
+        }
+    }
+
+    /**
+     * Extract message content from any message type
+     */
+    extractMessageContent(message) {
+        try {
+            // Handle different message types
+            if (message.conversation) {
+                return message.conversation;
+            }
+            
+            if (message.extendedTextMessage?.text) {
+                return message.extendedTextMessage.text;
+            }
+            
+            if (message.imageMessage?.caption) {
+                return message.imageMessage.caption;
+            }
+            
+            if (message.videoMessage?.caption) {
+                return message.videoMessage.caption;
+            }
+            
+            if (message.documentMessage?.caption) {
+                return message.documentMessage.caption;
+            }
+            
+            // Handle media messages without captions
+            if (message.imageMessage) {
+                return '📷 Image message';
+            }
+            
+            if (message.videoMessage) {
+                return '🎥 Video message';
+            }
+            
+            if (message.audioMessage) {
+                return '🎵 Audio message';
+            }
+            
+            if (message.documentMessage) {
+                return `📄 Document: ${message.documentMessage.fileName || 'Unknown file'}`;
+            }
+            
+            if (message.stickerMessage) {
+                return '🎭 Sticker message';
+            }
+            
+            // Handle other message types
+            const messageTypes = Object.keys(message);
+            if (messageTypes.length > 0) {
+                return `📱 ${messageTypes[0]} message`;
+            }
+            
+            return null;
+            
+        } catch (error) {
+            console.error('Error extracting message content:', error);
+            return null;
         }
     }
 
