@@ -74,7 +74,9 @@ class TikTokPlugin {
                         const videoData = result.result;
                         
                         // Try to get video URL from different possible locations
-                        if (videoData.video) {
+                        if (videoData.video && videoData.video.playAddr && videoData.video.playAddr.length > 0) {
+                            videoUrl = videoData.video.playAddr[0];
+                        } else if (videoData.video) {
                             videoUrl = videoData.video.noWatermark || videoData.video.watermark || videoData.video[0];
                         } else if (videoData.video_data) {
                             videoUrl = videoData.video_data.nwm_video_url_HQ || 
@@ -97,22 +99,90 @@ class TikTokPlugin {
                 }
             }
 
-            // Method 2: If API fails, try alternative approach using direct scraping
+            // Method 2: Try alternative free APIs
+            if (!videoUrl) {
+                const fallbackAPIs = [
+                    {
+                        name: 'SnapTik API',
+                        endpoint: `https://snapinsta.app/api/ajaxSearch`,
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        data: `q=${encodeURIComponent(url)}&t=media&lang=en`
+                    },
+                    {
+                        name: 'SSSTik API',
+                        endpoint: `https://ssstik.io/abc?url=dl`,
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        data: `id=${encodeURIComponent(url)}&locale=en&tt=Q2FuZHlMaW5r`
+                    }
+                ];
+
+                for (const api of fallbackAPIs) {
+                    try {
+                        console.log(`Trying ${api.name}...`);
+                        const response = await axios({
+                            method: api.method,
+                            url: api.endpoint,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                ...api.headers
+                            },
+                            data: api.data,
+                            timeout: 15000
+                        });
+
+                        // Try to extract video URL from response
+                        if (response.data) {
+                            const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+                            
+                            // Look for video URLs in the response
+                            const videoUrlPatterns = [
+                                /https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/gi,
+                                /https?:\/\/tikcdn\.io\/[^\s"'<>]+/gi,
+                                /https?:\/\/[^\s"'<>]*tiktok[^\s"'<>]*\.mp4/gi
+                            ];
+
+                            for (const pattern of videoUrlPatterns) {
+                                const matches = responseText.match(pattern);
+                                if (matches && matches.length > 0) {
+                                    videoUrl = matches[0];
+                                    console.log(`Found video URL with ${api.name}:`, videoUrl);
+                                    break;
+                                }
+                            }
+
+                            if (videoUrl) break;
+                        }
+                    } catch (apiError) {
+                        console.log(`${api.name} failed:`, apiError.message);
+                        continue;
+                    }
+                }
+            }
+
+            // Method 3: Direct URL extraction from TikTok page
             if (!videoUrl) {
                 try {
-                    console.log('Trying alternative TikTok scraping method...');
-                    const response = await axios.get(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`, {
+                    console.log('Trying direct TikTok page scraping...');
+                    const response = await axios.get(url, {
                         headers: {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
+                        },
+                        timeout: 10000
                     });
                     
-                    if (response.data && response.data.thumbnail_url) {
-                        // This is a fallback - at least we know the video exists
-                        console.log('Video exists but no direct download available');
+                    // Look for video URLs in the page HTML
+                    const html = response.data;
+                    const videoUrlPattern = /"playAddr":"([^"]+)"/;
+                    const match = html.match(videoUrlPattern);
+                    
+                    if (match && match[1]) {
+                        videoUrl = match[1].replace(/\\u002F/g, '/');
+                        console.log('Found video URL from page scraping:', videoUrl);
                     }
-                } catch (oembedError) {
-                    console.log('OEmbed check failed:', oembedError.message);
+                } catch (scrapingError) {
+                    console.log('Page scraping failed:', scrapingError.message);
                 }
             }
 
