@@ -79,7 +79,7 @@ class GeminiPlugin {
 
                 // Edit the thinking message with the actual AI response
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🤖 *Gemini AI Response:*\n\n${text}`,
+                    text: `🤖 *MATDEV AI Response:*\n\n${text}`,
                     edit: thinkingMsg.key
                 });
                 console.log('✅ Gemini response sent');
