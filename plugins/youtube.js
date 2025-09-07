@@ -387,9 +387,15 @@ class YouTubePlugin {
         // Handle Y2mate specifically
         if (videoInfo.service === 'y2mate') {
             const service = this.downloadServices.y2mate;
+            let lastError = null;
             
             for (const endpoint of service.convertEndpoints) {
                 try {
+                    // Add delay between attempts
+                    if (lastError) {
+                        await this.addHumanDelay();
+                    }
+
                     // Prepare the conversion payload
                     const payload = new URLSearchParams({
                         vid: videoInfo.vid,
@@ -413,11 +419,19 @@ class YouTubePlugin {
 
                     if (convertResponse.data && convertResponse.data.status === 'ok' && convertResponse.data.dlink) {
                         return convertResponse.data.dlink;
+                    } else if (convertResponse.data && convertResponse.data.c_status === 'FAILED') {
+                        lastError = new Error(`Y2mate conversion failed: ${convertResponse.data.mess || 'Unknown error'}`);
+                        console.log(`Y2mate conversion failed:`, convertResponse.data.mess);
                     }
                 } catch (error) {
+                    lastError = error;
                     console.log(`Y2mate convert endpoint ${endpoint} failed:`, error.message);
                     continue;
                 }
+            }
+            
+            if (lastError) {
+                throw lastError;
             }
         }
 
@@ -444,7 +458,8 @@ class YouTubePlugin {
                     return convertResponse.data.dlink;
                 }
             } catch (error) {
-                console.log('9Convert failed:', error.message);
+                console.log('9Convert conversion failed:', error.message);
+                throw error;
             }
         }
 
@@ -459,7 +474,7 @@ class YouTubePlugin {
             }
         }
 
-        throw new Error('Failed to get download link from any service');
+        throw new Error(`Failed to get download link from ${videoInfo.service || 'unknown'} service`);
     }
 
     /**
@@ -555,11 +570,38 @@ class YouTubePlugin {
                     quoted: processingMsg
                 });
 
-                // Get download link
-                const downloadLink = await this.getDownloadLinkFromService(videoInfo, videoFormat);
+                // Get download link with fallback retry
+                let downloadLink = null;
+                try {
+                    downloadLink = await this.getDownloadLinkFromService(videoInfo, videoFormat);
+                } catch (linkError) {
+                    console.log(`Failed to get download link from ${videoInfo.service}:`, linkError.message);
+                    
+                    // If the primary service fails, try other services
+                    console.log('Retrying with other services...');
+                    const otherServices = Object.keys(this.downloadServices).filter(key => key !== videoInfo.service);
+                    
+                    for (const serviceKey of otherServices) {
+                        try {
+                            console.log(`Trying ${this.downloadServices[serviceKey].name} as fallback...`);
+                            const fallbackVideoInfo = await this[`try${serviceKey.charAt(0).toUpperCase() + serviceKey.slice(1).replace('ninex', '9').replace('convert', 'Convert')}`](url, this.getRandomUserAgent());
+                            
+                            if (fallbackVideoInfo) {
+                                downloadLink = await this.getDownloadLinkFromService(fallbackVideoInfo, videoFormat);
+                                if (downloadLink) {
+                                    console.log(`Successfully got download link from ${this.downloadServices[serviceKey].name}`);
+                                    break;
+                                }
+                            }
+                        } catch (fallbackError) {
+                            console.log(`Fallback service ${this.downloadServices[serviceKey].name} failed:`, fallbackError.message);
+                            continue;
+                        }
+                    }
+                }
 
                 if (!downloadLink) {
-                    throw new Error('Failed to get download link');
+                    throw new Error('Failed to get download link from all services');
                 }
 
                 // Update processing message
