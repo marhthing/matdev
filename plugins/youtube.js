@@ -194,27 +194,40 @@ class YouTubePlugin {
         
         for (const endpoint of service.analyzeEndpoints) {
             try {
-                const analyzeResponse = await axios.post(endpoint, {
+                const payload = new URLSearchParams({
                     k_query: url,
                     k_page: 'home',
                     hl: 'en',
                     q_auto: 0
-                }, {
+                });
+
+                const analyzeResponse = await axios.post(endpoint, payload.toString(), {
                     headers: {
                         'User-Agent': userAgent,
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Origin': 'https://www.y2mate.com',
                         'Referer': 'https://www.y2mate.com/en68',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'Accept-Language': 'en-US,en;q=0.9'
                     },
-                    timeout: 15000
+                    timeout: 20000
                 });
+
+                console.log(`Y2mate analyze response:`, analyzeResponse.data);
 
                 if (analyzeResponse.data && analyzeResponse.data.status === 'ok') {
                     analyzeResponse.data.service = 'y2mate';
+                    
+                    // Ensure we have video ID for conversion
+                    if (!analyzeResponse.data.vid && analyzeResponse.data.id) {
+                        analyzeResponse.data.vid = analyzeResponse.data.id;
+                    }
+                    
                     return analyzeResponse.data;
                 }
             } catch (error) {
+                console.log(`Y2mate analyze endpoint ${endpoint} failed:`, error.message);
                 continue;
             }
         }
@@ -377,24 +390,32 @@ class YouTubePlugin {
             
             for (const endpoint of service.convertEndpoints) {
                 try {
-                    const convertResponse = await axios.post(endpoint, {
+                    // Prepare the conversion payload
+                    const payload = new URLSearchParams({
                         vid: videoInfo.vid,
-                        k: videoFormat.f + videoFormat.q
-                    }, {
+                        k: videoFormat.k || (videoFormat.f + videoFormat.q)
+                    });
+
+                    const convertResponse = await axios.post(endpoint, payload.toString(), {
                         headers: {
                             'User-Agent': userAgent,
                             'Content-Type': 'application/x-www-form-urlencoded',
                             'Origin': 'https://www.y2mate.com',
                             'Referer': 'https://www.y2mate.com/en68',
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json, text/javascript, */*; q=0.01',
+                            'Accept-Language': 'en-US,en;q=0.9'
                         },
-                        timeout: 20000
+                        timeout: 25000
                     });
 
-                    if (convertResponse.data && convertResponse.data.status === 'ok') {
+                    console.log(`Y2mate convert response:`, convertResponse.data);
+
+                    if (convertResponse.data && convertResponse.data.status === 'ok' && convertResponse.data.dlink) {
                         return convertResponse.data.dlink;
                     }
                 } catch (error) {
+                    console.log(`Y2mate convert endpoint ${endpoint} failed:`, error.message);
                     continue;
                 }
             }
@@ -403,23 +424,38 @@ class YouTubePlugin {
         // Handle 9Convert
         if (videoInfo.service === '9convert') {
             try {
-                const convertResponse = await axios.post('https://9convert.com/api/ajaxConvert/index', {
+                const payload = new URLSearchParams({
                     vid: videoInfo.vid,
                     k: videoFormat.k || (videoFormat.f + videoFormat.q)
-                }, {
+                });
+
+                const convertResponse = await axios.post('https://9convert.com/api/ajaxConvert/index', payload.toString(), {
                     headers: {
                         'User-Agent': userAgent,
                         'Content-Type': 'application/x-www-form-urlencoded',
-                        'Origin': 'https://9convert.com'
+                        'Origin': 'https://9convert.com',
+                        'Referer': 'https://9convert.com/',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
-                    timeout: 20000
+                    timeout: 25000
                 });
 
-                if (convertResponse.data && convertResponse.data.status === 'ok') {
+                if (convertResponse.data && convertResponse.data.status === 'ok' && convertResponse.data.dlink) {
                     return convertResponse.data.dlink;
                 }
             } catch (error) {
-                // Continue to fallback
+                console.log('9Convert failed:', error.message);
+            }
+        }
+
+        // If no conversion needed, try to extract direct link from video info
+        if (videoInfo.links && videoInfo.links.mp4) {
+            const qualities = Object.keys(videoInfo.links.mp4);
+            for (const quality of qualities) {
+                const format = videoInfo.links.mp4[quality];
+                if (format.url) {
+                    return format.url;
+                }
             }
         }
 
