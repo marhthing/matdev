@@ -1195,8 +1195,8 @@ class CorePlugin {
             }
             
             // Send confirmation
-            const confirmationText = '🗑️ Deleting entire chat...';
-            await this.bot.messageHandler.reply(messageInfo, confirmationText);
+            // const confirmationText = '🗑️ Deleting entire chat...';
+            // await this.bot.messageHandler.reply(messageInfo, confirmationText);
             
             // Small delay to ensure confirmation is sent
             await new Promise(resolve => setTimeout(resolve, 1000));
