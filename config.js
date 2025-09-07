@@ -13,11 +13,11 @@ function ensureEnvFileIfMissing() {
     
     // If .env already exists, don't touch it - preserve user settings
     if (fs.existsSync(envPath)) {
-        console.log('✅ Using existing .env file (preserving user settings)');
+        // console.log('✅ Using existing .env file (preserving user settings)');
         return;
     }
     
-    console.log('📝 Creating default .env file...');
+    // console.log('📝 Creating default .env file...');
     
     // Default environment variables (only used if .env doesn't exist)
     const defaultEnv = {
@@ -56,7 +56,7 @@ function ensureEnvFileIfMissing() {
             
         fs.writeFileSync(envPath, envLines + '\n');
         
-        console.log('✅ Default .env file created');
+        // console.log('✅ Default .env file created');
     } catch (error) {
         console.warn('⚠️ Could not create default .env file:', error.message);
     }
@@ -146,10 +146,10 @@ if (!config.OWNER_NUMBER) {
 if (config.PLATFORM === 'heroku') {
     // Don't override user settings, just provide info
     if (!process.env.LOG_TO_FILE) {
-        console.log('ℹ️  Heroku detected: File logging disabled by default');
+        // console.log('ℹ️  Heroku detected: File logging disabled by default');
     }
     if (!process.env.CACHE_TTL) {
-        console.log('ℹ️  Heroku detected: Using shorter cache TTL for memory optimization');
+        // console.log('ℹ️  Heroku detected: Using shorter cache TTL for memory optimization');
     }
 }
 
