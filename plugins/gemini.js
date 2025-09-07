@@ -26,6 +26,15 @@ class GeminiPlugin {
                 source: 'gemini.js'
             });
 
+            // Register the ai alias command
+            this.bot.messageHandler.registerCommand('ai', this.geminiCommand.bind(this), {
+                description: 'Ask AI a question (alias for gemini)',
+                usage: `${config.PREFIX}ai <your question>`,
+                category: 'ai',
+                plugin: 'gemini',
+                source: 'gemini.js'
+            });
+
             console.log('✅ Gemini AI plugin loaded');
             return true;
         } catch (error) {

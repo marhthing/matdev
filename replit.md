@@ -44,6 +44,16 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - **AUTO-CHECK**: System automatically checks and sends scheduled messages every minute
 - Console now shows clean, professional output with essential information only
 
+## September 7, 2025 - Gemini AI Plugin Integration ✅
+- **NEW PLUGIN**: Added Gemini AI integration plugin with Google Generative AI support
+- **COMMANDS**: Added `.gemini <prompt>` and `.ai <prompt>` commands for AI conversations
+- **API INTEGRATION**: Uses existing `.setenv` system for GEMINI_API_KEY management
+- **ERROR HANDLING**: Smart error handling for missing/invalid API keys and quota limits
+- **UX ENHANCEMENT**: Message editing functionality - "🤖 Thinking..." gets replaced with AI response
+- **BRANDING**: Responses show "🤖 *MATDEV AI Response:*" header for consistent branding
+- **MODEL**: Uses latest gemini-1.5-flash model for optimal performance and reliability
+- Bot now supports 12 plugins total including full AI conversation capabilities
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
