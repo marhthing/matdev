@@ -66,9 +66,9 @@ class TikTokPlugin {
             
             for (const version of versions) {
                 try {
-                    console.log(`Trying TikTok API version ${version}...`);
+                    // console.log(`Trying TikTok API version ${version}...`);
                     const result = await TiktokDL.Downloader(url, { version });
-                    console.log(`API ${version} result:`, JSON.stringify(result, null, 2));
+                    // console.log(`API ${version} result:`, JSON.stringify(result, null, 2));
                     
                     if (result && result.status === "success" && result.result) {
                         const videoData = result.result;
@@ -89,12 +89,12 @@ class TikTokPlugin {
                         }
                         
                         if (videoUrl) {
-                            console.log(`Found video URL with ${version}:`, videoUrl);
+                            // console.log(`Found video URL with ${version}:`, videoUrl);
                             break; // Found a working URL, exit loop
                         }
                     }
                 } catch (versionError) {
-                    console.log(`Version ${version} failed:`, versionError.message);
+                    // console.log(`Version ${version} failed:`, versionError.message);
                     continue;
                 }
             }
@@ -120,7 +120,7 @@ class TikTokPlugin {
 
                 for (const api of fallbackAPIs) {
                     try {
-                        console.log(`Trying ${api.name}...`);
+                        // console.log(`Trying ${api.name}...`);
                         const response = await axios({
                             method: api.method,
                             url: api.endpoint,
@@ -147,7 +147,7 @@ class TikTokPlugin {
                                 const matches = responseText.match(pattern);
                                 if (matches && matches.length > 0) {
                                     videoUrl = matches[0];
-                                    console.log(`Found video URL with ${api.name}:`, videoUrl);
+                                    // console.log(`Found video URL with ${api.name}:`, videoUrl);
                                     break;
                                 }
                             }
@@ -155,7 +155,7 @@ class TikTokPlugin {
                             if (videoUrl) break;
                         }
                     } catch (apiError) {
-                        console.log(`${api.name} failed:`, apiError.message);
+                        // console.log(`${api.name} failed:`, apiError.message);
                         continue;
                     }
                 }
@@ -164,7 +164,7 @@ class TikTokPlugin {
             // Method 3: Direct URL extraction from TikTok page
             if (!videoUrl) {
                 try {
-                    console.log('Trying direct TikTok page scraping...');
+                    // console.log('Trying direct TikTok page scraping...');
                     const response = await axios.get(url, {
                         headers: {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -179,10 +179,10 @@ class TikTokPlugin {
                     
                     if (match && match[1]) {
                         videoUrl = match[1].replace(/\\u002F/g, '/');
-                        console.log('Found video URL from page scraping:', videoUrl);
+                        // console.log('Found video URL from page scraping:', videoUrl);
                     }
                 } catch (scrapingError) {
-                    console.log('Page scraping failed:', scrapingError.message);
+                    // console.log('Page scraping failed:', scrapingError.message);
                 }
             }
 
