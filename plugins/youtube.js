@@ -222,12 +222,12 @@ class YouTubePlugin {
             console.log('ytdl-core service failed:', error.message);
         }
 
-        // Try yt-dlp command as backup
+        // Try ytdl-core alternative method (different headers/options)
         try {
-            console.log('Trying yt-dlp command...');
-            return await this.tryYtDlpCommand(url);
+            console.log('Trying ytdl-core alternative...');
+            return await this.tryYtdlCoreAlternative(url);
         } catch (error) {
-            console.log('yt-dlp command failed:', error.message);
+            console.log('ytdl-core alternative failed:', error.message);
         }
 
         // Try each service in order
@@ -269,13 +269,27 @@ class YouTubePlugin {
     async tryYtdlCore(url) {
         try {
             // Get basic info without full extraction to avoid "Could not extract functions" error
-            const basicInfo = await ytdl.getBasicInfo(url);
+            const basicInfo = await ytdl.getBasicInfo(url, {
+                requestOptions: {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': this.getRandomUserAgent(),
+                        'Cookie': '',
+                        'Accept': '*/*'
+                    }
+                }
+            });
             
             if (!basicInfo || !basicInfo.videoDetails) {
                 throw new Error('No video info found');
             }
 
             const videoDetails = basicInfo.videoDetails;
+            
+            // Check if video is available
+            if (!videoDetails.isLiveContent && videoDetails.isPrivate) {
+                throw new Error('Video is private');
+            }
             
             // Get stream URL using basic approach
             const videoURL = ytdl.getURLVideoID(url);
@@ -305,48 +319,59 @@ class YouTubePlugin {
             return processedInfo;
 
         } catch (error) {
+            // Log the specific error for debugging
+            console.log('ytdl-core detailed error:', error.message);
             throw new Error(`ytdl-core failed: ${error.message}`);
         }
     }
 
     /**
-     * Try yt-dlp command (backup method)
+     * Try ytdl-core with different strategies (backup method)
      */
-    async tryYtDlpCommand(url) {
+    async tryYtdlCoreAlternative(url) {
         try {
-            // Use python3 with full path and get basic info
-            const { stdout } = await execAsync(`python3 -m yt_dlp --dump-json --no-download "${url}"`);
-            const videoInfo = JSON.parse(stdout.trim());
+            // Try different ytdl-core options for better compatibility
+            const info = await ytdl.getBasicInfo(url, {
+                requestOptions: {
+                    headers: {
+                        'User-Agent': this.getRandomUserAgent(),
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept': '*/*'
+                    }
+                }
+            });
             
-            if (!videoInfo || !videoInfo.title) {
+            if (!info || !info.videoDetails) {
                 throw new Error('No video info found');
             }
 
+            const videoDetails = info.videoDetails;
+            
             const processedInfo = {
-                service: 'yt-dlp',
+                service: 'ytdl-core-alt',
                 status: 'ok',
-                title: videoInfo.title,
-                t: parseInt(videoInfo.duration) || 0,
-                a: videoInfo.uploader || videoInfo.channel || 'Unknown',
-                vid: videoInfo.id,
+                title: videoDetails.title,
+                t: parseInt(videoDetails.lengthSeconds) || 0,
+                a: videoDetails.author?.name || 'Unknown',
+                vid: videoDetails.videoId,
                 links: {
                     mp4: {
                         'auto': {
                             f: 'mp4',
                             q: 'auto',
-                            url: videoInfo.webpage_url
+                            url: url
                         }
                     }
                 },
-                downloadUrl: videoInfo.webpage_url,
-                thumbnail: videoInfo.thumbnail
+                downloadUrl: url,
+                thumbnail: videoDetails.thumbnails?.[0]?.url
             };
 
-            console.log('yt-dlp success:', processedInfo.title);
+            console.log('ytdl-core-alt success:', processedInfo.title);
             return processedInfo;
 
         } catch (error) {
-            throw new Error(`yt-dlp failed: ${error.message}`);
+            throw new Error(`ytdl-core-alt failed: ${error.message}`);
         }
     }
 
