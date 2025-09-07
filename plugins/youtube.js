@@ -3,8 +3,7 @@
  * Download YouTube videos and shorts with enhanced safety measures
  */
 
-const ytdl = require('@distube/ytdl-core');
-const ytsr = require('ytsr');
+const play = require('play-dl');
 const config = require('../config');
 const axios = require('axios');
 const fs = require('fs-extra');
@@ -48,19 +47,9 @@ class YouTubePlugin {
      * Setup safety measures and configurations
      */
     setupSafetyMeasures() {
-        // Configure ytdl with safety options
-        this.ytdlOptions = {
-            requestOptions: {
-                headers: {
-                    'User-Agent': this.getRandomUserAgent(),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1'
-                }
-            }
+        // Configure play-dl with safety options
+        this.playOptions = {
+            quality: 'highest'
         };
 
         // Start cleanup interval
@@ -203,20 +192,9 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing video... Please wait.');
 
             try {
-                // Get video info with safety options
-                const safeYtdlOptions = {
-                    ...this.ytdlOptions,
-                    requestOptions: {
-                        ...this.ytdlOptions.requestOptions,
-                        headers: {
-                            ...this.ytdlOptions.requestOptions.headers,
-                            'User-Agent': this.getRandomUserAgent() // Fresh user agent for each request
-                        }
-                    }
-                };
-
-                const info = await ytdl.getInfo(url, safeYtdlOptions);
-                const videoDetails = info.videoDetails;
+                // Get video info using play-dl
+                const info = await play.video_basic_info(url);
+                const videoDetails = info.video_details;
 
                 // Check video length (limit to 10 minutes for file size)
                 const duration = parseInt(videoDetails.lengthSeconds);
@@ -233,13 +211,8 @@ class YouTubePlugin {
                     return;
                 }
 
-                // Get best quality format that's not too large
-                const format = ytdl.chooseFormat(info.formats, { 
-                    quality: 'highest',
-                    filter: format => format.container === 'mp4' && format.hasVideo && format.hasAudio
-                }) || ytdl.chooseFormat(info.formats, { quality: 'lowest' });
-
-                if (!format) {
+                // Check if video can be streamed
+                if (!info.video_details.url) {
                     throw new Error('No suitable video format found');
                 }
 
@@ -253,42 +226,36 @@ class YouTubePlugin {
                 // Ensure tmp directory exists
                 await fs.ensureDir(path.dirname(tempFile));
 
-                // Download video with timeout protection
-                await new Promise((resolve, reject) => {
+                // Download video with timeout protection using play-dl
+                await new Promise(async (resolve, reject) => {
                     const timeout = setTimeout(() => {
                         reject(new Error('Download timeout'));
                     }, 300000); // 5 minute timeout
 
-                    const stream = ytdl(url, { 
-                        format: format,
-                        ...safeYtdlOptions
-                    });
-                    const writeStream = fs.createWriteStream(tempFile);
+                    try {
+                        const stream = await play.stream(url, { quality: 'highest' });
+                        const writeStream = fs.createWriteStream(tempFile);
 
-                    stream.pipe(writeStream);
+                        stream.stream.pipe(writeStream);
 
-                    stream.on('error', (error) => {
+                        stream.stream.on('error', (error) => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        });
+
+                        writeStream.on('error', (error) => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        });
+
+                        writeStream.on('finish', () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        });
+                    } catch (error) {
                         clearTimeout(timeout);
                         reject(error);
-                    });
-
-                    writeStream.on('error', (error) => {
-                        clearTimeout(timeout);
-                        reject(error);
-                    });
-
-                    writeStream.on('finish', () => {
-                        clearTimeout(timeout);
-                        resolve();
-                    });
-
-                    // Add progress tracking
-                    stream.on('progress', (chunkLength, downloaded, total) => {
-                        const percent = Math.floor((downloaded / total) * 100);
-                        if (percent % 25 === 0 && percent > 0) { // Update every 25%
-                            console.log(`Download progress: ${percent}%`);
-                        }
-                    });
+                    }
                 });
 
                 // Verify file was created and has content
@@ -312,7 +279,7 @@ class YouTubePlugin {
                     '📤 Uploading video...');
 
                 // Create caption with video info
-                const caption = `🎬 *${videoDetails.title}*\n👤 ${videoDetails.author.name}\n⏱️ ${this.formatDuration(duration)}\n📊 ${this.formatNumber(parseInt(videoDetails.viewCount))} views`;
+                const caption = `🎬 *${videoDetails.title}*\n👤 ${videoDetails.channel?.name || 'Unknown'}\n⏱️ ${this.formatDuration(duration)}\n📊 ${this.formatNumber(parseInt(videoDetails.views || 0))} views`;
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -380,20 +347,12 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
-                // Search with safety options
-                const searchOptions = {
+                // Search using play-dl
+                const searchResults = await play.search(searchQuery, { 
                     limit: 5,
-                    requestOptions: {
-                        headers: {
-                            'User-Agent': this.getRandomUserAgent(),
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.5'
-                        }
-                    }
-                };
-
-                const searchResults = await ytsr(searchQuery, searchOptions);
-                const videos = searchResults.items.filter(item => item.type === 'video').slice(0, 5);
+                    source: { youtube: 'video' }
+                });
+                const videos = searchResults;
 
                 if (videos.length === 0) {
                     await this.bot.messageHandler.reply(messageInfo, 
@@ -405,9 +364,9 @@ class YouTubePlugin {
 
                 videos.forEach((video, index) => {
                     resultText += `${index + 1}. *${video.title}*\n`;
-                    resultText += `👤 ${video.author?.name || 'Unknown'}\n`;
-                    resultText += `⏱️ ${video.duration || 'Unknown'}\n`;
-                    resultText += `👀 ${video.views || 'Unknown'} views\n`;
+                    resultText += `👤 ${video.channel?.name || 'Unknown'}\n`;
+                    resultText += `⏱️ ${this.formatDuration(video.durationInSec || 0)}\n`;
+                    resultText += `👀 ${this.formatNumber(parseInt(video.views || 0))} views\n`;
                     resultText += `🔗 ${video.url}\n\n`;
                 });
 
