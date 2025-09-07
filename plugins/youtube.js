@@ -3,7 +3,7 @@
  * Download YouTube videos and shorts with enhanced safety measures
  */
 
-const play = require('play-dl');
+const youtubedl = require('youtube-dl-exec');
 const config = require('../config');
 const axios = require('axios');
 const fs = require('fs-extra');
@@ -192,19 +192,22 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing video... Please wait.');
 
             try {
-                // Get video info using play-dl
-                const info = await play.video_basic_info(url);
-                const videoDetails = info.video_details;
-                
-                // Debug: Check the info structure
-                console.log('Video info structure:', {
-                    hasVideoDetails: !!videoDetails,
-                    hasUrl: !!videoDetails?.url,
-                    title: videoDetails?.title
+                // Get video info using youtube-dl-exec
+                const info = await youtubedl(url, {
+                    dumpSingleJson: true,
+                    noWarnings: true,
+                    noCheckCertificates: true,
+                    preferFreeFormats: true,
+                    addHeader: [
+                        'referer:youtube.com',
+                        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    ]
                 });
+                
+                const videoDetails = info;
 
                 // Check video length (limit to 10 minutes for file size)
-                const duration = parseInt(videoDetails.lengthSeconds);
+                const duration = parseInt(videoDetails.duration || 0);
                 if (duration > 600) { // 10 minutes
                     await this.bot.messageHandler.reply(messageInfo, 
                         `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`);
@@ -212,14 +215,14 @@ class YouTubePlugin {
                 }
 
                 // Check if video is available
-                if (videoDetails.isLiveContent) {
+                if (videoDetails.is_live) {
                     await this.bot.messageHandler.reply(messageInfo, 
                         '❌ Cannot download live streams. Please use recorded videos.');
                     return;
                 }
 
-                // Check if video can be streamed
-                if (!info.video_details.url) {
+                // Check if video has formats
+                if (!videoDetails.formats || videoDetails.formats.length === 0) {
                     throw new Error('No suitable video format found');
                 }
 
@@ -233,33 +236,27 @@ class YouTubePlugin {
                 // Ensure tmp directory exists
                 await fs.ensureDir(path.dirname(tempFile));
 
-                // Download video with timeout protection using play-dl
+                // Download video with timeout protection using youtube-dl-exec
                 await new Promise(async (resolve, reject) => {
                     const timeout = setTimeout(() => {
                         reject(new Error('Download timeout'));
                     }, 300000); // 5 minute timeout
 
                     try {
-                        // Use stream with the original URL instead of stream_from_info
-                        const stream = await play.stream(url);
-                        const writeStream = fs.createWriteStream(tempFile);
-
-                        stream.stream.pipe(writeStream);
-
-                        stream.stream.on('error', (error) => {
-                            clearTimeout(timeout);
-                            reject(error);
+                        // Use youtube-dl-exec to download directly
+                        await youtubedl(url, {
+                            output: tempFile,
+                            format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
+                            noWarnings: true,
+                            noCheckCertificates: true,
+                            addHeader: [
+                                'referer:youtube.com',
+                                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                            ]
                         });
-
-                        writeStream.on('error', (error) => {
-                            clearTimeout(timeout);
-                            reject(error);
-                        });
-
-                        writeStream.on('finish', () => {
-                            clearTimeout(timeout);
-                            resolve();
-                        });
+                        
+                        clearTimeout(timeout);
+                        resolve();
                     } catch (error) {
                         clearTimeout(timeout);
                         reject(error);
@@ -287,7 +284,7 @@ class YouTubePlugin {
                     '📤 Uploading video...');
 
                 // Create caption with video info
-                const caption = `🎬 *${videoDetails.title}*\n👤 ${videoDetails.channel?.name || 'Unknown'}\n⏱️ ${this.formatDuration(duration)}\n📊 ${this.formatNumber(parseInt(videoDetails.views || 0))} views`;
+                const caption = `🎬 *${videoDetails.title}*\n👤 ${videoDetails.uploader || videoDetails.channel || 'Unknown'}\n⏱️ ${this.formatDuration(duration)}\n📊 ${this.formatNumber(parseInt(videoDetails.view_count || 0))} views`;
 
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -355,12 +352,13 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
-                // Search using play-dl
-                const searchResults = await play.search(searchQuery, { 
-                    limit: 5,
-                    source: { youtube: 'video' }
+                // Search using youtube-dl-exec
+                const searchResults = await youtubedl(`ytsearch5:${searchQuery}`, {
+                    dumpSingleJson: true,
+                    noWarnings: true,
+                    flatPlaylist: true
                 });
-                const videos = searchResults;
+                const videos = searchResults.entries || [searchResults];
 
                 if (videos.length === 0) {
                     await this.bot.messageHandler.reply(messageInfo, 
@@ -372,10 +370,10 @@ class YouTubePlugin {
 
                 videos.forEach((video, index) => {
                     resultText += `${index + 1}. *${video.title}*\n`;
-                    resultText += `👤 ${video.channel?.name || 'Unknown'}\n`;
-                    resultText += `⏱️ ${this.formatDuration(video.durationInSec || 0)}\n`;
-                    resultText += `👀 ${this.formatNumber(parseInt(video.views || 0))} views\n`;
-                    resultText += `🔗 ${video.url}\n\n`;
+                    resultText += `👤 ${video.uploader || video.channel || 'Unknown'}\n`;
+                    resultText += `⏱️ ${this.formatDuration(video.duration || 0)}\n`;
+                    resultText += `👀 ${this.formatNumber(parseInt(video.view_count || 0))} views\n`;
+                    resultText += `🔗 ${video.webpage_url}\n\n`;
                 });
 
                 resultText += `💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
