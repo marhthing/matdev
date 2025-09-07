@@ -14,7 +14,7 @@ class GeminiPlugin {
     /**
      * Initialize the plugin
      */
-    async initialize() {
+    async init() {
         try {
             // Register the gemini command
             this.bot.messageHandler.registerCommand('gemini', this.geminiCommand.bind(this), {
