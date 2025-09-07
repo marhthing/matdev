@@ -228,7 +228,10 @@ class SchedulePlugin {
             }, config.TIMEZONE);
             
             // Check if the scheduled time is in the future (in Lagos timezone)
-            if (scheduleTime.isSameOrBefore(moment().tz(config.TIMEZONE))) {</old_str>
+            if (scheduleTime.isSameOrBefore(moment().tz(config.TIMEZONE))) {
+                await this.bot.sock.sendMessage(fromJid, { 
+                    text: '❌ Cannot schedule messages in the past!' 
+                });</old_str>
                 await this.bot.sock.sendMessage(fromJid, { 
                     text: '❌ Cannot schedule messages in the past!' 
                 });
