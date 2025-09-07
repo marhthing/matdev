@@ -12,9 +12,62 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 // Anti-detection measures for YouTube
+const USER_AGENTS_YT = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0'
+];
+
+const getRandomUserAgentYT = () => USER_AGENTS_YT[Math.floor(Math.random() * USER_AGENTS_YT.length)];
+
 const humanDelayYT = (min = 1000, max = 3000) => {
     const delay = Math.floor(Math.random() * (max - min + 1)) + min;
     return new Promise(resolve => setTimeout(resolve, delay));
+};
+
+// Simulate human-like browsing patterns
+const simulateHumanBehavior = async () => {
+    // Random delays that mimic human reading/processing time
+    const behaviors = [
+        () => humanDelayYT(2000, 4000), // Reading page
+        () => humanDelayYT(500, 1500),  // Quick scan
+        () => humanDelayYT(1000, 2500), // Normal interaction
+        () => humanDelayYT(3000, 6000)  // Deep reading
+    ];
+    
+    const randomBehavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+    await randomBehavior();
+};
+
+// Generate realistic session headers
+const generateSessionHeaders = () => {
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    const timestamp = Date.now();
+    
+    return {
+        'User-Agent': getRandomUserAgentYT(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Connection': 'keep-alive',
+        'DNT': '1',
+        'X-Client-Data': `CIa2yQEIpLbJAQipncoBCMT2ygEIlqHLAQieossBCJuJzAEIuZnMAQinossBGJb6ywEY/p7LAQ==`,
+        'X-Requested-With': 'XMLHttpRequest'
+    };
 };
 
 class YouTubePlugin {
@@ -150,6 +203,9 @@ class YouTubePlugin {
             await humanDelayYT(1500, 2500);
 
             try {
+                // Simulate human behavior before API interaction
+                await simulateHumanBehavior();
+                
                 // Ensure yt-dlp is available
                 try {
                     await execAsync('yt-dlp --version', { timeout: 5000 });
@@ -158,12 +214,28 @@ class YouTubePlugin {
                     await execAsync('pip install --upgrade yt-dlp', { timeout: 60000 });
                 }
 
-                // Download with yt-dlp using safer options
-                const command = `yt-dlp -f "best[height<=720][filesize<50M]/best[filesize<50M]/best" --no-playlist --no-check-certificate "${url}" -o "${tempFile}"`;
+                // Generate random headers for the session
+                const headers = generateSessionHeaders();
+                const userAgent = headers['User-Agent'];
+                
+                // Human-like delay before starting download
+                await humanDelayYT(2000, 4000);
 
-                console.log('Executing yt-dlp command...');
+                // Download with yt-dlp using enhanced anti-detection options
+                const command = `yt-dlp -f "best[height<=720][filesize<50M]/best[filesize<50M]/best" ` +
+                              `--no-playlist --no-check-certificate ` +
+                              `--user-agent "${userAgent}" ` +
+                              `--referer "https://www.youtube.com/" ` +
+                              `--add-header "Accept-Language:en-US,en;q=0.9" ` +
+                              `--add-header "Cache-Control:no-cache" ` +
+                              `--add-header "Sec-Fetch-Mode:navigate" ` +
+                              `--sleep-interval 1 --max-sleep-interval 3 ` +
+                              `--socket-timeout 30 ` +
+                              `"${url}" -o "${tempFile}"`;
+
+                console.log('Executing yt-dlp command with anti-detection...');
                 const { stdout, stderr } = await execAsync(command, {
-                    timeout: 120000,
+                    timeout: 180000, // Increased timeout for safer downloads
                     maxBuffer: 1024 * 1024 * 50 // 50MB buffer
                 });
 
@@ -206,10 +278,21 @@ class YouTubePlugin {
                         await execAsync('pip install --upgrade youtube-dl', { timeout: 60000 });
                     }
 
-                    const altCommand = `youtube-dl -f "best[height<=720][filesize<50M]/best[filesize<50M]" --no-playlist "${url}" -o "${tempFile}"`;
+                    // Additional human delay before fallback
+                    await humanDelayYT(3000, 5000);
+                    
+                    const fallbackHeaders = generateSessionHeaders();
+                    const fallbackUserAgent = fallbackHeaders['User-Agent'];
+                    
+                    const altCommand = `youtube-dl -f "best[height<=720][filesize<50M]/best[filesize<50M]" ` +
+                                     `--no-playlist ` +
+                                     `--user-agent "${fallbackUserAgent}" ` +
+                                     `--referer "https://www.youtube.com/" ` +
+                                     `--sleep-interval 2 ` +
+                                     `"${url}" -o "${tempFile}"`;
 
-                    console.log('Trying youtube-dl fallback...');
-                    await execAsync(altCommand, { timeout: 120000 });
+                    console.log('Trying youtube-dl fallback with enhanced headers...');
+                    await execAsync(altCommand, { timeout: 180000 });
 
                     if (await fs.pathExists(tempFile)) {
                         const stats = await fs.stat(tempFile);

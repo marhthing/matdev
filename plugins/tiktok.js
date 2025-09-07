@@ -9,20 +9,88 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 
-// Anti-detection measures
+// Enhanced anti-detection measures
 const USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Android 14; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0'
+];
+
+const REFERRERS = [
+    'https://www.google.com/',
+    'https://www.bing.com/',
+    'https://duckduckgo.com/',
+    'https://www.tiktok.com/',
+    'https://t.co/',
+    'https://www.facebook.com/',
+    'https://www.twitter.com/'
 ];
 
 const getRandomUserAgent = () => USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+const getRandomReferrer = () => REFERRERS[Math.floor(Math.random() * REFERRERS.length)];
 
 const humanDelay = (min = 1000, max = 3000) => {
     const delay = Math.floor(Math.random() * (max - min + 1)) + min;
     return new Promise(resolve => setTimeout(resolve, delay));
+};
+
+// Advanced anti-detection session generator
+const generateTikTokSession = () => {
+    const sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const timestamp = Date.now();
+    const userAgent = getRandomUserAgent();
+    const referrer = getRandomReferrer();
+    
+    // Determine device type from user agent
+    const isMobile = userAgent.includes('Mobile') || userAgent.includes('iPhone') || userAgent.includes('Android');
+    const isIOS = userAgent.includes('iPhone') || userAgent.includes('iPad');
+    
+    return {
+        'User-Agent': userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,es;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': isMobile ? '"Not_A Brand";v="8", "Chromium";v="120"' : '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        'Sec-Ch-Ua-Mobile': isMobile ? '?1' : '?0',
+        'Sec-Ch-Ua-Platform': isIOS ? '"iOS"' : isMobile ? '"Android"' : '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Connection': 'keep-alive',
+        'DNT': '1',
+        'Referer': referrer,
+        'X-Requested-With': isMobile ? 'com.zhiliaoapp.musically' : undefined,
+        'X-Client-Version': '2.0.0',
+        'X-Tt-Token': Math.random().toString(36).substring(2, 15)
+    };
+};
+
+// Simulate realistic user behavior patterns
+const simulateUserBehavior = async (type = 'normal') => {
+    const patterns = {
+        'quick': () => humanDelay(500, 1200),      // Quick check
+        'normal': () => humanDelay(1500, 3000),   // Normal browsing
+        'careful': () => humanDelay(2500, 4500),  // Careful reading
+        'distracted': () => humanDelay(3000, 6000) // Multi-tasking user
+    };
+    
+    const pattern = patterns[type] || patterns['normal'];
+    await pattern();
+    
+    // Occasionally add extra pauses (simulating real user behavior)
+    if (Math.random() < 0.3) {
+        await humanDelay(1000, 2000);
+    }
 };
 
 class TikTokPlugin {
@@ -147,8 +215,8 @@ class TikTokPlugin {
             
             for (const version of versions) {
                 try {
-                    // Human-like delay between API attempts
-                    await humanDelay(500, 1200);
+                    // Simulate user behavior before API call
+                    await simulateUserBehavior('normal');
                     
                     const result = await TiktokDL.Downloader(url, { version });
                     // console.log(`API ${version} result:`, JSON.stringify(result, null, 2));
@@ -203,27 +271,22 @@ class TikTokPlugin {
 
                 for (const api of fallbackAPIs) {
                     try {
-                        // Human-like delay between different API attempts
-                        await humanDelay(1000, 2000);
+                        // Simulate careful user behavior before API attempts
+                        await simulateUserBehavior('careful');
+                        
+                        const sessionHeaders = generateTikTokSession();
                         
                         const response = await axios({
                             method: api.method,
                             url: api.endpoint,
                             headers: {
-                                'User-Agent': getRandomUserAgent(),
-                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                                'Accept-Language': 'en-US,en;q=0.5',
-                                'Accept-Encoding': 'gzip, deflate, br',
-                                'DNT': '1',
-                                'Connection': 'keep-alive',
-                                'Upgrade-Insecure-Requests': '1',
-                                'Sec-Fetch-Dest': 'document',
-                                'Sec-Fetch-Mode': 'navigate',
-                                'Sec-Fetch-Site': 'none',
+                                ...sessionHeaders,
                                 ...api.headers
                             },
                             data: api.data,
-                            timeout: 15000
+                            timeout: 20000, // Increased timeout
+                            maxRedirects: 5,
+                            validateStatus: (status) => status < 500 // Accept 4xx but not 5xx
                         });
 
                         // Try to extract video URL from response
@@ -258,23 +321,20 @@ class TikTokPlugin {
             // Method 3: Direct URL extraction from TikTok page
             if (!videoUrl) {
                 try {
-                    // Human-like delay before direct scraping
-                    await humanDelay(1500, 2500);
+                    // Simulate distracted user behavior before direct scraping
+                    await simulateUserBehavior('distracted');
+                    
+                    const sessionHeaders = generateTikTokSession();
                     
                     const response = await axios.get(url, {
-                        headers: {
-                            'User-Agent': getRandomUserAgent(),
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Accept-Encoding': 'gzip, deflate, br',
-                            'Cache-Control': 'no-cache',
-                            'Pragma': 'no-cache',
-                            'Sec-Fetch-Dest': 'document',
-                            'Sec-Fetch-Mode': 'navigate',
-                            'Sec-Fetch-Site': 'none',
-                            'Sec-Fetch-User': '?1'
-                        },
-                        timeout: 10000
+                        headers: sessionHeaders,
+                        timeout: 15000,
+                        maxRedirects: 10,
+                        validateStatus: (status) => status < 500,
+                        // Add additional anti-detection measures
+                        proxy: false,
+                        decompress: true,
+                        insecureHTTPParser: false
                     });
                     
                     // Look for video URLs in the page HTML
@@ -302,25 +362,26 @@ class TikTokPlugin {
             // Ensure tmp directory exists
             await fs.ensureDir(path.dirname(tempFile));
 
-            // Human-like delay before downloading
-            await humanDelay(1000, 1800);
+            // Simulate final user behavior before video download
+            await simulateUserBehavior('normal');
+            
+            const downloadHeaders = generateTikTokSession();
             
             // Download the video to temporary file
             const videoResponse = await axios.get(videoUrl, {
                 responseType: 'stream',
-                timeout: 60000,
+                timeout: 90000, // Increased timeout for larger files
                 headers: {
-                    'User-Agent': getRandomUserAgent(),
+                    ...downloadHeaders,
                     'Referer': 'https://www.tiktok.com/',
                     'Accept': '*/*',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive',
+                    'Range': 'bytes=0-', // Support partial downloads
                     'Sec-Fetch-Dest': 'video',
                     'Sec-Fetch-Mode': 'no-cors',
                     'Sec-Fetch-Site': 'cross-site'
-                }
+                },
+                maxContentLength: 100 * 1024 * 1024, // 100MB limit
+                maxBodyLength: 100 * 1024 * 1024
             });
 
             if (!videoResponse.data) {
