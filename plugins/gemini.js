@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs-extra');
 const path = require('path');
+const config = require('../config');
 
 class GeminiPlugin {
     constructor() {
@@ -19,7 +20,7 @@ class GeminiPlugin {
             // Register the gemini command
             this.bot.messageHandler.registerCommand('gemini', this.geminiCommand.bind(this), {
                 description: 'Ask Gemini AI a question',
-                usage: `${this.bot.config.PREFIX}gemini <your question>`,
+                usage: `${config.PREFIX}gemini <your question>`,
                 category: 'ai',
                 plugin: 'gemini',
                 source: 'gemini.js'
@@ -105,4 +106,11 @@ class GeminiPlugin {
     }
 }
 
-module.exports = GeminiPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new GeminiPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
