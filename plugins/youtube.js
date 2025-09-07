@@ -1,63 +1,65 @@
 /**
  * MATDEV YouTube Downloader Plugin
- * Download YouTube videos and shorts with enhanced safety measures
+ * Download YouTube videos and shorts using Y2mate
  */
 
-const youtubedl = require('youtube-dl-exec');
-const config = require('../config');
 const axios = require('axios');
+const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
 
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
-        this.description = 'YouTube video and shorts downloader';
-        this.version = '1.0.0';
+        this.description = 'YouTube video and shorts downloader via Y2mate';
+        this.version = '2.0.0';
 
         // Rate limiting and safety
         this.requestCount = 0;
         this.lastRequestTime = 0;
         this.userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/119.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0 Safari/537.36'
         ];
 
         // Request queue for rate limiting
         this.requestQueue = [];
         this.processing = false;
-        this.maxRequestsPerMinute = 10;
+        this.maxRequestsPerMinute = 8;
         this.requestTimes = [];
+
+        // Y2mate API endpoints
+        this.y2mateEndpoints = [
+            'https://www.y2mate.com/mates/analyzeV2/ajax',
+            'https://www.y2mate.com/mates/convertV2/index',
+            'https://www.y2mate.com/mates/en68/analyze/ajax',
+            'https://www.y2mate.com/mates/en68/convert'
+        ];
     }
 
     /**
-     * Initialize plugin with safety configurations
+     * Initialize plugin
      */
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
         this.setupSafetyMeasures();
-        console.log('✅ YouTube plugin loaded with safety measures');
+        console.log('✅ YouTube plugin loaded with Y2mate integration');
     }
 
     /**
      * Setup safety measures and configurations
      */
     setupSafetyMeasures() {
-        // Configure play-dl with safety options
-        this.playOptions = {
-            // No quality parameter needed for basic info
-        };
-
         // Start cleanup interval
         setInterval(() => this.cleanupOldRequests(), 60000); // Every minute
+        setInterval(() => this.cleanupTempFiles(), 300000); // Every 5 minutes
     }
 
     /**
-     * Get random user agent to appear more human
+     * Get random user agent
      */
     getRandomUserAgent() {
         return this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
@@ -67,26 +69,22 @@ class YouTubePlugin {
      * Add human-like delays between requests
      */
     async addHumanDelay() {
-        // Random delay between 1-3 seconds to simulate human behavior
-        const delay = Math.random() * 2000 + 1000;
+        const delay = Math.random() * 3000 + 2000; // 2-5 seconds
         await new Promise(resolve => setTimeout(resolve, delay));
     }
 
     /**
-     * Check rate limits to avoid being flagged
+     * Check rate limits
      */
     isRateLimited() {
         const now = Date.now();
         const oneMinuteAgo = now - 60000;
-
-        // Clean old requests
         this.requestTimes = this.requestTimes.filter(time => time > oneMinuteAgo);
-
         return this.requestTimes.length >= this.maxRequestsPerMinute;
     }
 
     /**
-     * Add request to tracking
+     * Track request
      */
     trackRequest() {
         this.requestTimes.push(Date.now());
@@ -123,7 +121,82 @@ class YouTubePlugin {
     }
 
     /**
-     * Download YouTube video command with safety measures
+     * Extract video info using Y2mate API
+     */
+    async getVideoInfoFromY2mate(url) {
+        const userAgent = this.getRandomUserAgent();
+
+        for (const endpoint of this.y2mateEndpoints) {
+            try {
+                // Analyze video
+                const analyzeResponse = await axios.post(endpoint.replace('convert', 'analyze'), {
+                    k_query: url,
+                    k_page: 'home',
+                    hl: 'en',
+                    q_auto: 0
+                }, {
+                    headers: {
+                        'User-Agent': userAgent,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Origin': 'https://www.y2mate.com',
+                        'Referer': 'https://www.y2mate.com/en68',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    timeout: 15000
+                });
+
+                if (analyzeResponse.data && analyzeResponse.data.status === 'ok') {
+                    return analyzeResponse.data;
+                }
+            } catch (error) {
+                console.log(`Y2mate endpoint ${endpoint} failed:`, error.message);
+                continue;
+            }
+        }
+
+        throw new Error('All Y2mate endpoints failed');
+    }
+
+    /**
+     * Get download link using Y2mate API
+     */
+    async getDownloadLinkFromY2mate(videoId, ftype, fquality) {
+        const userAgent = this.getRandomUserAgent();
+
+        for (const endpoint of this.y2mateEndpoints) {
+            try {
+                const convertEndpoint = endpoint.includes('analyze') 
+                    ? endpoint.replace('analyze/ajax', 'convert') 
+                    : endpoint;
+
+                const convertResponse = await axios.post(convertEndpoint, {
+                    vid: videoId,
+                    k: ftype + fquality
+                }, {
+                    headers: {
+                        'User-Agent': userAgent,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Origin': 'https://www.y2mate.com',
+                        'Referer': 'https://www.y2mate.com/en68',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    timeout: 20000
+                });
+
+                if (convertResponse.data && convertResponse.data.status === 'ok') {
+                    return convertResponse.data.dlink;
+                }
+            } catch (error) {
+                console.log(`Y2mate convert endpoint failed:`, error.message);
+                continue;
+            }
+        }
+
+        throw new Error('Failed to get download link from Y2mate');
+    }
+
+    /**
+     * Download YouTube video using Y2mate
      */
     async downloadYouTube(messageInfo) {
         let tempFile;
@@ -142,7 +215,6 @@ class YouTubePlugin {
                                 messageInfo.message?.quotedMessage;
 
             if (quotedMessage) {
-                // Extract URL from quoted message
                 let quotedText = '';
 
                 if (quotedMessage.conversation) {
@@ -155,7 +227,6 @@ class YouTubePlugin {
                     quotedText = quotedMessage.videoMessage.caption;
                 }
 
-                // Look for YouTube URL in the quoted text
                 const urlRegex = /https?:\/\/[^\s]+/g;
                 const urls = quotedText.match(urlRegex) || [];
                 const youtubeUrl = urls.find(u => this.isValidYouTubeUrl(u));
@@ -165,285 +236,119 @@ class YouTubePlugin {
                 }
             }
 
-            // If no URL from quoted message, check args
             if (!url && args && args.length > 0) {
                 url = args[0];
             }
 
-            // If still no URL, show usage
             if (!url) {
                 await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a YouTube URL or reply to a message containing one\n\nUsage: ${config.PREFIX}ytv <url>\nOr reply to a message: ${config.PREFIX}ytv\n\nExample: ${config.PREFIX}ytv https://youtu.be/dQw4w9WgXcQ`);
                 return;
             }
 
-            // Validate YouTube URL
             if (!this.isValidYouTubeUrl(url)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Invalid YouTube URL. Please provide a valid YouTube video link.');
                 return;
             }
 
-            // Track this request
             this.trackRequest();
-
-            // Add human-like delay
             await this.addHumanDelay();
 
-            // Process video silently
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing YouTube video via Y2mate...\n⏳ Please wait...');
 
             try {
-                // Try multiple bypass methods in order of effectiveness
-                const bypassMethods = [
-                    // Method 1: Android client (most reliable)
-                    {
-                        dumpSingleJson: true,
-                        noWarnings: true,
-                        noCheckCertificates: true,
-                        preferFreeFormats: true,
-                        userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                        referer: 'https://m.youtube.com/',
-                        extractorArgs: {
-                            youtube: {
-                                player_client: ['android']
-                            }
-                        },
-                        youtubeSkipDashManifest: true,
-                        noMarkWatched: true,
-                        noPlaylist: true,
-                        sleepInterval: 3,
-                        maxSleepInterval: 6
-                    },
-                    // Method 2: iOS client fallback
-                    {
-                        dumpSingleJson: true,
-                        noWarnings: true,
-                        noCheckCertificates: true,
-                        preferFreeFormats: true,
-                        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
-                        referer: 'https://m.youtube.com/',
-                        extractorArgs: {
-                            youtube: {
-                                player_client: ['ios']
-                            }
-                        },
-                        youtubeSkipDashManifest: true,
-                        noMarkWatched: true,
-                        noPlaylist: true,
-                        sleepInterval: 4,
-                        maxSleepInterval: 8
-                    },
-                    // Method 3: Web client with enhanced headers
-                    {
-                        dumpSingleJson: true,
-                        noWarnings: true,
-                        noCheckCertificates: true,
-                        preferFreeFormats: true,
-                        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        referer: 'https://www.youtube.com/',
-                        extractorArgs: {
-                            youtube: {
-                                player_client: ['web']
-                            }
-                        },
-                        youtubeSkipDashManifest: true,
-                        noMarkWatched: true,
-                        noPlaylist: true,
-                        sleepInterval: 5,
-                        maxSleepInterval: 10
-                    }
-                ];
-                
-                let info = null;
-                let lastError = null;
-                
-                for (let i = 0; i < bypassMethods.length; i++) {
-                    try {
-                        console.log(`Attempting YouTube bypass method ${i + 1}/${bypassMethods.length}`);
-                        info = await youtubedl(url, bypassMethods[i]);
-                        console.log(`✅ YouTube bypass method ${i + 1} successful`);
-                        break;
-                    } catch (error) {
-                        lastError = error;
-                        console.log(`❌ YouTube bypass method ${i + 1} failed: ${error.message}`);
-                        if (i < bypassMethods.length - 1) {
-                            console.log('Waiting 3 seconds before trying next method...');
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                        }
-                    }
-                }
-                
-                if (!info) {
-                    throw lastError || new Error('All YouTube bypass methods failed');
-                }
-                
-                const videoDetails = info;
+                // Get video info from Y2mate
+                const videoInfo = await this.getVideoInfoFromY2mate(url);
 
-                // Check video length (limit to 10 minutes for file size)
-                const duration = parseInt(videoDetails.duration || 0);
-                if (duration > 600) { // 10 minutes
+                if (!videoInfo.links || !videoInfo.links.mp4) {
+                    throw new Error('No MP4 formats available');
+                }
+
+                const title = videoInfo.title || 'YouTube Video';
+                const duration = parseInt(videoInfo.t || 0);
+
+                // Check video length (limit to 10 minutes)
+                if (duration > 600) {
                     await this.bot.messageHandler.reply(messageInfo, 
                         `❌ Video is too long (${this.formatDuration(duration)}). Please use videos shorter than 10 minutes.`);
                     return;
                 }
 
-                // Check if video is available
-                if (videoDetails.is_live) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Cannot download live streams. Please use recorded videos.');
-                    return;
-                }
+                // Find best quality (prefer 720p, fallback to lower)
+                const qualities = Object.keys(videoInfo.links.mp4);
+                const preferredQuality = qualities.includes('720') ? '720' : 
+                                       qualities.includes('480') ? '480' : 
+                                       qualities.includes('360') ? '360' : 
+                                       qualities[0];
 
-                // Check if video has formats
-                if (!videoDetails.formats || videoDetails.formats.length === 0) {
-                    throw new Error('No suitable video format found');
-                }
+                const videoFormat = videoInfo.links.mp4[preferredQuality];
 
-                // Download video silently
-
-                // Create temporary file path
-                tempFile = path.join(__dirname, '..', 'tmp', `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.mp4`);
-
-                // Ensure tmp directory exists
-                await fs.ensureDir(path.dirname(tempFile));
-
-                // Download video with timeout protection using youtube-dl-exec
-                await new Promise(async (resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Download timeout'));
-                    }, 300000); // 5 minute timeout
-
-                    try {
-                        // Try multiple download methods in order
-                        const downloadMethods = [
-                            // Method 1: Android client
-                            {
-                                output: tempFile,
-                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
-                                noWarnings: true,
-                                noCheckCertificates: true,
-                                userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                                referer: 'https://m.youtube.com/',
-                                extractorArgs: {
-                                    youtube: {
-                                        player_client: ['android']
-                                    }
-                                },
-                                youtubeSkipDashManifest: true,
-                                noMarkWatched: true,
-                                noPlaylist: true,
-                                sleepInterval: 3,
-                                maxSleepInterval: 6
-                            },
-                            // Method 2: iOS client
-                            {
-                                output: tempFile,
-                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
-                                noWarnings: true,
-                                noCheckCertificates: true,
-                                userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
-                                referer: 'https://m.youtube.com/',
-                                extractorArgs: {
-                                    youtube: {
-                                        player_client: ['ios']
-                                    }
-                                },
-                                youtubeSkipDashManifest: true,
-                                noMarkWatched: true,
-                                noPlaylist: true,
-                                sleepInterval: 4,
-                                maxSleepInterval: 8
-                            },
-                            // Method 3: Web client
-                            {
-                                output: tempFile,
-                                format: 'best[ext=mp4][filesize<100M]/best[ext=mp4]/mp4',
-                                noWarnings: true,
-                                noCheckCertificates: true,
-                                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                                referer: 'https://www.youtube.com/',
-                                extractorArgs: {
-                                    youtube: {
-                                        player_client: ['web']
-                                    }
-                                },
-                                youtubeSkipDashManifest: true,
-                                noMarkWatched: true,
-                                noPlaylist: true,
-                                sleepInterval: 5,
-                                maxSleepInterval: 10
-                            }
-                        ];
-                        
-                        let downloadSuccess = false;
-                        let lastDownloadError = null;
-                        
-                        for (let i = 0; i < downloadMethods.length; i++) {
-                            try {
-                                console.log(`Attempting download method ${i + 1}/${downloadMethods.length}`);
-                                await youtubedl(url, downloadMethods[i]);
-                                console.log(`✅ Download method ${i + 1} successful`);
-                                downloadSuccess = true;
-                                break;
-                            } catch (error) {
-                                lastDownloadError = error;
-                                console.log(`❌ Download method ${i + 1} failed: ${error.message}`);
-                                if (i < downloadMethods.length - 1) {
-                                    console.log('Waiting 5 seconds before trying next download method...');
-                                    await new Promise(resolve => setTimeout(resolve, 5000));
-                                }
-                            }
-                        }
-                        
-                        if (!downloadSuccess) {
-                            throw lastDownloadError || new Error('All download methods failed');
-                        }
-                        
-                        clearTimeout(timeout);
-                        resolve();
-                    } catch (error) {
-                        clearTimeout(timeout);
-                        reject(error);
-                    }
+                // Update processing message
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🔄 Downloading video...\n📹 *${title}*\n📊 *Quality:* ${preferredQuality}p\n⏱️ *Duration:* ${this.formatDuration(duration)}\n⏳ Getting download link...`,
+                    quoted: processingMsg
                 });
 
-                // Verify file was created and has content
-                const stats = await fs.stat(tempFile);
-                if (stats.size === 0) {
-                    throw new Error('Downloaded file is empty');
+                // Get download link
+                const downloadLink = await this.getDownloadLinkFromY2mate(videoInfo.vid, videoFormat.f, videoFormat.q);
+
+                if (!downloadLink) {
+                    throw new Error('Failed to get download link');
                 }
 
-                // Check file size (limit to 100MB for WhatsApp)
-                if (stats.size > 100 * 1024 * 1024) {
+                // Update processing message
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🔄 Downloading video file...\n📹 *${title}*\n⏳ Please wait while we download the video...`,
+                    quoted: processingMsg
+                });
+
+                // Download the video file
+                const response = await axios.get(downloadLink, {
+                    responseType: 'arraybuffer',
+                    timeout: 300000, // 5 minutes timeout
+                    headers: {
+                        'User-Agent': this.getRandomUserAgent(),
+                        'Referer': 'https://www.y2mate.com/'
+                    },
+                    maxContentLength: 100 * 1024 * 1024 // 100MB limit
+                });
+
+                if (!response.data) {
+                    throw new Error('Failed to download video file');
+                }
+
+                const videoBuffer = Buffer.from(response.data);
+
+                // Check file size
+                if (videoBuffer.length > 100 * 1024 * 1024) {
                     await this.bot.messageHandler.reply(messageInfo, 
                         '❌ Video file is too large (>100MB). Please use a shorter video.');
                     return;
                 }
 
-                // Read video file
-                const videoBuffer = await fs.readFile(tempFile);
-
-                // Upload video silently
-
-                // Send video without caption
-                const caption = '';
-
                 // Send video
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: videoBuffer,
                     mimetype: 'video/mp4',
-                    fileName: `${videoDetails.title.replace(/[^\w\s]/gi, '')}.mp4`
+                    fileName: `${title.replace(/[^\w\s]/gi, '')}.mp4`,
+                    caption: `📹 *${title}*\n⏱️ *Duration:* ${this.formatDuration(duration)}\n📊 *Quality:* ${preferredQuality}p\n🤖 *Downloaded by:* ${config.BOT_NAME}`
                 });
 
-                // Processing completed - video sent
+                // Delete processing message
+                try {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, { delete: processingMsg.key });
+                } catch (e) {
+                    // Ignore delete errors
+                }
 
             } catch (downloadError) {
-                console.error('YouTube download error:', downloadError);
+                console.error('Y2mate download error:', downloadError);
 
-                let errorMessage = '❌ Failed to download YouTube video.';
+                let errorMessage = '❌ Failed to download YouTube video via Y2mate.';
 
-                if (downloadError.message?.includes('unavailable')) {
-                    errorMessage = '❌ This video is not available for download (may be private or restricted).';
-                } else if (downloadError.message?.includes('timeout')) {
+                if (downloadError.message?.includes('timeout')) {
                     errorMessage = '❌ Download timeout. The video may be too large or connection is slow.';
+                } else if (downloadError.message?.includes('unavailable')) {
+                    errorMessage = '❌ This video is not available for download (may be private or restricted).';
                 } else if (downloadError.message?.includes('format')) {
                     errorMessage = '❌ No compatible video format found for this video.';
                 }
@@ -455,7 +360,6 @@ class YouTubePlugin {
             console.error('Error in YouTube command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ An error occurred while processing the YouTube video. Please try again later.');
         } finally {
-            // Ensure temp file is deleted even if an error occurs
             if (tempFile) {
                 await fs.unlink(tempFile).catch(() => {});
             }
@@ -463,11 +367,10 @@ class YouTubePlugin {
     }
 
     /**
-     * Search YouTube videos command with safety measures
+     * Search YouTube videos using simple search
      */
     async searchYouTube(messageInfo) {
         try {
-            // Check rate limiting
             if (this.isRateLimited()) {
                 await this.bot.messageHandler.reply(messageInfo, '⏰ Too many requests. Please wait a moment before trying again.');
                 return;
@@ -481,90 +384,42 @@ class YouTubePlugin {
             }
 
             const searchQuery = args.join(' ');
-
-            // Track this request
             this.trackRequest();
-
-            // Add human-like delay
-            await this.addHumanDelay();
 
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching YouTube...');
 
             try {
-                // Try multiple search methods
-                const searchMethods = [
-                    // Method 1: Android client
-                    {
-                        dumpSingleJson: true,
-                        noWarnings: true,
-                        flatPlaylist: true,
-                        userAgent: 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-                        referer: 'https://m.youtube.com/',
-                        extractorArgs: {
-                            youtube: {
-                                player_client: ['android']
-                            }
-                        },
-                        youtubeSkipDashManifest: true,
-                        sleepInterval: 3,
-                        maxSleepInterval: 6
-                    },
-                    // Method 2: iOS client
-                    {
-                        dumpSingleJson: true,
-                        noWarnings: true,
-                        flatPlaylist: true,
-                        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
-                        referer: 'https://m.youtube.com/',
-                        extractorArgs: {
-                            youtube: {
-                                player_client: ['ios']
-                            }
-                        },
-                        youtubeSkipDashManifest: true,
-                        sleepInterval: 4,
-                        maxSleepInterval: 8
-                    }
-                ];
-                
-                let searchResults = null;
-                let lastSearchError = null;
-                
-                for (let i = 0; i < searchMethods.length; i++) {
-                    try {
-                        console.log(`Attempting search method ${i + 1}/${searchMethods.length}`);
-                        searchResults = await youtubedl(`ytsearch5:${searchQuery}`, searchMethods[i]);
-                        console.log(`✅ Search method ${i + 1} successful`);
-                        break;
-                    } catch (error) {
-                        lastSearchError = error;
-                        console.log(`❌ Search method ${i + 1} failed: ${error.message}`);
-                        if (i < searchMethods.length - 1) {
-                            console.log('Waiting 3 seconds before trying next search method...');
-                            await new Promise(resolve => setTimeout(resolve, 3000));
-                        }
-                    }
-                }
-                
-                if (!searchResults) {
-                    throw lastSearchError || new Error('All search methods failed');
-                }
-                const videos = searchResults.entries || [searchResults];
+                // Use YouTube search URL (no API needed for basic search)
+                const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
 
-                if (videos.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ No videos found for your search query.');
-                    return;
+                const response = await axios.get(searchUrl, {
+                    headers: {
+                        'User-Agent': this.getRandomUserAgent()
+                    },
+                    timeout: 15000
+                });
+
+                // Extract video IDs and titles using regex (basic parsing)
+                const videoMatches = response.data.match(/"videoId":"([^"]+)","title":{"runs":\[{"text":"([^"]+)"/g);
+
+                if (!videoMatches || videoMatches.length === 0) {
+                    throw new Error('No search results found');
                 }
 
                 let resultText = `🔍 *YouTube Search Results*\n\nQuery: *${searchQuery}*\n\n`;
 
-                videos.forEach((video, index) => {
-                    resultText += `${index + 1}. *${video.title}*\n`;
-                    resultText += `👤 ${video.uploader || video.channel || 'Unknown'}\n`;
-                    resultText += `⏱️ ${this.formatDuration(video.duration || 0)}\n`;
-                    resultText += `👀 ${this.formatNumber(parseInt(video.view_count || 0))} views\n`;
-                    resultText += `🔗 ${video.webpage_url}\n\n`;
+                const results = videoMatches.slice(0, 5).map((match, index) => {
+                    const videoIdMatch = match.match(/"videoId":"([^"]+)"/);
+                    const titleMatch = match.match(/"text":"([^"]+)"/);
+
+                    if (videoIdMatch && titleMatch) {
+                        const videoId = videoIdMatch[1];
+                        const title = titleMatch[1].replace(/\\u0026/g, '&');
+                        const url = `https://youtu.be/${videoId}`;
+
+                        resultText += `${index + 1}. *${title}*\n`;
+                        resultText += `🔗 ${url}\n\n`;
+                    }
                 });
 
                 resultText += `💡 *Tip:* Use \`${config.PREFIX}ytv <url>\` to download any of these videos.`;
@@ -584,7 +439,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Validate YouTube URL with enhanced patterns
+     * Validate YouTube URL
      */
     isValidYouTubeUrl(url) {
         const youtubePatterns = [
@@ -628,7 +483,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Get plugin statistics for monitoring
+     * Get plugin statistics
      */
     getStats() {
         return {
@@ -639,7 +494,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Clean up old temporary files
+     * Clean up temp files
      */
     async cleanupTempFiles() {
         const tmpDir = path.join(__dirname, '..', 'tmp');
