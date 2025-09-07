@@ -49,7 +49,7 @@ class YouTubePlugin {
     setupSafetyMeasures() {
         // Configure play-dl with safety options
         this.playOptions = {
-            quality: 'highest'
+            // No quality parameter needed for basic info
         };
 
         // Start cleanup interval
@@ -233,7 +233,8 @@ class YouTubePlugin {
                     }, 300000); // 5 minute timeout
 
                     try {
-                        const stream = await play.stream(url, { quality: 'highest' });
+                        // Use stream_from_info for better control
+                        const stream = await play.stream_from_info(info);
                         const writeStream = fs.createWriteStream(tempFile);
 
                         stream.stream.pipe(writeStream);
