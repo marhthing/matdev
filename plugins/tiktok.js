@@ -58,62 +58,65 @@ class TikTokPlugin {
                 return;
             }
 
-            // No processing message needed
-
-            try {
-                // Download video info and link
-                const result = await TiktokDL.Downloader(url, {
-                    version: "v3"
-                });
-
-                if (!result || !result.result) {
-                    throw new Error('Failed to get video data');
-                }
-
-                const videoData = result.result;
-                
-                // Get video download URL (try different quality options)
-                let videoUrl = null;
-                
-                if (videoData.video) {
-                    videoUrl = videoData.video.noWatermark || videoData.video.watermark || videoData.video[0];
-                } else if (videoData.type === 'video' && videoData.video_data) {
-                    videoUrl = videoData.video_data.nwm_video_url_HQ || videoData.video_data.nwm_video_url || videoData.video_data.wm_video_url;
-                }
-
-                if (!videoUrl) {
-                    throw new Error('No video download URL found');
-                }
-
-                // Download the video
-                const videoResponse = await axios.get(videoUrl, {
-                    responseType: 'arraybuffer',
-                    timeout: 60000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            // Try different API versions
+            let videoUrl = null;
+            const versions = ["v2", "v1", "v3"];
+            
+            for (const version of versions) {
+                try {
+                    const result = await TiktokDL.Downloader(url, { version });
+                    
+                    if (result && result.status === "success" && result.result) {
+                        const videoData = result.result;
+                        
+                        // Try to get video URL from different possible locations
+                        if (videoData.video) {
+                            videoUrl = videoData.video.noWatermark || videoData.video.watermark || videoData.video[0];
+                        } else if (videoData.video_data) {
+                            videoUrl = videoData.video_data.nwm_video_url_HQ || 
+                                      videoData.video_data.nwm_video_url || 
+                                      videoData.video_data.wm_video_url;
+                        } else if (videoData.play) {
+                            videoUrl = videoData.play;
+                        } else if (videoData.download_urls && videoData.download_urls.length > 0) {
+                            videoUrl = videoData.download_urls[0];
+                        }
+                        
+                        if (videoUrl) {
+                            break; // Found a working URL, exit loop
+                        }
                     }
-                });
-
-                if (!videoResponse.data) {
-                    throw new Error('Failed to download video data');
+                } catch (versionError) {
+                    // Try next version
+                    continue;
                 }
-
-                // No caption needed
-
-                // Send video
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: Buffer.from(videoResponse.data),
-                    mimetype: 'video/mp4'
-                });
-
-                // No processing message to delete
-
-            } catch (downloadError) {
-                console.error('TikTok download error:', downloadError);
-                
-                // Send simple error message
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download TikTok video.');
             }
+
+            if (!videoUrl) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download TikTok video.');
+                return;
+            }
+
+            // Download the video
+            const videoResponse = await axios.get(videoUrl, {
+                responseType: 'arraybuffer',
+                timeout: 60000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': 'https://www.tiktok.com/'
+                }
+            });
+
+            if (!videoResponse.data) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download TikTok video.');
+                return;
+            }
+
+            // Send video
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                video: Buffer.from(videoResponse.data),
+                mimetype: 'video/mp4'
+            });
 
         } catch (error) {
             console.error('Error in TikTok command:', error);
