@@ -153,7 +153,11 @@ class YouTubePlugin {
                 // Human-like delay before fetching video info
                 await humanDelayYT(1000, 2000);
                 
-                // Get video info with custom options
+                // Create temporary directory for ytdl cache files
+                const ytdlTempDir = path.join(__dirname, '..', 'tmp', 'ytdl_cache');
+                await fs.ensureDir(ytdlTempDir);
+
+                // Get video info with custom options and temp directory
                 const info = await ytdl.getInfo(url, {
                     requestOptions: {
                         headers: {
@@ -165,6 +169,10 @@ class YouTubePlugin {
                             'Connection': 'keep-alive',
                             'Upgrade-Insecure-Requests': '1'
                         }
+                    },
+                    agent: {
+                        localAddress: undefined,
+                        jar: true
                     }
                 });
                 const videoDetails = info.videoDetails;
@@ -192,16 +200,30 @@ class YouTubePlugin {
                 // Human-like delay before starting download
                 await humanDelayYT(1500, 2500);
 
-                // Download video
+                // Download video with proper temp handling
                 await new Promise((resolve, reject) => {
-                    const stream = ytdl(url, { format: format });
+                    const stream = ytdl(url, { 
+                        format: format,
+                        requestOptions: {
+                            headers: {
+                                'User-Agent': getRandomYTUserAgent()
+                            }
+                        }
+                    });
                     const writeStream = fs.createWriteStream(tempFile);
 
                     stream.pipe(writeStream);
 
-                    stream.on('error', reject);
+                    stream.on('error', (error) => {
+                        writeStream.destroy();
+                        reject(error);
+                    });
                     writeStream.on('error', reject);
-                    writeStream.on('finish', resolve);
+                    writeStream.on('finish', () => {
+                        // Clean up any ytdl temp files immediately
+                        this.cleanupYtdlTempFiles().catch(() => {});
+                        resolve();
+                    });
                 });
 
                 // Read video file
@@ -234,6 +256,9 @@ class YouTubePlugin {
             if (tempFile) {
                 await fs.unlink(tempFile).catch(() => {});
             }
+            
+            // Clean up any ytdl temporary files
+            await this.cleanupYtdlTempFiles().catch(() => {});
         }
     }
 
@@ -340,6 +365,36 @@ class YouTubePlugin {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * Clean up ytdl temporary files
+     */
+    async cleanupYtdlTempFiles() {
+        try {
+            // Clean up root directory ytdl files
+            const rootDir = path.join(__dirname, '..');
+            const rootFiles = await fs.readdir(rootDir);
+            
+            for (const file of rootFiles) {
+                if (file.includes('-watch.html') || file.includes('ytdl-')) {
+                    const filePath = path.join(rootDir, file);
+                    await fs.unlink(filePath).catch(() => {});
+                }
+            }
+
+            // Clean up ytdl cache directory
+            const ytdlTempDir = path.join(__dirname, '..', 'tmp', 'ytdl_cache');
+            if (await fs.pathExists(ytdlTempDir)) {
+                const cacheFiles = await fs.readdir(ytdlTempDir);
+                for (const file of cacheFiles) {
+                    const filePath = path.join(ytdlTempDir, file);
+                    await fs.unlink(filePath).catch(() => {});
+                }
+            }
+        } catch (error) {
+            // Silent cleanup - don't log errors
+        }
     }
 
     /**
