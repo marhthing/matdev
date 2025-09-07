@@ -234,11 +234,6 @@ class SchedulePlugin {
                 });
                 return;
             }
-                await this.bot.sock.sendMessage(fromJid, { 
-                    text: '❌ Cannot schedule messages in the past!' 
-                });
-                return;
-            }
             
             // Get message content
             let messageContent = '';
