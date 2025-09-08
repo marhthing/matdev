@@ -93,7 +93,7 @@ class UpscalePlugin {
                     message: contextInfo.quotedMessage
                 };
 
-                console.log('Downloading media from quoted message...');
+                // console.log('Downloading media from quoted message...');
                 const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                 if (!buffer || buffer.length === 0) {
@@ -104,7 +104,7 @@ class UpscalePlugin {
                     return;
                 }
 
-                console.log(`Downloaded image buffer: ${buffer.length} bytes`);
+                // console.log(`Downloaded image buffer: ${buffer.length} bytes`);
 
                 // Save image temporarily
                 const tempFileName = `upscale_${Date.now()}.jpg`;
@@ -128,7 +128,7 @@ class UpscalePlugin {
                     return;
                 }
 
-                console.log(`Upscaled image buffer: ${upscaledBuffer.length} bytes`);
+                // console.log(`Upscaled image buffer: ${upscaledBuffer.length} bytes`);
 
                 // Comprehensive validation of the upscaled image
                 try {
@@ -162,8 +162,8 @@ class UpscalePlugin {
                         throw new Error('Upscaled image appears to be blank or corrupted');
                     }
 
-                    console.log(`Upscaled image validation passed: ${metadata.width}x${metadata.height}`);
-                    console.log(`Image stats - R: ${channels[0]?.mean.toFixed(1)}, G: ${channels[1]?.mean.toFixed(1)}, B: ${channels[2]?.mean.toFixed(1)}`);
+                    // console.log(`Upscaled image validation passed: ${metadata.width}x${metadata.height}`);
+                    // console.log(`Image stats - R: ${channels[0]?.mean.toFixed(1)}, G: ${channels[1]?.mean.toFixed(1)}, B: ${channels[2]?.mean.toFixed(1)}`);
                 } catch (validationError) {
                     console.error('Image validation failed:', validationError);
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -176,18 +176,18 @@ class UpscalePlugin {
                 // Send the upscaled image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: upscaledBuffer,
-                    caption: '_✨ Image Upscaled by MATDEV AI (100% FREE)_'
+                    caption: '_✨ Image Upscaled by MATDEV AI_'
                 });
 
                 // Edit processing message to show completion
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '✅ Image upscaling completed with FREE methods!',
+                    text: '✅ Upscale',
                     edit: processingMsg.key
                 });
 
                 // Clean up temporary file
                 await fs.remove(tempFilePath);
-                console.log('✅ Image upscaling completed');
+                // console.log('✅ Image upscaling completed');
 
             } catch (processError) {
                 console.error('Upscaling process error:', processError);
@@ -248,7 +248,7 @@ class UpscalePlugin {
      * Advanced Sharp Processing (PRIMARY METHOD - Always Free)
      */
     async tryAdvancedSharp(imageBuffer, imagePath) {
-        console.log('🚀 Using Advanced Sharp Processing (100% Free)...');
+        // console.log('🚀 Using Advanced Sharp Processing (100% Free)...');
         
         const sharp = require('sharp');
         const inputMetadata = await sharp(imageBuffer).metadata();
@@ -257,7 +257,7 @@ class UpscalePlugin {
             throw new Error('Invalid image metadata');
         }
         
-        console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height}`);
+        // console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height}`);
         
         // Smart scaling - more aggressive for better visual results
         let scaleFactor = 4;
@@ -270,7 +270,7 @@ class UpscalePlugin {
         const newWidth = Math.round(inputMetadata.width * scaleFactor);
         const newHeight = Math.round(inputMetadata.height * scaleFactor);
         
-        console.log(`🎯 Target: ${newWidth}x${newHeight} (${scaleFactor}x scaling)`);
+        // console.log(`🎯 Target: ${newWidth}x${newHeight} (${scaleFactor}x scaling)`);
         
         let processedBuffer;
         
@@ -313,8 +313,8 @@ class UpscalePlugin {
         }
         
         const outputMetadata = await sharp(processedBuffer).metadata();
-        console.log(`✅ Sharp processing success: ${outputMetadata.width}x${outputMetadata.height}`);
-        console.log(`📊 Size: ${(processedBuffer.length / 1024).toFixed(1)}KB`);
+        // console.log(`✅ Sharp processing success: ${outputMetadata.width}x${outputMetadata.height}`);
+        // console.log(`📊 Size: ${(processedBuffer.length / 1024).toFixed(1)}KB`);
         
         return processedBuffer;
     }
