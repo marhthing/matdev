@@ -190,10 +190,9 @@ class UpscalePlugin {
                     caption: '_✨ Image Upscaled by MATDEV AI_'
                 });
 
-                // Edit processing message to show completion
+                // Silent completion - no message
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '✅ Upscale',
-                    edit: processingMsg.key
+                    delete: processingMsg.key
                 });
 
                 // Clean up temporary file
@@ -240,13 +239,13 @@ class UpscalePlugin {
 
         for (const apiFunction of freeApis) {
             try {
-                console.log(`Trying ${apiFunction.name}...`);
+                // console.log(`Trying ${apiFunction.name}...`);
                 const result = await apiFunction(imageBuffer, imagePath);
                 if (result) {
                     return result;
                 }
             } catch (error) {
-                console.log(`${apiFunction.name} failed:`, error.message);
+                // console.log(`${apiFunction.name} failed:`, error.message);
                 continue;
             }
         }
