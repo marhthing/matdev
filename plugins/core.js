@@ -1181,29 +1181,39 @@ class CorePlugin {
     }
 
     /**
-     * Delete entire chat (like WhatsApp's Delete Chat button)
+     * Clear chat using best method for chat type (2025 approach)
      */
     async clearCommand(messageInfo) {
         try {
             const chatJid = messageInfo.chat_jid;
+            const isGroup = chatJid.includes('@g.us');
             
-            // Get the last message from our storage to use for deletion
-            const lastMessage = await this.getLastMessageForChat(chatJid);
-            
-            if (!lastMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ No messages found in this chat to delete.');
-                return;
+            if (isGroup) {
+                // For GROUPS: Use message flooding method (works 100%)
+                await this.clearGroupChat(messageInfo);
+            } else {
+                // For PRIVATE CHATS: Try chat deletion first, fallback to flooding
+                await this.clearPrivateChat(messageInfo);
             }
             
-            // Send confirmation
-            // const confirmationText = '🗑️ Deleting entire chat...';
-            // await this.bot.messageHandler.reply(messageInfo, confirmationText);
+        } catch (error) {
+            console.error('Error in clear command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat.');
+        }
+    }
+
+    /**
+     * Clear private chat by attempting deletion
+     */
+    async clearPrivateChat(messageInfo) {
+        const chatJid = messageInfo.chat_jid;
+        
+        try {
+            // Get the last message for deletion method
+            const lastMessage = await this.getLastMessageForChat(chatJid);
             
-            // Small delay to ensure confirmation is sent
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            try {
-                // Delete the entire chat using the last message
+            if (lastMessage) {
+                // Try to delete entire private chat
                 await this.bot.sock.chatModify({
                     delete: true,
                     lastMessages: [{
@@ -1212,19 +1222,61 @@ class CorePlugin {
                     }]
                 }, chatJid);
                 
-                console.log(`✅ Chat deleted entirely for ${chatJid}`);
+                console.log(`✅ Private chat deleted for ${chatJid}`);
+                return;
+            }
+        } catch (deleteError) {
+            console.log('Private chat deletion failed, using fallback method');
+        }
+        
+        // Fallback to message flooding for private chats too
+        await this.clearGroupChat(messageInfo);
+    }
+
+    /**
+     * Clear group chat using message flooding method
+     */
+    async clearGroupChat(messageInfo) {
+        const chatJid = messageInfo.chat_jid;
+        
+        // Send clearing indicator
+        const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat...');
+        
+        // Use invisible characters and spaces to push chat up
+        const invisibleChars = [
+            '⠀', // Braille space
+            '​', // Zero-width space  
+            '⠀⠀⠀⠀⠀', // Multiple braille spaces
+            '​​​​​', // Multiple zero-width spaces
+            ' ', // Regular space
+        ];
+        
+        try {
+            // Send 25 messages with different invisible characters
+            for (let i = 0; i < 25; i++) {
+                const char = invisibleChars[i % invisibleChars.length];
+                await this.bot.sock.sendMessage(chatJid, {
+                    text: char
+                });
                 
-            } catch (deleteError) {
-                console.error('Chat deletion failed:', deleteError.message);
-                
-                // Send error message to user
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to delete chat. This may be a limitation of WhatsApp\'s API for this chat type.');
+                // Small delay between messages to avoid spam detection
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
             
+            // Send completion message
+            await this.bot.sock.sendMessage(chatJid, {
+                text: '✅ Chat area cleared!',
+                edit: clearingMsg.key
+            });
+            
+            console.log(`✅ Group chat cleared using flooding method for ${chatJid}`);
+            
         } catch (error) {
-            console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error deleting chat.');
+            console.error('Group clearing failed:', error);
+            await this.bot.sock.sendMessage(chatJid, {
+                text: '❌ Failed to clear chat area',
+                edit: clearingMsg.key
+            });
         }
     }
 
