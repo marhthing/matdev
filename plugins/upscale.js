@@ -98,20 +98,13 @@ class UpscalePlugin {
 
             // Using 100% FREE methods only - no API keys needed!
 
-            // Send processing indicator
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 Processing image for upscaling...');
-
             try {
 
                 // console.log('Downloading media from quoted message...');
                 const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                 if (!buffer || buffer.length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Failed to download the image or image is empty.',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download the image or image is empty.');
                     return;
                 }
 
@@ -132,10 +125,7 @@ class UpscalePlugin {
                 const upscaledBuffer = await this.upscaleImage(tempFilePath);
 
                 if (!upscaledBuffer || upscaledBuffer.length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Failed to upscale the image. Please try again.',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to upscale the image. Please try again.');
                     return;
                 }
 
@@ -177,22 +167,14 @@ class UpscalePlugin {
                     // console.log(`Image stats - R: ${channels[0]?.mean.toFixed(1)}, G: ${channels[1]?.mean.toFixed(1)}, B: ${channels[2]?.mean.toFixed(1)}`);
                 } catch (validationError) {
                     console.error('Image validation failed:', validationError);
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Upscaled image is corrupted or blank. Please try with a different image.',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Upscaled image is corrupted or blank. Please try with a different image.');
                     return;
                 }
 
-                // Send the upscaled image
+                // Send the upscaled image silently
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: upscaledBuffer,
                     caption: '_✨ Image Upscaled by MATDEV AI_'
-                });
-
-                // Silent completion - no message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    delete: processingMsg.key
                 });
 
                 // Clean up temporary file
@@ -209,11 +191,8 @@ class UpscalePlugin {
                     errorMessage = '❌ Image file is too large. Please try with a smaller image.';
                 }
 
-                // Edit the processing message to show error
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: errorMessage,
-                    edit: processingMsg.key
-                });
+                // Send error message
+                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
