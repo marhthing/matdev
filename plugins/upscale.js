@@ -259,10 +259,13 @@ class UpscalePlugin {
         
         console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height}`);
         
-        // Smart scaling - use 4x for small images, 3x for medium, 2x for large
+        // Smart scaling - more aggressive for better visual results
         let scaleFactor = 4;
-        if (inputMetadata.width > 800 || inputMetadata.height > 600) scaleFactor = 3;
-        if (inputMetadata.width > 1200 || inputMetadata.height > 900) scaleFactor = 2;
+        if (inputMetadata.width > 600 || inputMetadata.height > 450) scaleFactor = 3;
+        if (inputMetadata.width > 1000 || inputMetadata.height > 750) scaleFactor = 2;
+        
+        // Force minimum 2x scaling even for very large images
+        if (scaleFactor < 2) scaleFactor = 2;
         
         const newWidth = Math.round(inputMetadata.width * scaleFactor);
         const newHeight = Math.round(inputMetadata.height * scaleFactor);
@@ -279,8 +282,8 @@ class UpscalePlugin {
                     withoutEnlargement: false,
                     fastShrinkOnLoad: false
                 })
-                .sharpen({ sigma: 0.8, m1: 1.0, m2: 0.3 })  // Advanced sharpening
-                .modulate({ brightness: 1.02, saturation: 1.08, lightness: 0 })
+                .sharpen({ sigma: 1.2, m1: 1.1, m2: 0.2 })  // More aggressive sharpening
+                .modulate({ brightness: 1.04, saturation: 1.12, lightness: 0 })  // Enhanced colors
                 .png({ 
                     quality: 100,
                     compressionLevel: 6,
@@ -295,9 +298,10 @@ class UpscalePlugin {
                     withoutEnlargement: false,
                     fastShrinkOnLoad: false
                 })
-                .sharpen({ sigma: 1.0, m1: 1.0, m2: 0.2 })  // Optimized for JPEG
-                .modulate({ brightness: 1.01, saturation: 1.05, lightness: 0 })
-                .gamma(1.1)  // Slight gamma correction for better contrast
+                .sharpen({ sigma: 1.5, m1: 1.2, m2: 0.1 })  // More aggressive sharpening
+                .modulate({ brightness: 1.03, saturation: 1.15, lightness: 0 })  // Enhanced colors
+                .gamma(1.15)  // Better contrast enhancement
+                .linear(1.1, 0)  // Slight contrast boost
                 .jpeg({ 
                     quality: 95,
                     progressive: true,
