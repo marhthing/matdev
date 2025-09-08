@@ -1181,139 +1181,95 @@ class CorePlugin {
     }
 
     /**
-     * Clear chat using best method for chat type (2025 approach)
+     * Clear chat by deleting individual messages using "delete for me"
      */
     async clearCommand(messageInfo) {
         try {
             const chatJid = messageInfo.chat_jid;
-            const isGroup = chatJid.includes('@g.us');
             
-            if (isGroup) {
-                // For GROUPS: Use message flooding method (works 100%)
-                await this.clearGroupChat(messageInfo);
-            } else {
-                // For PRIVATE CHATS: Try chat deletion first, fallback to flooding
-                await this.clearPrivateChat(messageInfo);
-            }
+            // Send clearing indicator
+            const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat messages...');
             
-        } catch (error) {
-            console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat.');
-        }
-    }
-
-    /**
-     * Clear private chat by attempting deletion
-     */
-    async clearPrivateChat(messageInfo) {
-        const chatJid = messageInfo.chat_jid;
-        
-        try {
-            // Get the last message for deletion method
-            const lastMessage = await this.getLastMessageForChat(chatJid);
+            // Get recent messages from the database
+            const recentMessages = await this.bot.database.getRecentMessages(chatJid, 100);
             
-            if (lastMessage) {
-                // Try to delete entire private chat
-                await this.bot.sock.chatModify({
-                    delete: true,
-                    lastMessages: [{
-                        key: lastMessage.key,
-                        messageTimestamp: lastMessage.messageTimestamp || Date.now()
-                    }]
-                }, chatJid);
-                
-                console.log(`✅ Private chat deleted for ${chatJid}`);
+            if (recentMessages.length === 0) {
+                await this.bot.sock.sendMessage(chatJid, {
+                    text: '✅ No messages to clear',
+                    edit: clearingMsg.key
+                });
                 return;
             }
-        } catch (deleteError) {
-            console.log('Private chat deletion failed, using fallback method');
-        }
-        
-        // Fallback to message flooding for private chats too
-        await this.clearGroupChat(messageInfo);
-    }
-
-    /**
-     * Clear group chat using message flooding method
-     */
-    async clearGroupChat(messageInfo) {
-        const chatJid = messageInfo.chat_jid;
-        
-        // Send clearing indicator
-        const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat...');
-        
-        // Use invisible characters and spaces to push chat up
-        const invisibleChars = [
-            '⠀', // Braille space
-            '​', // Zero-width space  
-            '⠀⠀⠀⠀⠀', // Multiple braille spaces
-            '​​​​​', // Multiple zero-width spaces
-            ' ', // Regular space
-        ];
-        
-        try {
-            // Send 25 messages with different invisible characters
-            for (let i = 0; i < 25; i++) {
-                const char = invisibleChars[i % invisibleChars.length];
-                await this.bot.sock.sendMessage(chatJid, {
-                    text: char
+            
+            let deletedCount = 0;
+            let failedCount = 0;
+            
+            // Delete messages in batches to avoid rate limiting
+            const batchSize = 5;
+            for (let i = 0; i < recentMessages.length; i += batchSize) {
+                const batch = recentMessages.slice(i, i + batchSize);
+                
+                // Process batch
+                const deletePromises = batch.map(async (msg) => {
+                    try {
+                        // Create message key for deletion
+                        const messageKey = {
+                            id: msg.id,
+                            fromMe: msg.from_me,
+                            remoteJid: chatJid
+                        };
+                        
+                        // Use deleteMessage with forMe: true for "delete for me"
+                        await this.bot.sock.sendMessage(chatJid, {
+                            delete: messageKey
+                        });
+                        
+                        deletedCount++;
+                        
+                    } catch (error) {
+                        console.error(`Failed to delete message ${msg.id}:`, error.message);
+                        failedCount++;
+                    }
                 });
                 
-                // Small delay between messages to avoid spam detection
-                await new Promise(resolve => setTimeout(resolve, 50));
+                // Wait for batch to complete
+                await Promise.allSettled(deletePromises);
+                
+                // Small delay between batches to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Update progress
+                if (i % 20 === 0) { // Update every 4 batches (20 messages)
+                    try {
+                        await this.bot.sock.sendMessage(chatJid, {
+                            text: `🧹 Clearing... ${deletedCount}/${recentMessages.length} deleted`,
+                            edit: clearingMsg.key
+                        });
+                    } catch (error) {
+                        // Ignore edit errors
+                    }
+                }
             }
             
             // Send completion message
+            const resultText = deletedCount > 0 
+                ? `✅ Chat cleared! Deleted ${deletedCount} messages${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+                : '❌ No messages could be deleted';
+                
             await this.bot.sock.sendMessage(chatJid, {
-                text: '✅ Chat area cleared!',
+                text: resultText,
                 edit: clearingMsg.key
             });
             
-            console.log(`✅ Group chat cleared using flooding method for ${chatJid}`);
+            console.log(`✅ Chat cleared for ${chatJid}: ${deletedCount} deleted, ${failedCount} failed`);
             
         } catch (error) {
-            console.error('Group clearing failed:', error);
-            await this.bot.sock.sendMessage(chatJid, {
-                text: '❌ Failed to clear chat area',
-                edit: clearingMsg.key
-            });
+            console.error('Error in clear command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat messages.');
         }
     }
 
-    /**
-     * Get the last message from a chat for deletion purposes
-     */
-    async getLastMessageForChat(chatJid) {
-        try {
-            // Get messages from our storage
-            const allMessages = Array.from(this.bot.database.messages.values());
-            
-            // Find the most recent message in this chat
-            const chatMessages = allMessages
-                .filter(msg => msg.chat_jid === chatJid)
-                .sort((a, b) => b.timestamp - a.timestamp);
-            
-            if (chatMessages.length === 0) {
-                return null;
-            }
-            
-            const lastMsg = chatMessages[0];
-            
-            // Return in the format needed for chatModify
-            return {
-                key: {
-                    id: lastMsg.id,
-                    fromMe: lastMsg.from_me,
-                    remoteJid: chatJid
-                },
-                messageTimestamp: lastMsg.timestamp
-            };
-            
-        } catch (error) {
-            console.error('Error getting last message:', error);
-            return null;
-        }
-    }
+    
 
 
 }
