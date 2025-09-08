@@ -130,7 +130,7 @@ class UpscalePlugin {
 
                 console.log(`Upscaled image buffer: ${upscaledBuffer.length} bytes`);
 
-                // Validate the upscaled image is not corrupted
+                // Comprehensive validation of the upscaled image
                 try {
                     const sharp = require('sharp');
                     const metadata = await sharp(upscaledBuffer).metadata();
@@ -139,11 +139,35 @@ class UpscalePlugin {
                         throw new Error('Invalid image dimensions');
                     }
 
-                    console.log(`Upscaled image validation: ${metadata.width}x${metadata.height}`);
+                    // Test that the image can actually be processed (corruption check)
+                    const testImage = await sharp(upscaledBuffer)
+                        .resize(50, 50)
+                        .jpeg()
+                        .toBuffer();
+
+                    if (testImage.length < 50) {
+                        throw new Error('Image appears to be corrupted (test processing failed)');
+                    }
+
+                    // Check if the image is just black/blank by sampling pixels
+                    const stats = await sharp(upscaledBuffer).stats();
+                    const channels = stats.channels;
+                    
+                    // Check if all channels have very low variance (indicating blank image)
+                    const isBlank = channels.every(channel => 
+                        channel.mean < 5 || (channel.max - channel.min) < 10
+                    );
+
+                    if (isBlank) {
+                        throw new Error('Upscaled image appears to be blank or corrupted');
+                    }
+
+                    console.log(`Upscaled image validation passed: ${metadata.width}x${metadata.height}`);
+                    console.log(`Image stats - R: ${channels[0]?.mean.toFixed(1)}, G: ${channels[1]?.mean.toFixed(1)}, B: ${channels[2]?.mean.toFixed(1)}`);
                 } catch (validationError) {
                     console.error('Image validation failed:', validationError);
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Upscaled image is corrupted. Please try with a different image.',
+                        text: '❌ Upscaled image is corrupted or blank. Please try with a different image.',
                         edit: processingMsg.key
                     });
                     return;
@@ -328,89 +352,73 @@ class UpscalePlugin {
 
             console.log(`Upscaling from ${inputMetadata.width}x${inputMetadata.height} to ${newWidth}x${newHeight}`);
 
-            // High-quality upscaling with multiple enhancement steps
-            let sharpProcessor = sharp(imageBuffer)
+            // Simple but reliable upscaling - avoid complex processing that can corrupt images
+            const upscaledBuffer = await sharp(imageBuffer)
                 .resize(newWidth, newHeight, {
                     kernel: sharp.kernel.lanczos3,
                     withoutEnlargement: false,
                     fastShrinkOnLoad: false
-                });
+                })
+                .sharpen(1.2) // Gentle sharpening
+                .jpeg({ 
+                    quality: 92,
+                    progressive: false,
+                    force: false // Don't force JPEG - let Sharp choose best format
+                })
+                .toBuffer();
 
-            // Apply enhancements based on image type
-            if (inputMetadata.hasAlpha) {
-                // Handle images with transparency
-                sharpProcessor = sharpProcessor
-                    .sharpen({ sigma: 1.2, flat: 1.0, jagged: 1.5 })
-                    .png({ quality: 95, progressive: true, force: true });
-            } else {
-                // Regular images
-                sharpProcessor = sharpProcessor
-                    .sharpen({ sigma: 1.5, flat: 1.0, jagged: 2.0 })
-                    .modulate({
-                        brightness: 1.02,
-                        contrast: 1.1,
-                        saturation: 1.05
-                    })
-                    .jpeg({ 
-                        quality: 95,
-                        progressive: true,
-                        optimizeScans: true,
-                        force: true
-                    });
+            // Thorough validation to ensure image is not corrupted
+            const outputMetadata = await sharp(upscaledBuffer).metadata();
+            
+            if (!outputMetadata.width || !outputMetadata.height || 
+                outputMetadata.width !== newWidth || outputMetadata.height !== newHeight) {
+                throw new Error(`Output validation failed: expected ${newWidth}x${newHeight}, got ${outputMetadata.width}x${outputMetadata.height}`);
             }
 
-            const upscaledBuffer = await sharpProcessor.toBuffer();
+            // Additional corruption check - try to process the output image
+            const testBuffer = await sharp(upscaledBuffer)
+                .resize(100, 100)
+                .jpeg()
+                .toBuffer();
+            
+            if (testBuffer.length < 100) {
+                throw new Error('Output image appears to be corrupted (test resize failed)');
+            }
 
-            // Validate output
-            const outputMetadata = await sharp(upscaledBuffer).metadata();
             console.log(`✅ Advanced upscaling completed: ${inputMetadata.width}x${inputMetadata.height} -> ${outputMetadata.width}x${outputMetadata.height}`);
             console.log(`Output buffer size: ${upscaledBuffer.length} bytes`);
-
-            // Ensure the output is significantly larger than input to confirm upscaling worked
-            if (upscaledBuffer.length < imageBuffer.length * 1.5) {
-                throw new Error('Upscaled image is not significantly larger than original');
-            }
 
             return upscaledBuffer;
 
         } catch (error) {
             console.error('Error in advanced fallback upscaling:', error);
 
-            // Simple but reliable fallback
+            // Ultra-simple fallback that should always work
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
                 const metadata = await sharp(imageBuffer).metadata();
 
-                console.log('Using simple fallback upscaling...');
+                console.log('Using ultra-simple fallback upscaling...');
 
+                // Most basic upscaling possible
                 const simpleUpscaled = await sharp(imageBuffer)
-                    .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.lanczos3,
-                        withoutEnlargement: false
-                    })
-                    .jpeg({ 
-                        quality: 90,
-                        progressive: true,
-                        force: true
-                    })
+                    .resize(metadata.width * 2, metadata.height * 2)
                     .toBuffer();
 
-                console.log(`Simple fallback completed: ${simpleUpscaled.length} bytes`);
+                console.log(`Ultra-simple fallback completed: ${simpleUpscaled.length} bytes`);
 
-                // Final validation
+                // Basic validation
                 const finalMetadata = await sharp(simpleUpscaled).metadata();
-                if (finalMetadata.width && finalMetadata.height && 
-                    finalMetadata.width === metadata.width * 2 &&
-                    finalMetadata.height === metadata.height * 2) {
-                    console.log('✅ Simple fallback validation passed');
+                if (finalMetadata.width === metadata.width * 2 && finalMetadata.height === metadata.height * 2) {
+                    console.log('✅ Ultra-simple fallback validation passed');
                     return simpleUpscaled;
                 }
 
-                throw new Error('Simple fallback validation failed');
+                throw new Error('Ultra-simple fallback validation failed');
 
             } catch (simpleError) {
-                console.error('Simple fallback also failed:', simpleError);
+                console.error('Ultra-simple fallback also failed:', simpleError);
                 return null;
             }
         }
