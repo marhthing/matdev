@@ -292,10 +292,22 @@ class UpscalePlugin {
             timeout: 45000
         });
 
-        if (response.status === 200 && response.data.byteLength > 1000) {
-            return Buffer.from(response.data);
+        if (response.status === 200 && response.data.byteLength > 10000) {
+            const buffer = Buffer.from(response.data);
+            
+            // Validate that it's actually an image format
+            const sharp = require('sharp');
+            try {
+                const metadata = await sharp(buffer).metadata();
+                if (metadata.width && metadata.height) {
+                    console.log(`✅ Waifu2x alternative success: ${metadata.width}x${metadata.height}`);
+                    return buffer;
+                }
+            } catch (validationError) {
+                console.log('⚠️ Waifu2x alternative returned non-image data');
+            }
         }
-        throw new Error('Waifu2x alternative failed');
+        throw new Error('Waifu2x alternative failed or returned invalid image');
     }
 
     /**
@@ -335,90 +347,87 @@ class UpscalePlugin {
     async advancedFallback(imagePath) {
         try {
             const sharp = require('sharp');
+            
+            console.log('🔧 Using advanced local upscaling...');
+            
+            // Read and validate input image
             const imageBuffer = await fs.readFile(imagePath);
-
-            // Validate input image first
             const inputMetadata = await sharp(imageBuffer).metadata();
 
             if (!inputMetadata.width || !inputMetadata.height) {
                 throw new Error('Invalid input image metadata');
             }
 
-            console.log(`Input image: ${inputMetadata.width}x${inputMetadata.height}, format: ${inputMetadata.format}`);
+            console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height} (${inputMetadata.format})`);
 
             const scaleFactor = 2;
             const newWidth = Math.round(inputMetadata.width * scaleFactor);
             const newHeight = Math.round(inputMetadata.height * scaleFactor);
 
-            console.log(`Upscaling from ${inputMetadata.width}x${inputMetadata.height} to ${newWidth}x${newHeight}`);
+            // Use high-quality upscaling with proper format handling
+            let upscaledBuffer;
+            
+            if (inputMetadata.format === 'png' || inputMetadata.hasAlpha) {
+                // Preserve transparency for PNG images
+                upscaledBuffer = await sharp(imageBuffer)
+                    .resize(newWidth, newHeight, {
+                        kernel: sharp.kernel.lanczos3,
+                        withoutEnlargement: false
+                    })
+                    .png({ 
+                        quality: 95,
+                        compressionLevel: 6
+                    })
+                    .toBuffer();
+            } else {
+                // Use JPEG for other formats
+                upscaledBuffer = await sharp(imageBuffer)
+                    .resize(newWidth, newHeight, {
+                        kernel: sharp.kernel.lanczos3,
+                        withoutEnlargement: false
+                    })
+                    .sharpen(1.0) // Mild sharpening
+                    .jpeg({ 
+                        quality: 90,
+                        progressive: false
+                    })
+                    .toBuffer();
+            }
 
-            // Simple but reliable upscaling - avoid complex processing that can corrupt images
-            const upscaledBuffer = await sharp(imageBuffer)
-                .resize(newWidth, newHeight, {
-                    kernel: sharp.kernel.lanczos3,
-                    withoutEnlargement: false,
-                    fastShrinkOnLoad: false
-                })
-                .sharpen(1.2) // Gentle sharpening
-                .jpeg({ 
-                    quality: 92,
-                    progressive: false,
-                    force: false // Don't force JPEG - let Sharp choose best format
-                })
-                .toBuffer();
-
-            // Thorough validation to ensure image is not corrupted
+            // Validate output
             const outputMetadata = await sharp(upscaledBuffer).metadata();
             
-            if (!outputMetadata.width || !outputMetadata.height || 
-                outputMetadata.width !== newWidth || outputMetadata.height !== newHeight) {
-                throw new Error(`Output validation failed: expected ${newWidth}x${newHeight}, got ${outputMetadata.width}x${outputMetadata.height}`);
+            if (!outputMetadata.width || !outputMetadata.height) {
+                throw new Error('Failed to generate valid upscaled image');
             }
 
-            // Additional corruption check - try to process the output image
-            const testBuffer = await sharp(upscaledBuffer)
-                .resize(100, 100)
-                .jpeg()
-                .toBuffer();
-            
-            if (testBuffer.length < 100) {
-                throw new Error('Output image appears to be corrupted (test resize failed)');
-            }
-
-            console.log(`✅ Advanced upscaling completed: ${inputMetadata.width}x${inputMetadata.height} -> ${outputMetadata.width}x${outputMetadata.height}`);
-            console.log(`Output buffer size: ${upscaledBuffer.length} bytes`);
+            console.log(`✅ Upscaling successful: ${outputMetadata.width}x${outputMetadata.height}`);
+            console.log(`📊 Size: ${(upscaledBuffer.length / 1024).toFixed(1)}KB`);
 
             return upscaledBuffer;
 
         } catch (error) {
-            console.error('Error in advanced fallback upscaling:', error);
+            console.error('❌ Advanced fallback failed:', error.message);
+            console.log('🔄 Trying basic fallback...');
 
-            // Ultra-simple fallback that should always work
+            // Extremely simple fallback
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
                 const metadata = await sharp(imageBuffer).metadata();
 
-                console.log('Using ultra-simple fallback upscaling...');
-
-                // Most basic upscaling possible
-                const simpleUpscaled = await sharp(imageBuffer)
-                    .resize(metadata.width * 2, metadata.height * 2)
+                const basicUpscaled = await sharp(imageBuffer)
+                    .resize(metadata.width * 2, metadata.height * 2, {
+                        kernel: sharp.kernel.nearest
+                    })
+                    .jpeg({ quality: 85 })
                     .toBuffer();
 
-                console.log(`Ultra-simple fallback completed: ${simpleUpscaled.length} bytes`);
+                console.log(`✅ Basic fallback completed: ${(basicUpscaled.length / 1024).toFixed(1)}KB`);
+                return basicUpscaled;
 
-                // Basic validation
-                const finalMetadata = await sharp(simpleUpscaled).metadata();
-                if (finalMetadata.width === metadata.width * 2 && finalMetadata.height === metadata.height * 2) {
-                    console.log('✅ Ultra-simple fallback validation passed');
-                    return simpleUpscaled;
-                }
-
-                throw new Error('Ultra-simple fallback validation failed');
-
-            } catch (simpleError) {
-                console.error('Ultra-simple fallback also failed:', simpleError);
+            } catch (basicError) {
+                console.error('❌ All fallback methods failed:', basicError.message);
                 return null;
             }
         }
