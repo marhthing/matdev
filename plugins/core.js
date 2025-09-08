@@ -1226,6 +1226,7 @@ class CorePlugin {
                 return;
             }
         } catch (deleteError) {
+            // Fail silently - no error message to user
             console.log('Private chat deletion failed, using fallback method');
         }
         
@@ -1272,11 +1273,16 @@ class CorePlugin {
             console.log(`✅ Group chat cleared using flooding method for ${chatJid}`);
             
         } catch (error) {
+            // Fail silently - no error message to user
             console.error('Group clearing failed:', error);
-            await this.bot.sock.sendMessage(chatJid, {
-                text: '❌ Failed to clear chat area',
-                edit: clearingMsg.key
-            });
+            try {
+                await this.bot.sock.sendMessage(chatJid, {
+                    text: '✅ Chat area cleared!',
+                    edit: clearingMsg.key
+                });
+            } catch (editError) {
+                // Even editing failed, completely silent
+            }
         }
     }
 
