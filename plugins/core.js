@@ -1181,91 +1181,142 @@ class CorePlugin {
     }
 
     /**
-     * Clear chat by deleting individual messages using "delete for me"
+     * Clear chat by deleting all visible messages using "delete for me"
      */
     async clearCommand(messageInfo) {
         try {
             const chatJid = messageInfo.chat_jid;
             
             // Send clearing indicator
-            const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat messages...');
+            const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Starting comprehensive chat clear...');
             
-            // Get recent messages from the database
-            const recentMessages = await this.bot.database.getRecentMessages(chatJid, 100);
+            let totalDeleted = 0;
+            let totalFailed = 0;
             
-            if (recentMessages.length === 0) {
+            // Phase 1: Delete stored messages from bot's database
+            const storedMessages = await this.bot.database.getRecentMessages(chatJid, 500);
+            
+            if (storedMessages.length > 0) {
                 await this.bot.sock.sendMessage(chatJid, {
-                    text: '✅ No messages to clear',
+                    text: `🧹 Phase 1: Clearing ${storedMessages.length} stored messages...`,
                     edit: clearingMsg.key
                 });
-                return;
-            }
-            
-            let deletedCount = 0;
-            let failedCount = 0;
-            
-            // Delete messages in batches to avoid rate limiting
-            const batchSize = 5;
-            for (let i = 0; i < recentMessages.length; i += batchSize) {
-                const batch = recentMessages.slice(i, i + batchSize);
                 
-                // Process batch
-                const deletePromises = batch.map(async (msg) => {
-                    try {
-                        // Create message key for deletion
-                        const messageKey = {
-                            id: msg.id,
-                            fromMe: msg.from_me,
-                            remoteJid: chatJid
-                        };
-                        
-                        // Use deleteMessage with forMe: true for "delete for me"
-                        await this.bot.sock.sendMessage(chatJid, {
-                            delete: messageKey
-                        });
-                        
-                        deletedCount++;
-                        
-                    } catch (error) {
-                        console.error(`Failed to delete message ${msg.id}:`, error.message);
-                        failedCount++;
-                    }
-                });
-                
-                // Wait for batch to complete
-                await Promise.allSettled(deletePromises);
-                
-                // Small delay between batches to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Update progress
-                if (i % 20 === 0) { // Update every 4 batches (20 messages)
-                    try {
-                        await this.bot.sock.sendMessage(chatJid, {
-                            text: `🧹 Clearing... ${deletedCount}/${recentMessages.length} deleted`,
-                            edit: clearingMsg.key
-                        });
-                    } catch (error) {
-                        // Ignore edit errors
-                    }
+                const batchSize = 5;
+                for (let i = 0; i < storedMessages.length; i += batchSize) {
+                    const batch = storedMessages.slice(i, i + batchSize);
+                    
+                    const deletePromises = batch.map(async (msg) => {
+                        try {
+                            await this.bot.sock.sendMessage(chatJid, {
+                                delete: {
+                                    id: msg.id,
+                                    fromMe: msg.from_me,
+                                    remoteJid: chatJid
+                                }
+                            });
+                            totalDeleted++;
+                        } catch (error) {
+                            totalFailed++;
+                        }
+                    });
+                    
+                    await Promise.allSettled(deletePromises);
+                    await new Promise(resolve => setTimeout(resolve, 300));
                 }
             }
             
-            // Send completion message
-            const resultText = deletedCount > 0 
-                ? `✅ Chat cleared! Deleted ${deletedCount} messages${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
-                : '❌ No messages could be deleted';
+            // Phase 2: Attempt to fetch and delete chat history from WhatsApp
+            await this.bot.sock.sendMessage(chatJid, {
+                text: `🧹 Phase 2: Fetching chat history to clear...`,
+                edit: clearingMsg.key
+            });
+            
+            try {
+                // Fetch chat history using WhatsApp's API
+                const chatHistory = await this.bot.sock.fetchMessageHistory(chatJid, 100);
+                
+                if (chatHistory && chatHistory.length > 0) {
+                    const historyBatchSize = 3;
+                    for (let i = 0; i < chatHistory.length; i += historyBatchSize) {
+                        const batch = chatHistory.slice(i, i + historyBatchSize);
+                        
+                        const deletePromises = batch.map(async (msg) => {
+                            try {
+                                await this.bot.sock.sendMessage(chatJid, {
+                                    delete: {
+                                        id: msg.key.id,
+                                        fromMe: msg.key.fromMe,
+                                        remoteJid: chatJid
+                                    }
+                                });
+                                totalDeleted++;
+                            } catch (error) {
+                                totalFailed++;
+                            }
+                        });
+                        
+                        await Promise.allSettled(deletePromises);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        // Update progress
+                        if (i % 15 === 0) {
+                            try {
+                                await this.bot.sock.sendMessage(chatJid, {
+                                    text: `🧹 Clearing chat history... ${totalDeleted} deleted`,
+                                    edit: clearingMsg.key
+                                });
+                            } catch (error) {
+                                // Ignore edit errors
+                            }
+                        }
+                    }
+                }
+            } catch (historyError) {
+                console.log('Could not fetch chat history:', historyError.message);
+            }
+            
+            // Phase 3: Try to clear using protocol messages (attempt to simulate "Clear Chat")
+            await this.bot.sock.sendMessage(chatJid, {
+                text: `🧹 Phase 3: Attempting protocol-level clear...`,
+                edit: clearingMsg.key
+            });
+            
+            try {
+                // Send a protocol message to attempt clearing chat
+                await this.bot.sock.sendMessage(chatJid, {
+                    protocolMessage: {
+                        type: 0, // HISTORY_SYNC_NOTIFICATION
+                        historySyncNotification: {
+                            fileSha256: Buffer.alloc(32),
+                            fileLength: 0,
+                            mediaKey: Buffer.alloc(32),
+                            fileEncSha256: Buffer.alloc(32),
+                            directPath: '',
+                            syncType: 0,
+                            chunkOrder: 0
+                        }
+                    }
+                });
+            } catch (protocolError) {
+                console.log('Protocol clear failed:', protocolError.message);
+            }
+            
+            // Final result
+            const resultText = totalDeleted > 0 
+                ? `✅ Chat clear completed!\n\n🗑️ Deleted: ${totalDeleted} messages\n❌ Failed: ${totalFailed} messages\n\n⚠️ Note: Due to WhatsApp limitations, some messages may still be visible. For complete chat clearing, use WhatsApp's "Clear Chat" button manually.`
+                : '❌ No messages could be deleted. This chat may be empty or messages are protected.';
                 
             await this.bot.sock.sendMessage(chatJid, {
                 text: resultText,
                 edit: clearingMsg.key
             });
             
-            console.log(`✅ Chat cleared for ${chatJid}: ${deletedCount} deleted, ${failedCount} failed`);
+            console.log(`✅ Comprehensive chat clear for ${chatJid}: ${totalDeleted} deleted, ${totalFailed} failed`);
             
         } catch (error) {
-            console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat messages.');
+            console.error('Error in comprehensive clear command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error during comprehensive chat clear.');
         }
     }
 
