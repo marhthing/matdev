@@ -24,8 +24,8 @@ class UpscalePlugin {
 
             // Register the upscale command
             this.bot.messageHandler.registerCommand('upscale', this.upscaleCommand.bind(this), {
-                description: 'Upscale image quality using FREE AI methods (reply to an image)',
-                usage: `${config.PREFIX}upscale (reply to image)`,
+                description: 'Upscale image quality using FREE AI methods',
+                usage: `${config.PREFIX}upscale (reply to image or use as caption)`,
                 category: 'media',
                 plugin: 'upscale',
                 source: 'upscale.js'
@@ -44,43 +44,45 @@ class UpscalePlugin {
      */
     async upscaleCommand(messageInfo) {
         try {
-            // Check for quoted message using the same approach as media plugin
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+            let messageToDownload;
 
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to an image to upscale it.\nUsage: Reply to an image and type .upscale');
-                return;
-            }
+            // Check if this is an image with .upscale as caption (like sticker command)
+            const directImage = messageInfo.message?.imageMessage;
+            
+            if (directImage) {
+                // Direct image with .upscale caption
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check for quoted message
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
 
-            // Check if the quoted message has an image
-            if (!quotedMessage.imageMessage && !quotedMessage.stickerMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ The message you replied to must contain an image.');
-                return;
-            }
+                if (!quotedMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Please reply to an image or send image with .upscale as caption.');
+                    return;
+                }
 
-            // Using 100% FREE methods only - no API keys needed!
+                // Check if the quoted message has an image
+                if (!quotedMessage.imageMessage && !quotedMessage.stickerMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ The message you replied to must contain an image.');
+                    return;
+                }
 
-            // Send processing indicator
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 Processing image for upscaling...');
-
-            try {
                 // Get the proper quoted message structure
                 const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
 
                 if (!contextInfo || !contextInfo.quotedMessage) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Could not access the quoted message.',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Could not access the quoted message.');
                     return;
                 }
 
-                // Create proper message structure with original message key
-                const messageToDownload = {
+                // Create proper message structure for quoted message
+                messageToDownload = {
                     key: contextInfo.stanzaId ? {
                         remoteJid: messageInfo.chat_jid,
                         fromMe: contextInfo.participant === this.bot.botJid,
@@ -92,6 +94,15 @@ class UpscalePlugin {
                     },
                     message: contextInfo.quotedMessage
                 };
+            }
+
+            // Using 100% FREE methods only - no API keys needed!
+
+            // Send processing indicator
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
+                '🔄 Processing image for upscaling...');
+
+            try {
 
                 // console.log('Downloading media from quoted message...');
                 const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
