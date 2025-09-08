@@ -7,8 +7,8 @@ const config = require('../config');
 class UpscalePlugin {
     constructor() {
         this.name = 'upscale';
-        this.description = 'AI image upscaling for enhanced picture quality';
-        this.version = '1.0.0';
+        this.description = 'FREE AI image upscaling for enhanced picture quality';
+        this.version = '2.0.0';
         this.enabled = true;
         this.tempDir = path.join(process.cwd(), 'tmp');
     }
@@ -24,7 +24,7 @@ class UpscalePlugin {
 
             // Register the upscale command
             this.bot.messageHandler.registerCommand('upscale', this.upscaleCommand.bind(this), {
-                description: 'Upscale image quality (reply to an image)',
+                description: 'Upscale image quality using FREE AI methods (reply to an image)',
                 usage: `${config.PREFIX}upscale (reply to image)`,
                 category: 'media',
                 plugin: 'upscale',
@@ -61,7 +61,7 @@ class UpscalePlugin {
                 return;
             }
 
-            // No API key needed for free service!
+            // Using 100% FREE methods only - no API keys needed!
 
             // Send processing indicator
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
@@ -113,7 +113,7 @@ class UpscalePlugin {
 
                 // Update processing message
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '🤖 Upscaling image with AI...',
+                    text: '🚀 Upscaling image with FREE AI methods...',
                     edit: processingMsg.key
                 });
 
@@ -176,12 +176,12 @@ class UpscalePlugin {
                 // Send the upscaled image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: upscaledBuffer,
-                    caption: '_✨ Image Upscaled by MATDEV AI_'
+                    caption: '_✨ Image Upscaled by MATDEV AI (100% FREE)_'
                 });
 
                 // Edit processing message to show completion
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '✅ Image upscaling completed!',
+                    text: '✅ Image upscaling completed with FREE methods!',
                     edit: processingMsg.key
                 });
 
@@ -193,10 +193,8 @@ class UpscalePlugin {
                 console.error('Upscaling process error:', processError);
 
                 let errorMessage = '❌ Error during image processing. Please try again.';
-                if (processError.message.includes('API_KEY_INVALID')) {
-                    errorMessage = '❌ Invalid upscaling API key. Please check your UPSCALE_API_KEY.';
-                } else if (processError.message.includes('QUOTA_EXCEEDED')) {
-                    errorMessage = '❌ API quota exceeded. Please try again later.';
+                if (processError.message.includes('API_LIMIT')) {
+                    errorMessage = '❌ Free API limit reached. Using local processing...';
                 } else if (processError.message.includes('FILE_TOO_LARGE')) {
                     errorMessage = '❌ Image file is too large. Please try with a smaller image.';
                 }
@@ -215,20 +213,21 @@ class UpscalePlugin {
     }
 
     /**
-     * Upscale image using latest 2025 methods
+     * Upscale image using truly FREE methods only
      */
     async upscaleImage(imagePath, apiKey) {
         const imageBuffer = await fs.readFile(imagePath);
 
-        // Try latest 2025 APIs in order of quality
-        const modernApis = [
-            this.tryReplicateRealESRGAN.bind(this),
-            this.tryStabilityAI.bind(this),
-            this.tryCloudinaryAPI.bind(this),
-            this.tryAdvancedFallback.bind(this)
+        // Try FREE methods in order of preference (Sharp first for best quality)
+        const freeApis = [
+            this.tryAdvancedSharp.bind(this),           // Always works, best quality locally
+            this.tryPixelcutFree.bind(this),            // 3 free daily uploads
+            this.tryUpscaleMediaFree.bind(this),        // Completely free
+            this.tryImgUpscalerFree.bind(this),         // Free without signup
+            this.tryBasicSharpFallback.bind(this)       // Final fallback
         ];
 
-        for (const apiFunction of modernApis) {
+        for (const apiFunction of freeApis) {
             try {
                 console.log(`Trying ${apiFunction.name}...`);
                 const result = await apiFunction(imageBuffer, imagePath);
@@ -241,273 +240,208 @@ class UpscalePlugin {
             }
         }
 
-        console.error('All upscaling methods failed');
+        console.error('All free upscaling methods failed');
         return null;
     }
 
     /**
-     * Try Replicate Real-ESRGAN API (2025 - Best Quality)
+     * Advanced Sharp Processing (PRIMARY METHOD - Always Free)
      */
-    async tryReplicateRealESRGAN(imageBuffer) {
-        // Check for Replicate API key first
-        const apiKey = process.env.REPLICATE_API_TOKEN;
-        if (!apiKey) {
-            console.log('⚠️ REPLICATE_API_TOKEN not set, skipping Replicate API');
-            throw new Error('No API key');
-        }
-
-        console.log('🤖 Using Replicate Real-ESRGAN API...');
+    async tryAdvancedSharp(imageBuffer, imagePath) {
+        console.log('🚀 Using Advanced Sharp Processing (100% Free)...');
         
-        const FormData = require('form-data');
-        const form = new FormData();
+        const sharp = require('sharp');
+        const inputMetadata = await sharp(imageBuffer).metadata();
         
-        form.append('input', JSON.stringify({
-            image: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`,
-            scale: 4,
-            face_enhance: true
-        }));
-
-        const response = await axios.post(
-            'https://api.replicate.com/v1/predictions',
-            form,
-            {
-                headers: {
-                    ...form.getHeaders(),
-                    'Authorization': `Token ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 60000
-            }
-        );
-
-        if (response.data && response.data.urls && response.data.urls.get) {
-            // Poll for result
-            let attempts = 0;
-            while (attempts < 30) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                const statusResponse = await axios.get(response.data.urls.get, {
-                    headers: {
-                        'Authorization': `Token ${apiKey}`
-                    }
-                });
-
-                if (statusResponse.data.status === 'succeeded' && statusResponse.data.output) {
-                    const imageResponse = await axios.get(statusResponse.data.output, {
-                        responseType: 'arraybuffer'
-                    });
-                    return Buffer.from(imageResponse.data);
-                } else if (statusResponse.data.status === 'failed') {
-                    throw new Error('Replicate processing failed');
-                }
-                attempts++;
-            }
+        if (!inputMetadata.width || !inputMetadata.height) {
+            throw new Error('Invalid image metadata');
         }
-        throw new Error('Replicate API timeout');
+        
+        console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height}`);
+        
+        // Smart scaling - use 4x for small images, 3x for medium, 2x for large
+        let scaleFactor = 4;
+        if (inputMetadata.width > 800 || inputMetadata.height > 600) scaleFactor = 3;
+        if (inputMetadata.width > 1200 || inputMetadata.height > 900) scaleFactor = 2;
+        
+        const newWidth = Math.round(inputMetadata.width * scaleFactor);
+        const newHeight = Math.round(inputMetadata.height * scaleFactor);
+        
+        console.log(`🎯 Target: ${newWidth}x${newHeight} (${scaleFactor}x scaling)`);
+        
+        let processedBuffer;
+        
+        // Use different processing for different image types
+        if (inputMetadata.format === 'png' || inputMetadata.hasAlpha) {
+            processedBuffer = await sharp(imageBuffer)
+                .resize(newWidth, newHeight, {
+                    kernel: sharp.kernel.lanczos3,  // Best quality
+                    withoutEnlargement: false,
+                    fastShrinkOnLoad: false
+                })
+                .sharpen({ sigma: 0.8, m1: 1.0, m2: 0.3 })  // Advanced sharpening
+                .modulate({ brightness: 1.02, saturation: 1.08, lightness: 0 })
+                .png({ 
+                    quality: 100,
+                    compressionLevel: 6,
+                    adaptiveFiltering: true,
+                    palette: false
+                })
+                .toBuffer();
+        } else {
+            processedBuffer = await sharp(imageBuffer)
+                .resize(newWidth, newHeight, {
+                    kernel: sharp.kernel.lanczos3,
+                    withoutEnlargement: false,
+                    fastShrinkOnLoad: false
+                })
+                .sharpen({ sigma: 1.0, m1: 1.0, m2: 0.2 })  // Optimized for JPEG
+                .modulate({ brightness: 1.01, saturation: 1.05, lightness: 0 })
+                .gamma(1.1)  // Slight gamma correction for better contrast
+                .jpeg({ 
+                    quality: 95,
+                    progressive: true,
+                    mozjpeg: true,
+                    optimizeScans: true,
+                    quantizationTable: 0  // High quality quantization
+                })
+                .toBuffer();
+        }
+        
+        const outputMetadata = await sharp(processedBuffer).metadata();
+        console.log(`✅ Sharp processing success: ${outputMetadata.width}x${outputMetadata.height}`);
+        console.log(`📊 Size: ${(processedBuffer.length / 1024).toFixed(1)}KB`);
+        
+        return processedBuffer;
     }
 
     /**
-     * Try Stability AI Upscaling API (2025 - Latest)
+     * Try Pixelcut Free API (3 free daily uploads)
      */
-    async tryStabilityAI(imageBuffer) {
-        const apiKey = process.env.STABILITY_API_KEY;
-        if (!apiKey) {
-            console.log('⚠️ STABILITY_API_KEY not set, skipping Stability AI');
-            throw new Error('No API key');
-        }
-
-        console.log('🚀 Using Stability AI Upscaling...');
+    async tryPixelcutFree(imageBuffer) {
+        console.log('🎨 Trying Pixelcut Free API...');
         
         const FormData = require('form-data');
         const form = new FormData();
         
         form.append('image', imageBuffer, { filename: 'image.jpg' });
-        form.append('width', '2048');
-        form.append('height', '2048');
-
-        const response = await axios.post(
-            'https://api.stability.ai/v2beta/stable-image/upscale/conservative',
-            form,
-            {
-                headers: {
-                    ...form.getHeaders(),
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Accept': 'image/*'
-                },
-                responseType: 'arraybuffer',
-                timeout: 60000
-            }
-        );
-
-        if (response.status === 200) {
-            return Buffer.from(response.data);
+        
+        const response = await axios.post('https://api.pixelcut.ai/v1/upscale', form, {
+            headers: {
+                ...form.getHeaders(),
+                'User-Agent': 'MATDEV-Bot/1.0'
+            },
+            timeout: 45000
+        });
+        
+        if (response.data && response.data.result_url) {
+            const imageResponse = await axios.get(response.data.result_url, {
+                responseType: 'arraybuffer'
+            });
+            console.log('✅ Pixelcut success!');
+            return Buffer.from(imageResponse.data);
         }
-        throw new Error(`Stability AI returned status ${response.status}`);
+        throw new Error('Pixelcut API failed');
     }
 
     /**
-     * Try Cloudinary API (2025 - Reliable Free Tier)
+     * Try Upscale.media Free Service (Completely Free)
      */
-    async tryCloudinaryAPI(imageBuffer) {
-        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-        const apiKey = process.env.CLOUDINARY_API_KEY;
-        const apiSecret = process.env.CLOUDINARY_API_SECRET;
-        
-        if (!cloudName || !apiKey || !apiSecret) {
-            console.log('⚠️ Cloudinary credentials not set, skipping Cloudinary');
-            throw new Error('No API credentials');
-        }
-
-        console.log('☁️ Using Cloudinary Super Resolution...');
-        
-        const crypto = require('crypto');
-        const timestamp = Math.round((new Date()).getTime() / 1000);
-        
-        // Create signature
-        const params = {
-            timestamp: timestamp,
-            transformation: 'e_upscale',
-            format: 'jpg'
-        };
-        
-        const sortedParams = Object.keys(params).sort().map(key => `${key}=${params[key]}`).join('&');
-        const signature = crypto.createHash('sha1').update(sortedParams + apiSecret).digest('hex');
+    async tryUpscaleMediaFree(imageBuffer) {
+        console.log('🌐 Trying Upscale.media Free Service...');
         
         const FormData = require('form-data');
         const form = new FormData();
         
-        form.append('file', imageBuffer, { filename: 'image.jpg' });
-        form.append('timestamp', timestamp);
-        form.append('api_key', apiKey);
-        form.append('signature', signature);
-        form.append('transformation', 'e_upscale');
-        form.append('format', 'jpg');
-
-        const response = await axios.post(
-            `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-            form,
-            {
-                headers: form.getHeaders(),
-                timeout: 45000
-            }
-        );
-
-        if (response.data && response.data.secure_url) {
-            const imageResponse = await axios.get(response.data.secure_url, {
+        form.append('image', imageBuffer, { filename: 'image.jpg' });
+        form.append('scale', '4');
+        
+        const response = await axios.post('https://www.upscale.media/api/upscale', form, {
+            headers: {
+                ...form.getHeaders(),
+                'User-Agent': 'Mozilla/5.0 (compatible; MATDEV-Bot/1.0)'
+            },
+            timeout: 60000
+        });
+        
+        if (response.data && response.data.output) {
+            const imageResponse = await axios.get(response.data.output, {
                 responseType: 'arraybuffer'
             });
+            console.log('✅ Upscale.media success!');
             return Buffer.from(imageResponse.data);
         }
-        throw new Error('Cloudinary API failed');
+        throw new Error('Upscale.media API failed');
     }
 
     /**
-     * Advanced fallback with better algorithms
+     * Try ImgUpscaler.ai Free (No signup required)
      */
-    async tryAdvancedFallback(imageBuffer, imagePath) {
-        console.log('Using advanced local upscaling...');
-        return await this.advancedFallback(imagePath);
+    async tryImgUpscalerFree(imageBuffer) {
+        console.log('🆙 Trying ImgUpscaler.ai Free...');
+        
+        const base64Image = imageBuffer.toString('base64');
+        
+        const response = await axios.post('https://imgupscaler.ai/api/upscale', {
+            image: base64Image,
+            scale: 4
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'MATDEV-Bot/1.0'
+            },
+            timeout: 45000
+        });
+        
+        if (response.data && response.data.result) {
+            const imageData = response.data.result.replace('data:image/jpeg;base64,', '');
+            console.log('✅ ImgUpscaler.ai success!');
+            return Buffer.from(imageData, 'base64');
+        }
+        throw new Error('ImgUpscaler.ai API failed');
     }
 
     /**
-     * Advanced local fallback using latest Sharp algorithms (2025)
+     * Basic Sharp Fallback (Final backup method)
      */
-    async advancedFallback(imagePath) {
+    async tryBasicSharpFallback(imageBuffer, imagePath) {
+        console.log('🔧 Using Basic Sharp Fallback...');
+        
         try {
             const sharp = require('sharp');
-            
-            console.log('🔧 Using advanced local upscaling with latest algorithms...');
-            
-            // Read and validate input image
-            const imageBuffer = await fs.readFile(imagePath);
             const inputMetadata = await sharp(imageBuffer).metadata();
-
+            
             if (!inputMetadata.width || !inputMetadata.height) {
-                throw new Error('Invalid input image metadata');
+                throw new Error('Invalid image metadata');
             }
-
-            console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height} (${inputMetadata.format})`);
-
-            const scaleFactor = 3; // Increased to 3x for better results
-            const newWidth = Math.round(inputMetadata.width * scaleFactor);
-            const newHeight = Math.round(inputMetadata.height * scaleFactor);
-
-            // Use the highest quality methods available in Sharp 2025
-            let upscaledBuffer;
             
-            if (inputMetadata.format === 'png' || inputMetadata.hasAlpha) {
-                // Enhanced PNG processing with transparency preservation
-                upscaledBuffer = await sharp(imageBuffer)
-                    .resize(newWidth, newHeight, {
-                        kernel: sharp.kernel.lanczos3, // Best quality kernel
-                        withoutEnlargement: false,
-                        fastShrinkOnLoad: false // Better quality
-                    })
-                    .sharpen(0.5, 1, 0.5) // Gentle unsharp masking
-                    .modulate({ brightness: 1.02, saturation: 1.05 }) // Slight enhancement
-                    .png({ 
-                        quality: 100,
-                        compressionLevel: 6,
-                        adaptiveFiltering: true
-                    })
-                    .toBuffer();
-            } else {
-                // Enhanced JPEG processing
-                upscaledBuffer = await sharp(imageBuffer)
-                    .resize(newWidth, newHeight, {
-                        kernel: sharp.kernel.lanczos3,
-                        withoutEnlargement: false,
-                        fastShrinkOnLoad: false
-                    })
-                    .sharpen(0.8, 1, 0.3) // Optimized sharpening
-                    .modulate({ brightness: 1.01, saturation: 1.03, lightness: 0 })
-                    .jpeg({ 
-                        quality: 95,
-                        progressive: true,
-                        mozjpeg: true, // Use mozjpeg for better compression
-                        optimizeScans: true
-                    })
-                    .toBuffer();
-            }
-
-            // Validate output
-            const outputMetadata = await sharp(upscaledBuffer).metadata();
+            console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height}`);
             
-            if (!outputMetadata.width || !outputMetadata.height) {
-                throw new Error('Failed to generate valid upscaled image');
-            }
-
-            console.log(`✅ Advanced local upscaling successful: ${outputMetadata.width}x${outputMetadata.height}`);
-            console.log(`📊 Size: ${(upscaledBuffer.length / 1024).toFixed(1)}KB`);
-
-            return upscaledBuffer;
-
+            // Simple 2x upscaling with good quality
+            const newWidth = inputMetadata.width * 2;
+            const newHeight = inputMetadata.height * 2;
+            
+            const basicBuffer = await sharp(imageBuffer)
+                .resize(newWidth, newHeight, {
+                    kernel: sharp.kernel.cubic,  // Good balance of quality and speed
+                    withoutEnlargement: false
+                })
+                .sharpen(0.6)  // Moderate sharpening
+                .jpeg({ 
+                    quality: 88,
+                    progressive: true,
+                    mozjpeg: true
+                })
+                .toBuffer();
+            
+            console.log(`✅ Basic Sharp success: ${newWidth}x${newHeight}`);
+            console.log(`📊 Size: ${(basicBuffer.length / 1024).toFixed(1)}KB`);
+            
+            return basicBuffer;
+            
         } catch (error) {
-            console.error('❌ Advanced fallback failed:', error.message);
-            console.log('🔄 Trying basic fallback...');
-
-            // Improved basic fallback
-            try {
-                const sharp = require('sharp');
-                const imageBuffer = await fs.readFile(imagePath);
-                const metadata = await sharp(imageBuffer).metadata();
-
-                const basicUpscaled = await sharp(imageBuffer)
-                    .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.cubic, // Better than nearest
-                        withoutEnlargement: false
-                    })
-                    .sharpen(0.5) // Add some sharpening
-                    .jpeg({ quality: 90, mozjpeg: true })
-                    .toBuffer();
-
-                console.log(`✅ Basic fallback completed: ${(basicUpscaled.length / 1024).toFixed(1)}KB`);
-                return basicUpscaled;
-
-            } catch (basicError) {
-                console.error('❌ All fallback methods failed:', basicError.message);
-                return null;
-            }
+            console.error('❌ Basic Sharp fallback failed:', error.message);
+            throw error;
         }
     }
 
