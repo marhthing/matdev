@@ -215,20 +215,20 @@ class UpscalePlugin {
     }
 
     /**
-     * Upscale image using multiple free services
+     * Upscale image using latest 2025 methods
      */
     async upscaleImage(imagePath, apiKey) {
         const imageBuffer = await fs.readFile(imagePath);
 
-        // Try multiple free APIs in order of preference
-        const freeApis = [
-            this.tryWaifu2xOriginal.bind(this),
-            this.tryWaifu2xAlternative.bind(this),
-            this.tryImageUpscalerAPI.bind(this),
+        // Try latest 2025 APIs in order of quality
+        const modernApis = [
+            this.tryReplicateRealESRGAN.bind(this),
+            this.tryStabilityAI.bind(this),
+            this.tryCloudinaryAPI.bind(this),
             this.tryAdvancedFallback.bind(this)
         ];
 
-        for (const apiFunction of freeApis) {
+        for (const apiFunction of modernApis) {
             try {
                 console.log(`Trying ${apiFunction.name}...`);
                 const result = await apiFunction(imageBuffer, imagePath);
@@ -246,91 +246,159 @@ class UpscalePlugin {
     }
 
     /**
-     * Try original Waifu2x API
+     * Try Replicate Real-ESRGAN API (2025 - Best Quality)
      */
-    async tryWaifu2xOriginal(imageBuffer) {
+    async tryReplicateRealESRGAN(imageBuffer) {
+        // Check for Replicate API key first
+        const apiKey = process.env.REPLICATE_API_TOKEN;
+        if (!apiKey) {
+            console.log('⚠️ REPLICATE_API_TOKEN not set, skipping Replicate API');
+            throw new Error('No API key');
+        }
+
+        console.log('🤖 Using Replicate Real-ESRGAN API...');
+        
         const FormData = require('form-data');
         const form = new FormData();
+        
+        form.append('input', JSON.stringify({
+            image: `data:image/jpeg;base64,${imageBuffer.toString('base64')}`,
+            scale: 4,
+            face_enhance: true
+        }));
 
-        form.append('file', imageBuffer, {
-            filename: 'image.jpg',
-            contentType: 'image/jpeg'
-        });
-        form.append('style', 'photo');
-        form.append('noise', '2');
-        form.append('scale', '2');
+        const response = await axios.post(
+            'https://api.replicate.com/v1/predictions',
+            form,
+            {
+                headers: {
+                    ...form.getHeaders(),
+                    'Authorization': `Token ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 60000
+            }
+        );
 
-        const response = await axios.post('https://api.waifu2x.udp.jp/api', form, {
-            headers: { ...form.getHeaders() },
-            responseType: 'arraybuffer',
-            timeout: 45000
-        });
+        if (response.data && response.data.urls && response.data.urls.get) {
+            // Poll for result
+            let attempts = 0;
+            while (attempts < 30) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                const statusResponse = await axios.get(response.data.urls.get, {
+                    headers: {
+                        'Authorization': `Token ${apiKey}`
+                    }
+                });
+
+                if (statusResponse.data.status === 'succeeded' && statusResponse.data.output) {
+                    const imageResponse = await axios.get(statusResponse.data.output, {
+                        responseType: 'arraybuffer'
+                    });
+                    return Buffer.from(imageResponse.data);
+                } else if (statusResponse.data.status === 'failed') {
+                    throw new Error('Replicate processing failed');
+                }
+                attempts++;
+            }
+        }
+        throw new Error('Replicate API timeout');
+    }
+
+    /**
+     * Try Stability AI Upscaling API (2025 - Latest)
+     */
+    async tryStabilityAI(imageBuffer) {
+        const apiKey = process.env.STABILITY_API_KEY;
+        if (!apiKey) {
+            console.log('⚠️ STABILITY_API_KEY not set, skipping Stability AI');
+            throw new Error('No API key');
+        }
+
+        console.log('🚀 Using Stability AI Upscaling...');
+        
+        const FormData = require('form-data');
+        const form = new FormData();
+        
+        form.append('image', imageBuffer, { filename: 'image.jpg' });
+        form.append('width', '2048');
+        form.append('height', '2048');
+
+        const response = await axios.post(
+            'https://api.stability.ai/v2beta/stable-image/upscale/conservative',
+            form,
+            {
+                headers: {
+                    ...form.getHeaders(),
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Accept': 'image/*'
+                },
+                responseType: 'arraybuffer',
+                timeout: 60000
+            }
+        );
 
         if (response.status === 200) {
             return Buffer.from(response.data);
         }
-        throw new Error(`Waifu2x returned status ${response.status}`);
+        throw new Error(`Stability AI returned status ${response.status}`);
     }
 
     /**
-     * Try alternative Waifu2x endpoint
+     * Try Cloudinary API (2025 - Reliable Free Tier)
      */
-    async tryWaifu2xAlternative(imageBuffer) {
+    async tryCloudinaryAPI(imageBuffer) {
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+        const apiKey = process.env.CLOUDINARY_API_KEY;
+        const apiSecret = process.env.CLOUDINARY_API_SECRET;
+        
+        if (!cloudName || !apiKey || !apiSecret) {
+            console.log('⚠️ Cloudinary credentials not set, skipping Cloudinary');
+            throw new Error('No API credentials');
+        }
+
+        console.log('☁️ Using Cloudinary Super Resolution...');
+        
+        const crypto = require('crypto');
+        const timestamp = Math.round((new Date()).getTime() / 1000);
+        
+        // Create signature
+        const params = {
+            timestamp: timestamp,
+            transformation: 'e_upscale',
+            format: 'jpg'
+        };
+        
+        const sortedParams = Object.keys(params).sort().map(key => `${key}=${params[key]}`).join('&');
+        const signature = crypto.createHash('sha1').update(sortedParams + apiSecret).digest('hex');
+        
         const FormData = require('form-data');
         const form = new FormData();
+        
+        form.append('file', imageBuffer, { filename: 'image.jpg' });
+        form.append('timestamp', timestamp);
+        form.append('api_key', apiKey);
+        form.append('signature', signature);
+        form.append('transformation', 'e_upscale');
+        form.append('format', 'jpg');
 
-        form.append('file', imageBuffer, {
-            filename: 'image.png',
-            contentType: 'image/png'
-        });
-        form.append('scale', '2');
-        form.append('denoise', '1');
-
-        const response = await axios.post('https://waifu2x.booru.pics/Home/FromFile', form, {
-            headers: { ...form.getHeaders() },
-            responseType: 'arraybuffer',
-            timeout: 45000
-        });
-
-        if (response.status === 200 && response.data.byteLength > 10000) {
-            const buffer = Buffer.from(response.data);
-            
-            // Validate that it's actually an image format
-            const sharp = require('sharp');
-            try {
-                const metadata = await sharp(buffer).metadata();
-                if (metadata.width && metadata.height) {
-                    console.log(`✅ Waifu2x alternative success: ${metadata.width}x${metadata.height}`);
-                    return buffer;
-                }
-            } catch (validationError) {
-                console.log('⚠️ Waifu2x alternative returned non-image data');
+        const response = await axios.post(
+            `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+            form,
+            {
+                headers: form.getHeaders(),
+                timeout: 45000
             }
+        );
+
+        if (response.data && response.data.secure_url) {
+            const imageResponse = await axios.get(response.data.secure_url, {
+                responseType: 'arraybuffer'
+            });
+            return Buffer.from(imageResponse.data);
         }
-        throw new Error('Waifu2x alternative failed or returned invalid image');
-    }
-
-    /**
-     * Try ImageUpscaler API
-     */
-    async tryImageUpscalerAPI(imageBuffer) {
-        const base64Image = imageBuffer.toString('base64');
-
-        const response = await axios.post('https://api.upscaler.ai/v1/upscale', {
-            image: base64Image,
-            scale: 2,
-            format: 'jpg'
-        }, {
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            timeout: 45000
-        });
-
-        if (response.data && response.data.image) {
-            return Buffer.from(response.data.image, 'base64');
-        }
-        throw new Error('ImageUpscaler API failed');
+        throw new Error('Cloudinary API failed');
     }
 
     /**
@@ -342,13 +410,13 @@ class UpscalePlugin {
     }
 
     /**
-     * Advanced fallback upscaling using multiple techniques
+     * Advanced local fallback using latest Sharp algorithms (2025)
      */
     async advancedFallback(imagePath) {
         try {
             const sharp = require('sharp');
             
-            console.log('🔧 Using advanced local upscaling...');
+            console.log('🔧 Using advanced local upscaling with latest algorithms...');
             
             // Read and validate input image
             const imageBuffer = await fs.readFile(imagePath);
@@ -360,36 +428,44 @@ class UpscalePlugin {
 
             console.log(`📐 Input: ${inputMetadata.width}x${inputMetadata.height} (${inputMetadata.format})`);
 
-            const scaleFactor = 2;
+            const scaleFactor = 3; // Increased to 3x for better results
             const newWidth = Math.round(inputMetadata.width * scaleFactor);
             const newHeight = Math.round(inputMetadata.height * scaleFactor);
 
-            // Use high-quality upscaling with proper format handling
+            // Use the highest quality methods available in Sharp 2025
             let upscaledBuffer;
             
             if (inputMetadata.format === 'png' || inputMetadata.hasAlpha) {
-                // Preserve transparency for PNG images
+                // Enhanced PNG processing with transparency preservation
                 upscaledBuffer = await sharp(imageBuffer)
                     .resize(newWidth, newHeight, {
-                        kernel: sharp.kernel.lanczos3,
-                        withoutEnlargement: false
+                        kernel: sharp.kernel.lanczos3, // Best quality kernel
+                        withoutEnlargement: false,
+                        fastShrinkOnLoad: false // Better quality
                     })
+                    .sharpen(0.5, 1, 0.5) // Gentle unsharp masking
+                    .modulate({ brightness: 1.02, saturation: 1.05 }) // Slight enhancement
                     .png({ 
-                        quality: 95,
-                        compressionLevel: 6
+                        quality: 100,
+                        compressionLevel: 6,
+                        adaptiveFiltering: true
                     })
                     .toBuffer();
             } else {
-                // Use JPEG for other formats
+                // Enhanced JPEG processing
                 upscaledBuffer = await sharp(imageBuffer)
                     .resize(newWidth, newHeight, {
                         kernel: sharp.kernel.lanczos3,
-                        withoutEnlargement: false
+                        withoutEnlargement: false,
+                        fastShrinkOnLoad: false
                     })
-                    .sharpen(1.0) // Mild sharpening
+                    .sharpen(0.8, 1, 0.3) // Optimized sharpening
+                    .modulate({ brightness: 1.01, saturation: 1.03, lightness: 0 })
                     .jpeg({ 
-                        quality: 90,
-                        progressive: false
+                        quality: 95,
+                        progressive: true,
+                        mozjpeg: true, // Use mozjpeg for better compression
+                        optimizeScans: true
                     })
                     .toBuffer();
             }
@@ -401,7 +477,7 @@ class UpscalePlugin {
                 throw new Error('Failed to generate valid upscaled image');
             }
 
-            console.log(`✅ Upscaling successful: ${outputMetadata.width}x${outputMetadata.height}`);
+            console.log(`✅ Advanced local upscaling successful: ${outputMetadata.width}x${outputMetadata.height}`);
             console.log(`📊 Size: ${(upscaledBuffer.length / 1024).toFixed(1)}KB`);
 
             return upscaledBuffer;
@@ -410,7 +486,7 @@ class UpscalePlugin {
             console.error('❌ Advanced fallback failed:', error.message);
             console.log('🔄 Trying basic fallback...');
 
-            // Extremely simple fallback
+            // Improved basic fallback
             try {
                 const sharp = require('sharp');
                 const imageBuffer = await fs.readFile(imagePath);
@@ -418,9 +494,11 @@ class UpscalePlugin {
 
                 const basicUpscaled = await sharp(imageBuffer)
                     .resize(metadata.width * 2, metadata.height * 2, {
-                        kernel: sharp.kernel.nearest
+                        kernel: sharp.kernel.cubic, // Better than nearest
+                        withoutEnlargement: false
                     })
-                    .jpeg({ quality: 85 })
+                    .sharpen(0.5) // Add some sharpening
+                    .jpeg({ quality: 90, mozjpeg: true })
                     .toBuffer();
 
                 console.log(`✅ Basic fallback completed: ${(basicUpscaled.length / 1024).toFixed(1)}KB`);
