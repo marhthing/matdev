@@ -115,12 +115,6 @@ class UpscalePlugin {
                 const tempFilePath = path.join(this.tempDir, tempFileName);
                 await fs.writeFile(tempFilePath, buffer);
 
-                // Update processing message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '🚀 Upscaling image with FREE AI methods...',
-                    edit: processingMsg.key
-                });
-
                 // Upscale the image
                 const upscaledBuffer = await this.upscaleImage(tempFilePath);
 
