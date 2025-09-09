@@ -20,7 +20,7 @@ class AutoReactPlugin {
         
         // Status auto react settings
         this.statusReactEnabled = false;
-        this.statusReactionDelay = { min: 30000, max: 300000 }; // 30s to 5min delay
+        this.statusReactionDelay = { min: 30000, max: 180000 }; // 30s to 3min delay
         this.statusReactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
         // Keep track of reacted statuses to avoid duplicates
@@ -252,7 +252,7 @@ class AutoReactPlugin {
             if (!reaction) return;
             
             // Send reaction based on delay mode
-            const delay = this.reactDelayMode === 'delay' ? (500 + Math.random() * 2000) : 0;
+            const delay = this.reactDelayMode === 'delay' ? (30000 + Math.random() * 150000) : 0; // 30s to 3min
             
             setTimeout(async () => {
                 try {
@@ -650,7 +650,7 @@ class AutoReactPlugin {
             } else {
                 // Show status
                 const delayStatus = this.statusReactDelayMode === 'delay' ? 
-                    `⏰ Delayed (${this.statusReactionDelay.min/1000}s-${this.statusReactionDelay.max/1000}s)` : 
+                    `⏰ Delayed (${this.statusReactionDelay.min/1000}s-${this.statusReactionDelay.max/60000}min)` : 
                     '⚡ Instant';
                 
                 const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
