@@ -251,21 +251,30 @@ class GroqPlugin {
                     model: "playai-tts",
                     voice: "Fritz-PlayAI",
                     input: text,
-                    response_format: "wav"
+                    response_format: "mp3"
                 });
 
+                // Get the audio buffer properly
                 const buffer = Buffer.from(await response.arrayBuffer());
-                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.wav`);
+                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
+                
+                // Write the buffer to file
                 await fs.writeFile(audioPath, buffer);
 
-                // Send as voice note (ptt: true for voice note)
+                // Verify file was created successfully
+                const fileExists = await fs.pathExists(audioPath);
+                if (!fileExists) {
+                    throw new Error('Failed to create audio file');
+                }
+
+                // Send as voice note with proper audio options
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: { url: audioPath },
-                    mimetype: 'audio/wav',
+                    audio: fs.readFileSync(audioPath),
+                    mimetype: 'audio/mp4',
                     ptt: true
                 });
 
-                // Delete temp file immediately
+                // Delete temp file immediately after sending
                 await fs.remove(audioPath);
 
             } catch (error) {
