@@ -607,7 +607,18 @@ class WaifuPlugin {
 
             this.requestCount++;
 
-            // Generate curated content based on category
+            // Try AnbuAnime API first
+            try {
+                const anbuResults = await this.fetchFromAnbuAnime(category);
+                if (anbuResults && anbuResults.length > 0) {
+                    console.log('✅ AnbuAnime API successful');
+                    return anbuResults;
+                }
+            } catch (anbuError) {
+                console.log('AnbuAnime API failed, using fallback:', anbuError.message);
+            }
+
+            // Fallback to static content with search links
             const videoContent = this.generateVideoContent(category);
             return videoContent;
 
@@ -615,6 +626,109 @@ class WaifuPlugin {
             console.error('Error fetching video content:', error);
             return [];
         }
+    }
+
+    /**
+     * Fetch content from AnbuAnime API
+     */
+    async fetchFromAnbuAnime(category = null) {
+        try {
+            // Map categories to search terms
+            const searchTerm = this.getCategorySearchTerm(category);
+            
+            // AnbuAnime API endpoint
+            const apiUrl = `https://anbu-anime-api.vercel.app/search/${encodeURIComponent(searchTerm)}`;
+            
+            console.log(`🔍 Searching AnbuAnime for: ${searchTerm}`);
+            
+            const response = await axios.get(apiUrl, {
+                timeout: 15000,
+                headers: {
+                    'User-Agent': 'MATDEV-Bot/1.0',
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.data && response.data.results && response.data.results.length > 0) {
+                // Get random result from API
+                const randomResult = response.data.results[Math.floor(Math.random() * Math.min(response.data.results.length, 5))];
+                
+                return [{
+                    title: randomResult.title || `${searchTerm} content`,
+                    views: randomResult.views || Math.floor(Math.random() * 2000000) + 100000,
+                    duration: randomResult.duration || this.generateRandomDuration(),
+                    tags: [searchTerm, category].filter(Boolean),
+                    streams: [
+                        { 
+                            quality: '720p', 
+                            url: randomResult.link || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
+                        },
+                        { 
+                            quality: '1080p', 
+                            url: randomResult.hd_link || randomResult.link || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
+                        }
+                    ],
+                    poster: randomResult.image || null,
+                    source: 'AnbuAnime API'
+                }];
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('AnbuAnime API error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get search term for category
+     */
+    getCategorySearchTerm(category) {
+        const categoryMap = {
+            'oral': 'blowjob',
+            'nurse': 'nurse',
+            'school': 'school girl',
+            'maid': 'maid',
+            'teacher': 'teacher',
+            'student': 'student',
+            'office': 'office lady',
+            'uniform': 'uniform',
+            'milf': 'milf',
+            'teen': 'teen',
+            'bikini': 'bikini',
+            'swimsuit': 'swimsuit',
+            'shower': 'shower',
+            'bath': 'bathroom',
+            'lingerie': 'lingerie',
+            'panties': 'panties',
+            'catgirl': 'cat girl',
+            'bunny': 'bunny girl',
+            'demon': 'demon girl',
+            'elf': 'elf',
+            'princess': 'princess',
+            'queen': 'queen',
+            'witch': 'witch',
+            'vampire': 'vampire',
+            'lesbian': 'lesbian',
+            'yuri': 'yuri',
+            'futanari': 'futanari',
+            'tentacle': 'tentacle',
+            'monster': 'monster girl',
+            'bdsm': 'bdsm',
+            'bondage': 'bondage'
+        };
+
+        return categoryMap[category] || category || 'anime';
+    }
+
+    /**
+     * Generate random duration
+     */
+    generateRandomDuration() {
+        const minutes = Math.floor(Math.random() * 25) + 15; // 15-40 minutes
+        const seconds = Math.floor(Math.random() * 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
     /**
@@ -703,6 +817,11 @@ class WaifuPlugin {
                 caption += `⏱️ Duration: ${video.duration}\n`;
             }
 
+            // Add source info
+            if (video.source) {
+                caption += `📡 Source: ${video.source}\n`;
+            }
+
             // Add streaming links
             if (video.streams && video.streams.length > 0) {
                 caption += `🔗 *Stream:* `;
@@ -722,12 +841,17 @@ class WaifuPlugin {
 
             // Try to send with thumbnail first
             try {
-                // Get a random anime thumbnail from waifu APIs
-                const thumbnailData = await this.getRandomThumbnail(category);
+                // Use API poster if available, otherwise get random thumbnail
+                let thumbnailUrl = video.poster;
                 
-                if (thumbnailData && thumbnailData.url) {
+                if (!thumbnailUrl) {
+                    const thumbnailData = await this.getRandomThumbnail(category);
+                    thumbnailUrl = thumbnailData?.url;
+                }
+                
+                if (thumbnailUrl) {
                     // Download and send image with caption
-                    const response = await axios.get(thumbnailData.url, {
+                    const response = await axios.get(thumbnailUrl, {
                         responseType: 'arraybuffer',
                         timeout: 10000,
                         headers: {
