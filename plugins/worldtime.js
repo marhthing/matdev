@@ -188,6 +188,15 @@ class WorldTimePlugin {
             source: 'worldtime.js'
         });
 
+        // Timezones command
+        this.bot.messageHandler.registerCommand('timezones', this.timezonesCommand.bind(this), {
+            description: 'List all available timezone codes',
+            usage: `${config.PREFIX}timezones`,
+            category: 'utility',
+            plugin: 'worldtime',
+            source: 'worldtime.js'
+        });
+
         
     }
 
@@ -234,6 +243,48 @@ class WorldTimePlugin {
         const timeInfo = `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}`;
 
         await this.bot.messageHandler.reply(messageInfo, timeInfo);
+    }
+
+    /**
+     * Timezones command - list all available timezone codes
+     */
+    async timezonesCommand(messageInfo) {
+        try {
+            let response = `🌍 *AVAILABLE TIMEZONE CODES*\n\n`;
+            
+            // Country codes section
+            response += `📍 *Country Codes:*\n`;
+            const countryEntries = Object.entries(this.countryTimezones);
+            for (let i = 0; i < countryEntries.length; i += 2) {
+                const [code1, tz1] = countryEntries[i];
+                const [code2, tz2] = countryEntries[i + 1] || ['', ''];
+                if (code2) {
+                    response += `• ${code1.padEnd(8)} • ${code2}\n`;
+                } else {
+                    response += `• ${code1}\n`;
+                }
+            }
+            
+            response += `\n🏙️ *City Names:*\n`;
+            const cityEntries = Object.entries(this.cityTimezones);
+            for (let i = 0; i < cityEntries.length; i += 2) {
+                const [city1, tz1] = cityEntries[i];
+                const [city2, tz2] = cityEntries[i + 1] || ['', ''];
+                if (city2) {
+                    response += `• ${city1.padEnd(12)} • ${city2}\n`;
+                } else {
+                    response += `• ${city1}\n`;
+                }
+            }
+            
+            response += `\n💡 Usage: *${config.PREFIX}time <code>*\nExample: *${config.PREFIX}time UK*`;
+            
+            await this.bot.messageHandler.reply(messageInfo, response);
+            
+        } catch (error) {
+            console.error('Error in timezonesCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error listing timezones: ' + error.message);
+        }
     }
 
     /**
