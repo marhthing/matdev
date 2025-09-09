@@ -465,15 +465,46 @@ class CorePlugin {
             // Get bot user name (from WhatsApp profile or bot name)
             const botName = this.bot.sock?.user?.name || config.BOT_NAME;
 
-            // Get all commands and categorize them
+            // Get all commands and auto-detect aliases
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
-
+            
+            // Group commands by handler function to detect aliases
+            const handlerGroups = new Map();
             commands.forEach(cmd => {
-                if (!categories[cmd.category]) {
-                    categories[cmd.category] = [];
+                const handlerKey = cmd.handler.toString();
+                if (!handlerGroups.has(handlerKey)) {
+                    handlerGroups.set(handlerKey, []);
                 }
-                categories[cmd.category].push(cmd.name.toUpperCase());
+                handlerGroups.get(handlerKey).push(cmd);
+            });
+            
+            // Build categories with auto-detected aliases
+            const processedCommands = new Set();
+            
+            commands.forEach(cmd => {
+                if (processedCommands.has(cmd.name)) return;
+                
+                // Find all commands with the same handler (aliases)
+                const aliasGroup = handlerGroups.get(cmd.handler.toString());
+                const mainCommand = aliasGroup.find(c => !c.description.includes('alias for')) || aliasGroup[0];
+                const aliases = aliasGroup.filter(c => c !== mainCommand).map(c => c.name.toUpperCase());
+                
+                // Add to category
+                if (!categories[mainCommand.category]) {
+                    categories[mainCommand.category] = [];
+                }
+                
+                // Create command entry with aliases
+                const commandEntry = {
+                    name: mainCommand.name.toUpperCase(),
+                    aliases: aliases
+                };
+                
+                categories[mainCommand.category].push(commandEntry);
+                
+                // Mark all commands in this group as processed
+                aliasGroup.forEach(c => processedCommands.add(c.name));
             });
 
             // Create modern menu design with better typography
@@ -511,25 +542,6 @@ class CorePlugin {
                 'download': '⬇️'
             };
 
-            // Create command aliases mapping
-            const commandAliases = {
-                'DOWNLOAD': ['DL'],
-                'ADDCAPTION': ['AC'],
-                'EDITCAPTION': ['EC'], 
-                'REMOVECAPTION': ['RC'],
-                'COPYCAPTION': ['CC'],
-                'GEMINI': ['AI'],
-                'YTV': ['YTVIDEO', 'YTMP4'],
-                'YTS': ['YTSONG', 'YTMP3'],
-                'WORLDCLOCK': ['WC'],
-                'PERMISSIONS': ['PM'],
-                'TIKTOK': ['TT'],
-                'SCHEDULE': ['SCHED'],
-                'SCHEDULES': ['SCHEDS'],
-                'CANCELSCHEDULE': ['CANCELSCHED'],
-                'TIMEZONES': ['TZ']
-            };
-
             for (const [category, cmds] of Object.entries(categories)) {
                 const icon = categoryIcons[category] || '📋';
                 const categoryName = category.toUpperCase();
@@ -537,35 +549,12 @@ class CorePlugin {
                 menuText += `\`\`\`\n`;
                 menuText += `${icon} ═══ ${categoryName} ═══ ${icon}\n`;
                 
-                // Group commands with their aliases
-                const processedCommands = new Set();
-
-                cmds.forEach(cmd => {
-                    if (processedCommands.has(cmd)) return;
-
-                    // Check if this command has aliases or is an alias
-                    let mainCommand = cmd;
-                    let aliases = commandAliases[cmd] || [];
-
-                    // Check if current command is an alias of another
-                    for (const [main, aliasArray] of Object.entries(commandAliases)) {
-                        if (aliasArray.includes(cmd)) {
-                            mainCommand = main;
-                            aliases = aliasArray.filter(alias => alias !== cmd);
-                            break;
-                        }
-                    }
-
-                    // Mark all related commands as processed
-                    processedCommands.add(mainCommand);
-                    aliases.forEach(alias => processedCommands.add(alias));
-
-                    // Display command with modern styling
-                    if (aliases.length > 0 && cmds.includes(mainCommand)) {
-                        menuText += `▸ ${mainCommand} ⟨${aliases.join(' • ')}⟩\n`;
-                    } else if (!aliases.some(alias => cmds.includes(alias))) {
-                        // Show command only if none of its aliases are in the same category
-                        menuText += `▸ ${cmd}\n`;
+                cmds.forEach(commandEntry => {
+                    // Display command with auto-detected aliases
+                    if (commandEntry.aliases && commandEntry.aliases.length > 0) {
+                        menuText += `▸ ${commandEntry.name} ⟨${commandEntry.aliases.join(' • ')}⟩\n`;
+                    } else {
+                        menuText += `▸ ${commandEntry.name}\n`;
                     }
                 });
 
