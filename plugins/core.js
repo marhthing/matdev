@@ -450,7 +450,7 @@ class CorePlugin {
             // Get bot user name (from WhatsApp profile or bot name)
             const botName = this.bot.sock?.user?.name || config.BOT_NAME;
 
-            // Get all commands and organize by category with intelligent alias detection
+            // Get all commands and organize by category with simplified alias detection
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
             
@@ -475,34 +475,39 @@ class CorePlugin {
                     categories[category] = [];
                 }
                 
-                // Find all commands that share the same handler (aliases)
-                const aliasGroup = handlerGroups.get(cmd.handler.toString());
+                // Find commands with the same handler in the same category (aliases)
+                const aliasGroup = handlerGroups.get(cmd.handler.toString())
+                    .filter(c => c.category === cmd.category);
                 
-                // Filter to only include commands in the same category
-                const categoryAliases = aliasGroup.filter(c => 
-                    c.category === cmd.category && c.name !== cmd.name
-                );
-                
-                // Use the shortest command name as primary, others as aliases
-                const allInCategory = [cmd, ...categoryAliases];
-                const primaryCmd = allInCategory.reduce((shortest, current) => 
-                    current.name.length < shortest.name.length ? current : shortest
-                );
-                
-                const aliases = allInCategory
-                    .filter(c => c.name !== primaryCmd.name)
-                    .map(c => c.name.toUpperCase());
-                
-                // Only add if this is the primary command
-                if (cmd.name === primaryCmd.name) {
+                if (aliasGroup.length > 1) {
+                    // Multiple commands with same handler = aliases
+                    // Use the shortest name as primary
+                    const primaryCmd = aliasGroup.reduce((shortest, current) => 
+                        current.name.length < shortest.name.length ? current : shortest
+                    );
+                    
+                    // Only add if this is the primary command
+                    if (cmd.name === primaryCmd.name) {
+                        const aliases = aliasGroup
+                            .filter(c => c.name !== primaryCmd.name)
+                            .map(c => c.name.toUpperCase());
+                        
+                        categories[category].push({
+                            name: primaryCmd.name.toUpperCase(),
+                            aliases: aliases
+                        });
+                        
+                        // Mark all aliases as processed
+                        aliasGroup.forEach(c => processedCommands.add(c.name));
+                    }
+                } else {
+                    // Single command, no aliases
                     categories[category].push({
-                        name: primaryCmd.name.toUpperCase(),
-                        aliases: aliases
+                        name: cmd.name.toUpperCase(),
+                        aliases: []
                     });
+                    processedCommands.add(cmd.name);
                 }
-                
-                // Mark all commands in this alias group as processed
-                allInCategory.forEach(c => processedCommands.add(c.name));
             });
 
             // Create modern menu design with better typography
