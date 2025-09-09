@@ -52,13 +52,23 @@ class AutoReactPlugin {
         this.setupStatusListener();
         this.startCleanupTimer();
 
-        // Auto-enable from environment
-        if (config.AUTO_REACT) {
+        // Force reload environment variables
+        require('dotenv').config();
+        
+        // Auto-enable from environment with debug info
+        console.log('🔍 Environment Check:', {
+            AUTO_REACT: process.env.AUTO_REACT,
+            STATUS_AUTO_REACT: process.env.STATUS_AUTO_REACT,
+            configAUTO_REACT: config.AUTO_REACT,
+            configSTATUS_AUTO_REACT: config.STATUS_AUTO_REACT
+        });
+        
+        if (config.AUTO_REACT || process.env.AUTO_REACT === 'true') {
             this.isEnabled = true;
             console.log('🔥 Auto react enabled from environment');
         }
         
-        if (config.STATUS_AUTO_REACT) {
+        if (config.STATUS_AUTO_REACT || process.env.STATUS_AUTO_REACT === 'true') {
             this.statusReactEnabled = true;
             console.log('🔥 Auto status react enabled from environment');
         }
