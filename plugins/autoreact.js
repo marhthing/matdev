@@ -144,7 +144,7 @@ class AutoReactPlugin {
                         // Check for status messages using multiple identifiers
                         const jid = message.key.remoteJid;
                         if (this.isStatusMessage(message)) {
-                            console.log('📟 Status message detected, processing for reaction...');
+                            // console.log('📟 Status message detected, processing for reaction...');
                             // Add small delay to prevent race conditions
                             setTimeout(() => {
                                 this.processStatusForReaction(message);
@@ -307,12 +307,12 @@ class AutoReactPlugin {
             // Mark as processed IMMEDIATELY to prevent duplicates
             this.reactedStatuses.add(statusId);
             
-            console.log('📟 Processing status for reaction:', {
-                jid: message.key.remoteJid,
-                id: message.key.id,
-                participant: message.key.participant,
-                fromMe: message.key.fromMe
-            });
+            // console.log('📟 Processing status for reaction:', {
+            //     jid: message.key.remoteJid,
+            //     id: message.key.id,
+            //     participant: message.key.participant,
+            //     fromMe: message.key.fromMe
+            // });
             
             // Status reaction is working properly
             
@@ -329,14 +329,14 @@ class AutoReactPlugin {
             const delay = this.statusReactDelayMode === 'delay' ? 
                          (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
             
-            console.log(`⏰ Scheduling status reaction with ${reaction} (delay: ${delay}ms)`);
+            // console.log(`⏰ Scheduling status reaction with ${reaction} (delay: ${delay}ms)`);
             
             // Schedule the reaction
             setTimeout(async () => {
                 try {
                     // Try multiple reaction methods
                     await this.sendStatusReaction(message, reaction);
-                    console.log(`💝 Successfully reacted to status with ${reaction}`);
+                    // console.log(`💝 Successfully reacted to status with ${reaction}`);
                 } catch (error) {
                     console.error('❌ All status reaction methods failed:', error.message);
                     // Remove from cache since all methods failed
