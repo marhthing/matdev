@@ -15,11 +15,13 @@ class AutoReactPlugin {
         // Auto react settings for messages
         this.isEnabled = false;
         this.reactionChance = 25; // 25% chance by default
+        this.reactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
         // Status auto react settings
         this.statusReactEnabled = false;
         this.statusReactionChance = 60; // 60% chance for status
         this.statusReactionDelay = { min: 30000, max: 300000 }; // 30s to 5min delay
+        this.statusReactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
         // Keep track of reacted statuses to avoid duplicates
         this.reactedStatuses = new Set();
@@ -209,6 +211,10 @@ class AutoReactPlugin {
             this.statusReactEnabled = true;
             console.log('🔥 Auto status react enabled from environment');
         }
+        
+        // Initialize delay settings from config
+        this.reactDelayMode = config.REACT_DELAY;
+        this.statusReactDelayMode = config.STATUS_REACT_DELAY;
 
         console.log('✅ Auto React plugin loaded');
         return this;
@@ -304,7 +310,9 @@ class AutoReactPlugin {
             const reaction = await this.findReaction(text);
             if (!reaction) return;
             
-            // Send reaction with delay to seem natural
+            // Send reaction based on delay mode
+            const delay = this.reactDelayMode === 'delay' ? (500 + Math.random() * 2000) : 0;
+            
             setTimeout(async () => {
                 try {
                     await this.bot.sock.sendMessage(message.key.remoteJid, {
@@ -318,7 +326,7 @@ class AutoReactPlugin {
                 } catch (error) {
                     console.error('Error sending auto reaction:', error);
                 }
-            }, 500 + Math.random() * 2000); // 0.5-2.5 second delay
+            }, delay);
             
         } catch (error) {
             console.error('Error in processMessageForReaction:', error);
@@ -352,9 +360,9 @@ class AutoReactPlugin {
             // Mark as processed to avoid duplicate reactions
             this.reactedStatuses.add(statusId);
             
-            // Calculate random delay to seem natural
-            const delay = this.statusReactionDelay.min + 
-                         Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min);
+            // Calculate delay based on delay mode
+            const delay = this.statusReactDelayMode === 'delay' ? 
+                         (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
             
             // Schedule the reaction
             setTimeout(async () => {
@@ -420,19 +428,27 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.isEnabled = true;
-                await this.bot.messageHandler.reply(messageInfo, '✅ *MESSAGE AUTO REACTIONS ENABLED*\n\n💝 Bot will now react to messages automatically!\n\n📊 *Settings:*\n• Chance: 25%\n• Enhanced keyword detection\n• 120+ reaction emojis');
+                const delayText = this.reactDelayMode === 'delay' ? '0.5-2.5s delay' : 'instant';
+                await this.bot.messageHandler.reply(messageInfo, `✅ *MESSAGE AUTO REACTIONS ENABLED*\n\n💝 Bot will now react to messages automatically!\n\n📊 *Settings:*\n• Chance: 25%\n• Timing: ${delayText}\n• Enhanced keyword detection\n• 120+ reaction emojis`);
             } else if (action === 'off' || action === 'disable') {
                 this.isEnabled = false;
                 await this.bot.messageHandler.reply(messageInfo, '❌ *MESSAGE AUTO REACTIONS DISABLED*\n\n💝 Message reactions stopped.');
+            } else if (action === 'delay') {
+                this.reactDelayMode = 'delay';
+                await this.bot.messageHandler.reply(messageInfo, '⏰ *MESSAGE REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 0.5-2.5 seconds before reacting to messages.');
+            } else if (action === 'nodelay') {
+                this.reactDelayMode = 'nodelay';
+                await this.bot.messageHandler.reply(messageInfo, '⚡ *MESSAGE REACTION DELAY DISABLED*\n\n💨 Bot will now react to messages instantly.');
             } else {
                 // Show status
                 const response = `*💝 MESSAGE AUTO REACT STATUS*\n\n` +
                     `*Status:* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `*Timing:* ${this.reactDelayMode === 'delay' ? '⏰ Delayed (0.5-2.5s)' : '⚡ Instant'}\n` +
                     `*Reaction Chance:* ${this.reactionChance}%\n` +
                     `*Keywords:* ${Object.keys(this.keywordReactions).length} patterns\n` +
                     `*Random Pool:* ${this.randomReactions.length} emojis\n\n` +
                     `*Commands:*\n` +
-                    `${config.PREFIX}autoreact on/off`;
+                    `${config.PREFIX}autoreact on/off/delay/nodelay`;
                 
                 await this.bot.messageHandler.reply(messageInfo, response);
             }
@@ -451,20 +467,31 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.statusReactEnabled = true;
-                await this.bot.messageHandler.reply(messageInfo, '✅ *STATUS AUTO REACTIONS ENABLED*\n\n👁️ Bot will now react to friends\' status updates automatically!\n\n📊 *Settings:*\n• Chance: 60%\n• Delay: 30s-5min\n• Reactions: ❤💙💚');
+                const delayText = this.statusReactDelayMode === 'delay' ? '30s-5min delay' : 'instant';
+                await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*\n\n👁️ Bot will now react to friends\' status updates automatically!\n\n📊 *Settings:*\n• Chance: 60%\n• Timing: ${delayText}\n• Reactions: ❤💙💚`);
             } else if (action === 'off' || action === 'disable') {
                 this.statusReactEnabled = false;
                 await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*\n\n👁️ Status reactions stopped.');
+            } else if (action === 'delay') {
+                this.statusReactDelayMode = 'delay';
+                await this.bot.messageHandler.reply(messageInfo, '⏰ *STATUS REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 30s-5min before reacting to status updates.');
+            } else if (action === 'nodelay') {
+                this.statusReactDelayMode = 'nodelay';
+                await this.bot.messageHandler.reply(messageInfo, '⚡ *STATUS REACTION DELAY DISABLED*\n\n💨 Bot will now react to status updates instantly.');
             } else {
                 // Show status
+                const delayStatus = this.statusReactDelayMode === 'delay' ? 
+                    `⏰ Delayed (${this.statusReactionDelay.min/1000}s-${this.statusReactionDelay.max/1000}s)` : 
+                    '⚡ Instant';
+                
                 const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
                     `*Status:* ${this.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `*Timing:* ${delayStatus}\n` +
                     `*Reaction Chance:* ${this.statusReactionChance}%\n` +
-                    `*Delay Range:* ${this.statusReactionDelay.min/1000}s - ${this.statusReactionDelay.max/1000}s\n` +
                     `*Reactions:* ${this.statusReactions.join('')}\n` +
                     `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
                     `*Commands:*\n` +
-                    `${config.PREFIX}sautoreact on/off`;
+                    `${config.PREFIX}sautoreact on/off/delay/nodelay`;
                 
                 await this.bot.messageHandler.reply(messageInfo, response);
             }
