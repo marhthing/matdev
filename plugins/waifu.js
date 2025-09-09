@@ -61,10 +61,70 @@ class WaifuPlugin {
             'aesthetic': ['uniform', 'dress', 'kimono'],
             'popular': ['marin-kitagawa', 'mori-calliope', 'raiden-shogun'],
             
-            // NSFW Categories
+            // NSFW Categories - Comprehensive list
             'boobs': ['oppai', 'paizuri', 'ecchi'],
             'nsfw': ['hentai', 'ass', 'milf', 'oral'],
-            'lewd': ['oppai', 'ecchi', 'hentai']
+            'lewd': ['oppai', 'ecchi', 'hentai'],
+            'uniform': ['hentai', 'ecchi', 'oppai'],
+            'pussy': ['hentai', 'ecchi', 'milf'],
+            'bikini': ['ecchi', 'oppai', 'hentai'],
+            'panties': ['ecchi', 'hentai', 'oppai'],
+            'lingerie': ['ecchi', 'oppai', 'hentai'],
+            'nude': ['hentai', 'oppai', 'ecchi'],
+            'naked': ['hentai', 'oppai', 'ecchi'],
+            'ass': ['ass', 'hentai', 'ecchi'],
+            'butt': ['ass', 'hentai', 'ecchi'],
+            'thicc': ['ass', 'oppai', 'hentai'],
+            'thick': ['ass', 'oppai', 'hentai'],
+            'milf': ['milf', 'oppai', 'hentai'],
+            'mom': ['milf', 'oppai', 'hentai'],
+            'mature': ['milf', 'hentai', 'oppai'],
+            'oral': ['oral', 'hentai', 'ecchi'],
+            'blowjob': ['oral', 'hentai', 'ecchi'],
+            'bj': ['oral', 'hentai', 'ecchi'],
+            'paizuri': ['paizuri', 'oppai', 'hentai'],
+            'titjob': ['paizuri', 'oppai', 'hentai'],
+            'school': ['hentai', 'ecchi', 'oppai'],
+            'schoolgirl': ['hentai', 'ecchi', 'oppai'],
+            'student': ['hentai', 'ecchi', 'oppai'],
+            'teacher': ['milf', 'hentai', 'oppai'],
+            'nurse': ['hentai', 'ecchi', 'oppai'],
+            'maid': ['hentai', 'ecchi', 'oppai'],
+            'bunny': ['ecchi', 'hentai', 'oppai'],
+            'catgirl': ['hentai', 'ecchi', 'oppai'],
+            'neko': ['hentai', 'ecchi', 'oppai'],
+            'demon': ['hentai', 'ecchi', 'oppai'],
+            'angel': ['hentai', 'ecchi', 'oppai'],
+            'elf': ['hentai', 'ecchi', 'oppai'],
+            'witch': ['hentai', 'ecchi', 'oppai'],
+            'vampire': ['hentai', 'ecchi', 'oppai'],
+            'swimsuit': ['ecchi', 'oppai', 'hentai'],
+            'beach': ['ecchi', 'oppai', 'hentai'],
+            'summer': ['ecchi', 'oppai', 'hentai'],
+            'shower': ['hentai', 'ecchi', 'oppai'],
+            'bath': ['hentai', 'ecchi', 'oppai'],
+            'wet': ['hentai', 'ecchi', 'oppai'],
+            'loli': ['hentai', 'ecchi', 'oppai'],
+            'young': ['hentai', 'ecchi', 'oppai'],
+            'teen': ['hentai', 'ecchi', 'oppai'],
+            'ahegao': ['hentai', 'ecchi', 'oral'],
+            'cumshot': ['hentai', 'oral', 'ecchi'],
+            'creampie': ['hentai', 'ecchi', 'oppai'],
+            'gangbang': ['hentai', 'oral', 'ecchi'],
+            'group': ['hentai', 'oral', 'ecchi'],
+            'threesome': ['hentai', 'oral', 'ecchi'],
+            'lesbian': ['hentai', 'ecchi', 'oppai'],
+            'yuri': ['hentai', 'ecchi', 'oppai'],
+            'futanari': ['hentai', 'ecchi', 'oppai'],
+            'futa': ['hentai', 'ecchi', 'oppai'],
+            'trap': ['hentai', 'ecchi', 'oppai'],
+            'femboy': ['hentai', 'ecchi', 'oppai'],
+            'tentacle': ['hentai', 'ecchi', 'oppai'],
+            'monster': ['hentai', 'ecchi', 'oppai'],
+            'bdsm': ['hentai', 'ecchi', 'oppai'],
+            'bondage': ['hentai', 'ecchi', 'oppai'],
+            'domination': ['hentai', 'ecchi', 'oppai'],
+            'submissive': ['hentai', 'ecchi', 'oppai']
         };
         
         // Request tracking for rate limiting
@@ -165,7 +225,8 @@ class WaifuPlugin {
             if (!waifuData) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to generate NSFW waifu. Try again!\n\n' +
-                    `💡 Available NSFW categories: boobs, nsfw, lewd`
+                    `💡 Popular NSFW categories: boobs, pussy, bikini, uniform, panties, lingerie, nude, ass, thicc, milf, oral, schoolgirl, nurse, maid, catgirl, swimsuit, shower, ahegao, lesbian, futanari, tentacle, bdsm\n\n` +
+                    `🔞 Use: .nsfw [category] - Example: .nsfw uniform`
                 );
                 return;
             }
@@ -315,16 +376,28 @@ class WaifuPlugin {
      * Get NSFW tag based on category
      */
     getNSFWTag(category = null) {
-        const nsfwCategories = ['boobs', 'nsfw', 'lewd'];
+        // All NSFW categories (excluding SFW ones)
+        const nsfwCategories = [
+            'boobs', 'nsfw', 'lewd', 'uniform', 'pussy', 'bikini', 'panties', 
+            'lingerie', 'nude', 'naked', 'ass', 'butt', 'thicc', 'thick', 
+            'milf', 'mom', 'mature', 'oral', 'blowjob', 'bj', 'paizuri', 
+            'titjob', 'school', 'schoolgirl', 'student', 'teacher', 'nurse', 
+            'maid', 'bunny', 'catgirl', 'neko', 'demon', 'angel', 'elf', 
+            'witch', 'vampire', 'swimsuit', 'beach', 'summer', 'shower', 
+            'bath', 'wet', 'loli', 'young', 'teen', 'ahegao', 'cumshot', 
+            'creampie', 'gangbang', 'group', 'threesome', 'lesbian', 'yuri', 
+            'futanari', 'futa', 'trap', 'femboy', 'tentacle', 'monster', 
+            'bdsm', 'bondage', 'domination', 'submissive'
+        ];
         
         if (category && this.categories[category] && nsfwCategories.includes(category)) {
             const tags = this.categories[category];
             return tags[Math.floor(Math.random() * tags.length)];
         }
 
-        // Get random tag from NSFW categories
-        const nsfwTags = nsfwCategories.map(cat => this.categories[cat] || []).flat();
-        return nsfwTags[Math.floor(Math.random() * nsfwTags.length)];
+        // Get random tag from basic NSFW categories if category not found
+        const basicNsfwTags = ['hentai', 'ecchi', 'oppai', 'ass', 'milf', 'oral'];
+        return basicNsfwTags[Math.floor(Math.random() * basicNsfwTags.length)];
     }
 
     /**
