@@ -339,17 +339,9 @@ class AutoReactPlugin {
                     await this.sendStatusReaction(message, reaction);
                     console.log(`💝 Successfully reacted to status with ${reaction}`);
                 } catch (error) {
-                    console.error('❌ Error sending status reaction:', error.message);
-                    // Remove from cache if reaction failed
+                    console.error('❌ All status reaction methods failed:', error.message);
+                    // Remove from cache since all methods failed
                     this.reactedStatuses.delete(statusId);
-                    
-                    // Try alternative method
-                    try {
-                        await this.sendAlternativeStatusReaction(message, reaction);
-                        console.log(`💝 Successfully sent alternative status reaction with ${reaction}`);
-                    } catch (altError) {
-                        console.error('❌ Alternative status reaction also failed:', altError.message);
-                    }
                 }
             }, delay);
             
@@ -359,34 +351,67 @@ class AutoReactPlugin {
     }
 
     /**
-     * Send status reaction using primary method
+     * Send status reaction using multiple methods
      */
     async sendStatusReaction(message, reaction) {
-        console.log('🔍 Trying primary method with LID support');
+        console.log('🔍 Trying multiple status reaction methods...');
         
-        // Try using participantLid if available (WhatsApp's new LID system)
-        if (message.key.participantLid) {
-            console.log('🆔 Found participantLid, using LID-based reaction');
-            return await this.bot.sock.sendMessage(message.key.participantLid, {
+        // Method 1: React using participant JID with status key structure
+        if (message.key.participant) {
+            console.log('📱 Method 1: Participant JID with status key');
+            try {
+                const result = await this.bot.sock.sendMessage(message.key.participant, {
+                    react: {
+                        text: reaction,
+                        key: {
+                            remoteJid: 'status@broadcast',
+                            id: message.key.id,
+                            participant: message.key.participant,
+                            fromMe: false
+                        }
+                    }
+                });
+                console.log('✅ Method 1 SUCCESS - Participant JID reaction sent');
+                return result;
+            } catch (error) {
+                console.log('❌ Method 1 FAILED:', error.message);
+            }
+        }
+        
+        // Method 2: React using the exact original message key
+        console.log('📱 Method 2: Original message key reaction');
+        try {
+            const result = await this.bot.sock.sendMessage(message.key.remoteJid, {
+                react: {
+                    text: reaction,
+                    key: message.key
+                }
+            });
+            console.log('✅ Method 2 SUCCESS - Original key reaction sent');
+            return result;
+        } catch (error) {
+            console.log('❌ Method 2 FAILED:', error.message);
+        }
+        
+        // Method 3: React to status@broadcast with full key info
+        console.log('📱 Method 3: Status broadcast reaction');
+        try {
+            const result = await this.bot.sock.sendMessage('status@broadcast', {
                 react: {
                     text: reaction,
                     key: {
-                        remoteJid: message.key.participantLid,
+                        remoteJid: 'status@broadcast',
                         id: message.key.id,
-                        fromMe: false
+                        participant: message.key.participant
                     }
                 }
             });
+            console.log('✅ Method 3 SUCCESS - Status broadcast reaction sent');
+            return result;
+        } catch (error) {
+            console.log('❌ Method 3 FAILED:', error.message);
+            throw error;
         }
-        
-        // Fallback to original method
-        console.log('🔍 No LID found, using original key structure');
-        return await this.bot.sock.sendMessage(message.key.remoteJid, {
-            react: {
-                text: reaction,
-                key: message.key
-            }
-        });
     }
 
     /**
