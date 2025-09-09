@@ -314,6 +314,9 @@ class AutoReactPlugin {
                 fromMe: message.key.fromMe
             });
             
+            // Log complete message structure for debugging
+            console.log('🔍 Complete message key structure:', JSON.stringify(message.key, null, 2));
+            
             // Get random status reaction
             const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
             if (!reaction) {
@@ -359,6 +362,7 @@ class AutoReactPlugin {
      * Send status reaction using primary method
      */
     async sendStatusReaction(message, reaction) {
+        console.log('🔍 Trying primary method - original key structure');
         return await this.bot.sock.sendMessage(message.key.remoteJid, {
             react: {
                 text: reaction,
@@ -371,15 +375,54 @@ class AutoReactPlugin {
      * Send status reaction using alternative method
      */
     async sendAlternativeStatusReaction(message, reaction) {
-        // Alternative method: try using participant JID if available
-        const targetJid = message.key.participant || message.key.remoteJid;
+        console.log('🔍 Trying alternative methods for status reaction...');
         
-        return await this.bot.sock.sendMessage(targetJid, {
+        // Method 1: React to participant directly
+        if (message.key.participant) {
+            console.log('📱 Method 1: Reacting to participant JID');
+            try {
+                return await this.bot.sock.sendMessage(message.key.participant, {
+                    react: {
+                        text: reaction,
+                        key: {
+                            remoteJid: message.key.participant,
+                            id: message.key.id,
+                            fromMe: false
+                        }
+                    }
+                });
+            } catch (error) {
+                console.log('❌ Method 1 failed:', error.message);
+            }
+        }
+        
+        // Method 2: Use status@broadcast with participant info
+        console.log('📱 Method 2: Modified key structure');
+        try {
+            return await this.bot.sock.sendMessage('status@broadcast', {
+                react: {
+                    text: reaction,
+                    key: {
+                        remoteJid: 'status@broadcast',
+                        id: message.key.id,
+                        participant: message.key.participant,
+                        fromMe: false
+                    }
+                }
+            });
+        } catch (error) {
+            console.log('❌ Method 2 failed:', error.message);
+        }
+        
+        // Method 3: Direct status reaction attempt
+        console.log('📱 Method 3: Direct status reaction');
+        return await this.bot.sock.sendMessage(message.key.remoteJid, {
             react: {
                 text: reaction,
                 key: {
-                    ...message.key,
-                    remoteJid: targetJid
+                    remoteJid: message.key.remoteJid,
+                    id: message.key.id,
+                    participant: message.key.participant
                 }
             }
         });
