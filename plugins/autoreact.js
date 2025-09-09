@@ -63,6 +63,13 @@ class AutoReactPlugin {
             console.log('🔥 Auto status react enabled from environment');
         }
         
+        // Debug status reaction configuration
+        console.log('📊 Status Reaction Config:', {
+            enabled: this.statusReactEnabled,
+            reactions: this.statusReactions,
+            delayMode: this.statusReactDelayMode
+        });
+        
         // Initialize delay settings from config
         this.reactDelayMode = config.REACT_DELAY;
         this.statusReactDelayMode = config.STATUS_REACT_DELAY;
@@ -113,19 +120,41 @@ class AutoReactPlugin {
     }
 
     /**
-     * Setup status message listener
+     * Setup status message listener with updated method
      */
     setupStatusListener() {
         if (this.bot.sock) {
-            this.bot.sock.ev.on('messages.upsert', async ({ messages }) => {
-                for (const message of messages) {
-                    // Process status messages
-                    if (message.key.remoteJid === 'status@broadcast') {
-                        await this.processStatusForReaction(message);
+            this.bot.sock.ev.on('messages.upsert', async ({ type, messages }) => {
+                // Only process notify type messages (new messages)
+                if (type === 'notify') {
+                    for (const message of messages) {
+                        // Check for status messages using multiple identifiers
+                        const jid = message.key.remoteJid;
+                        if (this.isStatusMessage(message)) {
+                            console.log('📟 Status message detected, processing for reaction...');
+                            await this.processStatusForReaction(message);
+                        }
                     }
                 }
             });
         }
+    }
+
+    /**
+     * Check if message is a status message using multiple methods
+     */
+    isStatusMessage(message) {
+        if (!message || !message.key) return false;
+        
+        const jid = message.key.remoteJid;
+        
+        // Multiple checks for status messages
+        return (
+            jid === 'status@broadcast' ||           // Traditional method
+            jid?.endsWith('@broadcast') ||          // Updated method
+            jid?.includes('status') ||              // Alternative check
+            message.key.id?.startsWith('status_')   // ID-based check
+        );
     }
 
     /**
@@ -233,22 +262,39 @@ class AutoReactPlugin {
     async processStatusForReaction(message) {
         try {
             // Skip if auto status react is disabled
-            if (!this.statusReactEnabled) return;
+            if (!this.statusReactEnabled) {
+                console.log('⏭️ Status auto-react disabled, skipping...');
+                return;
+            }
             
             // Skip our own status
-            if (message.key.fromMe) return;
+            if (message.key.fromMe) {
+                console.log('⏭️ Skipping own status message');
+                return;
+            }
             
             // Create unique identifier for this status
             const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
             
             // Skip if we already reacted to this status
-            if (this.reactedStatuses.has(statusId)) return;
+            if (this.reactedStatuses.has(statusId)) {
+                console.log('⏭️ Already reacted to this status, skipping...');
+                return;
+            }
             
-            
+            console.log('📟 Processing status for reaction:', {
+                jid: message.key.remoteJid,
+                id: message.key.id,
+                participant: message.key.participant,
+                fromMe: message.key.fromMe
+            });
             
             // Get random status reaction
             const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
-            if (!reaction) return;
+            if (!reaction) {
+                console.log('❌ No reaction emoji available');
+                return;
+            }
             
             // Mark as processed to avoid duplicate reactions
             this.reactedStatuses.add(statusId);
@@ -257,27 +303,62 @@ class AutoReactPlugin {
             const delay = this.statusReactDelayMode === 'delay' ? 
                          (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
             
+            console.log(`⏰ Scheduling status reaction with ${reaction} (delay: ${delay}ms)`);
+            
             // Schedule the reaction
             setTimeout(async () => {
                 try {
-                    await this.bot.sock.sendMessage(message.key.remoteJid, {
-                        react: {
-                            text: reaction,
-                            key: message.key
-                        }
-                    });
-                    
-                    // console.log(`💝 Auto reacted to status with ${reaction}`);
+                    // Try multiple reaction methods
+                    await this.sendStatusReaction(message, reaction);
+                    console.log(`💝 Successfully reacted to status with ${reaction}`);
                 } catch (error) {
-                    console.error('Error sending status reaction:', error);
+                    console.error('❌ Error sending status reaction:', error.message);
                     // Remove from cache if reaction failed
                     this.reactedStatuses.delete(statusId);
+                    
+                    // Try alternative method
+                    try {
+                        await this.sendAlternativeStatusReaction(message, reaction);
+                        console.log(`💝 Successfully sent alternative status reaction with ${reaction}`);
+                    } catch (altError) {
+                        console.error('❌ Alternative status reaction also failed:', altError.message);
+                    }
                 }
             }, delay);
             
         } catch (error) {
-            console.error('Error in processStatusForReaction:', error);
+            console.error('❌ Error in processStatusForReaction:', error);
         }
+    }
+
+    /**
+     * Send status reaction using primary method
+     */
+    async sendStatusReaction(message, reaction) {
+        return await this.bot.sock.sendMessage(message.key.remoteJid, {
+            react: {
+                text: reaction,
+                key: message.key
+            }
+        });
+    }
+
+    /**
+     * Send status reaction using alternative method
+     */
+    async sendAlternativeStatusReaction(message, reaction) {
+        // Alternative method: try using participant JID if available
+        const targetJid = message.key.participant || message.key.remoteJid;
+        
+        return await this.bot.sock.sendMessage(targetJid, {
+            react: {
+                text: reaction,
+                key: {
+                    ...message.key,
+                    remoteJid: targetJid
+                }
+            }
+        });
     }
 
     /**
