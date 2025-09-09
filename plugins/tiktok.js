@@ -122,6 +122,15 @@ class TikTokPlugin {
             plugin: 'tiktok',
             source: 'tiktok.js'
         });
+
+        // TikTok alias
+        this.bot.messageHandler.registerCommand('tt', this.downloadTikTok.bind(this), {
+            description: 'Download TikTok video without watermark (alias for tiktok)',
+            usage: `${config.PREFIX}tt <url>`,
+            category: 'download',
+            plugin: 'tiktok',
+            source: 'tiktok.js'
+        });
     }
 
     /**

@@ -523,7 +523,7 @@ class CorePlugin {
                 'YTS': ['YTSONG', 'YTMP3'],
                 'WORLDCLOCK': ['WC'],
                 'PERMISSIONS': ['PM'],
-                'TIKTOK': ['TTDL'],
+                'TIKTOK': ['TT'],
                 'SCHEDULE': ['SCHED'],
                 'SCHEDULES': ['SCHEDS'],
                 'CANCELSCHEDULE': ['CANCELSCHED'],
