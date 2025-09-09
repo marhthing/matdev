@@ -47,16 +47,37 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Text to Speech
+        // Advanced AI with Compound system
+        this.bot.messageHandler.registerCommand('compound', this.compoundCommand.bind(this), {
+            description: 'Advanced AI with web search and code execution',
+            usage: `${config.PREFIX}compound <your question>`,
+            category: 'ai'
+        });
+
+        // Tool Use AI for function calling
+        this.bot.messageHandler.registerCommand('tools', this.toolUseCommand.bind(this), {
+            description: 'AI with function calling capabilities',
+            usage: `${config.PREFIX}tools <your request>`,
+            category: 'ai'
+        });
+
+        // Model selection command
+        this.bot.messageHandler.registerCommand('models', this.listModelsCommand.bind(this), {
+            description: 'List available Groq models',
+            usage: `${config.PREFIX}models`,
+            category: 'ai'
+        });
+
+        // Text to Speech with real TTS
         this.bot.messageHandler.registerCommand('tts', this.textToSpeechCommand.bind(this), {
-            description: 'Convert text to speech using Groq',
+            description: 'Convert text to speech using Groq TTS',
             usage: `${config.PREFIX}tts <text>`,
             category: 'ai'
         });
 
-        // Speech to Text
+        // Speech to Text with enhanced Whisper
         this.bot.messageHandler.registerCommand('stt', this.speechToTextCommand.bind(this), {
-            description: 'Convert audio to text using Groq',
+            description: 'Convert audio to text using Groq Whisper',
             usage: `${config.PREFIX}stt (reply to audio)`,
             category: 'ai'
         });
@@ -115,7 +136,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'llama-3.1-70b-versatile', // Available Groq model
+                    model: 'llama-3.3-70b-versatile', // Latest Llama 3.3 model
                     temperature: 0.7,
                     max_tokens: 1024
                 });
@@ -180,9 +201,28 @@ class GroqPlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎤 Converting text to speech...');
 
             try {
-                // Use external TTS API (you can integrate with services like ElevenLabs, OpenAI TTS, etc.)
-                // For now, we'll provide the text formatted for TTS usage
-                const response = `🎤 *Text for Speech:*\n\n"${text}"\n\n⚠️ _Note: For actual audio generation, integrate with a TTS service like ElevenLabs or OpenAI TTS API._`;
+                // Use Groq TTS API
+                const ttsResponse = await groq.audio.speech.create({
+                    model: 'playai-tts',
+                    voice: 'alloy',
+                    input: text
+                });
+
+                const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
+                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
+                await fs.writeFile(audioPath, audioBuffer);
+
+                // Send audio file
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    audio: { url: audioPath },
+                    mimetype: 'audio/mpeg',
+                    ptt: false
+                });
+
+                // Clean up temp file
+                await fs.remove(audioPath);
+                
+                const response = `🎤 *Text converted to speech successfully!*`;
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: response,
@@ -240,10 +280,10 @@ class GroqPlugin {
                 const tempFile = path.join(this.tempDir, `audio_${Date.now()}.ogg`);
                 await fs.writeFile(tempFile, audioBuffer);
 
-                // Transcribe using Groq
+                // Transcribe using Groq (using faster turbo model)
                 const transcription = await groq.audio.transcriptions.create({
                     file: fs.createReadStream(tempFile),
-                    model: 'whisper-large-v3',
+                    model: 'whisper-large-v3-turbo',
                     language: 'en'
                 });
 
@@ -333,7 +373,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llava-v1.5-7b-4096-preview', // Available Groq vision model
+                    model: 'llama-3.3-70b-versatile', // Using multimodal capabilities
                     max_tokens: 1024
                 });
 
@@ -413,7 +453,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llava-v1.5-7b-4096-preview', // Available Groq vision model
+                    model: 'llama-3.3-70b-versatile', // Using multimodal capabilities
                     max_tokens: 1024
                 });
 
@@ -441,6 +481,217 @@ class GroqPlugin {
             } else {
                 console.error('Error in describe command:', error);
                 await this.bot.messageHandler.reply(messageInfo, '❌ Error processing image description request.');
+            }
+        }
+    }
+
+    /**
+     * Compound AI Command - Advanced AI with web search and code execution
+     */
+    async compoundCommand(messageInfo) {
+        try {
+            const groq = this.getGroqClient();
+
+            const prompt = messageInfo.args.join(' ').trim();
+            if (!prompt) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a question or request.\nUsage: .compound <your question>');
+                return;
+            }
+
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🧠 Processing with advanced AI...');
+
+            try {
+                const completion = await groq.chat.completions.create({
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are MATDEV Compound AI, an advanced assistant with web search and code execution capabilities. Be comprehensive and helpful.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    model: 'groq/compound',
+                    temperature: 0.7,
+                    max_tokens: 2048
+                });
+
+                const response = completion.choices[0]?.message?.content;
+                if (!response) {
+                    throw new Error('Empty response from Compound AI');
+                }
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🧠 *MATDEV Compound AI:*\n\n${response}`,
+                    edit: thinkingMsg.key
+                });
+
+            } catch (apiError) {
+                console.error('Compound AI error:', apiError);
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '❌ Error with Compound AI. Falling back to standard model...',
+                    edit: thinkingMsg.key
+                });
+                
+                // Fallback to standard model
+                return this.groqChatCommand(messageInfo);
+            }
+
+        } catch (error) {
+            if (error.message.includes('No API found')) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ ${error.message}`);
+            } else {
+                console.error('Error in compound command:', error);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error processing compound AI request.');
+            }
+        }
+    }
+
+    /**
+     * Tool Use Command - AI with function calling capabilities
+     */
+    async toolUseCommand(messageInfo) {
+        try {
+            const groq = this.getGroqClient();
+
+            const prompt = messageInfo.args.join(' ').trim();
+            if (!prompt) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a request that requires function calling.\nUsage: .tools <your request>');
+                return;
+            }
+
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🛠️ AI analyzing tools needed...');
+
+            try {
+                const completion = await groq.chat.completions.create({
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are MATDEV Tool AI, specialized in function calling and tool usage. Break down complex tasks and explain what tools would be needed.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    model: 'llama-3-groq-70b-tool-use',
+                    temperature: 0.3,
+                    max_tokens: 1024
+                });
+
+                const response = completion.choices[0]?.message?.content;
+                if (!response) {
+                    throw new Error('Empty response from Tool AI');
+                }
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `🛠️ *MATDEV Tool AI:*\n\n${response}`,
+                    edit: thinkingMsg.key
+                });
+
+            } catch (apiError) {
+                console.error('Tool AI error:', apiError);
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '❌ Error with Tool AI. Falling back to standard model...',
+                    edit: thinkingMsg.key
+                });
+                
+                // Fallback to standard model
+                return this.groqChatCommand(messageInfo);
+            }
+
+        } catch (error) {
+            if (error.message.includes('No API found')) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ ${error.message}`);
+            } else {
+                console.error('Error in tools command:', error);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error processing tool AI request.');
+            }
+        }
+    }
+
+    /**
+     * List Available Models Command
+     */
+    async listModelsCommand(messageInfo) {
+        try {
+            const groq = this.getGroqClient();
+
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '📋 Fetching available models...');
+
+            try {
+                // Get available models from Groq API (using axios for consistency)
+                const axios = require('axios');
+                const response = await axios.get('https://api.groq.com/openai/v1/models', {
+                    headers: {
+                        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = response.data;
+                const models = data.data || [];
+
+                let modelsList = '📋 *Available Groq Models:*\n\n';
+                
+                // Group models by type
+                const chatModels = models.filter(m => m.id.includes('llama') || m.id.includes('gpt') || m.id.includes('qwen') || m.id.includes('kimi'));
+                const systemModels = models.filter(m => m.id.includes('compound'));
+                const audioModels = models.filter(m => m.id.includes('whisper') || m.id.includes('tts'));
+                
+                if (chatModels.length > 0) {
+                    modelsList += '*🤖 Chat Models:*\n';
+                    chatModels.slice(0, 8).forEach(model => {
+                        modelsList += `• ${model.id}\n`;
+                    });
+                    modelsList += '\n';
+                }
+
+                if (systemModels.length > 0) {
+                    modelsList += '*🧠 AI Systems:*\n';
+                    systemModels.forEach(model => {
+                        modelsList += `• ${model.id}\n`;
+                    });
+                    modelsList += '\n';
+                }
+
+                if (audioModels.length > 0) {
+                    modelsList += '*🎵 Audio Models:*\n';
+                    audioModels.forEach(model => {
+                        modelsList += `• ${model.id}\n`;
+                    });
+                    modelsList += '\n';
+                }
+
+                modelsList += `*Total Models:* ${models.length}\n`;
+                modelsList += '*Usage:* Use model names with .groq, .compound, .tools commands';
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: modelsList,
+                    edit: processingMsg.key
+                });
+
+            } catch (apiError) {
+                console.error('Models API error:', apiError);
+                
+                // Fallback to hardcoded list
+                const fallbackList = `📋 *Available Groq Models:*\n\n*🤖 Chat Models:*\n• llama-3.3-70b-versatile (Latest)\n• llama-3.1-8b-instant (Fast)\n• openai/gpt-oss-120b (Flagship)\n• qwen/qwen3-32b\n\n*🧠 AI Systems:*\n• groq/compound (Web search + Code)\n• groq/compound-mini (Lightweight)\n\n*🎵 Audio Models:*\n• whisper-large-v3-turbo (STT)\n• playai-tts (TTS)\n\n*Usage:* Use with .groq, .compound, .tools commands`;
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: fallbackList,
+                    edit: processingMsg.key
+                });
+            }
+
+        } catch (error) {
+            if (error.message.includes('No API found')) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ ${error.message}`);
+            } else {
+                console.error('Error in models command:', error);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error fetching models list.');
             }
         }
     }
