@@ -458,7 +458,7 @@ class CorePlugin {
             menuText += `┃ 💻 Platform  : ${platformName} (${systemInfo.arch})\n`;
             menuText += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n`;
 
-            // Add command categories in a beautiful format
+            // Add command categories in a list format for better readability
             const categoryIcons = {
                 'core': '🔥',
                 'admin': '👑',
@@ -473,12 +473,11 @@ class CorePlugin {
                 const icon = categoryIcons[category] || '📋';
                 menuText += `╭─── ${icon} ${category.toUpperCase()} ${icon} ───╮\n`;
 
-                // Split commands into rows of 3
-                for (let i = 0; i < cmds.length; i += 3) {
-                    const row = cmds.slice(i, i + 3);
-                    const formattedRow = row.map(cmd => cmd.padEnd(12)).join('');
-                    menuText += `│ ${formattedRow}\n`;
-                }
+                // Display commands as a vertical list
+                cmds.forEach(cmd => {
+                    menuText += `│ • ${cmd}\n`;
+                });
+                
                 menuText += `╰${'─'.repeat(25)}╯\n\n`;
             }
 
