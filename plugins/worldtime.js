@@ -197,6 +197,15 @@ class WorldTimePlugin {
             source: 'worldtime.js'
         });
 
+        // Timezones alias
+        this.bot.messageHandler.registerCommand('tz', this.timezonesCommand.bind(this), {
+            description: 'List all available timezone codes (alias for timezones)',
+            usage: `${config.PREFIX}tz`,
+            category: 'time',
+            plugin: 'worldtime',
+            source: 'worldtime.js'
+        });
+
         
     }
 

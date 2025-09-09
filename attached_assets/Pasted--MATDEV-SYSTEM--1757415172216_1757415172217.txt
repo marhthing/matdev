@@ -1,0 +1,124 @@
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃        ✦ MATDEV SYSTEM ✦        ┃
+┃━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┃
+┃ ⚡ Prefix    : .
+┃ 👤 User      : POF
+┃ ⏰ Time      : 11:53:31 AM
+┃ 📅 Day       : Tuesday
+┃ 📆 Date      : 09/09/2025
+┃ 🔧 Version   : 1.0.0
+┃ 🧩 Plugins   : 77
+┃ 🧠 RAM       : 49/64313MB
+┃ ⏰ Uptime    : 12m 10s
+┃ 💻 Platform  : Linux (x64)
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+╭─── 🛡 PRIVACY 🛡 ───╮
+│ • DELETE
+│ • VV
+╰─────────────────────────╯
+
+╭─── 🤖 AUTOMATION 🤖 ───╮
+│ • AUTOBIO
+│ • SETBIO
+│ • BIOINT
+│ • BIOTEMPLATES
+│ • UPDATEBIO
+│ • AUTOREACT
+│ • REACTCHANCE
+│ • KEYWORDREACT
+│ • ADDREACTION
+│ • REACTIONS
+│ • REACTSTATUS
+│ • AUTOSTATUSREACT
+│ • STATUSREACTCHANCE
+│ • STATUSDELAY
+│ • ADDSTATUSREACTION
+│ • STATUSREACTIONS
+│ • STATUSREACTSTATUS
+│ • CLEARSTATUSCACHE
+│ • SCHEDULE ~ SCHED
+│ • SCHEDULES ~ SCHEDS
+│ • CANCELSCHEDULE ~ CANCELSCHED
+╰─────────────────────────╯
+
+╭─── 📸 MEDIA 📸 ───╮
+│ • ADDCAPTION ~ AC
+│ • EDITCAPTION ~ EC
+│ • REMOVECAPTION ~ RC
+│ • COPYCAPTION ~ CC
+│ • MEDIAINFO
+│ • CONVERT
+│ • STICKER
+│ • TAKE
+│ • PHOTO
+│ • COMPRESS
+│ • TOAUDIO
+│ • TOMP3
+│ • TOVIDEO
+│ • TOIMAGE
+│ • UPSCALE
+╰─────────────────────────╯
+
+╭─── 🔥 CORE 🔥 ───╮
+│ • JID
+│ • HELP
+│ • PING
+╰─────────────────────────╯
+
+╭─── 👑 ADMIN 👑 ───╮
+│ • RESTART
+│ • SHUTDOWN
+│ • PERMISSIONS ~ PM
+│ • CLEARLID
+│ • LIDINFO
+│ • BR
+│ • SETCMD
+│ • DELCMD
+╰─────────────────────────╯
+
+╭─── 👥 GROUP 👥 ───╮
+│ • RG
+╰─────────────────────────╯
+
+╭─── 🧠 AI 🧠 ───╮
+│ • GEMINI ~ AI
+╰─────────────────────────╯
+
+╭─── 🔧 UTILITY 🔧 ───╮
+│ • SAVE
+│ • QR
+│ • MENU
+│ • TIME
+│ • CLEAR
+│ • STATS
+╰─────────────────────────╯
+
+╭─── ⚙ SYSTEM ⚙ ───╮
+│ • CONFIG
+│ • UPDATE
+│ • SETENV
+│ • GETENV
+╰─────────────────────────╯
+
+╭─── 🎮 FUN 🎮 ───╮
+│ • WAIFU
+│ • VDWAIFU
+╰─────────────────────────╯
+
+╭─── 🕐 TIME 🕐 ───╮
+│ • WORLDCLOCK ~ WC
+│ • TIMEZONES ~ TZ
+╰─────────────────────────╯
+
+╭─── ⬇ DOWNLOAD ⬇ ───╮
+│ • DOWNLOAD ~ DL
+│ • TIKTOK ~ TTDL
+│ • YTV ~ YTVIDEO ~ YTMP4
+│ • YTS ~ YTSONG ~ YTMP3
+╰─────────────────────────╯
+
+╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃  Type .help <command> for details   ┃
+┃     Powered by MATDEV ⚡       ┃
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
