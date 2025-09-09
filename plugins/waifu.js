@@ -654,14 +654,17 @@ class WaifuPlugin {
             videos = allVideos.sort(() => 0.5 - Math.random()).slice(0, 3);
         }
 
-        return videos.map(video => ({
-            ...video,
+        // Return only 1 video
+        const selectedVideo = videos[Math.floor(Math.random() * videos.length)];
+        
+        return [{
+            ...selectedVideo,
             streams: [
-                { quality: '720p', url: `https://hanime.tv/watch?v=${this.generateVideoId()}` },
-                { quality: '1080p', url: `https://hanime.tv/watch?v=${this.generateVideoId()}` }
+                { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` },
+                { quality: '1080p', url: `https://hanime.tv/videos/hentai` }
             ],
-            poster: `https://hanime.tv/thumbnails/${this.generateVideoId()}.jpg`
-        }));
+            poster: `https://i.imgur.com/placeholder.jpg` // Will try to get real thumbnail
+        }];
     }
 
     /**
@@ -681,60 +684,102 @@ class WaifuPlugin {
      */
     async sendVideoLinks(messageInfo, videoData, category) {
         try {
-            let response = `🔞 *NSFW Video Results*`;
-            if (category) {
-                response += ` - *${category.toUpperCase()}*`;
+            // Only send 1 video
+            const video = videoData[0];
+            
+            // Format content as caption
+            let caption = `🔞 *${video.title}*\n\n`;
+            
+            if (video.views > 0) {
+                const viewsFormatted = video.views >= 1000000 
+                    ? `${(video.views / 1000000).toFixed(1)}M`
+                    : video.views >= 1000
+                        ? `${(video.views / 1000).toFixed(1)}K`
+                        : video.views.toString();
+                caption += `⭐ Views: ${viewsFormatted}\n`;
             }
-            response += `\n\n`;
 
-            videoData.forEach((video, index) => {
-                response += `🎥 *${video.title}*\n`;
+            if (video.duration && video.duration !== 'Unknown') {
+                caption += `⏱️ Duration: ${video.duration}\n`;
+            }
+
+            // Add streaming links
+            if (video.streams && video.streams.length > 0) {
+                caption += `🔗 *Stream:* `;
+                video.streams.forEach((stream, i) => {
+                    if (i > 0) caption += ' | ';
+                    caption += `[${stream.quality || '720p'}](${stream.url})`;
+                });
+                caption += `\n`;
+            }
+
+            if (video.tags && video.tags.length > 0) {
+                const topTags = video.tags.slice(0, 5).join(', ');
+                caption += `🏷️ Tags: ${topTags}\n`;
+            }
+
+            caption += `\n💡 *Tip:* Use .vdwaifu [category] for specific content`;
+
+            // Try to send with thumbnail first
+            try {
+                // Get a random anime thumbnail from waifu APIs
+                const thumbnailData = await this.getRandomThumbnail(category);
                 
-                if (video.views > 0) {
-                    const viewsFormatted = video.views >= 1000000 
-                        ? `${(video.views / 1000000).toFixed(1)}M`
-                        : video.views >= 1000
-                            ? `${(video.views / 1000).toFixed(1)}K`
-                            : video.views.toString();
-                    response += `⭐ Views: ${viewsFormatted}\n`;
-                }
-
-                if (video.duration && video.duration !== 'Unknown') {
-                    response += `⏱️ Duration: ${video.duration}\n`;
-                }
-
-                // Add streaming links
-                if (video.streams && video.streams.length > 0) {
-                    response += `🔗 *Stream:* `;
-                    video.streams.forEach((stream, i) => {
-                        if (i > 0) response += ' | ';
-                        response += `[${stream.quality || '720p'}](${stream.url})`;
+                if (thumbnailData && thumbnailData.url) {
+                    // Download and send image with caption
+                    const response = await axios.get(thumbnailData.url, {
+                        responseType: 'arraybuffer',
+                        timeout: 10000,
+                        headers: {
+                            'User-Agent': 'MATDEV-Bot/1.0'
+                        }
                     });
-                    response += `\n`;
-                } else {
-                    // Fallback generic streaming link
-                    response += `🔗 *Stream:* [Watch Online](https://hanime.tv/search?query=${encodeURIComponent(video.title)})\n`;
+
+                    const timestamp = Date.now();
+                    const extension = '.jpg';
+                    const tempFileName = `vdwaifu_${timestamp}${extension}`;
+                    const tempFilePath = path.join(this.tempDir, tempFileName);
+
+                    await fs.writeFile(tempFilePath, response.data);
+
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        image: { url: tempFilePath },
+                        caption: caption
+                    });
+
+                    // Clean up
+                    if (await fs.pathExists(tempFilePath)) {
+                        await fs.remove(tempFilePath);
+                    }
+                    
+                    return;
                 }
+            } catch (thumbnailError) {
+                console.log('Thumbnail failed, falling back to text:', thumbnailError.message);
+            }
 
-                if (video.tags && video.tags.length > 0) {
-                    const topTags = video.tags.slice(0, 5).join(', ');
-                    response += `🏷️ Tags: ${topTags}\n`;
-                }
-
-                if (index < videoData.length - 1) {
-                    response += `\n`;
-                }
-            });
-
-            response += `\n💡 *Tip:* Use .vdwaifu [category] for specific content`;
-
-            await this.bot.messageHandler.reply(messageInfo, response);
+            // Fallback: send text only
+            await this.bot.messageHandler.reply(messageInfo, caption);
 
         } catch (error) {
             console.error('Error sending video links:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '✅ Video content found but failed to format response. Please try again.'
             );
+        }
+    }
+
+    /**
+     * Get random thumbnail for video
+     */
+    async getRandomThumbnail(category) {
+        try {
+            // Use existing waifu APIs to get a thumbnail
+            const isNSFW = true; // Video content is always NSFW
+            const thumbnailData = await this.fetchWaifu(category, isNSFW);
+            return thumbnailData;
+        } catch (error) {
+            return null;
         }
     }
 }
