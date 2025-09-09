@@ -240,61 +240,58 @@ class GroqPlugin {
                 return;
             }
 
-            if (text.length > 4000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long. Please keep it under 4000 characters.');
+            if (text.length > 10000) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long. Please keep it under 10,000 characters.');
                 return;
             }
 
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎤 Converting text to speech...');
 
             try {
-                // Try Groq TTS API with correct PlayAI voice
-                try {
-                    const ttsResponse = await groq.audio.speech.create({
-                        model: 'playai-tts',
-                        voice: 'Fritz-PlayAI', // Using correct PlayAI voice name
-                        input: text,
-                        response_format: 'mp3'
-                    });
+                // Use Groq TTS API with latest format from documentation
+                const response = await groq.audio.speech.create({
+                    model: "playai-tts",
+                    voice: "Fritz-PlayAI",
+                    input: text,
+                    response_format: "wav"
+                });
 
-                    const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-                    const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
-                    await fs.writeFile(audioPath, audioBuffer);
+                const buffer = Buffer.from(await response.arrayBuffer());
+                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.wav`);
+                await fs.writeFile(audioPath, buffer);
 
-                    // Send audio file
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        audio: { url: audioPath },
-                        mimetype: 'audio/mpeg',
-                        ptt: false
-                    });
+                // Send audio file
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    audio: { url: audioPath },
+                    mimetype: 'audio/wav',
+                    ptt: false
+                });
 
-                    // Clean up temp file
-                    await fs.remove(audioPath);
-                    
-                    const response = `🎤 *Text converted to speech successfully!*`;
+                // Clean up temp file
+                await fs.remove(audioPath);
+                
+                const successResponse = `🎤 *Text converted to speech successfully!*`;
 
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: response,
-                        edit: processingMsg.key
-                    });
-                    return;
-                    
-                } catch (ttsError) {
-                    console.error('TTS API error:', ttsError);
-                    
-                    // Fallback: Provide text formatted for TTS use
-                    const response = `🎤 *Text for Speech Conversion:*\n\n"${text}"\n\n⚠️ _Note: TTS service temporarily unavailable. Text formatted for voice synthesis._`;
-
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: response,
-                        edit: processingMsg.key
-                    });
-                }
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: successResponse,
+                    edit: processingMsg.key
+                });
 
             } catch (error) {
                 console.error('TTS processing error:', error);
+                
+                let errorMessage = '❌ Error processing text-to-speech request.';
+                
+                if (error.message && error.message.includes('model_terms_required')) {
+                    errorMessage = '❌ TTS model requires terms acceptance. Please contact the administrator to accept terms at https://console.groq.com/playground?model=playai-tts';
+                } else if (error.message && error.message.includes('quota')) {
+                    errorMessage = '❌ TTS API quota exceeded. Please try again later.';
+                } else if (error.message && error.message.includes('API_KEY_INVALID')) {
+                    errorMessage = '❌ Invalid API key. Please check your GROQ_API_KEY.';
+                }
+                
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Error processing text-to-speech request. Please try again later.',
+                    text: errorMessage,
                     edit: processingMsg.key
                 });
             }
