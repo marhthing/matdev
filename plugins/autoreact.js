@@ -14,12 +14,10 @@ class AutoReactPlugin {
         
         // Auto react settings for messages
         this.isEnabled = false;
-        this.reactionChance = 25; // 25% chance by default
         this.reactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
         // Status auto react settings
         this.statusReactEnabled = false;
-        this.statusReactionChance = 60; // 60% chance for status
         this.statusReactionDelay = { min: 30000, max: 300000 }; // 30s to 5min delay
         this.statusReactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
@@ -299,8 +297,7 @@ class AutoReactPlugin {
             // Skip our own messages
             if (message.key.fromMe) return;
             
-            // Check reaction chance
-            if (Math.random() * 100 > this.reactionChance) return;
+            
             
             // Get message text
             const text = this.extractMessageText(message);
@@ -350,8 +347,7 @@ class AutoReactPlugin {
             // Skip if we already reacted to this status
             if (this.reactedStatuses.has(statusId)) return;
             
-            // Check reaction chance
-            if (Math.random() * 100 > this.statusReactionChance) return;
+            
             
             // Get random status reaction
             const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
@@ -480,7 +476,6 @@ class AutoReactPlugin {
                 const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
                     `*Status:* ${this.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
                     `*Timing:* ${delayStatus}\n` +
-                    `*Reaction Chance:* ${this.statusReactionChance}%\n` +
                     `*Reactions:* ${this.statusReactions.join('')}\n` +
                     `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
                     `*Commands:*\n` +
