@@ -70,16 +70,16 @@ class GroqPlugin {
 
         // Image Analysis with questions
         this.bot.messageHandler.registerCommand('ask', this.visionCommand.bind(this), {
-            description: 'Ask questions about images using Groq Vision',
-            usage: `${config.PREFIX}ask <question> (reply to image)`,
+            description: 'Ask questions about images or describe them using Groq Vision',
+            usage: `${config.PREFIX}ask <question> (reply to image) OR ${config.PREFIX}ask "describe this image"`,
             category: 'ai'
         });
 
 
         // Reasoning Commands with Advanced Models
         this.bot.messageHandler.registerCommand('reason', this.reasoningCommand.bind(this), {
-            description: 'Complex problem-solving with step-by-step reasoning using GPT-OSS',
-            usage: `${config.PREFIX}reason <complex problem>`,
+            description: 'Advanced reasoning for complex problems, math, logic, and analysis',
+            usage: `${config.PREFIX}reason <any complex problem, math, or analysis>`,
             category: 'ai'
         });
 
@@ -840,7 +840,7 @@ class GroqPlugin {
                 console.error('Models API error:', apiError);
                 
                 // Fallback to hardcoded list
-                const fallbackList = `📋 *Available Groq Models:*\n\n*🤖 Chat Models:*\n• llama-3.3-70b-versatile (Latest)\n• llama-3.1-8b-instant (Fast)\n\n*🧠 Reasoning Models:*\n• openai/gpt-oss-120b (Advanced Reasoning)\n• openai/gpt-oss-20b (Math & Logic)\n• qwen/qwen3-32b (Thinking Process)\n\n*🔍 AI Systems:*\n• groq/compound (Web search + Code)\n• meta-llama/llama-4-scout-17b (Vision)\n\n*🎵 Audio Models:*\n• whisper-large-v3-turbo (STT)\n• playai-tts (TTS)\n\n*Usage:* Use with .groq, .reason, .think, .solve, .ask commands`;
+                const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: fallbackList,
