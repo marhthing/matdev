@@ -67,7 +67,6 @@ class MATDEV {
         this.connect = this.connect.bind(this);
         this.handleConnection = this.handleConnection.bind(this);
         this.handleMessages = this.handleMessages.bind(this);
-        this.sendMessage = this.sendMessage.bind(this);
     }
 
     /**
@@ -364,9 +363,10 @@ class MATDEV {
         try {
             if (this.sock && config.OWNER_NUMBER) {
                 const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                await this.sendMessage(botPrivateChat, {
+                await this.sock.sendMessage(botPrivateChat, {
                     text: "MATDEV bot started successfully"
                 });
+                this.messageStats.sent++; // Increment sent counter for startup message
                 logger.info('✅ Startup confirmation sent to bot private chat');
             }
         } catch (error) {
@@ -1097,27 +1097,6 @@ class MATDEV {
     }
 
     /**
-     * Wrapper method for sendMessage that tracks all outgoing messages
-     * This should be used instead of direct sock.sendMessage calls
-     */
-    async sendMessage(jid, content, options = {}) {
-        try {
-            if (!this.sock) {
-                throw new Error('WhatsApp socket not available');
-            }
-            
-            const result = await this.sock.sendMessage(jid, content, options);
-            
-            // Increment sent messages counter for ALL outgoing messages
-            this.messageStats.sent++;
-            
-            return result;
-        } catch (error) {
-            throw error; // Re-throw to maintain error handling in calling code
-        }
-    }
-
-    /**
      * Send periodic status report to owner
      */
     async sendStatusReport() {
@@ -1134,9 +1113,12 @@ class MATDEV {
                 `🔒 Security Events: ${security.getSecurityStats().securityEvents}\n` +
                 `🏃‍♂️ Status: Running optimally`;
 
-            await this.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
+            await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                 text: report
             });
+            
+            // Increment sent messages counter for status report
+            this.messageStats.sent++;
         } catch (error) {
             logger.error('Failed to send status report:', error);
         }
@@ -1359,7 +1341,7 @@ class MATDEV {
                         const restartInfo = JSON.parse(fs.readFileSync(restartInfoPath, 'utf8'));
 
                         // Send restart completion message
-                        await this.sendMessage(restartInfo.chatJid, {
+                        await this.sock.sendMessage(restartInfo.chatJid, {
                             text: '✅ Restart completed'
                         });
 
