@@ -154,6 +154,16 @@ class CorePlugin {
             source: 'core.js'
         });
 
+        // Stats command - manual status report
+        this.bot.messageHandler.registerCommand('stats', this.statsCommand.bind(this), {
+            description: 'Get bot statistics manually',
+            usage: `${config.PREFIX}stats`,
+            category: 'utility',
+            ownerOnly: true,
+            plugin: 'core',
+            source: 'core.js'
+        });
+
 
         // Sticker command binding commands (owner only)
         this.bot.messageHandler.registerCommand('setcmd', this.setStickerCommand.bind(this), {
@@ -1022,6 +1032,30 @@ class CorePlugin {
 
         } catch (error) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling bot reactions.');
+        }
+    }
+
+    /**
+     * Manual stats command handler (owner only)
+     */
+    async statsCommand(messageInfo) {
+        try {
+            const uptime = utils.formatUptime(Date.now() - this.bot.startTime);
+            const memUsage = process.memoryUsage();
+            const security = this.bot.security;
+
+            const report = `📊 *MATDEV Status Report*\n\n` +
+                `⏱️ Uptime: ${uptime}\n` +
+                `📨 Messages Received: ${this.bot.messageStats.received}\n` +
+                `📤 Messages Sent: ${this.bot.messageStats.sent}\n` +
+                `⚡ Commands Executed: ${this.bot.messageStats.commands}\n` +
+                `🧠 Memory Usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB\n` +
+                `🔒 Security Events: ${security.getSecurityStats().securityEvents}\n` +
+                `🏃‍♂️ Status: Running optimally`;
+
+            await this.bot.messageHandler.reply(messageInfo, report);
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving bot statistics.');
         }
     }
 

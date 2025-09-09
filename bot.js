@@ -366,6 +366,7 @@ class MATDEV {
                 await this.sock.sendMessage(botPrivateChat, {
                     text: "MATDEV bot started successfully"
                 });
+                this.messageStats.sent++; // Increment sent counter for startup message
                 logger.info('✅ Startup confirmation sent to bot private chat');
             }
         } catch (error) {
@@ -1109,12 +1110,15 @@ class MATDEV {
                 `📤 Messages Sent: ${this.messageStats.sent}\n` +
                 `⚡ Commands Executed: ${this.messageStats.commands}\n` +
                 `🧠 Memory Usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB\n` +
-                `🔒 Security Events: ${security.getSecurityStats().blocked}\n` +
+                `🔒 Security Events: ${security.getSecurityStats().securityEvents}\n` +
                 `🏃‍♂️ Status: Running optimally`;
 
             await this.sock.sendMessage(`${config.OWNER_NUMBER}@s.whatsapp.net`, {
                 text: report
             });
+            
+            // Increment sent messages counter for status report
+            this.messageStats.sent++;
         } catch (error) {
             logger.error('Failed to send status report:', error);
         }
