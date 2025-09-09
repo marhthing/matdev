@@ -245,12 +245,10 @@ class CaptionEditorPlugin {
             // Send the media
             await this.bot.sock.sendMessage(messageInfo.chat_jid, mediaMessage);
 
-            // Send success message only for non-removal actions
-            if (action !== 'removed') {
+            // Only send success message for specific actions, not for addcaption
+            if (action !== 'removed' && action !== 'added') {
                 let successMsg = '';
-                if (action === 'added') {
-                    successMsg = '✅ Caption added successfully!';
-                } else if (action === 'edited') {
+                if (action === 'edited') {
                     successMsg = '✅ Caption edited successfully!';
                 } else if (action === 'copied') {
                     successMsg = '✅ Media copied with new caption!';
@@ -260,7 +258,7 @@ class CaptionEditorPlugin {
                     successMsg += `\n\n📝 *New caption:* ${newCaption}`;
                 }
 
-                if (mediaInfo.originalCaption && action !== 'added') {
+                if (mediaInfo.originalCaption) {
                     successMsg += `\n📄 *Original caption:* ${mediaInfo.originalCaption}`;
                 }
 
