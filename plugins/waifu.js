@@ -12,37 +12,55 @@ class WaifuPlugin {
         this.description = 'Anime waifu image generator';
         this.version = '1.0.0';
         
-        // Free waifu APIs
-        this.apis = [
-            {
-                name: 'waifu.im',
-                url: 'https://api.waifu.im/search',
-                type: 'database',
-                tags: ['waifu', 'maid', 'marin-kitagawa', 'mori-calliope', 'raiden-shogun', 'oppai']
-            },
-            {
-                name: 'waifu.pics',
-                url: 'https://api.waifu.pics/sfw/waifu',
-                type: 'simple'
-            },
-            {
-                name: 'nekos.best',
-                url: 'https://nekos.best/api/v2/waifu',
-                type: 'nekos'
-            },
-            {
-                name: 'waifu.it',
-                url: 'https://waifu.it/api/v4/waifu',
-                type: 'comprehensive'
-            }
-        ];
+        // Free waifu APIs (SFW and NSFW)
+        this.apis = {
+            sfw: [
+                {
+                    name: 'waifu.im',
+                    url: 'https://api.waifu.im/search',
+                    type: 'database',
+                    tags: ['waifu', 'maid', 'marin-kitagawa', 'mori-calliope', 'raiden-shogun']
+                },
+                {
+                    name: 'waifu.pics',
+                    url: 'https://api.waifu.pics/sfw/waifu',
+                    type: 'simple'
+                },
+                {
+                    name: 'nekos.best',
+                    url: 'https://nekos.best/api/v2/waifu',
+                    type: 'nekos'
+                }
+            ],
+            nsfw: [
+                {
+                    name: 'waifu.im',
+                    url: 'https://api.waifu.im/search',
+                    type: 'database',
+                    tags: ['oppai', 'ass', 'hentai', 'milf', 'oral', 'paizuri', 'ecchi']
+                },
+                {
+                    name: 'waifu.pics',
+                    url: 'https://api.waifu.pics/nsfw/waifu',
+                    type: 'simple'
+                },
+                {
+                    name: 'nekos.best',
+                    url: 'https://nekos.best/api/v2/hentai',
+                    type: 'nekos'
+                }
+            ]
+        };
         
         // Image categories
         this.categories = {
             'sfw': ['waifu', 'maid', 'school'],
             'cute': ['neko', 'kitsune', 'elf'],
             'aesthetic': ['uniform', 'dress', 'kimono'],
-            'popular': ['marin-kitagawa', 'mori-calliope', 'raiden-shogun']
+            'popular': ['marin-kitagawa', 'mori-calliope', 'raiden-shogun'],
+            'boobs': ['oppai', 'paizuri', 'ecchi'],
+            'nsfw': ['hentai', 'ass', 'milf', 'oral'],
+            'lewd': ['oppai', 'ecchi', 'hentai']
         };
         
         // Request tracking for rate limiting
@@ -318,7 +336,8 @@ class WaifuPlugin {
             const uptimeMinutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
 
             const response = `*📊 WAIFU GENERATOR STATS*\n\n` +
-                           `*🎨 APIs Available:* ${this.apis.length}\n` +
+                           `*🎨 SFW APIs:* ${this.apis.sfw.length}\n` +
+                           `*🔞 NSFW APIs:* ${this.apis.nsfw.length}\n` +
                            `*🏷️ Categories:* ${Object.keys(this.categories).length}\n` +
                            `*📋 Total Tags:* ${Object.values(this.categories).flat().length}\n\n` +
                            `*⚡ RATE LIMITING:*\n` +
@@ -326,11 +345,13 @@ class WaifuPlugin {
                            `*Remaining:* ${this.getRemainingRequests()}\n` +
                            `*Reset Time:* ${uptimeHours}h ${uptimeMinutes}m ago\n\n` +
                            `*🔗 SOURCES:*\n` +
-                           `• waifu.im - Curated database\n` +
-                           `• waifu.pics - Random collection\n` +
-                           `• nekos.best - Neko specialists\n` +
-                           `• waifu.it - Comprehensive API\n\n` +
-                           `*Usage:* ${config.PREFIX}waifu [category]`;
+                           `• waifu.im - SFW/NSFW database\n` +
+                           `• waifu.pics - SFW/NSFW collection\n` +
+                           `• nekos.best - Waifu/Hentai specialists\n\n` +
+                           `*🔞 NSFW CATEGORIES:*\n` +
+                           `• boobs, nsfw, lewd\n\n` +
+                           `*Usage:* ${config.PREFIX}waifu [category]\n` +
+                           `*Example:* ${config.PREFIX}waifu boobs`;
 
             await this.bot.messageHandler.reply(messageInfo, response);
         } catch (error) {
@@ -352,14 +373,21 @@ class WaifuPlugin {
 
             this.requestCount++;
 
+            // Determine if request is NSFW
+            const isNSFW = this.isNSFWTag(tag);
+            const apiList = isNSFW ? this.apis.nsfw : this.apis.sfw;
+
             // Try waifu.im first (best quality)
             try {
                 const params = {};
-                if (tag && this.apis[0].tags.includes(tag)) {
+                if (tag && apiList[0].tags.includes(tag)) {
                     params.included_tags = tag;
                 }
+                if (isNSFW) {
+                    params.is_nsfw = true;
+                }
                 
-                const response = await axios.get(this.apis[0].url, {
+                const response = await axios.get(apiList[0].url, {
                     params,
                     timeout: 10000,
                     headers: {
@@ -373,7 +401,8 @@ class WaifuPlugin {
                         url: image.url,
                         source: 'waifu.im',
                         tags: image.tags || [],
-                        artist: image.artist || 'Unknown'
+                        artist: image.artist || 'Unknown',
+                        nsfw: isNSFW
                     };
                 }
             } catch (error) {
@@ -382,7 +411,7 @@ class WaifuPlugin {
 
             // Try waifu.pics as fallback
             try {
-                const response = await axios.get(this.apis[1].url, {
+                const response = await axios.get(apiList[1].url, {
                     timeout: 10000,
                     headers: {
                         'User-Agent': 'MATDEV-Bot/1.0'
@@ -393,8 +422,9 @@ class WaifuPlugin {
                     return {
                         url: response.data.url,
                         source: 'waifu.pics',
-                        tags: [tag || 'waifu'],
-                        artist: 'Unknown'
+                        tags: [tag || (isNSFW ? 'hentai' : 'waifu')],
+                        artist: 'Unknown',
+                        nsfw: isNSFW
                     };
                 }
             } catch (error) {
@@ -403,7 +433,7 @@ class WaifuPlugin {
 
             // Try nekos.best
             try {
-                const response = await axios.get(this.apis[2].url, {
+                const response = await axios.get(apiList[2].url, {
                     timeout: 10000,
                     headers: {
                         'User-Agent': 'MATDEV-Bot/1.0'
@@ -415,8 +445,9 @@ class WaifuPlugin {
                     return {
                         url: result.url,
                         source: 'nekos.best',
-                        tags: ['waifu'],
-                        artist: result.artist_name || 'Unknown'
+                        tags: [isNSFW ? 'hentai' : 'waifu'],
+                        artist: result.artist_name || 'Unknown',
+                        nsfw: isNSFW
                     };
                 }
             } catch (error) {
@@ -488,9 +519,23 @@ class WaifuPlugin {
             return tags[Math.floor(Math.random() * tags.length)];
         }
 
-        // Get random tag from all categories
-        const allTags = Object.values(this.categories).flat();
-        return allTags[Math.floor(Math.random() * allTags.length)];
+        // Get random tag from SFW categories only
+        const sfwCategories = ['sfw', 'cute', 'aesthetic', 'popular'];
+        const sfwTags = sfwCategories.map(cat => this.categories[cat] || []).flat();
+        return sfwTags[Math.floor(Math.random() * sfwTags.length)];
+    }
+
+    /**
+     * Check if a tag is NSFW
+     */
+    isNSFWTag(tag) {
+        if (!tag) return false;
+        
+        const nsfwCategories = ['boobs', 'nsfw', 'lewd'];
+        const nsfwTags = nsfwCategories.map(cat => this.categories[cat] || []).flat();
+        
+        return nsfwTags.includes(tag.toLowerCase()) || 
+               ['oppai', 'hentai', 'ass', 'milf', 'oral', 'paizuri', 'ecchi', 'boobs'].includes(tag.toLowerCase());
     }
 
     /**
