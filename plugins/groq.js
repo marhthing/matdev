@@ -115,7 +115,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'llama-3.2-90b-8192-long-context', // Updated model
+                    model: 'llama3-70b-8192', // Available Groq model
                     temperature: 0.7,
                     max_tokens: 1024
                 });
@@ -180,11 +180,12 @@ class GroqPlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎤 Converting text to speech...');
 
             try {
-                // Note: Groq doesn't have native TTS, so we'll use a workaround
-                // You might want to integrate with another TTS service here
-                // For now, we'll create a simple response
+                // Use external TTS API (you can integrate with services like ElevenLabs, OpenAI TTS, etc.)
+                // For now, we'll provide the text formatted for TTS usage
+                const response = `🎤 *Text for Speech:*\n\n"${text}"\n\n⚠️ _Note: For actual audio generation, integrate with a TTS service like ElevenLabs or OpenAI TTS API._`;
+                
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '⚠️ Text-to-Speech feature requires integration with a TTS service. Groq specializes in text generation and transcription.',
+                    text: response,
                     edit: processingMsg.key
                 });
 
@@ -332,7 +333,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llama-3.2-90b-vision-preview', // Updated model
+                    model: 'llama-3.2-11b-vision-preview', // Available Groq vision model
                     max_tokens: 1024
                 });
 
@@ -412,7 +413,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llama-3.2-90b-vision-preview', // Updated model
+                    model: 'llama-3.2-11b-vision-preview', // Available Groq vision model
                     max_tokens: 1024
                 });
 
