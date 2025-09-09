@@ -290,7 +290,7 @@ class CaptionEditorPlugin {
             if (tempFilePath && await fs.pathExists(tempFilePath)) {
                 try {
                     await fs.remove(tempFilePath);
-                    console.log(`🗑️ Cleaned up temp file: ${tempFilePath}`);
+                    // console.log(`🗑️ Cleaned up temp file: ${tempFilePath}`);
                 } catch (cleanupError) {
                     console.error('Error cleaning up temp file:', cleanupError);
                 }
