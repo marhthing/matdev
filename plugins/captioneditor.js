@@ -5,12 +5,16 @@
  */
 
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
+const { downloadMediaMessage } = require('baileys');
 
 class CaptionEditorPlugin {
     constructor() {
         this.name = 'captioneditor';
         this.description = 'Edit media captions without downloading';
         this.version = '1.0.0';
+        this.tempDir = path.join(process.cwd(), 'tmp');
     }
 
     /**
@@ -19,6 +23,9 @@ class CaptionEditorPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
+
+        // Ensure temp directory exists
+        await fs.ensureDir(this.tempDir);
 
         console.log('✅ Caption Editor plugin loaded');
         return this;
@@ -70,7 +77,6 @@ class CaptionEditorPlugin {
      */
     async addCaptionCommand(messageInfo) {
         try {
-            // Check if replying to a message
             const quotedMessage = await this.getQuotedMessage(messageInfo);
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -79,14 +85,12 @@ class CaptionEditorPlugin {
                 return;
             }
 
-            // Check if it's media
             const mediaInfo = this.getMediaInfo(quotedMessage);
             if (!mediaInfo) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
                 return;
             }
 
-            // Check if caption provided
             if (!messageInfo.args.length) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Please provide a caption.\n\n*Usage:* ${config.PREFIX}addcaption <caption>`
@@ -95,9 +99,7 @@ class CaptionEditorPlugin {
             }
 
             const newCaption = messageInfo.args.join(' ');
-
-            // Send media with new caption
-            await this.sendMediaWithCaption(messageInfo, mediaInfo, newCaption, 'added');
+            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'added');
 
         } catch (error) {
             console.error('Error in addCaptionCommand:', error);
@@ -110,7 +112,6 @@ class CaptionEditorPlugin {
      */
     async editCaptionCommand(messageInfo) {
         try {
-            // Check if replying to a message
             const quotedMessage = await this.getQuotedMessage(messageInfo);
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -119,14 +120,12 @@ class CaptionEditorPlugin {
                 return;
             }
 
-            // Check if it's media
             const mediaInfo = this.getMediaInfo(quotedMessage);
             if (!mediaInfo) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
                 return;
             }
 
-            // Check if caption provided
             if (!messageInfo.args.length) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Please provide a new caption.\n\n*Usage:* ${config.PREFIX}editcaption <new caption>`
@@ -135,9 +134,7 @@ class CaptionEditorPlugin {
             }
 
             const newCaption = messageInfo.args.join(' ');
-
-            // Send media with edited caption
-            await this.sendMediaWithCaption(messageInfo, mediaInfo, newCaption, 'edited');
+            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'edited');
 
         } catch (error) {
             console.error('Error in editCaptionCommand:', error);
@@ -150,7 +147,6 @@ class CaptionEditorPlugin {
      */
     async removeCaptionCommand(messageInfo) {
         try {
-            // Check if replying to a message
             const quotedMessage = await this.getQuotedMessage(messageInfo);
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -159,15 +155,13 @@ class CaptionEditorPlugin {
                 return;
             }
 
-            // Check if it's media
             const mediaInfo = this.getMediaInfo(quotedMessage);
             if (!mediaInfo) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
                 return;
             }
 
-            // Send media without caption
-            await this.sendMediaWithCaption(messageInfo, mediaInfo, null, 'removed');
+            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, null, 'removed');
 
         } catch (error) {
             console.error('Error in removeCaptionCommand:', error);
@@ -180,7 +174,6 @@ class CaptionEditorPlugin {
      */
     async copyCaptionCommand(messageInfo) {
         try {
-            // Check if replying to a message
             const quotedMessage = await this.getQuotedMessage(messageInfo);
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -189,14 +182,12 @@ class CaptionEditorPlugin {
                 return;
             }
 
-            // Check if it's media
             const mediaInfo = this.getMediaInfo(quotedMessage);
             if (!mediaInfo) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
                 return;
             }
 
-            // Check if caption provided
             if (!messageInfo.args.length) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Please provide a caption.\n\n*Usage:* ${config.PREFIX}copycaption <caption>`
@@ -205,9 +196,7 @@ class CaptionEditorPlugin {
             }
 
             const newCaption = messageInfo.args.join(' ');
-
-            // Send media with new caption
-            await this.sendMediaWithCaption(messageInfo, mediaInfo, newCaption, 'copied');
+            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'copied');
 
         } catch (error) {
             console.error('Error in copyCaptionCommand:', error);
@@ -216,100 +205,46 @@ class CaptionEditorPlugin {
     }
 
     /**
-     * Get quoted/replied message
+     * Process media with caption using tmp download method
      */
-    async getQuotedMessage(messageInfo) {
-        try {
-            // Check for quoted message in extendedTextMessage
-            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
-            if (!contextInfo?.quotedMessage) {
-                return null;
-            }
-
-            // Return the quoted message structure
-            return {
-                message: contextInfo.quotedMessage,
-                key: {
-                    remoteJid: messageInfo.key.remoteJid,
-                    id: contextInfo.stanzaId,
-                    participant: contextInfo.participant
-                }
-            };
-        } catch (error) {
-            console.error('Error getting quoted message:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get media information from message
-     */
-    getMediaInfo(message) {
-        try {
-            const msg = message.message;
-            if (!msg) return null;
-
-            // Check for image
-            if (msg.imageMessage) {
-                return {
-                    type: 'image',
-                    media: msg.imageMessage,
-                    originalCaption: msg.imageMessage.caption || null,
-                    mimetype: msg.imageMessage.mimetype || 'image/jpeg'
-                };
-            }
-
-            // Check for video
-            if (msg.videoMessage) {
-                return {
-                    type: 'video',
-                    media: msg.videoMessage,
-                    originalCaption: msg.videoMessage.caption || null,
-                    mimetype: msg.videoMessage.mimetype || 'video/mp4'
-                };
-            }
-
-            return null;
-        } catch (error) {
-            console.error('Error getting media info:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Send media with modified caption
-     */
-    async sendMediaWithCaption(messageInfo, mediaInfo, newCaption, action) {
+    async processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, action) {
+        let tempFilePath = null;
+        
         try {
             await this.bot.messageHandler.reply(messageInfo, '📝 Processing media caption...');
 
-            // Prepare media message object
-            let mediaMessage = {};
-            const mediaObject = { ...mediaInfo.media };
-
-            // Set the new caption (or remove if null)
-            if (newCaption !== null) {
-                mediaObject.caption = newCaption;
-            } else {
-                delete mediaObject.caption;
+            // Download media to temp directory
+            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+            if (!buffer) {
+                throw new Error('Failed to download media');
             }
 
-            // Create message based on media type
+            // Generate temp filename
+            const timestamp = Date.now();
+            const extension = this.getFileExtension(mediaInfo.mimetype);
+            const tempFileName = `caption_${timestamp}${extension}`;
+            tempFilePath = path.join(this.tempDir, tempFileName);
+
+            // Save to temp file
+            await fs.writeFile(tempFilePath, buffer);
+
+            // Prepare media message
+            let mediaMessage = {};
             if (mediaInfo.type === 'image') {
                 mediaMessage.image = {
-                    url: mediaInfo.media.url,
-                    caption: mediaObject.caption,
+                    url: tempFilePath,
+                    caption: newCaption || undefined,
                     mimetype: mediaInfo.mimetype
                 };
             } else if (mediaInfo.type === 'video') {
                 mediaMessage.video = {
-                    url: mediaInfo.media.url,
-                    caption: mediaObject.caption,
+                    url: tempFilePath,
+                    caption: newCaption || undefined,
                     mimetype: mediaInfo.mimetype
                 };
             }
 
-            // Send the media with new caption
+            // Send the media
             await this.bot.sock.sendMessage(messageInfo.chat_jid, mediaMessage);
 
             // Send success message
@@ -335,74 +270,98 @@ class CaptionEditorPlugin {
             await this.bot.messageHandler.reply(messageInfo, successMsg);
 
         } catch (error) {
-            console.error('Error sending media with caption:', error);
-            
-            // Try alternative method - forward and edit
-            try {
-                await this.forwardAndEdit(messageInfo, mediaInfo, newCaption, action);
-            } catch (fallbackError) {
-                console.error('Fallback method also failed:', fallbackError);
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Failed to ${action} caption. The media might be too old or corrupted.`
-                );
+            console.error('Error processing media with caption:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Failed to ${action} caption. Error: ${error.message}`
+            );
+        } finally {
+            // Clean up temp file
+            if (tempFilePath && await fs.pathExists(tempFilePath)) {
+                try {
+                    await fs.remove(tempFilePath);
+                    console.log(`🗑️ Cleaned up temp file: ${tempFilePath}`);
+                } catch (cleanupError) {
+                    console.error('Error cleaning up temp file:', cleanupError);
+                }
             }
         }
     }
 
     /**
-     * Fallback method: Forward message and add caption explanation
+     * Get quoted/replied message
      */
-    async forwardAndEdit(messageInfo, mediaInfo, newCaption, action) {
+    async getQuotedMessage(messageInfo) {
         try {
-            // Send explanation message
-            let explanation = '';
-            if (action === 'added') {
-                explanation = `✅ *Caption Added*\n\n📝 *New Caption:* ${newCaption}`;
-            } else if (action === 'edited') {
-                explanation = `✅ *Caption Edited*\n\n📝 *New Caption:* ${newCaption}`;
-                if (mediaInfo.originalCaption) {
-                    explanation += `\n📄 *Original:* ${mediaInfo.originalCaption}`;
-                }
-            } else if (action === 'removed') {
-                explanation = `✅ *Caption Removed*`;
-                if (mediaInfo.originalCaption) {
-                    explanation += `\n\n📄 *Original Caption:* ${mediaInfo.originalCaption}`;
-                }
-            } else if (action === 'copied') {
-                explanation = `✅ *Media Copied with New Caption*\n\n📝 *Caption:* ${newCaption}`;
+            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
+            if (!contextInfo?.quotedMessage) {
+                return null;
             }
 
-            explanation += `\n\n💡 *Note:* Media caption couldn't be directly modified, but here's the requested information.`;
-
-            await this.bot.messageHandler.reply(messageInfo, explanation);
+            return {
+                message: contextInfo.quotedMessage,
+                key: {
+                    remoteJid: messageInfo.key.remoteJid,
+                    id: contextInfo.stanzaId,
+                    participant: contextInfo.participant
+                }
+            };
         } catch (error) {
-            throw new Error('Both primary and fallback methods failed');
+            console.error('Error getting quoted message:', error);
+            return null;
         }
     }
 
     /**
-     * Get media URL from message (helper method)
+     * Get media information from message
      */
-    async getMediaUrl(media) {
+    getMediaInfo(message) {
         try {
-            // If media has direct URL, return it
-            if (media.url) {
-                return media.url;
+            const msg = message.message;
+            if (!msg) return null;
+
+            if (msg.imageMessage) {
+                return {
+                    type: 'image',
+                    media: msg.imageMessage,
+                    originalCaption: msg.imageMessage.caption || null,
+                    mimetype: msg.imageMessage.mimetype || 'image/jpeg'
+                };
             }
 
-            // Try to download and get buffer (for older messages)
-            if (this.bot.sock && media) {
-                const buffer = await this.bot.sock.downloadMediaMessage({
-                    message: { [media.type + 'Message']: media }
-                });
-                return buffer;
+            if (msg.videoMessage) {
+                return {
+                    type: 'video',
+                    media: msg.videoMessage,
+                    originalCaption: msg.videoMessage.caption || null,
+                    mimetype: msg.videoMessage.mimetype || 'video/mp4'
+                };
             }
 
             return null;
         } catch (error) {
-            console.error('Error getting media URL:', error);
+            console.error('Error getting media info:', error);
             return null;
         }
+    }
+
+    /**
+     * Get file extension from mimetype
+     */
+    getFileExtension(mimetype) {
+        const extensions = {
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'video/mp4': '.mp4',
+            'video/avi': '.avi',
+            'video/mkv': '.mkv',
+            'video/mov': '.mov',
+            'video/3gp': '.3gp'
+        };
+        
+        return extensions[mimetype] || '.bin';
     }
 }
 

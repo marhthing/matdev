@@ -6,6 +6,8 @@
 
 const config = require('../config');
 const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
 
 class WaifuPlugin {
     constructor() {
@@ -131,6 +133,9 @@ class WaifuPlugin {
         this.requestCount = 0;
         this.lastReset = Date.now();
         this.maxRequests = 20; // per hour
+        
+        // Temp directory for image processing
+        this.tempDir = path.join(process.cwd(), 'tmp');
     }
 
     /**
@@ -139,6 +144,9 @@ class WaifuPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
+
+        // Ensure temp directory exists
+        await fs.ensureDir(this.tempDir);
 
         console.log('✅ Waifu Generator plugin loaded');
     }
@@ -342,9 +350,30 @@ class WaifuPlugin {
      * Send waifu image to chat
      */
     async sendWaifu(messageInfo, waifuData) {
+        let tempFilePath = null;
+        
         try {
+            // Download image to temp directory
+            const response = await axios.get(waifuData.url, {
+                responseType: 'arraybuffer',
+                timeout: 30000,
+                headers: {
+                    'User-Agent': 'MATDEV-Bot/1.0'
+                }
+            });
+
+            // Generate temp filename
+            const timestamp = Date.now();
+            const extension = this.getFileExtension(waifuData.url);
+            const tempFileName = `waifu_${timestamp}${extension}`;
+            tempFilePath = path.join(this.tempDir, tempFileName);
+
+            // Save to temp file
+            await fs.writeFile(tempFilePath, response.data);
+
+            // Send image from temp file
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                image: { url: waifuData.url }
+                image: { url: tempFilePath }
             });
 
         } catch (error) {
@@ -353,6 +382,29 @@ class WaifuPlugin {
                 `✅ Waifu generated successfully! 🎉\n\n` +
                 `🔗 *Direct Link:* ${waifuData.url}`
             );
+        } finally {
+            // Clean up temp file
+            if (tempFilePath && await fs.pathExists(tempFilePath)) {
+                try {
+                    await fs.remove(tempFilePath);
+                    console.log(`🗑️ Cleaned up waifu temp file: ${tempFilePath}`);
+                } catch (cleanupError) {
+                    console.error('Error cleaning up waifu temp file:', cleanupError);
+                }
+            }
+        }
+    }
+
+    /**
+     * Get file extension from URL
+     */
+    getFileExtension(url) {
+        try {
+            const urlPath = new URL(url).pathname;
+            const extension = path.extname(urlPath);
+            return extension || '.jpg';
+        } catch (error) {
+            return '.jpg';
         }
     }
 
