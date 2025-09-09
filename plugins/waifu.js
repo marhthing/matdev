@@ -661,7 +661,7 @@ class WaifuPlugin {
             ...selectedVideo,
             streams: [
                 { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` },
-                { quality: '1080p', url: `https://hanime.tv/videos/hentai` }
+                { quality: '1080p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` }
             ],
             poster: `https://i.imgur.com/placeholder.jpg` // Will try to get real thumbnail
         }];
