@@ -7,6 +7,7 @@
 const config = require('../config');
 const Utils = require('../lib/utils');
 const moment = require('moment-timezone');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const utils = new Utils();
 
@@ -22,16 +23,16 @@ class AutoBioPlugin {
         this.currentTemplate = null;
         this.bioTimer = null;
         
-        // Pre-defined bio templates
+        // Pre-defined bio templates (fallback + AI-generated)
         this.templates = [
-            'Last updated: {time} | MATDEV Bot Active 🚀',
-            '{time} | Living my best life ✨',
-            'Updated: {time} | Building the future 💻',
-            '{time} | Never give up 💪',
-            'MATDEV Bot | Last seen: {time} 🤖',
-            '{time} | Coding is life 👨‍💻',
-            'Active since: {time} | Stay positive ⭐',
-            '{time} | Dream big, work hard 🌟'
+            'Living my best life ✨',
+            'Building the future 💻',
+            'Never give up 💪',
+            'Coding is life 👨‍💻',
+            'Stay positive ⭐',
+            'Dream big, work hard 🌟',
+            'Success is a journey, not a destination 🎯',
+            'Every day is a new opportunity 🌅'
         ];
     }
 
@@ -41,6 +42,9 @@ class AutoBioPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
+
+        // Generate AI templates if Gemini API is available
+        await this.generateAIBioTemplates();
 
         // Start auto bio if enabled in config
         if (process.env.AUTO_BIO === 'true') {
@@ -99,6 +103,16 @@ class AutoBioPlugin {
         this.bot.messageHandler.registerCommand('updatebio', this.manualUpdateCommand.bind(this), {
             description: 'Manually update bio now',
             usage: `${config.PREFIX}updatebio [template]`,
+            category: 'automation',
+            plugin: 'autobio',
+            source: 'autobio.js',
+            ownerOnly: true
+        });
+
+        // Refresh AI templates
+        this.bot.messageHandler.registerCommand('refreshbio', this.refreshTemplatesCommand.bind(this), {
+            description: 'Generate new AI bio templates using Gemini',
+            usage: `${config.PREFIX}refreshbio`,
             category: 'automation',
             plugin: 'autobio',
             source: 'autobio.js',
@@ -233,6 +247,26 @@ class AutoBioPlugin {
     }
 
     /**
+     * Refresh templates command
+     */
+    async refreshTemplatesCommand(messageInfo) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🤖 Generating new bio templates with AI...');
+            
+            const oldCount = this.templates.length;
+            await this.generateAIBioTemplates();
+            const newCount = this.templates.length;
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Bio templates refreshed!\n\n📊 *Templates:* ${oldCount} → ${newCount}\n🤖 *AI Status:* ${process.env.GEMINI_API_KEY ? 'Active' : 'Disabled'}\n\n💡 New templates will be used in next bio updates.`
+            );
+        } catch (error) {
+            console.error('Error in refreshTemplatesCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error refreshing templates: ' + error.message);
+        }
+    }
+
+    /**
      * Enable auto bio updates
      */
     async enableAutoBio() {
@@ -280,6 +314,60 @@ class AutoBioPlugin {
     }
 
     /**
+     * Generate AI bio templates using Gemini
+     */
+    async generateAIBioTemplates() {
+        try {
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                console.log('⚠️ No Gemini API key found, using default templates');
+                return;
+            }
+
+            console.log('🤖 Generating new bio templates with Gemini AI...');
+            
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+            const prompt = `Generate 10 short, mature, and motivational WhatsApp bio messages. Each should be:
+- Maximum 25 words
+- Motivational and inspiring
+- Professional but approachable  
+- No emojis at the end (I'll add them)
+- Suitable for a tech-savvy person
+- Different themes (success, growth, positivity, etc.)
+
+Return only the bio messages, one per line, no numbering or extra text.`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+
+            if (text && text.trim().length > 0) {
+                const newTemplates = text.trim().split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0 && line.length <= 100)
+                    .map(line => line + ' ✨') // Add a simple emoji
+                    .slice(0, 10); // Take only first 10
+
+                if (newTemplates.length > 0) {
+                    // Add new templates to existing ones, remove duplicates
+                    const combinedTemplates = [...this.templates, ...newTemplates];
+                    this.templates = [...new Set(combinedTemplates)]; // Remove duplicates
+                    
+                    console.log(`✅ Added ${newTemplates.length} AI-generated bio templates`);
+                    console.log('📝 New templates:', newTemplates);
+                } else {
+                    console.log('⚠️ No valid templates generated, using defaults');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error generating AI bio templates:', error);
+            console.log('📝 Falling back to default templates');
+        }
+    }
+
+    /**
      * Update WhatsApp bio
      */
     async updateBio(customTemplate = null) {
@@ -295,9 +383,8 @@ class AutoBioPlugin {
                 template = this.templates[Math.floor(Math.random() * this.templates.length)];
             }
 
-            // Replace {time} placeholder with current time
-            const currentTime = moment().tz(config.TIMEZONE).format('DD/MM/YY HH:mm');
-            const newBio = template.replace(/{time}/g, currentTime);
+            // Use template as-is (no time replacement needed)
+            const newBio = template;
 
             // Update bio using Baileys
             await this.bot.sock.updateProfileStatus(newBio);
