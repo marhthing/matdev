@@ -464,35 +464,36 @@ class CorePlugin {
                 handlerGroups.get(handlerKey).push(cmd);
             });
             
-            // Build categories with auto-detected aliases
+            // Build categories with commands individually (not grouped by handlers)
             const processedCommands = new Set();
             
             commands.forEach(cmd => {
                 if (processedCommands.has(cmd.name)) return;
                 
-                // Find all commands with the same handler (aliases)
-                const aliasGroup = handlerGroups.get(cmd.handler.toString());
-                const mainCommand = aliasGroup.find(c => !c.description.includes('alias for')) || aliasGroup[0];
-                const aliases = aliasGroup.filter(c => c !== mainCommand).map(c => c.name.toUpperCase());
-                
-                // Use the main command's category for the group
-                const category = mainCommand.category || 'utility';
+                // Use each command's individual category
+                const category = cmd.category || 'utility';
                 
                 // Add to category
                 if (!categories[category]) {
                     categories[category] = [];
                 }
                 
+                // Find aliases for this specific command by checking handler groups
+                const aliasGroup = handlerGroups.get(cmd.handler.toString());
+                const aliases = aliasGroup ? 
+                    aliasGroup.filter(c => c !== cmd && c.category === cmd.category).map(c => c.name.toUpperCase()) : 
+                    [];
+                
                 // Create command entry with aliases
                 const commandEntry = {
-                    name: mainCommand.name.toUpperCase(),
+                    name: cmd.name.toUpperCase(),
                     aliases: aliases.length > 0 ? aliases : []
                 };
                 
                 categories[category].push(commandEntry);
                 
-                // Mark all commands in this group as processed
-                aliasGroup.forEach(c => processedCommands.add(c.name));
+                // Mark this command as processed
+                processedCommands.add(cmd.name);
             });
 
             // Create modern menu design with better typography
