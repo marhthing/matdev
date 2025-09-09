@@ -155,19 +155,10 @@ class WaifuPlugin {
      * Register commands
      */
     registerCommands() {
-        // Generate SFW waifu
+        // Generate waifu (auto-detects SFW/NSFW based on category)
         this.bot.messageHandler.registerCommand('waifu', this.generateWaifuCommand.bind(this), {
-            description: 'Generate SFW anime waifu image',
+            description: 'Generate anime waifu image (auto-detects SFW/NSFW)',
             usage: `${config.PREFIX}waifu [category]`,
-            category: 'fun',
-            plugin: 'waifu',
-            source: 'waifu.js'
-        });
-
-        // Generate NSFW waifu
-        this.bot.messageHandler.registerCommand('nsfw', this.generateNSFWCommand.bind(this), {
-            description: 'Generate NSFW anime waifu image',
-            usage: `${config.PREFIX}nsfw [category]`,
             category: 'fun',
             plugin: 'waifu',
             source: 'waifu.js'
@@ -175,7 +166,7 @@ class WaifuPlugin {
     }
 
     /**
-     * Generate SFW waifu command
+     * Generate waifu command (auto-detects SFW/NSFW)
      */
     async generateWaifuCommand(messageInfo) {
         try {
@@ -188,16 +179,20 @@ class WaifuPlugin {
             }
 
             const category = messageInfo.args[0]?.toLowerCase();
-            const tag = this.getSFWTag(category);
+            const isNSFW = this.isNSFWCategory(category);
+            const tag = isNSFW ? this.getNSFWTag(category) : this.getSFWTag(category);
 
-            // await this.bot.messageHandler.reply(messageInfo, '🎨 Generating your anime waifu... ✨');
-
-            const waifuData = await this.fetchWaifu(tag, false);
+            const waifuData = await this.fetchWaifu(tag, isNSFW);
             
             if (!waifuData) {
+                const categoryExamples = isNSFW 
+                    ? 'boobs, pussy, bikini, uniform, panties, lingerie, nude, ass, thicc, milf, oral, schoolgirl, nurse, maid, catgirl, swimsuit, shower, ahegao, lesbian, futanari, tentacle, bdsm'
+                    : 'sfw, cute, aesthetic, popular';
+                    
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to generate waifu. Try again!\n\n' +
-                    `💡 Available SFW categories: sfw, cute, aesthetic, popular`
+                    `💡 Available categories: ${categoryExamples}\n\n` +
+                    `📝 Usage: .waifu [category] - Example: .waifu ${isNSFW ? 'boobs' : 'cute'}`
                 );
                 return;
             }
@@ -207,43 +202,6 @@ class WaifuPlugin {
         } catch (error) {
             console.error('Error in generateWaifuCommand:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error generating waifu: ' + error.message);
-        }
-    }
-
-    /**
-     * Generate NSFW waifu command
-     */
-    async generateNSFWCommand(messageInfo) {
-        try {
-            if (!this.checkRateLimit()) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '⏰ Rate limit reached! Please wait before generating more waifus.\n\n' +
-                    `🔄 Limit resets every hour (${this.maxRequests} requests per hour)`
-                );
-                return;
-            }
-
-            const category = messageInfo.args[0]?.toLowerCase();
-            const tag = this.getNSFWTag(category);
-
-            // await this.bot.messageHandler.reply(messageInfo, '🔞 Generating your NSFW waifu... ✨');
-
-            const waifuData = await this.fetchWaifu(tag, true);
-            
-            if (!waifuData) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to generate NSFW waifu. Try again!\n\n' +
-                    `💡 Popular NSFW categories: boobs, pussy, bikini, uniform, panties, lingerie, nude, ass, thicc, milf, oral, schoolgirl, nurse, maid, catgirl, swimsuit, shower, ahegao, lesbian, futanari, tentacle, bdsm\n\n` +
-                    `🔞 Use: .nsfw [category] - Example: .nsfw uniform`
-                );
-                return;
-            }
-
-            await this.sendWaifu(messageInfo, waifuData);
-
-        } catch (error) {
-            console.error('Error in generateNSFWCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error generating NSFW waifu: ' + error.message);
         }
     }
 
@@ -406,6 +364,16 @@ class WaifuPlugin {
         } catch (error) {
             return '.jpg';
         }
+    }
+
+    /**
+     * Check if category is NSFW
+     */
+    isNSFWCategory(category = null) {
+        if (!category) return false;
+        
+        const sfwCategories = ['sfw', 'cute', 'aesthetic', 'popular'];
+        return !sfwCategories.includes(category) && this.categories[category];
     }
 
     /**
