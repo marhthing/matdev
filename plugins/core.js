@@ -505,7 +505,8 @@ class CorePlugin {
                 'automation': '📋',
                 'group': '📋',
                 'ai': '📋',
-                'fun': '📋'
+                'fun': '📋',
+                'time': '🕐'
             };
 
             // Create command aliases mapping

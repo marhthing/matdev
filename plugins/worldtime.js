@@ -165,7 +165,7 @@ class WorldTimePlugin {
         this.bot.messageHandler.registerCommand('time', this.worldTimeCommand.bind(this), {
             description: 'Show world time for any country/city',
             usage: `${config.PREFIX}time [country/city code]`,
-            category: 'utility',
+            category: 'time',
             plugin: 'worldtime',
             source: 'worldtime.js'
         });
@@ -174,7 +174,7 @@ class WorldTimePlugin {
         this.bot.messageHandler.registerCommand('worldclock', this.worldClockCommand.bind(this), {
             description: 'Show multiple world times at once',
             usage: `${config.PREFIX}worldclock`,
-            category: 'utility',
+            category: 'time',
             plugin: 'worldtime',
             source: 'worldtime.js'
         });
@@ -183,7 +183,7 @@ class WorldTimePlugin {
         this.bot.messageHandler.registerCommand('wc', this.worldClockCommand.bind(this), {
             description: 'Show multiple world times at once (alias for worldclock)',
             usage: `${config.PREFIX}wc`,
-            category: 'utility',
+            category: 'time',
             plugin: 'worldtime',
             source: 'worldtime.js'
         });
@@ -192,7 +192,7 @@ class WorldTimePlugin {
         this.bot.messageHandler.registerCommand('timezones', this.timezonesCommand.bind(this), {
             description: 'List all available timezone codes',
             usage: `${config.PREFIX}timezones`,
-            category: 'utility',
+            category: 'time',
             plugin: 'worldtime',
             source: 'worldtime.js'
         });
