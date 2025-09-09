@@ -5,6 +5,8 @@
  */
 
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
 
 class AutoReactPlugin {
     constructor() {
@@ -287,6 +289,50 @@ class AutoReactPlugin {
     }
 
     /**
+     * Update .env file with new setting
+     */
+    updateEnvFile(key, value) {
+        try {
+            const envPath = path.join(__dirname, '..', '.env');
+            
+            if (!fs.existsSync(envPath)) {
+                console.warn('⚠️ .env file not found, cannot save setting');
+                return false;
+            }
+            
+            let envContent = fs.readFileSync(envPath, 'utf8');
+            const lines = envContent.split('\n');
+            let keyFound = false;
+            
+            // Update existing key or add new one
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith(`${key}=`)) {
+                    lines[i] = `${key}=${value}`;
+                    keyFound = true;
+                    break;
+                }
+            }
+            
+            // Add key if not found
+            if (!keyFound) {
+                lines.push(`${key}=${value}`);
+            }
+            
+            // Write back to file
+            fs.writeFileSync(envPath, lines.join('\n'));
+            
+            // Update process.env for immediate effect
+            process.env[key] = value;
+            
+            return true;
+        } catch (error) {
+            console.error('Error updating .env file:', error);
+            return false;
+        }
+    }
+
+    /**
      * Process message for potential reaction
      */
     async processMessageForReaction(message) {
@@ -424,15 +470,19 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.isEnabled = true;
+                this.updateEnvFile('AUTO_REACT', 'true');
                 await this.bot.messageHandler.reply(messageInfo, `✅ *MESSAGE AUTO REACTIONS ENABLED*`);
             } else if (action === 'off' || action === 'disable') {
                 this.isEnabled = false;
+                this.updateEnvFile('AUTO_REACT', 'false');
                 await this.bot.messageHandler.reply(messageInfo, '❌ *MESSAGE AUTO REACTIONS DISABLED*');
             } else if (action === 'delay') {
                 this.reactDelayMode = 'delay';
+                this.updateEnvFile('REACT_DELAY', 'delay');
                 await this.bot.messageHandler.reply(messageInfo, '⏰ *MESSAGE REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 0.5-2.5 seconds before reacting to messages.');
             } else if (action === 'nodelay') {
                 this.reactDelayMode = 'nodelay';
+                this.updateEnvFile('REACT_DELAY', 'nodelay');
                 await this.bot.messageHandler.reply(messageInfo, '⚡ *MESSAGE REACTION DELAY DISABLED*\n\n💨 Bot will now react to messages instantly.');
             } else {
                 // Show status
@@ -457,15 +507,19 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.statusReactEnabled = true;
+                this.updateEnvFile('STATUS_AUTO_REACT', 'true');
                 await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*`);
             } else if (action === 'off' || action === 'disable') {
                 this.statusReactEnabled = false;
+                this.updateEnvFile('STATUS_AUTO_REACT', 'false');
                 await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*');
             } else if (action === 'delay') {
                 this.statusReactDelayMode = 'delay';
+                this.updateEnvFile('STATUS_REACT_DELAY', 'delay');
                 await this.bot.messageHandler.reply(messageInfo, '⏰ *STATUS REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 30s-5min before reacting to status updates.');
             } else if (action === 'nodelay') {
                 this.statusReactDelayMode = 'nodelay';
+                this.updateEnvFile('STATUS_REACT_DELAY', 'nodelay');
                 await this.bot.messageHandler.reply(messageInfo, '⚡ *STATUS REACTION DELAY DISABLED*\n\n💨 Bot will now react to status updates instantly.');
             } else {
                 // Show status
