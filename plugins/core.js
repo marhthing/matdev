@@ -789,15 +789,12 @@ class CorePlugin {
                     return;
                 }
 
-                let permissionsText = '*📋 ALL USER PERMISSIONS*\n\n';
+                let permissionsText = '';
 
                 for (const [jid, commands] of Object.entries(allPermissions)) {
-                    const displayJid = jid.split('@')[0];
-                    permissionsText += `*${displayJid}:*\n`;
                     commands.forEach(cmd => {
-                        permissionsText += `  • .${cmd}\n`;
+                        permissionsText += `• .${cmd}\n`;
                     });
-                    permissionsText += '\n';
                 }
 
                 await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
