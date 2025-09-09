@@ -439,8 +439,14 @@ class GroqPlugin {
 
             try {
                 if (quotedMessage && quotedMessage.imageMessage) {
+                    // Create proper message object for download
+                    const messageToDownload = {
+                        key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
+                        message: quotedMessage
+                    };
+
                     // Image analysis mode
-                    const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                    const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                     if (!imageBuffer || imageBuffer.length === 0) {
                         throw new Error('Failed to download image');
@@ -450,7 +456,7 @@ class GroqPlugin {
                     const base64Image = imageBuffer.toString('base64');
                     const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
 
-                    // Analyze with Groq Vision
+                    // Analyze with Groq Vision using correct model
                     const completion = await groq.chat.completions.create({
                         messages: [
                             {
@@ -469,8 +475,9 @@ class GroqPlugin {
                                 ]
                             }
                         ],
-                        model: 'llama-3.3-70b-versatile',
-                        max_tokens: 1024
+                        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                        temperature: 1,
+                        max_completion_tokens: 1024
                     });
 
                     const response = completion.choices[0]?.message?.content;
@@ -551,8 +558,14 @@ class GroqPlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🖼️ Describing image...');
 
             try {
+                // Create proper message object for download
+                const messageToDownload = {
+                    key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
+                    message: quotedMessage
+                };
+
                 // Download image
-                const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                 if (!imageBuffer || imageBuffer.length === 0) {
                     throw new Error('Failed to download image');
@@ -562,7 +575,7 @@ class GroqPlugin {
                 const base64Image = imageBuffer.toString('base64');
                 const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
 
-                // Describe with Groq Vision
+                // Describe with Groq Vision using correct model
                 const completion = await groq.chat.completions.create({
                     messages: [
                         {
@@ -581,8 +594,9 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llama-3.3-70b-versatile', // Using multimodal capabilities
-                    max_tokens: 1024
+                    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                    temperature: 1,
+                    max_completion_tokens: 1024
                 });
 
                 const description = completion.choices[0]?.message?.content;
