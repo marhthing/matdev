@@ -322,46 +322,63 @@ class GroqPlugin {
                 return;
             }
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎧 Transcribing audio...');
-
             try {
-                // Download audio
-                const audioBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                // Create a proper message object for download
+                const messageToDownload = {
+                    key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
+                    message: quotedMessage
+                };
+
+                // Download audio using the proper message structure
+                const audioBuffer = await downloadMediaMessage(
+                    messageToDownload, 
+                    'buffer', 
+                    {}
+                );
 
                 if (!audioBuffer || audioBuffer.length === 0) {
                     throw new Error('Failed to download audio');
                 }
 
-                // Save to temp file
-                const tempFile = path.join(this.tempDir, `audio_${Date.now()}.ogg`);
+                // Save to temp file with proper extension for Groq API
+                const tempFile = path.join(this.tempDir, `audio_${Date.now()}.wav`);
                 await fs.writeFile(tempFile, audioBuffer);
 
-                // Transcribe using Groq (using faster turbo model)
+                // Transcribe using Groq with latest API format
                 const transcription = await groq.audio.transcriptions.create({
                     file: fs.createReadStream(tempFile),
                     model: 'whisper-large-v3-turbo',
-                    language: 'en'
+                    response_format: 'text',
+                    temperature: 0.0
                 });
 
                 // Clean up temp file
                 await fs.remove(tempFile);
 
-                const transcribedText = transcription.text;
+                const transcribedText = transcription;
                 if (!transcribedText || transcribedText.trim().length === 0) {
-                    throw new Error('No speech detected in audio');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ No speech detected in audio.');
+                    return;
                 }
 
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🎧 *Audio Transcription:*\n\n${transcribedText}`,
-                    edit: processingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, `🎧 *Audio Transcription:*\n\n${transcribedText}`);
 
             } catch (error) {
                 console.error('STT processing error:', error);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Error transcribing audio. Please ensure the audio is clear and in a supported format.',
-                    edit: processingMsg.key
-                });
+                
+                let errorMessage = '❌ Error transcribing audio.';
+                
+                if (error.message && error.message.includes('No message present')) {
+                    errorMessage = '❌ Unable to download audio. Please try replying to the audio message again.';
+                } else if (error.message && error.message.includes('quota')) {
+                    errorMessage = '❌ STT API quota exceeded. Please try again later.';
+                } else if (error.message && error.message.includes('API_KEY_INVALID')) {
+                    errorMessage = '❌ Invalid GROQ_API_KEY.';
+                } else if (error.message && error.message.includes('No speech detected')) {
+                    errorMessage = '❌ No speech detected in the audio file.';
+                }
+                
+                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
