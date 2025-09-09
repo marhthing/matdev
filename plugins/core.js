@@ -232,27 +232,32 @@ class CorePlugin {
                 const commandAliases = {
                     'download': ['dl'],
                     'addcaption': ['ac'],
-                    'editcaption': ['ec'], 
+                    'editcaption': ['ec'],
                     'removecaption': ['rc'],
                     'copycaption': ['cc'],
                     'gemini': ['ai'],
                     'ytv': ['ytvideo', 'ytmp4'],
-                    'yts': ['ytsong', 'ytmp3']
+                    'yts': ['ytsong', 'ytmp3'],
+                    'waifu': ['vdwaifu'],
+                    'worldclock': ['wc'],
+                    'permissions': ['pm'],
+                    'allow': ['permissions allow'],
+                    'disallow': ['permissions disallow']
                 };
 
                 for (const [category, cmds] of Object.entries(categories)) {
                     helpText += `*${category.toUpperCase()}*\n`;
-                    
+
                     // Group commands with their aliases
                     const processedCommands = new Set();
-                    
+
                     cmds.forEach(cmd => {
                         if (processedCommands.has(cmd.name)) return;
-                        
+
                         // Check if this command has aliases or is an alias
                         let mainCommand = cmd;
                         let aliases = commandAliases[cmd.name] || [];
-                        
+
                         // Check if current command is an alias of another
                         for (const [main, aliasArray] of Object.entries(commandAliases)) {
                             if (aliasArray.includes(cmd.name)) {
@@ -262,11 +267,11 @@ class CorePlugin {
                                 break;
                             }
                         }
-                        
+
                         // Mark all related commands as processed
                         processedCommands.add(mainCommand.name);
                         aliases.forEach(alias => processedCommands.add(alias));
-                        
+
                         // Display command with aliases
                         if (aliases.length > 0 && cmds.some(c => c.name === mainCommand.name)) {
                             helpText += `• ${config.PREFIX}${mainCommand.name} ~ ${aliases.map(a => config.PREFIX + a).join(' ~ ')} - ${mainCommand.description}\n`;
@@ -275,7 +280,7 @@ class CorePlugin {
                             helpText += `• ${config.PREFIX}${cmd.name} - ${cmd.description}\n`;
                         }
                     });
-                    
+
                     helpText += '\n';
                 }
 
@@ -535,14 +540,14 @@ class CorePlugin {
 
                 // Group commands with their aliases
                 const processedCommands = new Set();
-                
+
                 cmds.forEach(cmd => {
                     if (processedCommands.has(cmd)) return;
-                    
+
                     // Check if this command has aliases or is an alias
                     let mainCommand = cmd;
                     let aliases = commandAliases[cmd] || [];
-                    
+
                     // Check if current command is an alias of another
                     for (const [main, aliasArray] of Object.entries(commandAliases)) {
                         if (aliasArray.includes(cmd)) {
@@ -551,11 +556,11 @@ class CorePlugin {
                             break;
                         }
                     }
-                    
+
                     // Mark all related commands as processed
                     processedCommands.add(mainCommand);
                     aliases.forEach(alias => processedCommands.add(alias));
-                    
+
                     // Display command with aliases
                     if (aliases.length > 0 && cmds.includes(mainCommand)) {
                         menuText += `│ • ${mainCommand} ~ ${aliases.join(' ~ ')}\n`;
@@ -564,7 +569,7 @@ class CorePlugin {
                         menuText += `│ • ${cmd}\n`;
                     }
                 });
-                
+
                 menuText += `╰${'─'.repeat(25)}╯\n\n`;
             }
 
@@ -890,8 +895,7 @@ class CorePlugin {
     }
 
     /**
-     * Permissions command handler (owner only)
-     * Usage: .permissions [jid] - shows all permissions or permissions for specific user
+     * Permissions command handler (handles subcommands: allow, disallow, or view)
      */
     async permissionsCommand(messageInfo) {
         try {
@@ -902,26 +906,86 @@ class CorePlugin {
                 const allPermissions = this.bot.database.getAllPermissions();
 
                 if (Object.keys(allPermissions).length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo,
-                        '📋 No permissions have been granted yet.');
+                    await this.bot.messageHandler.reply(messageInfo, '📋 No permissions set.');
                     return;
                 }
 
-                let permissionsText = '*📋 USER PERMISSIONS*\n\n';
+                let permissionsText = '*📋 ALL USER PERMISSIONS*\n\n';
+
                 for (const [jid, commands] of Object.entries(allPermissions)) {
-                    const displayJid = jid.split('@')[0]; // Show just the number
-                    permissionsText += `👤 *${displayJid}:*\n`;
+                    const displayJid = jid.split('@')[0];
+                    permissionsText += `*${displayJid}:*\n`;
                     commands.forEach(cmd => {
-                        permissionsText += `   • .${cmd}\n`;
+                        permissionsText += `  • .${cmd}\n`;
                     });
                     permissionsText += '\n';
                 }
 
                 await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
+                return;
+            }
+
+            const subCommand = args[0].toLowerCase();
+
+            if (subCommand === 'allow') {
+                // Handle allow subcommand: .permissions allow <jid> <cmd>
+                if (args.length < 3) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `❌ Usage: ${config.PREFIX}permissions allow <jid> <command>`);
+                    return;
+                }
+
+                let jid = args[1];
+                const command = args[2].replace('.', '').toLowerCase();
+
+                // Handle phone numbers without @ symbol
+                if (!jid.includes('@')) {
+                    jid = `${jid}@s.whatsapp.net`;
+                }
+
+                const success = await this.bot.database.addUserPermission(jid, command);
+
+                if (success) {
+                    const displayJid = jid.split('@')[0];
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `✅ User ${displayJid} can now use .${command}`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '❌ Failed to add permission. User may already have this permission.');
+                }
+
+            } else if (subCommand === 'disallow') {
+                // Handle disallow subcommand: .permissions disallow <jid> <cmd>
+                if (args.length < 3) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `❌ Usage: ${config.PREFIX}permissions disallow <jid> <command>`);
+                    return;
+                }
+
+                let jid = args[1];
+                const command = args[2].replace('.', '').toLowerCase();
+
+                // Handle phone numbers without @ symbol
+                if (!jid.includes('@')) {
+                    jid = `${jid}@s.whatsapp.net`;
+                }
+
+                const success = await this.bot.database.removeUserPermission(jid, command);
+
+                if (success) {
+                    const displayJid = jid.split('@')[0];
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `✅ Removed .${command} permission from ${displayJid}`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '❌ Failed to remove permission. User may not have this permission.');
+                }
 
             } else {
-                // Show permissions for specific user
+                // Show permissions for specific user: .permissions <jid>
                 let jid = args[0];
+
+                // Handle phone numbers without @ symbol
                 if (!jid.includes('@')) {
                     jid = `${jid}@s.whatsapp.net`;
                 }
@@ -943,7 +1007,7 @@ class CorePlugin {
             }
 
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving permissions.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error managing permissions.');
         }
     }
 
@@ -1128,10 +1192,10 @@ class CorePlugin {
         try {
             const uptime = utils.formatUptime(Date.now() - this.bot.startTime);
             const memUsage = process.memoryUsage();
-            
+
             // Access security manager from the bot's message handler
-            const securityStats = this.bot.messageHandler.security ? 
-                this.bot.messageHandler.security.getSecurityStats() : 
+            const securityStats = this.bot.messageHandler.security ?
+                this.bot.messageHandler.security.getSecurityStats() :
                 { securityEvents: 0 };
 
             const report = `📊 *MATDEV Status Report*\n\n` +
@@ -1313,7 +1377,7 @@ class CorePlugin {
         try {
             const chatJid = messageInfo.chat_jid;
             const isGroup = chatJid.includes('@g.us');
-            
+
             if (isGroup) {
                 // For GROUPS: Use message flooding method (works 100%)
                 await this.clearGroupChat(messageInfo);
@@ -1321,7 +1385,7 @@ class CorePlugin {
                 // For PRIVATE CHATS: Try chat deletion first, fallback to flooding
                 await this.clearPrivateChat(messageInfo);
             }
-            
+
         } catch (error) {
             console.error('Error in clear command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat.');
@@ -1333,11 +1397,11 @@ class CorePlugin {
      */
     async clearPrivateChat(messageInfo) {
         const chatJid = messageInfo.chat_jid;
-        
+
         try {
             // Get the last message for deletion method
             const lastMessage = await this.getLastMessageForChat(chatJid);
-            
+
             if (lastMessage) {
                 // Try to delete entire private chat
                 await this.bot.sock.chatModify({
@@ -1347,7 +1411,7 @@ class CorePlugin {
                         messageTimestamp: lastMessage.messageTimestamp || Date.now()
                     }]
                 }, chatJid);
-                
+
                 console.log(`✅ Private chat deleted for ${chatJid}`);
                 return;
             }
@@ -1355,7 +1419,7 @@ class CorePlugin {
             // Fail silently - no error message to user
             console.log('Private chat deletion failed, using fallback method');
         }
-        
+
         // Fallback to message flooding for private chats too
         await this.clearGroupChat(messageInfo);
     }
@@ -1365,19 +1429,19 @@ class CorePlugin {
      */
     async clearGroupChat(messageInfo) {
         const chatJid = messageInfo.chat_jid;
-        
+
         // Send clearing indicator
         const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat...');
-        
+
         // Use invisible characters and spaces to push chat up
         const invisibleChars = [
             '⠀', // Braille space
-            '​', // Zero-width space  
+            '​', // Zero-width space
             '⠀⠀⠀⠀⠀', // Multiple braille spaces
             '​​​​​', // Multiple zero-width spaces
             ' ', // Regular space
         ];
-        
+
         try {
             // Send 25 messages with different invisible characters
             for (let i = 0; i < 25; i++) {
@@ -1385,19 +1449,19 @@ class CorePlugin {
                 await this.bot.sock.sendMessage(chatJid, {
                     text: char
                 });
-                
+
                 // Small delay between messages to avoid spam detection
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
-            
+
             // Send completion message
             await this.bot.sock.sendMessage(chatJid, {
                 text: '✅ Chat area cleared!',
                 edit: clearingMsg.key
             });
-            
+
             console.log(`✅ Group chat cleared using flooding method for ${chatJid}`);
-            
+
         } catch (error) {
             // Fail silently - no error message to user
             console.error('Group clearing failed:', error);
@@ -1419,18 +1483,18 @@ class CorePlugin {
         try {
             // Get messages from our storage
             const allMessages = Array.from(this.bot.database.messages.values());
-            
+
             // Find the most recent message in this chat
             const chatMessages = allMessages
                 .filter(msg => msg.chat_jid === chatJid)
                 .sort((a, b) => b.timestamp - a.timestamp);
-            
+
             if (chatMessages.length === 0) {
                 return null;
             }
-            
+
             const lastMsg = chatMessages[0];
-            
+
             // Return in the format needed for chatModify
             return {
                 key: {
@@ -1440,7 +1504,7 @@ class CorePlugin {
                 },
                 messageTimestamp: lastMsg.timestamp
             };
-            
+
         } catch (error) {
             console.error('Error getting last message:', error);
             return null;
