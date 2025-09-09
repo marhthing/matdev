@@ -112,6 +112,11 @@ class AutoBioPlugin {
         this.isEnabled = true;
         this.startBioTimer();
 
+        // Save setting to .env file
+        if (this.bot.plugins && this.bot.plugins.system) {
+            await this.bot.plugins.system.setEnvValue('AUTO_BIO', 'true');
+        }
+
         // Update bio immediately
         await this.updateBio();
     }
@@ -122,6 +127,11 @@ class AutoBioPlugin {
     async disableAutoBio() {
         this.isEnabled = false;
         this.stopBioTimer();
+
+        // Save setting to .env file
+        if (this.bot.plugins && this.bot.plugins.system) {
+            await this.bot.plugins.system.setEnvValue('AUTO_BIO', 'false');
+        }
     }
 
     /**
