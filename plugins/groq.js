@@ -392,128 +392,88 @@ class GroqPlugin {
             const groq = this.getGroqClient();
 
             let question = messageInfo.args.join(' ').trim();
-            let contextText = '';
+            let messageToDownload = null;
+            let currentImage = null;
             
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+            // Check if this is an image with .ask as caption (like sticker command)
+            const directImage = messageInfo.message?.imageMessage;
+            
+            if (directImage) {
+                // Direct image with .ask <question> caption
+                currentImage = directImage;
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check for quoted message
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
 
-            // Handle both image analysis and text analysis
-            if (quotedMessage) {
-                if (quotedMessage.imageMessage) {
-                    // Image analysis mode
-                    if (!question) {
-                        question = 'What do you see in this image? Please describe it in detail.';
-                    }
-                } else {
-                    // Text analysis mode
-                    if (quotedMessage.conversation) {
-                        contextText = quotedMessage.conversation;
-                    } else if (quotedMessage.extendedTextMessage?.text) {
-                        contextText = quotedMessage.extendedTextMessage.text;
-                    } else if (quotedMessage.imageMessage?.caption) {
-                        contextText = quotedMessage.imageMessage.caption;
-                    } else if (quotedMessage.videoMessage?.caption) {
-                        contextText = quotedMessage.videoMessage.caption;
-                    }
-                    
-                    if (!question && contextText) {
-                        question = 'Please analyze this text and provide insights:';
-                    }
+                if (!quotedMessage || !quotedMessage.imageMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Send an image with .ask <question> as caption or reply to an image with .ask <question>');
+                    return;
                 }
+
+                currentImage = quotedMessage.imageMessage;
+                messageToDownload = {
+                    key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
+                    message: quotedMessage
+                };
             }
 
-            if (!question && !contextText && (!quotedMessage || !quotedMessage.imageMessage)) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a question or reply to an image/message.\nUsage: .vision <question> (reply to image/text)');
-                return;
+            if (!question) {
+                question = 'What do you see in this image? Please describe it in detail.';
             }
 
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '👁️ Analyzing image...');
 
             try {
-                if (quotedMessage && quotedMessage.imageMessage) {
-                    // Create proper message object for download
-                    const messageToDownload = {
-                        key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
-                        message: quotedMessage
-                    };
+                // Image analysis mode
+                const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
-                    // Image analysis mode
-                    const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+                if (!imageBuffer || imageBuffer.length === 0) {
+                    throw new Error('Failed to download image');
+                }
 
-                    if (!imageBuffer || imageBuffer.length === 0) {
-                        throw new Error('Failed to download image');
-                    }
-
-                    // Convert to base64
-                    const base64Image = imageBuffer.toString('base64');
-                    const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
+                // Convert to base64
+                const base64Image = imageBuffer.toString('base64');
+                const mimeType = currentImage.mimetype || 'image/jpeg';
 
                     // Analyze with Groq Vision using correct model
-                    const completion = await groq.chat.completions.create({
-                        messages: [
-                            {
-                                role: 'user',
-                                content: [
-                                    {
-                                        type: 'text',
-                                        text: question
-                                    },
-                                    {
-                                        type: 'image_url',
-                                        image_url: {
-                                            url: `data:${mimeType};base64,${base64Image}`
-                                        }
+                const completion = await groq.chat.completions.create({
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: question
+                                },
+                                {
+                                    type: 'image_url',
+                                    image_url: {
+                                        url: `data:${mimeType};base64,${base64Image}`
                                     }
-                                ]
-                            }
-                        ],
-                        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-                        temperature: 1,
-                        max_completion_tokens: 1024
-                    });
+                                }
+                            ]
+                        }
+                    ],
+                    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                    temperature: 1,
+                    max_completion_tokens: 1024
+                });
 
-                    const response = completion.choices[0]?.message?.content;
-                    if (!response) {
-                        throw new Error('Empty response from vision model');
-                    }
-
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `👁️ *Vision Analysis:*\n\n**Question:** ${question}\n\n**Answer:** ${response}`,
-                        edit: processingMsg.key
-                    });
-                } else if (contextText) {
-                    // Text analysis mode
-                    const fullPrompt = `${question}\n\nText to analyze: "${contextText}"`;
-                    
-                    const completion = await groq.chat.completions.create({
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'You are MATDEV Vision AI, specialized in detailed analysis and insights. Provide comprehensive analysis of the given content.'
-                            },
-                            {
-                                role: 'user',
-                                content: fullPrompt
-                            }
-                        ],
-                        model: 'llama-3.3-70b-versatile',
-                        temperature: 0.7,
-                        max_tokens: 1024
-                    });
-
-                    const response = completion.choices[0]?.message?.content;
-                    if (!response) {
-                        throw new Error('Empty response from vision model');
-                    }
-
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `👁️ *Vision Text Analysis:*\n\n**Question:** ${question}\n\n**Analysis:** ${response}`,
-                        edit: processingMsg.key
-                    });
-                } else {
-                    throw new Error('No image or text content found');
+                const response = completion.choices[0]?.message?.content;
+                if (!response) {
+                    throw new Error('Empty response from vision model');
                 }
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `👁️ *Vision Analysis:*\n\n**Question:** ${question}\n\n**Answer:** ${response}`,
+                    edit: processingMsg.key
+                });
 
             } catch (error) {
                 console.error('Vision processing error:', error);
@@ -540,12 +500,34 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+            let messageToDownload = null;
+            let currentImage = null;
+            
+            // Check if this is an image with .describe as caption (like sticker command)
+            const directImage = messageInfo.message?.imageMessage;
+            
+            if (directImage) {
+                // Direct image with .describe caption
+                currentImage = directImage;
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check for quoted message
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
 
-            if (!quotedMessage || !quotedMessage.imageMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image.');
-                return;
+                if (!quotedMessage || !quotedMessage.imageMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Send an image with .describe as caption or reply to an image with .describe');
+                    return;
+                }
+
+                currentImage = quotedMessage.imageMessage;
+                messageToDownload = {
+                    key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
+                    message: quotedMessage
+                };
             }
 
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🖼️ Describing image...');
@@ -566,7 +548,7 @@ class GroqPlugin {
 
                 // Convert to base64
                 const base64Image = imageBuffer.toString('base64');
-                const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
+                const mimeType = currentImage.mimetype || 'image/jpeg';
 
                 // Describe with Groq Vision using correct model
                 const completion = await groq.chat.completions.create({
