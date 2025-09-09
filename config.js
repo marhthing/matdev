@@ -28,6 +28,8 @@ function ensureEnvFileIfMissing() {
         AUTO_READ: 'false',
         AUTO_STATUS_VIEW: 'false',
         AUTO_BIO: 'false',
+        AUTO_REACT: 'false',
+        STATUS_AUTO_REACT: 'false',
         ANTI_DELETE: 'true',
         MAX_CONCURRENT_MESSAGES: '5',
         MESSAGE_TIMEOUT: '30000',
@@ -84,6 +86,9 @@ const config = {
     AUTO_READ: process.env.AUTO_READ === 'true' || false,
     AUTO_STATUS_VIEW: process.env.AUTO_STATUS_VIEW === 'true' || false,
     AUTO_BIO: process.env.AUTO_BIO === 'true' || false,
+    AUTO_REACT: process.env.AUTO_REACT === 'true' || false,
+    STATUS_AUTO_REACT: process.env.STATUS_AUTO_REACT === 'true' || false,
+    STATUS_AUTO_REACT_EMOJIS: '❤💙💚', // Fixed reactions for status
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
     REJECT_CALLS: process.env.REJECT_CALLS === 'true' || false,
 
