@@ -428,11 +428,10 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.isEnabled = true;
-                const delayText = this.reactDelayMode === 'delay' ? '0.5-2.5s delay' : 'instant';
-                await this.bot.messageHandler.reply(messageInfo, `✅ *MESSAGE AUTO REACTIONS ENABLED*\n\n💝 Bot will now react to messages automatically!\n\n📊 *Settings:*\n• Chance: 25%\n• Timing: ${delayText}\n• Enhanced keyword detection\n• 120+ reaction emojis`);
+                await this.bot.messageHandler.reply(messageInfo, `✅ *MESSAGE AUTO REACTIONS ENABLED*`);
             } else if (action === 'off' || action === 'disable') {
                 this.isEnabled = false;
-                await this.bot.messageHandler.reply(messageInfo, '❌ *MESSAGE AUTO REACTIONS DISABLED*\n\n💝 Message reactions stopped.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ *MESSAGE AUTO REACTIONS DISABLED*');
             } else if (action === 'delay') {
                 this.reactDelayMode = 'delay';
                 await this.bot.messageHandler.reply(messageInfo, '⏰ *MESSAGE REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 0.5-2.5 seconds before reacting to messages.');
@@ -467,11 +466,10 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.statusReactEnabled = true;
-                const delayText = this.statusReactDelayMode === 'delay' ? '30s-5min delay' : 'instant';
-                await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*\n\n👁️ Bot will now react to friends\' status updates automatically!\n\n📊 *Settings:*\n• Chance: 60%\n• Timing: ${delayText}\n• Reactions: ❤💙💚`);
+                await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*`);
             } else if (action === 'off' || action === 'disable') {
                 this.statusReactEnabled = false;
-                await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*\n\n👁️ Status reactions stopped.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*');
             } else if (action === 'delay') {
                 this.statusReactDelayMode = 'delay';
                 await this.bot.messageHandler.reply(messageInfo, '⏰ *STATUS REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 30s-5min before reacting to status updates.');
