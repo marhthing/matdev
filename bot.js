@@ -439,6 +439,42 @@ class MATDEV {
                 level: 'silent'
             };
 
+            // Temporarily suppress console outputs during Baileys operations
+            const originalConsoleLog = console.log;
+            const originalConsoleWarn = console.warn;
+            const originalConsoleError = console.error;
+            
+            // Override console methods to filter Baileys crypto messages
+            console.log = (...args) => {
+                const message = args.join(' ');
+                if (message.includes('Closing stale open session') || 
+                    message.includes('Removing old closed session') ||
+                    message.includes('SessionEntry') ||
+                    message.includes('pendingPreKey') ||
+                    message.includes('registrationId') ||
+                    message.includes('baseKey') ||
+                    message.includes('chainKey')) {
+                    return; // Suppress these messages
+                }
+                originalConsoleLog(...args);
+            };
+            
+            console.warn = (...args) => {
+                const message = args.join(' ');
+                if (message.includes('session') || message.includes('prekey')) {
+                    return; // Suppress session warnings
+                }
+                originalConsoleWarn(...args);
+            };
+            
+            console.error = (...args) => {
+                const message = args.join(' ');
+                if (message.includes('session') || message.includes('prekey')) {
+                    return; // Suppress session errors
+                }
+                originalConsoleError(...args);
+            };
+
             this.sock = makeWASocket({
                 auth: state,
                 printQRInTerminal: false, // We handle QR display ourselves
@@ -454,6 +490,13 @@ class MATDEV {
                     return cache.getMessage(key.id) || {};
                 }
             });
+
+            // Restore original console methods after socket creation
+            setTimeout(() => {
+                console.log = originalConsoleLog;
+                console.warn = originalConsoleWarn;
+                console.error = originalConsoleError;
+            }, 5000); // Restore after 5 seconds to allow initial setup
 
             // Set up event handlers
             this.setupEventHandlers(saveCreds);
