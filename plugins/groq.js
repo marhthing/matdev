@@ -361,7 +361,7 @@ class GroqPlugin {
                     return;
                 }
 
-                await this.bot.messageHandler.reply(messageInfo, `🎧 *Audio Transcription:*\n\n${transcribedText}`);
+                await this.bot.messageHandler.reply(messageInfo, transcribedText);
 
             } catch (error) {
                 console.error('STT processing error:', error);
