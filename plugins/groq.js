@@ -271,17 +271,16 @@ class GroqPlugin {
             } catch (error) {
                 console.error('TTS processing error:', error);
                 
-                let errorMessage = '❌ TTS service unavailable.';
-                
+                // Only show error messages when something actually fails
                 if (error.message && error.message.includes('model_terms_required')) {
-                    errorMessage = '❌ TTS model requires terms acceptance. Please contact the administrator to accept terms at https://console.groq.com/playground?model=playai-tts';
+                    await this.bot.messageHandler.reply(messageInfo, '❌ TTS model requires terms acceptance. Admin must accept terms at https://console.groq.com/playground?model=playai-tts');
                 } else if (error.message && error.message.includes('quota')) {
-                    errorMessage = '❌ TTS API quota exceeded. Please try again later.';
+                    await this.bot.messageHandler.reply(messageInfo, '❌ TTS API quota exceeded. Please try again later.');
                 } else if (error.message && error.message.includes('API_KEY_INVALID')) {
-                    errorMessage = '❌ Invalid API key. Please check your GROQ_API_KEY.';
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Invalid GROQ_API_KEY.');
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ TTS service temporarily unavailable.');
                 }
-                
-                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
