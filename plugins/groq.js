@@ -864,7 +864,7 @@ class GroqPlugin {
                 console.error('Models API error:', apiError);
                 
                 // Fallback to hardcoded list
-                const fallbackList = `📋 *Available Groq Models:*\n\n*🤖 Chat Models:*\n• llama-3.3-70b-versatile (Latest)\n• llama-3.1-8b-instant (Fast)\n• openai/gpt-oss-120b (Flagship)\n• qwen/qwen3-32b\n\n*🧠 AI Systems:*\n• groq/compound (Web search + Code)\n• groq/compound-mini (Lightweight)\n\n*🎵 Audio Models:*\n• whisper-large-v3-turbo (STT)\n• playai-tts (TTS)\n\n*Usage:* Use with .groq, .compound, .tools commands`;
+                const fallbackList = `📋 *Available Groq Models:*\n\n*🤖 Chat Models:*\n• llama-3.3-70b-versatile (Latest)\n• llama-3.1-8b-instant (Fast)\n\n*🧠 Reasoning Models:*\n• openai/gpt-oss-120b (Advanced Reasoning)\n• openai/gpt-oss-20b (Math & Logic)\n• qwen/qwen3-32b (Thinking Process)\n\n*🔍 AI Systems:*\n• groq/compound (Web search + Code)\n• meta-llama/llama-4-scout-17b (Vision)\n\n*🎵 Audio Models:*\n• whisper-large-v3-turbo (STT)\n• playai-tts (TTS)\n\n*Usage:* Use with .groq, .reason, .think, .solve, .ask commands`;
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: fallbackList,
