@@ -42,13 +42,110 @@ if (isInitialSetup || isForcedUpdate) {
     startBot();
 }
 
-function cloneAndSetup() {
+// Check and install dependencies intelligently
+async function checkAndInstallDependencies() {
+    if (!existsSync('package.json')) {
+        console.log('⚠️  No package.json found, skipping dependency check');
+        return;
+    }
+
+    console.log('🔍 Checking dependencies...');
+    
+    // Check if node_modules exists
+    if (existsSync('node_modules')) {
+        console.log('📦 node_modules found, checking package integrity...');
+        
+        try {
+            // Run npm list to check if all packages are properly installed
+            const checkResult = spawnSync('npm', ['list', '--depth=0'], { 
+                stdio: 'pipe',
+                encoding: 'utf8'
+            });
+            
+            // If npm list shows issues or missing packages, reinstall
+            if (checkResult.status !== 0) {
+                console.log('⚠️  Package integrity issues detected, reinstalling...');
+                await installDependencies();
+            } else {
+                // Check if package.json has new dependencies
+                const packageJson = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+                const installedPackages = {};
+                
+                // Parse npm list output to get installed packages
+                if (checkResult.stdout) {
+                    const lines = checkResult.stdout.split('\n');
+                    for (const line of lines) {
+                        const match = line.match(/[├└]── (\S+)@/);
+                        if (match) {
+                            installedPackages[match[1]] = true;
+                        }
+                    }
+                }
+                
+                // Check for missing dependencies
+                const allDeps = {
+                    ...(packageJson.dependencies || {}),
+                    ...(packageJson.devDependencies || {})
+                };
+                
+                const missingDeps = Object.keys(allDeps).filter(dep => !installedPackages[dep]);
+                
+                if (missingDeps.length > 0) {
+                    console.log(`📥 Found ${missingDeps.length} new dependencies, installing...`);
+                    await installDependencies();
+                } else {
+                    console.log('✅ All dependencies are up to date');
+                }
+            }
+        } catch (error) {
+            console.log('⚠️  Error checking dependencies, reinstalling...', error.message);
+            await installDependencies();
+        }
+    } else {
+        console.log('📦 node_modules not found, installing dependencies...');
+        await installDependencies();
+    }
+}
+
+// Install dependencies function
+async function installDependencies() {
+    console.log('📦 Installing dependencies...');
+    const installResult = spawnSync('npm', ['install', '--production'], {
+        stdio: 'inherit'
+    });
+
+    if (installResult.error || installResult.status !== 0) {
+        console.error('❌ Failed to install dependencies');
+        process.exit(1);
+    }
+    console.log('✅ Dependencies installed!');
+}
+
+// Update index.js after bot starts (delayed update)
+function updateIndexJs() {
+    try {
+        if (existsSync('temp_clone/index.js')) {
+            console.log('🔄 Updating index.js for next restart...');
+            spawnSync('cp', ['temp_clone/index.js', 'index.js.new'], { stdio: 'inherit' });
+            spawnSync('mv', ['index.js.new', 'index.js'], { stdio: 'inherit' });
+            console.log('✅ index.js updated for next restart');
+        } else if (existsSync('index.js.update')) {
+            console.log('🔄 Applying delayed index.js update...');
+            spawnSync('mv', ['index.js.update', 'index.js'], { stdio: 'inherit' });
+            console.log('✅ index.js updated');
+        }
+    } catch (error) {
+        console.log('⚠️  Could not update index.js:', error.message);
+    }
+}
+
+async function cloneAndSetup() {
     console.log('📥 Cloning bot from GitHub...');
     console.log('🔗 Repository:', GITHUB_REPO);
 
     // Clean workspace (preserve important files)
-    console.log('🧹 Cleaning workspace (preserving session folder, .env, and config.js)...');
-    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "session" ! -name ".env" ! -name "config.js" -exec rm -rf {} +'], { stdio: 'inherit' });
+    console.log('🧹 Cleaning workspace (preserving session folder, .env, and node_modules)...');
+    spawnSync('bash', ['-c', 'find . -maxdepth 1 ! -name "." ! -name "index.js" ! -name "session" ! -name ".env" ! -name "node_modules" -exec rm -rf {} +'], { stdio: 'inherit' });
 
     // Clone repository
     const cloneResult = spawnSync('git', ['clone', GITHUB_REPO, 'temp_clone'], {
@@ -62,14 +159,14 @@ function cloneAndSetup() {
     }
 
     // Backup and move files
-    console.log('📁 Moving bot files (preserving existing .env and config.js)...');
-    spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true; cp config.js config.js.backup 2>/dev/null || true'], { stdio: 'inherit' });
+    console.log('📁 Moving bot files (preserving existing .env)...');
+    spawnSync('bash', ['-c', 'cp .env .env.backup 2>/dev/null || true'], { stdio: 'inherit' });
     
     const moveResult = spawnSync('bash', ['-c', 'cp -r temp_clone/. . && rm -rf temp_clone'], {
         stdio: 'inherit'
     });
     
-    spawnSync('bash', ['-c', 'mv .env.backup .env 2>/dev/null || true; mv config.js.backup config.js 2>/dev/null || true'], { stdio: 'inherit' });
+    spawnSync('bash', ['-c', 'mv .env.backup .env 2>/dev/null || true'], { stdio: 'inherit' });
 
     if (moveResult.error || moveResult.status !== 0) {
         console.error('❌ Failed to move bot files!');
@@ -87,22 +184,16 @@ function cloneAndSetup() {
     }
     console.log(`✅ Found bot entry point: ${entryPoint}`);
 
-    // Install dependencies
-    if (existsSync('package.json')) {
-        console.log('📦 Installing dependencies...');
-        const installResult = spawnSync('npm', ['install', '--production'], {
-            stdio: 'inherit'
-        });
-
-        if (installResult.error || installResult.status !== 0) {
-            console.error('❌ Failed to install dependencies');
-            process.exit(1);
-        }
-        console.log('✅ Dependencies installed!');
-    }
+    // Check and install dependencies intelligently
+    await checkAndInstallDependencies();
 
     // Start the bot
     startBot(entryPoint);
+    
+    // Update index.js after bot starts successfully (delayed update)
+    setTimeout(() => {
+        updateIndexJs();
+    }, 15000);
     
     // Send update completion notification after successful setup (if manager is available)
     setTimeout(() => {
@@ -161,7 +252,7 @@ function startBot(entryPoint = 'bot.js') {
                 setTimeout(() => startBot(entryPoint), 2000);
             } else {
                 // Check for update requests
-                const isInitialSetup = !existsSync('bot.js') || !existsSync('config.js') || !existsSync('package.json');
+                const isInitialSetup = !existsSync('bot.js') || !existsSync('package.json');
                 const isForcedUpdate = existsSync('.update_flag.json');
                 
                 if (isInitialSetup || isForcedUpdate) {
