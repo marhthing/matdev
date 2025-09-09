@@ -42,6 +42,17 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - **AUTO-ENABLE**: Both features can be auto-enabled from environment variables
 - **IMPROVED UX**: Cleaner command structure with comprehensive status displays
 
+## September 9, 2025 - Delay Controls & Alias Cleanup ✅
+- **DELAY CONTROLS**: Added delay/nodelay options to autoreact system
+- **NEW COMMANDS**: .autoreact delay/nodelay and .sautoreact delay/nodelay
+- **CONFIG INTEGRATION**: Added REACT_DELAY and STATUS_REACT_DELAY to config.js and .env
+- **DEFAULT BEHAVIOR**: Default is "nodelay" (instant reactions) for immediate response
+- **DELAY OPTIONS**: Message reactions: 0.5-2.5s delay, Status reactions: 30s-5min delay
+- **ALIAS REMOVAL**: Removed all alias commands from plugins for cleaner command structure
+- **REMOVED ALIASES**: Eliminated tt, ai, ac/ec/rc/cc, pm, wc, tz aliases across all plugins
+- **CLEANER STRUCTURE**: Simplified command system with only primary commands available
+- **ENHANCED STATUS**: Updated status displays to show current delay mode settings
+
 ## September 7, 2025 - Console Output Cleanup & Scheduling Plugin ✅
 - **COMPLETED**: Cleaned up console output by commenting out verbose logging
 - **COMPLETED**: Removed spammy message processing, archival, and command execution logs
