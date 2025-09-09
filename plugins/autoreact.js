@@ -56,29 +56,29 @@ class AutoReactPlugin {
         require('dotenv').config();
         
         // Auto-enable from environment with debug info
-        console.log('🔍 Environment Check:', {
-            AUTO_REACT: process.env.AUTO_REACT,
-            STATUS_AUTO_REACT: process.env.STATUS_AUTO_REACT,
-            configAUTO_REACT: config.AUTO_REACT,
-            configSTATUS_AUTO_REACT: config.STATUS_AUTO_REACT
-        });
+        // console.log('🔍 Environment Check:', {
+        //     AUTO_REACT: process.env.AUTO_REACT,
+        //     STATUS_AUTO_REACT: process.env.STATUS_AUTO_REACT,
+        //     configAUTO_REACT: config.AUTO_REACT,
+        //     configSTATUS_AUTO_REACT: config.STATUS_AUTO_REACT
+        // });
         
         if (config.AUTO_REACT || process.env.AUTO_REACT === 'true') {
             this.isEnabled = true;
-            console.log('🔥 Auto react enabled from environment');
+            // console.log('🔥 Auto react enabled from environment');
         }
         
         if (config.STATUS_AUTO_REACT || process.env.STATUS_AUTO_REACT === 'true') {
             this.statusReactEnabled = true;
-            console.log('🔥 Auto status react enabled from environment');
+            // console.log('🔥 Auto status react enabled from environment');
         }
         
         // Debug status reaction configuration
-        console.log('📊 Status Reaction Config:', {
-            enabled: this.statusReactEnabled,
-            reactions: this.statusReactions,
-            delayMode: this.statusReactDelayMode
-        });
+        // console.log('📊 Status Reaction Config:', {
+        //     enabled: this.statusReactEnabled,
+        //     reactions: this.statusReactions,
+        //     delayMode: this.statusReactDelayMode
+        // });
         
         // Initialize delay settings from config
         this.reactDelayMode = config.REACT_DELAY;
@@ -282,10 +282,10 @@ class AutoReactPlugin {
             // Skip if auto status react is disabled - double check both ways
             const isEnabled = this.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true';
             if (!isEnabled) {
-                console.log('⏭️ Status auto-react disabled, skipping...', {
-                    statusReactEnabled: this.statusReactEnabled,
-                    envVar: process.env.STATUS_AUTO_REACT
-                });
+                // console.log('⏭️ Status auto-react disabled, skipping...', {
+                //     statusReactEnabled: this.statusReactEnabled,
+                //     envVar: process.env.STATUS_AUTO_REACT
+                // });
                 return;
             }
             
