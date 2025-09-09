@@ -885,9 +885,9 @@ class GroqPlugin {
     /**
      * Advanced Reasoning Command with GPT-OSS
      */
-    async reasoningCommand(messageInfo, args) {
+    async reasoningCommand(messageInfo) {
         try {
-            const prompt = args.join(' ').trim();
+            const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please provide a problem to solve.\nUsage: .reason <complex problem>');
@@ -936,9 +936,9 @@ class GroqPlugin {
     /**
      * Think Command with Raw Reasoning Format
      */
-    async thinkCommand(messageInfo, args) {
+    async thinkCommand(messageInfo) {
         try {
-            const prompt = args.join(' ').trim();
+            const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please provide a problem to think about.\nUsage: .think <problem>');
@@ -978,9 +978,9 @@ class GroqPlugin {
     /**
      * Solve Command for Mathematical Problems
      */
-    async solveCommand(messageInfo, args) {
+    async solveCommand(messageInfo) {
         try {
-            const prompt = args.join(' ').trim();
+            const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please provide a problem to solve.\nUsage: .solve <math problem>');
