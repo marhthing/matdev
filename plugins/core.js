@@ -93,23 +93,17 @@ class CorePlugin {
 
 
         // Permission management commands (owner only)
-        this.bot.messageHandler.registerCommand('allow', this.allowCommand.bind(this), {
-            description: 'Allow a user to use specific commands',
-            usage: `${config.PREFIX}allow <jid|cmd> [cmd]`,
-            category: 'admin',
-            ownerOnly: true
-        });
-
-        this.bot.messageHandler.registerCommand('disallow', this.disallowCommand.bind(this), {
-            description: 'Remove permission for a user to use specific commands',
-            usage: `${config.PREFIX}disallow <jid|cmd> [cmd]`,
-            category: 'admin',
-            ownerOnly: true
-        });
-
         this.bot.messageHandler.registerCommand('permissions', this.permissionsCommand.bind(this), {
-            description: 'View all user permissions',
-            usage: `${config.PREFIX}permissions [jid]`,
+            description: 'Manage user permissions (allow/disallow commands)',
+            usage: `${config.PREFIX}permissions [allow|disallow] <jid> <cmd>`,
+            category: 'admin',
+            ownerOnly: true
+        });
+
+        // Permission aliases
+        this.bot.messageHandler.registerCommand('pm', this.permissionsCommand.bind(this), {
+            description: 'Manage user permissions (alias for permissions)',
+            usage: `${config.PREFIX}pm [allow|disallow] <jid> <cmd>`,
             category: 'admin',
             ownerOnly: true
         });
@@ -238,11 +232,8 @@ class CorePlugin {
                     'gemini': ['ai'],
                     'ytv': ['ytvideo', 'ytmp4'],
                     'yts': ['ytsong', 'ytmp3'],
-                    'waifu': ['vdwaifu'],
                     'worldclock': ['wc'],
-                    'permissions': ['pm'],
-                    'allow': ['permissions allow'],
-                    'disallow': ['permissions disallow']
+                    'permissions': ['pm']
                 };
 
                 for (const [category, cmds] of Object.entries(categories)) {
@@ -531,7 +522,9 @@ class CorePlugin {
                 'COPYCAPTION': ['CC'],
                 'GEMINI': ['AI'],
                 'YTV': ['YTVIDEO', 'YTMP4'],
-                'YTS': ['YTSONG', 'YTMP3']
+                'YTS': ['YTSONG', 'YTMP3'],
+                'WORLDCLOCK': ['WC'],
+                'PERMISSIONS': ['PM']
             };
 
             for (const [category, cmds] of Object.entries(categories)) {
@@ -778,121 +771,7 @@ class CorePlugin {
         }
     }
 
-    /**
-     * Allow command handler (owner only)
-     * Usage: .allow <jid> <cmd> OR when in chat: .allow <cmd>
-     */
-    async allowCommand(messageInfo) {
-        try {
-            const { args, sender } = messageInfo;
-
-            if (args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Usage: `.allow <jid> <cmd>` or when in their chat: `.allow <cmd>`');
-                return;
-            }
-
-            let jid, command;
-
-            if (args.length === 1) {
-                // Check if message is a reply to someone (quoted message)
-                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo;
-
-                if (quotedMessage && quotedMessage.participant) {
-                    // Grant permission to the quoted message author
-                    jid = quotedMessage.participant;
-                    // console.log(`🔧 DEBUG .allow - granting to quoted participant: ${jid}`);
-                } else {
-                    // When in private chat: .allow <cmd>
-                    // Grant permission to the person you're chatting with (chat_jid)
-                    jid = messageInfo.chat_jid;
-                    // console.log(`🔧 DEBUG .allow - granting to chat participant: ${jid}`);
-                }
-                command = args[0];
-            } else {
-                // .allow <jid> <cmd>
-                jid = args[0];
-                command = args[1];
-            }
-
-            // Normalize JID format
-            if (!jid.includes('@')) {
-                jid = `${jid}@s.whatsapp.net`;
-            }
-
-            // Validate command exists
-            const commands = this.bot.messageHandler.getCommands();
-            const commandExists = commands.some(cmd => cmd.name === command);
-
-            if (!commandExists) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `❌ Command "${command}" does not exist. Use \`.help\` to see available commands.`);
-                return;
-            }
-
-            // Add permission using database
-            const success = await this.bot.database.addPermission(jid, command);
-
-            if (success) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `✅ Permission granted! User ${jid} can now use \`.${command}\``);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Failed to add permission. Please try again.');
-            }
-
-        } catch (err) {
-            this.bot.logger.error('Allow command error:', err);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing allow command.');
-        }
-    }
-
-    /**
-     * Disallow command handler (owner only)
-     * Usage: .disallow <jid> <cmd> OR when in chat: .disallow <cmd>
-     */
-    async disallowCommand(messageInfo) {
-        try {
-            const { args, sender } = messageInfo;
-
-            if (args.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Usage: `.disallow <jid> <cmd>` or when in their chat: `.disallow <cmd>`');
-                return;
-            }
-
-            let jid, command;
-
-            if (args.length === 1) {
-                // When in their chat: .disallow <cmd>
-                jid = sender;
-                command = args[0];
-            } else {
-                // .disallow <jid> <cmd>
-                jid = args[0];
-                command = args[1];
-            }
-
-            // Normalize JID format
-            if (!jid.includes('@')) {
-                jid = `${jid}@s.whatsapp.net`;
-            }
-
-            // Remove permission using database
-            const success = await this.bot.database.removePermission(jid, command);
-
-            if (success) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `❌ Permission removed! User ${jid} can no longer use \`.${command}\``);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `❌ User ${jid} did not have permission for \`.${command}\``);
-            }
-
-        } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing disallow command.');
-        }
-    }
+    
 
     /**
      * Permissions command handler (handles subcommands: allow, disallow, or view)
