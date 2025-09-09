@@ -26,163 +26,14 @@ class AutoReactPlugin {
         // Keep track of reacted statuses to avoid duplicates
         this.reactedStatuses = new Set();
         
-        // Enhanced keyword-based reactions for messages
-        this.keywordReactions = {
-            // Greetings & Social
-            'hello': ['👋', '😊', '🙋‍♂️', '🤝', '✨'],
-            'hi': ['👋', '😊', '🙋‍♂️', '🌟', '💫'],
-            'good morning': ['🌅', '☀️', '😊', '🌻', '🌞'],
-            'good night': ['🌙', '😴', '💤', '⭐', '🌃'],
-            'good afternoon': ['☀️', '😊', '👋', '🌤️', '💫'],
-            'welcome': ['🤗', '👋', '🎉', '✨', '💫'],
-            'goodbye': ['👋', '😢', '💔', '✋', '🫂'],
-            'bye': ['👋', '😊', '✋', '💫', '🌟'],
-            
-            // Gratitude & Appreciation
-            'thank you': ['🙏', '😊', '❤️', '💕', '🤗'],
-            'thanks': ['🙏', '😊', '❤️', '✨', '💫'],
-            'appreciate': ['🙏', '💕', '😊', '🤗', '🌟'],
-            'grateful': ['🙏', '❤️', '😊', '💖', '🌸'],
-            'bless': ['🙏', '✨', '💫', '😇', '💛'],
-            
-            // Emotions & Feelings
-            'love': ['❤️', '💕', '😍', '💖', '💝', '💗', '🥰'],
-            'happy': ['😊', '😄', '🎉', '✨', '🌟', '😁', '🥳'],
-            'sad': ['😢', '💔', '🫂', '😔', '💙', '🤗', '😞'],
-            'angry': ['😠', '💢', '🤬', '😡', '👿'],
-            'excited': ['🎉', '😆', '🤩', '⚡', '🔥', '🚀', '🌟'],
-            'tired': ['😴', '💤', '😮‍💨', '😪', '🥱'],
-            'stressed': ['😰', '😫', '💆‍♂️', '🫂', '😟'],
-            'relaxed': ['😌', '😊', '🧘‍♂️', '✨', '🌸'],
-            'proud': ['🏆', '👏', '🎉', '💪', '⭐', '🔥'],
-            'nervous': ['😰', '😬', '🫣', '😟', '💆‍♂️'],
-            
-            // Activities & Hobbies
-            'work': ['💼', '👨‍💻', '📊', '⚡', '💪', '🔥'],
-            'study': ['📚', '🎓', '📖', '💡', '🧠', '✏️'],
-            'food': ['🍽️', '😋', '🤤', '🍕', '🍔', '🍜', '🥘'],
-            'cooking': ['👨‍🍳', '🍳', '🔥', '😋', '🍽️', '👩‍🍳'],
-            'music': ['🎵', '🎶', '🎤', '🎸', '🎹', '🎧', '🔊'],
-            'game': ['🎮', '🕹️', '🎯', '⚡', '🔥', '🏆', '👾'],
-            'movie': ['🎬', '🍿', '📺', '🎭', '🎪', '📽️'],
-            'travel': ['✈️', '🌍', '🗺️', '📸', '🧳', '🏖️'],
-            'shopping': ['🛍️', '💳', '🛒', '💸', '👗', '👠'],
-            'exercise': ['💪', '🏋️‍♂️', '🏃‍♀️', '🔥', '⚡', '🏆'],
-            'yoga': ['🧘‍♀️', '🧘‍♂️', '✨', '🌸', '😌', '💆‍♀️'],
-            
-            // Achievements & Success
-            'success': ['🎉', '👏', '🔥', '⭐', '🏆', '💪', '🚀'],
-            'win': ['🏆', '🎉', '👏', '⭐', '🥇', '🔥', '💪'],
-            'victory': ['🏆', '🎉', '👏', '🥇', '⚡', '🔥'],
-            'achievement': ['🏆', '⭐', '🎉', '👏', '💪', '🔥'],
-            'goal': ['🎯', '🏆', '⭐', '🔥', '💪', '🚀'],
-            'complete': ['✅', '🎉', '👏', '💯', '🔥', '⭐'],
-            'finish': ['✅', '🎉', '👏', '🏁', '💯', '🔥'],
-            'lose': ['😔', '💔', '🫂', '😞', '🤗', '💙'],
-            'fail': ['😔', '💔', '🫂', '💪', '🤗', '💙'],
-            
-            // Weather & Nature
-            'sunny': ['☀️', '🌞', '😎', '🌻', '🌤️', '✨'],
-            'rain': ['🌧️', '☔', '💧', '🌦️', '⛈️', '💙'],
-            'cold': ['🥶', '❄️', '🧊', '🌨️', '☃️', '🧥'],
-            'hot': ['🔥', '🥵', '☀️', '🌞', '💦', '🌡️'],
-            'snow': ['❄️', '🌨️', '☃️', '⛄', '🛷', '🧊'],
-            'wind': ['💨', '🌬️', '🍃', '🌪️', '⛈️'],
-            
-            // Social Events & Celebrations
-            'party': ['🎉', '🥳', '🎊', '🍾', '🎈', '🪩', '💃'],
-            'birthday': ['🎂', '🎉', '🥳', '🎈', '🎁', '🍰', '🎊'],
-            'anniversary': ['💕', '🎉', '🥂', '💖', '🎊', '✨'],
-            'wedding': ['💒', '👰', '🤵', '💕', '🎉', '💐'],
-            'graduation': ['🎓', '🎉', '👏', '📚', '🏆', '⭐'],
-            'celebration': ['🎉', '🥳', '🎊', '🍾', '🎈', '✨'],
-            'congrats': ['🎉', '👏', '🔥', '⭐', '🏆', '💪', '🥳'],
-            'congratulations': ['🎉', '👏', '🔥', '⭐', '🏆', '🥳'],
-            
-            // Apologies & Support
-            'sorry': ['😔', '🫂', '💔', '🤗', '💙', '😞'],
-            'apologize': ['😔', '🫂', '💔', '🤗', '💙'],
-            'forgive': ['🫂', '💙', '🤗', '💕', '😊', '✨'],
-            'support': ['🫂', '💪', '❤️', '🤗', '💙', '⚡'],
-            'help': ['🤝', '💪', '🫂', '⚡', '🔧', '💙'],
-            
-            // Tech & Development
-            'bot': ['🤖', '⚡', '🔥', '💻', '🚀', '⭐'],
-            'matdev': ['🚀', '⚡', '🤖', '🔥', '💻', '⭐', '💎'],
-            'code': ['👨‍💻', '💻', '⚡', '🔥', '🚀', '💎'],
-            'programming': ['👨‍💻', '💻', '🔥', '⚡', '🚀'],
-            'update': ['🔄', '⚡', '✨', '🚀', '💫', '🔥'],
-            'bug': ['🐛', '🔧', '💻', '😅', '🛠️'],
-            'fix': ['🔧', '✅', '💪', '⚡', '🛠️', '🔥'],
-            'deploy': ['🚀', '⚡', '🔥', '💻', '✨', '🌟'],
-            'launch': ['🚀', '🎉', '⚡', '🔥', '⭐', '💫'],
-            
-            // Money & Business
-            'money': ['💰', '💸', '💳', '💵', '🤑', '💎'],
-            'business': ['💼', '📊', '💰', '🚀', '⚡', '📈'],
-            'profit': ['📈', '💰', '🤑', '💵', '🚀', '💎'],
-            'investment': ['📈', '💰', '💎', '🚀', '📊'],
-            'sale': ['💸', '🛍️', '💰', '🤑', '💳', '🎉'],
-            
-            // Health & Wellness
-            'health': ['💪', '🏥', '❤️', '🧘‍♀️', '🍎', '✨'],
-            'sick': ['🤒', '😷', '🫂', '💊', '🏥', '🤗'],
-            'medicine': ['💊', '🏥', '🩺', '❤️', '💪', '✨'],
-            'doctor': ['👨‍⚕️', '🏥', '🩺', '💊', '❤️'],
-            'hospital': ['🏥', '👨‍⚕️', '🩺', '💊', '❤️', '🫂'],
-            'better': ['💪', '😊', '❤️', '✨', '🎉', '👏'],
-            
-            // Time & Calendar
-            'morning': ['🌅', '☀️', '🌞', '☕', '🌻', '✨'],
-            'afternoon': ['☀️', '🌤️', '😊', '💫', '🌟'],
-            'evening': ['🌅', '🌇', '✨', '💫', '🌟'],
-            'night': ['🌙', '⭐', '🌃', '✨', '💫', '😴'],
-            'weekend': ['🎉', '😎', '🏖️', '🎮', '🍿', '✨'],
-            'monday': ['☕', '💪', '⚡', '🔥', '🚀', '💼'],
-            'friday': ['🎉', '😎', '🍻', '🎊', '✨', '🥳'],
-            
-            // Random Positive
-            'amazing': ['🤩', '🔥', '⭐', '💫', '✨', '🚀'],
-            'awesome': ['🔥', '🤩', '⭐', '💪', '🚀', '💎'],
-            'fantastic': ['🌟', '🔥', '🤩', '⭐', '✨', '🚀'],
-            'incredible': ['🤩', '🔥', '⭐', '💫', '🚀', '💎'],
-            'wonderful': ['✨', '🌟', '😊', '💫', '🤩', '💕'],
-            'perfect': ['💯', '🔥', '⭐', '👌', '✨', '🚀'],
-            'excellent': ['🔥', '⭐', '💯', '👏', '🚀', '💎'],
-            'beautiful': ['😍', '✨', '🌸', '💕', '🌟', '💖'],
-            'cute': ['🥰', '😍', '💕', '🌸', '✨', '💖'],
-            'cool': ['😎', '🔥', '⚡', '🚀', '✨', '👌'],
-            'nice': ['👍', '😊', '✨', '💫', '🌟', '👌'],
-            'great': ['👍', '🔥', '⭐', '💪', '🚀', '✨'],
-            'good': ['👍', '😊', '✨', '🌟', '💫', '👌']
+        // Simple 5-reaction system with smart analysis
+        this.basicReactions = {
+            love: '❤️',      // Love, appreciation, positive emotions
+            sad: '😢',       // Sadness, disappointment, sympathy
+            angry: '😠',     // Anger, frustration, annoyance
+            laugh: '😂',     // Humor, funny content, jokes
+            neutral: '👍'    // General approval, neutral positive
         };
-        
-        // Enhanced random reactions pool for messages
-        this.randomReactions = [
-            // Classic positive
-            '👍', '❤️', '😊', '🔥', '✨', '⭐', '💯', '👏',
-            '😄', '😍', '🤩', '💪', '🙌', '👌', '⚡', '💎',
-            
-            // Celebration & Energy
-            '🎉', '🎊', '🌟', '💫', '🚀', '💝', '💖', '🔆',
-            '🥳', '🎈', '🎁', '🌈', '💐', '🌸', '🌺', '🌻',
-            
-            // Support & Love
-            '🤗', '🫂', '💕', '💗', '💙', '💚', '💛', '🧡',
-            '💜', '🤍', '🖤', '💋', '😘', '🥰', '😇', '🤭',
-            
-            // Fun & Playful
-            '😂', '🤣', '😁', '😆', '🙃', '😋', '🤪', '🥴',
-            '🤠', '🥶', '🤯', '🤓', '😎', '🥸', '🤩', '🥳',
-            
-            // Animals & Nature
-            '🐶', '🐱', '🦄', '🐝', '🦋', '🌙', '☀️', '🌞',
-            '🌍', '🏔️', '🌊', '🌲', '🍀', '🌿', '🌷', '🌹',
-            
-            // Objects & Symbols
-            '💡', '🔮', '💰', '🏆', '🎯', '🎪', '🎭', '🎨',
-            '🎵', '🎶', '📚', '✏️', '🖊️', '📝', '🔖', '📌'
-        ];
         
         // Fixed status reactions (non-configurable)
         this.statusReactions = config.STATUS_AUTO_REACT_EMOJIS.split('');
@@ -445,218 +296,152 @@ class AutoReactPlugin {
     }
 
     /**
-     * Find appropriate reaction for text with intelligent mood analysis
+     * Find appropriate reaction for text with smart 5-reaction analysis
      */
     async findReaction(text) {
         const lowerText = text.toLowerCase();
-        const textLength = text.length;
         
-        // First, try exact keyword matches (highest priority)
-        for (const [keyword, reactions] of Object.entries(this.keywordReactions)) {
-            if (lowerText.includes(keyword)) {
-                return reactions[Math.floor(Math.random() * reactions.length)];
-            }
-        }
-        
-        // Advanced mood and sentiment analysis
-        const mood = this.analyzeMood(lowerText);
-        const reactionByMood = this.getReactionByMood(mood);
-        if (reactionByMood) return reactionByMood;
-        
-        // Content type analysis
-        const contentType = this.analyzeContentType(lowerText);
-        const reactionByContent = this.getReactionByContentType(contentType);
-        if (reactionByContent) return reactionByContent;
-        
-        // Message length and structure analysis
-        if (textLength > 100) {
-            // Long messages get thoughtful reactions
-            return this.randomElement(['🤔', '📚', '💭', '👀', '🧐', '💡']);
-        }
-        
-        if (textLength < 10) {
-            // Short messages get simple reactions
-            return this.randomElement(['👍', '😊', '👌', '✨', '💫']);
-        }
-        
-        // Question detection
-        if (lowerText.includes('?') || lowerText.startsWith('how') || lowerText.startsWith('what') || 
-            lowerText.startsWith('why') || lowerText.startsWith('when') || lowerText.startsWith('where')) {
-            return this.randomElement(['🤔', '💭', '❓', '🧐', '💡', '🤷‍♂️']);
-        }
-        
-        // Fallback to contextual random reactions (not completely random)
-        return this.getContextualReaction(lowerText);
+        // Analyze sentiment and return appropriate reaction
+        const sentiment = this.analyzeAdvancedSentiment(lowerText);
+        return this.basicReactions[sentiment];
     }
 
     /**
-     * Analyze message mood/sentiment
+     * Advanced sentiment analysis for 5-reaction system
      */
-    analyzeMood(text) {
-        // Positive mood indicators
-        const positiveWords = [
-            'happy', 'joy', 'excited', 'love', 'amazing', 'awesome', 'great', 'wonderful', 
-            'fantastic', 'excellent', 'perfect', 'beautiful', 'good', 'best', 'win', 
-            'success', 'victory', 'celebrate', 'party', 'fun', 'smile', 'laugh', 'haha',
-            'lol', 'yay', 'woohoo', 'nice', 'cool', 'sweet', 'brilliant'
+    analyzeAdvancedSentiment(text) {
+        // Love/Heart reactions - strong positive emotions, love, appreciation
+        const loveWords = [
+            'love', 'adore', 'amazing', 'awesome', 'fantastic', 'incredible', 'wonderful',
+            'perfect', 'beautiful', 'gorgeous', 'stunning', 'brilliant', 'excellent',
+            'outstanding', 'magnificent', 'spectacular', 'marvelous', 'fabulous',
+            'thank', 'thanks', 'grateful', 'appreciate', 'bless', 'heart', 'sweet',
+            'cute', 'adorable', 'precious', 'dear', 'honey', 'baby', 'darling',
+            'celebration', 'celebrate', 'victory', 'win', 'success', 'achievement',
+            'proud', 'congratulations', 'congrats', 'birthday', 'anniversary',
+            'wedding', 'graduation', 'party', 'excited', 'thrilled', 'joy', 'happy'
         ];
         
-        // Negative mood indicators
-        const negativeWords = [
-            'sad', 'angry', 'mad', 'hate', 'terrible', 'awful', 'bad', 'worst', 'fail',
-            'lose', 'problem', 'issue', 'wrong', 'broken', 'hurt', 'pain', 'cry', 
-            'disappointed', 'frustrated', 'annoyed', 'stressed', 'worried', 'scared'
+        // Sad reactions - sadness, disappointment, sympathy, loss
+        const sadWords = [
+            'sad', 'cry', 'crying', 'tears', 'hurt', 'pain', 'heartbroken', 'broken',
+            'depressed', 'down', 'blue', 'upset', 'disappointed', 'devastated',
+            'tragic', 'tragedy', 'loss', 'lost', 'miss', 'missing', 'gone', 'died',
+            'death', 'funeral', 'goodbye', 'farewell', 'leaving', 'alone', 'lonely',
+            'sorry', 'apologize', 'regret', 'mistake', 'failed', 'failure', 'lose',
+            'disaster', 'terrible', 'awful', 'horrible', 'worst', 'bad news',
+            'sick', 'ill', 'hospital', 'disease', 'cancer', 'emergency', 'accident'
         ];
         
-        // Neutral/thoughtful mood indicators
-        const neutralWords = [
-            'think', 'maybe', 'perhaps', 'wondering', 'consider', 'opinion', 'idea',
-            'hmm', 'interesting', 'curious', 'question', 'discuss', 'talk', 'chat'
+        // Angry reactions - anger, frustration, annoyance
+        const angryWords = [
+            'angry', 'mad', 'furious', 'rage', 'hate', 'stupid', 'idiot', 'moron',
+            'annoying', 'annoyed', 'frustrated', 'irritated', 'pissed', 'damn',
+            'hell', 'shit', 'fuck', 'wtf', 'bullshit', 'nonsense', 'ridiculous',
+            'outrageous', 'unacceptable', 'disgusting', 'pathetic', 'useless',
+            'worthless', 'trash', 'garbage', 'scam', 'fake', 'lie', 'liar',
+            'cheat', 'steal', 'thief', 'criminal', 'wrong', 'unfair', 'injustice',
+            'discrimination', 'racist', 'sexist', 'abuse', 'violence', 'fight',
+            'war', 'conflict', 'argue', 'argument', 'disagree', 'oppose'
         ];
         
-        // Count mood indicators
-        let positiveCount = 0;
-        let negativeCount = 0;
-        let neutralCount = 0;
+        // Laugh reactions - humor, funny content, jokes
+        const laughWords = [
+            'haha', 'lol', 'lmao', 'rofl', 'lmfao', 'funny', 'hilarious', 'joke',
+            'comedy', 'humor', 'laugh', 'giggle', 'chuckle', 'smile', 'grin',
+            'amusing', 'entertaining', 'witty', 'clever', 'silly', 'crazy',
+            'weird', 'strange', 'odd', 'bizarre', 'ridiculous', 'absurd',
+            'meme', 'viral', 'trending', 'epic', 'legendary', 'iconic',
+            'classic', 'gold', 'comedy', 'clown', 'joking', 'kidding',
+            'sarcasm', 'sarcastic', 'ironic', 'irony', 'troll', 'trolling'
+        ];
         
-        positiveWords.forEach(word => {
-            if (text.includes(word)) positiveCount++;
+        // Check for strong emotional indicators first
+        let loveScore = 0;
+        let sadScore = 0;
+        let angryScore = 0;
+        let laughScore = 0;
+        
+        // Count word matches with weighted scoring
+        loveWords.forEach(word => {
+            if (text.includes(word)) {
+                loveScore += word.length > 6 ? 2 : 1; // Longer words get higher weight
+            }
         });
         
-        negativeWords.forEach(word => {
-            if (text.includes(word)) negativeCount++;
+        sadWords.forEach(word => {
+            if (text.includes(word)) {
+                sadScore += word.length > 6 ? 2 : 1;
+            }
         });
         
-        neutralWords.forEach(word => {
-            if (text.includes(word)) neutralCount++;
+        angryWords.forEach(word => {
+            if (text.includes(word)) {
+                angryScore += word.length > 4 ? 2 : 1;
+            }
         });
         
-        // Determine dominant mood
-        if (positiveCount > negativeCount && positiveCount > neutralCount) {
-            return 'positive';
-        } else if (negativeCount > positiveCount && negativeCount > neutralCount) {
-            return 'negative';
-        } else if (neutralCount > 0) {
+        laughWords.forEach(word => {
+            if (text.includes(word)) {
+                laughScore += word.length > 4 ? 2 : 1;
+            }
+        });
+        
+        // Check for punctuation patterns that indicate emotion
+        const exclamationCount = (text.match(/!/g) || []).length;
+        const questionCount = (text.match(/\?/g) || []).length;
+        const capsWords = (text.match(/[A-Z]{2,}/g) || []).length;
+        
+        // Boost scores based on punctuation
+        if (exclamationCount > 0) {
+            loveScore += exclamationCount;
+            angryScore += exclamationCount;
+            laughScore += exclamationCount;
+        }
+        
+        if (capsWords > 0) {
+            angryScore += capsWords * 2; // ALL CAPS usually indicates anger or excitement
+            loveScore += capsWords;
+        }
+        
+        // Emoticon and emoji detection
+        if (text.includes(':(') || text.includes(':(') || text.includes('😢') || text.includes('😭')) {
+            sadScore += 3;
+        }
+        
+        if (text.includes(':)') || text.includes('😂') || text.includes('🤣') || text.includes('😄')) {
+            laughScore += 3;
+        }
+        
+        if (text.includes('<3') || text.includes('❤️') || text.includes('💕') || text.includes('🥰')) {
+            loveScore += 3;
+        }
+        
+        if (text.includes('>:(') || text.includes('😡') || text.includes('😠') || text.includes('🤬')) {
+            angryScore += 3;
+        }
+        
+        // Determine the dominant sentiment
+        const maxScore = Math.max(loveScore, sadScore, angryScore, laughScore);
+        
+        // Only react with specific emotions if there's a clear winner and sufficient score
+        if (maxScore >= 2) {
+            if (loveScore === maxScore) return 'love';
+            if (sadScore === maxScore) return 'sad';
+            if (angryScore === maxScore) return 'angry';
+            if (laughScore === maxScore) return 'laugh';
+        }
+        
+        // Special case: Questions usually get neutral reactions
+        if (questionCount > 0 && maxScore < 3) {
             return 'neutral';
         }
         
-        // Check for exclamation marks (excitement)
-        if (text.includes('!')) {
-            return text.includes('!!') ? 'very_excited' : 'excited';
-        }
-        
-        return 'default';
+        // Default to neutral for ambiguous or mild content
+        return 'neutral';
     }
 
-    /**
-     * Get reaction based on analyzed mood
-     */
-    getReactionByMood(mood) {
-        const moodReactions = {
-            'positive': ['😊', '😄', '🎉', '👏', '💪', '🔥', '⭐', '✨', '🌟', '💫'],
-            'very_excited': ['🤩', '🎉', '🚀', '🔥', '⚡', '💥', '🌟', '✨', '🙌', '💫'],
-            'excited': ['😆', '🎉', '😁', '🤗', '⚡', '✨', '🌟', '🔥'],
-            'negative': ['🫂', '💙', '😔', '🤗', '💪', '❤️', '🌈', '✨'],
-            'neutral': ['🤔', '💭', '👀', '💡', '🧐', '📚', '⚖️', '🤷‍♂️'],
-            'default': ['👍', '😊', '✨', '💫', '🌟']
-        };
-        
-        if (moodReactions[mood]) {
-            return this.randomElement(moodReactions[mood]);
-        }
-        
-        return null;
-    }
-
-    /**
-     * Analyze content type
-     */
-    analyzeContentType(text) {
-        // Technical/coding content
-        if (this.containsAny(text, ['code', 'programming', 'bug', 'fix', 'update', 'deploy', 'function', 'variable', 'error', 'debug'])) {
-            return 'technical';
-        }
-        
-        // Media content
-        if (this.containsAny(text, ['photo', 'image', 'picture', 'video', 'music', 'song', 'movie', 'watch', 'listen'])) {
-            return 'media';
-        }
-        
-        // Food content
-        if (this.containsAny(text, ['food', 'eat', 'hungry', 'cooking', 'recipe', 'restaurant', 'dinner', 'lunch', 'breakfast'])) {
-            return 'food';
-        }
-        
-        // Work/business content
-        if (this.containsAny(text, ['work', 'job', 'meeting', 'business', 'office', 'project', 'deadline', 'boss'])) {
-            return 'work';
-        }
-        
-        // Social content
-        if (this.containsAny(text, ['friend', 'family', 'party', 'birthday', 'wedding', 'celebration', 'social'])) {
-            return 'social';
-        }
-        
-        return null;
-    }
-
-    /**
-     * Get reaction based on content type
-     */
-    getReactionByContentType(contentType) {
-        const contentReactions = {
-            'technical': ['👨‍💻', '🤖', '⚡', '🔧', '💻', '🚀', '💎', '🔥'],
-            'media': ['📸', '🎵', '🎬', '🎨', '👀', '🔥', '✨', '🌟'],
-            'food': ['🍽️', '😋', '🤤', '👨‍🍳', '🔥', '💯', '👌', '😊'],
-            'work': ['💼', '📊', '💪', '⚡', '🔥', '🚀', '👍', '💯'],
-            'social': ['🎉', '🤗', '💕', '👥', '🥳', '✨', '🌟', '❤️']
-        };
-        
-        if (contentReactions[contentType]) {
-            return this.randomElement(contentReactions[contentType]);
-        }
-        
-        return null;
-    }
-
-    /**
-     * Get contextual reaction based on message patterns
-     */
-    getContextualReaction(text) {
-        // Greeting patterns
-        if (this.containsAny(text, ['morning', 'evening', 'afternoon', 'hi', 'hello', 'hey'])) {
-            return this.randomElement(['👋', '😊', '🌟', '✨', '💫']);
-        }
-        
-        // Farewell patterns
-        if (this.containsAny(text, ['bye', 'goodbye', 'see you', 'talk later', 'gtg'])) {
-            return this.randomElement(['👋', '😊', '💫', '✨', '🌟']);
-        }
-        
-        // Agreement patterns
-        if (this.containsAny(text, ['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'agree', 'right'])) {
-            return this.randomElement(['👍', '✅', '💯', '👌', '😊']);
-        }
-        
-        // Default contextual reactions (more thoughtful than random)
-        return this.randomElement([
-            '😊', '👍', '✨', '💫', '🌟', '💙', '🤗', '👌'
-        ]);
-    }
-
-    /**
-     * Helper method to check if text contains any of the given words
-     */
-    containsAny(text, words) {
-        return words.some(word => text.includes(word));
-    }
-
-    /**
-     * Helper method to get random element from array
-     */
-    randomElement(array) {
-        return array[Math.floor(Math.random() * array.length)];
-    }
+    
 
     /**
      * Toggle auto react command
