@@ -245,8 +245,6 @@ class GroqPlugin {
                 return;
             }
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎤 Converting text to speech...');
-
             try {
                 // Use Groq TTS API with latest format from documentation
                 const response = await groq.audio.speech.create({
@@ -260,27 +258,20 @@ class GroqPlugin {
                 const audioPath = path.join(this.tempDir, `tts_${Date.now()}.wav`);
                 await fs.writeFile(audioPath, buffer);
 
-                // Send audio file
+                // Send as voice note (ptt: true for voice note)
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     audio: { url: audioPath },
                     mimetype: 'audio/wav',
-                    ptt: false
+                    ptt: true
                 });
 
-                // Clean up temp file
+                // Delete temp file immediately
                 await fs.remove(audioPath);
-                
-                const successResponse = `🎤 *Text converted to speech successfully!*`;
-
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: successResponse,
-                    edit: processingMsg.key
-                });
 
             } catch (error) {
                 console.error('TTS processing error:', error);
                 
-                let errorMessage = '❌ Error processing text-to-speech request.';
+                let errorMessage = '❌ TTS service unavailable.';
                 
                 if (error.message && error.message.includes('model_terms_required')) {
                     errorMessage = '❌ TTS model requires terms acceptance. Please contact the administrator to accept terms at https://console.groq.com/playground?model=playai-tts';
@@ -290,10 +281,7 @@ class GroqPlugin {
                     errorMessage = '❌ Invalid API key. Please check your GROQ_API_KEY.';
                 }
                 
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: errorMessage,
-                    edit: processingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
