@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Auto Bio Plugin
  * Automatically updates WhatsApp bio with AI-generated messages
@@ -7,6 +8,8 @@ const config = require('../config');
 const Utils = require('../lib/utils');
 const moment = require('moment-timezone');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const fs = require('fs-extra');
+const path = require('path');
 
 const utils = new Utils();
 
@@ -21,17 +24,9 @@ class AutoBioPlugin {
         this.updateInterval = 60 * 60 * 1000; // Default 1 hour
         this.bioTimer = null;
 
-        // Bio templates (fallback + AI-generated)
-        this.templates = [
-            'Living my best life ✨',
-            'Building the future 💻',
-            'Never give up 💪',
-            'Coding is life 👨‍💻',
-            'Stay positive ⭐',
-            'Dream big, work hard 🌟',
-            'Success is a journey, not a destination 🎯',
-            'Every day is a new opportunity 🌅'
-        ];
+        // Bio templates storage
+        this.templates = [];
+        this.bioTemplatesFile = path.join(__dirname, '../session/storage/bio_templates.json');
     }
 
     /**
@@ -41,8 +36,13 @@ class AutoBioPlugin {
         this.bot = bot;
         this.registerCommands();
 
-        // Generate initial AI templates if Gemini API is available
-        await this.generateAIBioTemplates();
+        // Load existing bio templates from JSON file
+        await this.loadBioTemplates();
+
+        // Generate AI templates if Gemini API is available and we have few templates
+        if (this.templates.length < 10) {
+            await this.generateAIBioTemplates();
+        }
 
         // Start auto bio if enabled in config
         if (process.env.AUTO_BIO === 'true') {
@@ -51,6 +51,59 @@ class AutoBioPlugin {
 
         console.log('✅ Auto Bio plugin loaded');
         return this;
+    }
+
+    /**
+     * Load bio templates from JSON file
+     */
+    async loadBioTemplates() {
+        try {
+            if (await fs.pathExists(this.bioTemplatesFile)) {
+                const data = await fs.readJson(this.bioTemplatesFile);
+                this.templates = data.templates || [];
+                console.log(`📁 Loaded ${this.templates.length} bio templates from storage`);
+            } else {
+                // Create initial templates if file doesn't exist
+                this.templates = [
+                    'Living my best life ✨',
+                    'Building the future 💻',
+                    'Never give up 💪',
+                    'Coding is life 👨‍💻',
+                    'Stay positive ⭐',
+                    'Dream big, work hard 🌟',
+                    'Success is a journey, not a destination 🎯',
+                    'Every day is a new opportunity 🌅'
+                ];
+                await this.saveBioTemplates();
+                console.log(`📝 Created initial bio templates file with ${this.templates.length} templates`);
+            }
+        } catch (error) {
+            console.error('❌ Error loading bio templates:', error);
+            // Fallback to basic templates
+            this.templates = [
+                'Living my best life ✨',
+                'Building the future 💻',
+                'Never give up 💪',
+                'Coding is life 👨‍💻'
+            ];
+        }
+    }
+
+    /**
+     * Save bio templates to JSON file
+     */
+    async saveBioTemplates() {
+        try {
+            const data = {
+                templates: this.templates,
+                lastUpdated: Date.now(),
+                totalGenerated: this.templates.length
+            };
+            await fs.writeJson(this.bioTemplatesFile, data, { spaces: 2 });
+            console.log(`💾 Saved ${this.templates.length} bio templates to storage`);
+        } catch (error) {
+            console.error('❌ Error saving bio templates:', error);
+        }
     }
 
     /**
@@ -81,7 +134,8 @@ class AutoBioPlugin {
                     '✅ *AUTO BIO ENABLED*\n\n' +
                     '🤖 AI bio generation: ' + (process.env.GEMINI_API_KEY ? '✅ Active' : '❌ Disabled') + '\n' +
                     '⏰ Update interval: ' + (this.updateInterval / 60000) + ' minutes\n' +
-                    '📝 Bio templates: ' + this.templates.length + ' available\n\n' +
+                    '📝 Bio templates: ' + this.templates.length + ' available\n' +
+                    '💾 Templates stored in: bio_templates.json\n\n' +
                     '💡 Your bio will now update automatically!'
                 );
             } else if (action === 'off' || action === 'disable') {
@@ -95,6 +149,10 @@ class AutoBioPlugin {
                 const statusText = status.enabled ? '✅ Enabled' : '❌ Disabled';
                 
                 let response = `🤖 AUTO BIO STATUS ${statusText}\n\n`;
+                response += `📊 *Current Stats:*\n`;
+                response += `• Bio templates: ${this.templates.length}\n`;
+                response += `• AI available: ${status.aiAvailable ? '✅' : '❌'}\n`;
+                response += `• Update interval: ${status.interval} minutes\n\n`;
                 response += `*Usage:*\n• \`${config.PREFIX}autobio on\` - Enable auto bio\n• \`${config.PREFIX}autobio off\` - Disable auto bio`;
 
                 await this.bot.messageHandler.reply(messageInfo, response);
@@ -163,14 +221,14 @@ class AutoBioPlugin {
     }
 
     /**
-     * Generate fresh AI bio from Gemini
+     * Generate fresh AI bio from Gemini and add to templates
      */
     async generateFreshBio() {
         try {
             const apiKey = process.env.GEMINI_API_KEY;
             if (!apiKey) {
-                console.log('⚠️ No Gemini API key found, using fallback templates');
-                return null;
+                console.log('⚠️ No Gemini API key found, using stored templates');
+                return this.getRandomTemplate();
             }
 
             console.log('🤖 Generating fresh bio with Gemini AI...');
@@ -199,43 +257,57 @@ Return only the bio message, no extra text or formatting.`;
                 // Add to templates list if not already present
                 if (!this.templates.includes(freshBio)) {
                     this.templates.push(freshBio);
+                    await this.saveBioTemplates(); // Save to JSON file
                     console.log(`📝 Added new bio to templates (${this.templates.length} total)`);
                 }
 
                 return freshBio;
             } else {
-                console.log('⚠️ Invalid AI response, using fallback');
-                return null;
+                console.log('⚠️ Invalid AI response, using stored template');
+                return this.getRandomTemplate();
             }
         } catch (error) {
             console.error('❌ Error generating fresh bio:', error);
-            return null;
+            return this.getRandomTemplate();
         }
     }
 
     /**
-     * Generate initial AI bio templates (for fallback)
+     * Get random template from stored templates
+     */
+    getRandomTemplate() {
+        if (this.templates.length === 0) {
+            return 'Living my best life ✨'; // Emergency fallback
+        }
+        const randomTemplate = this.templates[Math.floor(Math.random() * this.templates.length)];
+        console.log(`📝 Using stored template: ${randomTemplate}`);
+        return randomTemplate;
+    }
+
+    /**
+     * Generate initial AI bio templates (for bulk generation)
      */
     async generateAIBioTemplates() {
         try {
             const apiKey = process.env.GEMINI_API_KEY;
             if (!apiKey) {
-                console.log('⚠️ No Gemini API key found, using default templates');
+                console.log('⚠️ No Gemini API key found, using stored templates only');
                 return;
             }
 
-            console.log('🤖 Generating initial bio templates with Gemini AI...');
+            console.log('🤖 Generating additional bio templates with Gemini AI...');
 
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            const prompt = `Generate 5 short, mature, and motivational WhatsApp bio messages. Each should be:
+            const prompt = `Generate 10 short, mature, and motivational WhatsApp bio messages. Each should be:
 - Maximum 20 words
 - Motivational and inspiring
 - Professional but approachable  
 - No emojis included (I'll add them)
 - Suitable for a tech-savvy person
-- Different themes (success, growth, positivity, etc.)
+- Different themes (success, growth, positivity, innovation, etc.)
+- Unique and not generic
 
 Return only the bio messages, one per line, no numbering or extra text.`;
 
@@ -248,19 +320,20 @@ Return only the bio messages, one per line, no numbering or extra text.`;
                     .map(line => line.trim())
                     .filter(line => line.length > 0 && line.length <= 100)
                     .map(line => line + ' ✨') // Add emoji
-                    .slice(0, 5); // Take only first 5
+                    .slice(0, 10); // Take only first 10
 
                 if (newTemplates.length > 0) {
                     // Add new templates to existing ones, remove duplicates
                     const combinedTemplates = [...this.templates, ...newTemplates];
                     this.templates = [...new Set(combinedTemplates)]; // Remove duplicates
 
-                    console.log(`✅ Added ${newTemplates.length} initial AI bio templates`);
+                    await this.saveBioTemplates(); // Save to JSON file
+                    console.log(`✅ Added ${newTemplates.length} AI bio templates (${this.templates.length} total)`);
                 }
             }
         } catch (error) {
-            console.error('❌ Error generating initial AI bio templates:', error);
-            console.log('📝 Using default templates only');
+            console.error('❌ Error generating AI bio templates:', error);
+            console.log('📝 Using stored templates only');
         }
     }
 
@@ -269,18 +342,8 @@ Return only the bio messages, one per line, no numbering or extra text.`;
      */
     async updateBio() {
         try {
-            let bioToUse = null;
-
-            // Try to get fresh AI bio first
-            if (process.env.GEMINI_API_KEY) {
-                bioToUse = await this.generateFreshBio();
-            }
-
-            // Fallback to random template if AI fails
-            if (!bioToUse) {
-                bioToUse = this.templates[Math.floor(Math.random() * this.templates.length)];
-                console.log(`📝 Using fallback template: ${bioToUse}`);
-            }
+            // Use fresh AI bio generation (which includes fallback to stored templates)
+            const bioToUse = await this.generateFreshBio();
 
             // Update bio using Baileys
             await this.bot.sock.updateProfileStatus(bioToUse);
