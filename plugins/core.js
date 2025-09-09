@@ -1042,7 +1042,11 @@ class CorePlugin {
         try {
             const uptime = utils.formatUptime(Date.now() - this.bot.startTime);
             const memUsage = process.memoryUsage();
-            const security = this.bot.security;
+            
+            // Access security manager from the bot's message handler
+            const securityStats = this.bot.messageHandler.security ? 
+                this.bot.messageHandler.security.getSecurityStats() : 
+                { securityEvents: 0 };
 
             const report = `📊 *MATDEV Status Report*\n\n` +
                 `⏱️ Uptime: ${uptime}\n` +
@@ -1050,7 +1054,7 @@ class CorePlugin {
                 `📤 Messages Sent: ${this.bot.messageStats.sent}\n` +
                 `⚡ Commands Executed: ${this.bot.messageStats.commands}\n` +
                 `🧠 Memory Usage: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB\n` +
-                `🔒 Security Events: ${security.getSecurityStats().securityEvents}\n` +
+                `🔒 Security Events: ${securityStats.securityEvents}\n` +
                 `🏃‍♂️ Status: Running optimally`;
 
             await this.bot.messageHandler.reply(messageInfo, report);
