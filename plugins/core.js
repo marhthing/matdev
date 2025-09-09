@@ -228,11 +228,54 @@ class CorePlugin {
 
                 let helpText = `*🤖 MATDEV COMMAND MENU*\n\n`;
 
+                // Create command aliases mapping
+                const commandAliases = {
+                    'download': ['dl'],
+                    'addcaption': ['ac'],
+                    'editcaption': ['ec'], 
+                    'removecaption': ['rc'],
+                    'copycaption': ['cc'],
+                    'gemini': ['ai'],
+                    'ytv': ['ytvideo', 'ytmp4'],
+                    'yts': ['ytsong', 'ytmp3']
+                };
+
                 for (const [category, cmds] of Object.entries(categories)) {
                     helpText += `*${category.toUpperCase()}*\n`;
+                    
+                    // Group commands with their aliases
+                    const processedCommands = new Set();
+                    
                     cmds.forEach(cmd => {
-                        helpText += `• ${config.PREFIX}${cmd.name} - ${cmd.description}\n`;
+                        if (processedCommands.has(cmd.name)) return;
+                        
+                        // Check if this command has aliases or is an alias
+                        let mainCommand = cmd;
+                        let aliases = commandAliases[cmd.name] || [];
+                        
+                        // Check if current command is an alias of another
+                        for (const [main, aliasArray] of Object.entries(commandAliases)) {
+                            if (aliasArray.includes(cmd.name)) {
+                                // Find the main command object
+                                mainCommand = cmds.find(c => c.name === main) || cmd;
+                                aliases = aliasArray.filter(alias => alias !== cmd.name);
+                                break;
+                            }
+                        }
+                        
+                        // Mark all related commands as processed
+                        processedCommands.add(mainCommand.name);
+                        aliases.forEach(alias => processedCommands.add(alias));
+                        
+                        // Display command with aliases
+                        if (aliases.length > 0 && cmds.some(c => c.name === mainCommand.name)) {
+                            helpText += `• ${config.PREFIX}${mainCommand.name} ~ ${aliases.map(a => config.PREFIX + a).join(' ~ ')} - ${mainCommand.description}\n`;
+                        } else if (!aliases.some(alias => cmds.some(c => c.name === alias))) {
+                            // Show command only if none of its aliases are in the same category
+                            helpText += `• ${config.PREFIX}${cmd.name} - ${cmd.description}\n`;
+                        }
                     });
+                    
                     helpText += '\n';
                 }
 
@@ -466,16 +509,60 @@ class CorePlugin {
                 'system': '⚙️',
                 'antidelete': '🛡️',
                 'antiviewonce': '👁️',
-                'status': '📱'
+                'status': '📱',
+                'utility': '📋',
+                'automation': '📋',
+                'group': '📋',
+                'ai': '📋',
+                'fun': '📋'
+            };
+
+            // Create command aliases mapping
+            const commandAliases = {
+                'DOWNLOAD': ['DL'],
+                'ADDCAPTION': ['AC'],
+                'EDITCAPTION': ['EC'],
+                'REMOVECAPTION': ['RC'],
+                'COPYCAPTION': ['CC'],
+                'GEMINI': ['AI'],
+                'YTV': ['YTVIDEO', 'YTMP4'],
+                'YTS': ['YTSONG', 'YTMP3']
             };
 
             for (const [category, cmds] of Object.entries(categories)) {
                 const icon = categoryIcons[category] || '📋';
                 menuText += `╭─── ${icon} ${category.toUpperCase()} ${icon} ───╮\n`;
 
-                // Display commands as a vertical list
+                // Group commands with their aliases
+                const processedCommands = new Set();
+                
                 cmds.forEach(cmd => {
-                    menuText += `│ • ${cmd}\n`;
+                    if (processedCommands.has(cmd)) return;
+                    
+                    // Check if this command has aliases or is an alias
+                    let mainCommand = cmd;
+                    let aliases = commandAliases[cmd] || [];
+                    
+                    // Check if current command is an alias of another
+                    for (const [main, aliasArray] of Object.entries(commandAliases)) {
+                        if (aliasArray.includes(cmd)) {
+                            mainCommand = main;
+                            aliases = aliasArray.filter(alias => alias !== cmd);
+                            break;
+                        }
+                    }
+                    
+                    // Mark all related commands as processed
+                    processedCommands.add(mainCommand);
+                    aliases.forEach(alias => processedCommands.add(alias));
+                    
+                    // Display command with aliases
+                    if (aliases.length > 0 && cmds.includes(mainCommand)) {
+                        menuText += `│ • ${mainCommand} ~ ${aliases.join(' ~ ')}\n`;
+                    } else if (!aliases.some(alias => cmds.includes(alias))) {
+                        // Show command only if none of its aliases are in the same category
+                        menuText += `│ • ${cmd}\n`;
+                    }
                 });
                 
                 menuText += `╰${'─'.repeat(25)}╯\n\n`;
