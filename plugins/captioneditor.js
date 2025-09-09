@@ -62,10 +62,10 @@ class CaptionEditorPlugin {
             source: 'captioneditor.js'
         });
 
-        // Copy media with new caption
+        // Copy caption text from media
         this.bot.messageHandler.registerCommand('copycaption', this.copyCaptionCommand.bind(this), {
-            description: 'Copy media with modified caption',
-            usage: `${config.PREFIX}copycaption <new caption> (reply to media)`,
+            description: 'Extract and send caption text from media',
+            usage: `${config.PREFIX}copycaption (reply to media)`,
             category: 'media',
             plugin: 'captioneditor',
             source: 'captioneditor.js'
@@ -170,14 +170,14 @@ class CaptionEditorPlugin {
     }
 
     /**
-     * Copy caption command
+     * Copy caption command - extracts and sends caption text only
      */
     async copyCaptionCommand(messageInfo) {
         try {
             const quotedMessage = await this.getQuotedMessage(messageInfo);
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please reply to an image or video to copy with new caption.\n\n*Usage:* ${config.PREFIX}copycaption <caption>`
+                    `❌ Please reply to an image or video to copy its caption.\n\n*Usage:* ${config.PREFIX}copycaption`
                 );
                 return;
             }
@@ -188,19 +188,18 @@ class CaptionEditorPlugin {
                 return;
             }
 
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide a caption.\n\n*Usage:* ${config.PREFIX}copycaption <caption>`
-                );
+            // Check if there's a caption to copy
+            if (!mediaInfo.originalCaption) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ The media has no caption to copy.');
                 return;
             }
 
-            const newCaption = messageInfo.args.join(' ');
-            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'copied');
+            // Send only the caption text as a regular message
+            await this.bot.messageHandler.reply(messageInfo, mediaInfo.originalCaption);
 
         } catch (error) {
             console.error('Error in copyCaptionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error copying with caption: ' + error.message);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error copying caption: ' + error.message);
         }
     }
 
