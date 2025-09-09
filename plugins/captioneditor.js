@@ -99,6 +99,7 @@ class CaptionEditorPlugin {
             }
 
             const newCaption = messageInfo.args.join(' ');
+            console.log('DEBUG: Adding caption:', newCaption);
             await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'added');
 
         } catch (error) {
@@ -228,17 +229,22 @@ class CaptionEditorPlugin {
 
             // Prepare media message
             let mediaMessage = {};
+            console.log('DEBUG: Media type:', mediaInfo.type);
+            console.log('DEBUG: New caption for media:', newCaption);
+            
             if (mediaInfo.type === 'image') {
-                mediaMessage.image = {
-                    url: tempFilePath,
-                    caption: newCaption || undefined,
-                    mimetype: mediaInfo.mimetype
+                mediaMessage = {
+                    image: {
+                        url: tempFilePath
+                    },
+                    caption: newCaption || ''
                 };
             } else if (mediaInfo.type === 'video') {
-                mediaMessage.video = {
-                    url: tempFilePath,
-                    caption: newCaption || undefined,
-                    mimetype: mediaInfo.mimetype
+                mediaMessage = {
+                    video: {
+                        url: tempFilePath
+                    },
+                    caption: newCaption || ''
                 };
             }
 
