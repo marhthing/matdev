@@ -440,12 +440,7 @@ class AutoReactPlugin {
                 await this.bot.messageHandler.reply(messageInfo, '⚡ *MESSAGE REACTION DELAY DISABLED*\n\n💨 Bot will now react to messages instantly.');
             } else {
                 // Show status
-                const response = `*💝 MESSAGE AUTO REACT STATUS*\n\n` +
-                    `*Status:* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
-                    `*Timing:* ${this.reactDelayMode === 'delay' ? '⏰ Delayed (0.5-2.5s)' : '⚡ Instant'}\n` +
-                    `*Reaction Chance:* ${this.reactionChance}%\n` +
-                    `*Keywords:* ${Object.keys(this.keywordReactions).length} patterns\n` +
-                    `*Random Pool:* ${this.randomReactions.length} emojis\n\n` +
+                const response = `*💝 MESSAGE AUTO REACT STATUS* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n\n` +
                     `*Commands:*\n` +
                     `${config.PREFIX}autoreact on/off/delay/nodelay`;
                 
