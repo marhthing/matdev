@@ -47,24 +47,17 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Advanced AI with Compound system
-        this.bot.messageHandler.registerCommand('compound', this.compoundCommand.bind(this), {
+        // Advanced AI with web search and code execution
+        this.bot.messageHandler.registerCommand('search', this.compoundCommand.bind(this), {
             description: 'Advanced AI with web search and code execution',
-            usage: `${config.PREFIX}compound <your question>`,
+            usage: `${config.PREFIX}search <your question>`,
             category: 'ai'
         });
 
-        // Tool Use AI for function calling
-        this.bot.messageHandler.registerCommand('tools', this.toolUseCommand.bind(this), {
+        // AI with function calling capabilities
+        this.bot.messageHandler.registerCommand('action', this.toolUseCommand.bind(this), {
             description: 'AI with function calling capabilities',
-            usage: `${config.PREFIX}tools <your request>`,
-            category: 'ai'
-        });
-
-        // Model selection command
-        this.bot.messageHandler.registerCommand('models', this.listModelsCommand.bind(this), {
-            description: 'List available Groq models',
-            usage: `${config.PREFIX}models`,
+            usage: `${config.PREFIX}action <your request>`,
             category: 'ai'
         });
 
@@ -82,10 +75,10 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Vision/Image Analysis
-        this.bot.messageHandler.registerCommand('vision', this.visionCommand.bind(this), {
-            description: 'Analyze images using Groq Vision',
-            usage: `${config.PREFIX}vision <question> (reply to image)`,
+        // Image Analysis with questions
+        this.bot.messageHandler.registerCommand('ask', this.visionCommand.bind(this), {
+            description: 'Ask questions about images using Groq Vision',
+            usage: `${config.PREFIX}ask <question> (reply to image)`,
             category: 'ai'
         });
 
