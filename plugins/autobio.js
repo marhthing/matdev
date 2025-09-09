@@ -1,7 +1,6 @@
-
 /**
  * MATDEV Auto Bio Plugin
- * Automatically updates WhatsApp bio with customizable messages and intervals
+ * Automatically updates WhatsApp bio with AI-generated messages
  */
 
 const config = require('../config');
@@ -16,14 +15,13 @@ class AutoBioPlugin {
         this.name = 'autobio';
         this.description = 'Auto bio update functionality';
         this.version = '1.0.0';
-        
+
         // Bio update settings
         this.isEnabled = false;
         this.updateInterval = 60 * 60 * 1000; // Default 1 hour
-        this.currentTemplate = null;
         this.bioTimer = null;
-        
-        // Pre-defined bio templates (fallback + AI-generated)
+
+        // Bio templates (fallback + AI-generated)
         this.templates = [
             'Living my best life ✨',
             'Building the future 💻',
@@ -43,7 +41,7 @@ class AutoBioPlugin {
         this.bot = bot;
         this.registerCommands();
 
-        // Generate AI templates if Gemini API is available
+        // Generate initial AI templates if Gemini API is available
         await this.generateAIBioTemplates();
 
         // Start auto bio if enabled in config
@@ -56,213 +54,57 @@ class AutoBioPlugin {
     }
 
     /**
-     * Register all commands
+     * Register commands
      */
     registerCommands() {
-        // Toggle auto bio
-        this.bot.messageHandler.registerCommand('autobio', this.toggleAutoBioCommand.bind(this), {
-            description: 'Toggle automatic bio updates on/off',
+        // Main autobio command - status/toggle
+        this.bot.messageHandler.registerCommand('autobio', this.autoBioCommand.bind(this), {
+            description: 'Auto bio status and control (on/off)',
             usage: `${config.PREFIX}autobio [on/off]`,
             category: 'automation',
             plugin: 'autobio',
             source: 'autobio.js',
             ownerOnly: true
         });
-
-        // Set custom bio template
-        this.bot.messageHandler.registerCommand('setbio', this.setBioTemplateCommand.bind(this), {
-            description: 'Set custom bio template (use {time} for timestamp)',
-            usage: `${config.PREFIX}setbio <template>`,
-            category: 'automation',
-            plugin: 'autobio',
-            source: 'autobio.js',
-            ownerOnly: true
-        });
-
-        // Set bio update interval
-        this.bot.messageHandler.registerCommand('bioint', this.setBioIntervalCommand.bind(this), {
-            description: 'Set bio update interval in minutes',
-            usage: `${config.PREFIX}bioint <minutes>`,
-            category: 'automation',
-            plugin: 'autobio',
-            source: 'autobio.js',
-            ownerOnly: true
-        });
-
-        // List bio templates
-        this.bot.messageHandler.registerCommand('biotemplates', this.listTemplatesCommand.bind(this), {
-            description: 'List available bio templates',
-            usage: `${config.PREFIX}biotemplates`,
-            category: 'automation',
-            plugin: 'autobio',
-            source: 'autobio.js',
-            ownerOnly: true
-        });
-
-        // Manual bio update
-        this.bot.messageHandler.registerCommand('updatebio', this.manualUpdateCommand.bind(this), {
-            description: 'Manually update bio now',
-            usage: `${config.PREFIX}updatebio [template]`,
-            category: 'automation',
-            plugin: 'autobio',
-            source: 'autobio.js',
-            ownerOnly: true
-        });
-
-        // Refresh AI templates
-        this.bot.messageHandler.registerCommand('refreshbio', this.refreshTemplatesCommand.bind(this), {
-            description: 'Generate new AI bio templates using Gemini',
-            usage: `${config.PREFIX}refreshbio`,
-            category: 'automation',
-            plugin: 'autobio',
-            source: 'autobio.js',
-            ownerOnly: true
-        });
     }
 
     /**
-     * Toggle auto bio command
+     * Main autobio command handler
      */
-    async toggleAutoBioCommand(messageInfo) {
+    async autoBioCommand(messageInfo) {
         try {
             const action = messageInfo.args[0]?.toLowerCase();
-            
+
             if (action === 'on' || action === 'enable') {
                 await this.enableAutoBio();
-                await this.bot.messageHandler.reply(messageInfo, '✅ Auto bio updates *ENABLED*\n\n📝 Your bio will now update automatically!');
+                await this.bot.messageHandler.reply(messageInfo,
+                    '✅ *AUTO BIO ENABLED*\n\n' +
+                    '🤖 AI bio generation: ' + (process.env.GEMINI_API_KEY ? '✅ Active' : '❌ Disabled') + '\n' +
+                    '⏰ Update interval: ' + (this.updateInterval / 60000) + ' minutes\n' +
+                    '📝 Bio templates: ' + this.templates.length + ' available\n\n' +
+                    '💡 Your bio will now update automatically!'
+                );
             } else if (action === 'off' || action === 'disable') {
                 await this.disableAutoBio();
-                await this.bot.messageHandler.reply(messageInfo, '❌ Auto bio updates *DISABLED*\n\n📝 Bio updates stopped.');
+                await this.bot.messageHandler.reply(messageInfo,
+                    '❌ *AUTO BIO DISABLED*\n\n📝 Bio updates stopped.'
+                );
             } else {
-                // Toggle current state
-                if (this.isEnabled) {
-                    await this.disableAutoBio();
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Auto bio updates *DISABLED*');
-                } else {
-                    await this.enableAutoBio();
-                    await this.bot.messageHandler.reply(messageInfo, '✅ Auto bio updates *ENABLED*');
-                }
+                // Show current status
+                const status = this.getStatus();
+                let response = `*🤖 AUTO BIO STATUS*\n\n`;
+                response += `📊 *Current Status:* ${status.enabled ? '✅ Enabled' : '❌ Disabled'}\n`;
+                response += `🤖 *AI Generation:* ${status.aiAvailable ? '✅ Active' : '❌ No API Key'}\n`;
+                response += `⏰ *Update Interval:* ${status.interval} minutes\n`;
+                response += `📝 *Templates Available:* ${status.templatesCount}\n`;
+                response += `🔄 *Timer Status:* ${status.hasTimer ? '✅ Running' : '❌ Stopped'}\n\n`;
+                response += `*Usage:*\n• \`${config.PREFIX}autobio on\` - Enable auto bio\n• \`${config.PREFIX}autobio off\` - Disable auto bio`;
+
+                await this.bot.messageHandler.reply(messageInfo, response);
             }
         } catch (error) {
-            console.error('Error in toggleAutoBioCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling auto bio: ' + error.message);
-        }
-    }
-
-    /**
-     * Set bio template command
-     */
-    async setBioTemplateCommand(messageInfo) {
-        try {
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a bio template.\n\n*Usage:* ${config.PREFIX}setbio <template>\n\n*Example:* ${config.PREFIX}setbio My custom bio - {time}\n\n*Note:* Use {time} for timestamp`);
-                return;
-            }
-
-            const template = messageInfo.args.join(' ');
-            this.currentTemplate = template;
-
-            // Update bio immediately with new template
-            await this.updateBio();
-
-            await this.bot.messageHandler.reply(messageInfo, `✅ Bio template set successfully!\n\n📝 *Template:* ${template}\n\n🔄 Bio updated immediately.`);
-        } catch (error) {
-            console.error('Error in setBioTemplateCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error setting bio template: ' + error.message);
-        }
-    }
-
-    /**
-     * Set bio interval command
-     */
-    async setBioIntervalCommand(messageInfo) {
-        try {
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide interval in minutes.\n\n*Usage:* ${config.PREFIX}bioint <minutes>\n\n*Example:* ${config.PREFIX}bioint 30 (for 30 minutes)`);
-                return;
-            }
-
-            const minutes = parseInt(messageInfo.args[0]);
-            if (isNaN(minutes) || minutes < 5) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please provide a valid number (minimum 5 minutes)');
-                return;
-            }
-
-            this.updateInterval = minutes * 60 * 1000; // Convert to milliseconds
-
-            // Restart timer with new interval
-            if (this.isEnabled) {
-                this.stopBioTimer();
-                this.startBioTimer();
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, `✅ Bio update interval set to *${minutes} minutes*\n\n⏰ ${this.isEnabled ? 'Timer restarted with new interval' : 'Enable auto bio to start timer'}`);
-        } catch (error) {
-            console.error('Error in setBioIntervalCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error setting bio interval: ' + error.message);
-        }
-    }
-
-    /**
-     * List templates command
-     */
-    async listTemplatesCommand(messageInfo) {
-        try {
-            let response = '*📝 AVAILABLE BIO TEMPLATES*\n\n';
-            
-            this.templates.forEach((template, index) => {
-                response += `${index + 1}. ${template}\n`;
-            });
-
-            response += `\n*Current:* ${this.currentTemplate || 'Default random template'}\n`;
-            response += `*Interval:* ${this.updateInterval / 60000} minutes\n`;
-            response += `*Status:* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n\n`;
-            response += `*Usage:* ${config.PREFIX}setbio <template>\n`;
-            response += `*Note:* Use {time} for timestamp`;
-
-            await this.bot.messageHandler.reply(messageInfo, response);
-        } catch (error) {
-            console.error('Error in listTemplatesCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error listing templates: ' + error.message);
-        }
-    }
-
-    /**
-     * Manual update command
-     */
-    async manualUpdateCommand(messageInfo) {
-        try {
-            let template = null;
-            
-            if (messageInfo.args.length) {
-                template = messageInfo.args.join(' ');
-            }
-
-            await this.updateBio(template);
-            await this.bot.messageHandler.reply(messageInfo, '✅ Bio updated successfully!\n\n🔄 Your WhatsApp bio has been refreshed.');
-        } catch (error) {
-            console.error('Error in manualUpdateCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error updating bio: ' + error.message);
-        }
-    }
-
-    /**
-     * Refresh templates command
-     */
-    async refreshTemplatesCommand(messageInfo) {
-        try {
-            await this.bot.messageHandler.reply(messageInfo, '🤖 Generating new bio templates with AI...');
-            
-            const oldCount = this.templates.length;
-            await this.generateAIBioTemplates();
-            const newCount = this.templates.length;
-            
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Bio templates refreshed!\n\n📊 *Templates:* ${oldCount} → ${newCount}\n🤖 *AI Status:* ${process.env.GEMINI_API_KEY ? 'Active' : 'Disabled'}\n\n💡 New templates will be used in next bio updates.`
-            );
-        } catch (error) {
-            console.error('Error in refreshTemplatesCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error refreshing templates: ' + error.message);
+            console.error('Error in autoBioCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error in auto bio: ' + error.message);
         }
     }
 
@@ -272,7 +114,7 @@ class AutoBioPlugin {
     async enableAutoBio() {
         this.isEnabled = true;
         this.startBioTimer();
-        
+
         // Update bio immediately
         await this.updateBio();
     }
@@ -290,7 +132,7 @@ class AutoBioPlugin {
      */
     startBioTimer() {
         this.stopBioTimer(); // Clear any existing timer
-        
+
         this.bioTimer = setInterval(async () => {
             try {
                 await this.updateBio();
@@ -314,7 +156,58 @@ class AutoBioPlugin {
     }
 
     /**
-     * Generate AI bio templates using Gemini
+     * Generate fresh AI bio from Gemini
+     */
+    async generateFreshBio() {
+        try {
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                console.log('⚠️ No Gemini API key found, using fallback templates');
+                return null;
+            }
+
+            console.log('🤖 Generating fresh bio with Gemini AI...');
+
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+            const prompt = `Generate 1 short, mature, and motivational WhatsApp bio message. It should be:
+- Maximum 20 words
+- Motivational and inspiring
+- Professional but approachable  
+- No emojis included (I'll add them)
+- Suitable for a tech-savvy person
+- Different from typical generic bios
+
+Return only the bio message, no extra text or formatting.`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text().trim();
+
+            if (text && text.length > 0 && text.length <= 100) {
+                const freshBio = text + ' ✨'; // Add emoji
+                console.log(`✅ Generated fresh AI bio: ${freshBio}`);
+
+                // Add to templates list if not already present
+                if (!this.templates.includes(freshBio)) {
+                    this.templates.push(freshBio);
+                    console.log(`📝 Added new bio to templates (${this.templates.length} total)`);
+                }
+
+                return freshBio;
+            } else {
+                console.log('⚠️ Invalid AI response, using fallback');
+                return null;
+            }
+        } catch (error) {
+            console.error('❌ Error generating fresh bio:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Generate initial AI bio templates (for fallback)
      */
     async generateAIBioTemplates() {
         try {
@@ -324,16 +217,16 @@ class AutoBioPlugin {
                 return;
             }
 
-            console.log('🤖 Generating new bio templates with Gemini AI...');
-            
+            console.log('🤖 Generating initial bio templates with Gemini AI...');
+
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            const prompt = `Generate 10 short, mature, and motivational WhatsApp bio messages. Each should be:
-- Maximum 25 words
+            const prompt = `Generate 5 short, mature, and motivational WhatsApp bio messages. Each should be:
+- Maximum 20 words
 - Motivational and inspiring
 - Professional but approachable  
-- No emojis at the end (I'll add them)
+- No emojis included (I'll add them)
 - Suitable for a tech-savvy person
 - Different themes (success, growth, positivity, etc.)
 
@@ -347,49 +240,45 @@ Return only the bio messages, one per line, no numbering or extra text.`;
                 const newTemplates = text.trim().split('\n')
                     .map(line => line.trim())
                     .filter(line => line.length > 0 && line.length <= 100)
-                    .map(line => line + ' ✨') // Add a simple emoji
-                    .slice(0, 10); // Take only first 10
+                    .map(line => line + ' ✨') // Add emoji
+                    .slice(0, 5); // Take only first 5
 
                 if (newTemplates.length > 0) {
                     // Add new templates to existing ones, remove duplicates
                     const combinedTemplates = [...this.templates, ...newTemplates];
                     this.templates = [...new Set(combinedTemplates)]; // Remove duplicates
-                    
-                    console.log(`✅ Added ${newTemplates.length} AI-generated bio templates`);
-                    console.log('📝 New templates:', newTemplates);
-                } else {
-                    console.log('⚠️ No valid templates generated, using defaults');
+
+                    console.log(`✅ Added ${newTemplates.length} initial AI bio templates`);
                 }
             }
         } catch (error) {
-            console.error('❌ Error generating AI bio templates:', error);
-            console.log('📝 Falling back to default templates');
+            console.error('❌ Error generating initial AI bio templates:', error);
+            console.log('📝 Using default templates only');
         }
     }
 
     /**
      * Update WhatsApp bio
      */
-    async updateBio(customTemplate = null) {
+    async updateBio() {
         try {
-            let template;
-            
-            if (customTemplate) {
-                template = customTemplate;
-            } else if (this.currentTemplate) {
-                template = this.currentTemplate;
-            } else {
-                // Use random template
-                template = this.templates[Math.floor(Math.random() * this.templates.length)];
+            let bioToUse = null;
+
+            // Try to get fresh AI bio first
+            if (process.env.GEMINI_API_KEY) {
+                bioToUse = await this.generateFreshBio();
             }
 
-            // Use template as-is (no time replacement needed)
-            const newBio = template;
+            // Fallback to random template if AI fails
+            if (!bioToUse) {
+                bioToUse = this.templates[Math.floor(Math.random() * this.templates.length)];
+                console.log(`📝 Using fallback template: ${bioToUse}`);
+            }
 
             // Update bio using Baileys
-            await this.bot.sock.updateProfileStatus(newBio);
-            
-            console.log(`📝 Bio updated: ${newBio}`);
+            await this.bot.sock.updateProfileStatus(bioToUse);
+
+            console.log(`📝 Bio updated: ${bioToUse}`);
             return true;
         } catch (error) {
             console.error('Error updating bio:', error);
@@ -404,8 +293,9 @@ Return only the bio messages, one per line, no numbering or extra text.`;
         return {
             enabled: this.isEnabled,
             interval: this.updateInterval / 60000, // in minutes
-            currentTemplate: this.currentTemplate,
-            hasTimer: !!this.bioTimer
+            hasTimer: !!this.bioTimer,
+            templatesCount: this.templates.length,
+            aiAvailable: !!process.env.GEMINI_API_KEY
         };
     }
 }
