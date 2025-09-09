@@ -636,47 +636,62 @@ class WaifuPlugin {
             // Map categories to search terms
             const searchTerm = this.getCategorySearchTerm(category);
             
-            // AnbuAnime API endpoint
-            const apiUrl = `https://anbu-anime-api.vercel.app/search/${encodeURIComponent(searchTerm)}`;
+            // Try multiple API endpoints
+            const apiEndpoints = [
+                `https://api.anbu.live/search?q=${encodeURIComponent(searchTerm)}`,
+                `https://anbu-api.vercel.app/api/search?query=${encodeURIComponent(searchTerm)}`,
+                `https://hanime-api.vercel.app/search/${encodeURIComponent(searchTerm)}`
+            ];
             
-            console.log(`🔍 Searching AnbuAnime for: ${searchTerm}`);
+            console.log(`🔍 Searching for: ${searchTerm}`);
             
-            const response = await axios.get(apiUrl, {
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/1.0',
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.data && response.data.results && response.data.results.length > 0) {
-                // Get random result from API
-                const randomResult = response.data.results[Math.floor(Math.random() * Math.min(response.data.results.length, 5))];
-                
-                return [{
-                    title: randomResult.title || `${searchTerm} content`,
-                    views: randomResult.views || Math.floor(Math.random() * 2000000) + 100000,
-                    duration: randomResult.duration || this.generateRandomDuration(),
-                    tags: [searchTerm, category].filter(Boolean),
-                    streams: [
-                        { 
-                            quality: '720p', 
-                            url: randomResult.link || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
-                        },
-                        { 
-                            quality: '1080p', 
-                            url: randomResult.hd_link || randomResult.link || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
+            for (const apiUrl of apiEndpoints) {
+                try {
+                    const response = await axios.get(apiUrl, {
+                        timeout: 10000,
+                        headers: {
+                            'User-Agent': 'MATDEV-Bot/1.0',
+                            'Accept': 'application/json'
                         }
-                    ],
-                    poster: randomResult.image || null,
-                    source: 'AnbuAnime API'
-                }];
+                    });
+
+                    if (response.data && response.status === 200) {
+                        // Handle different API response formats
+                        let results = response.data.results || response.data.data || response.data;
+                        
+                        if (Array.isArray(results) && results.length > 0) {
+                            const randomResult = results[Math.floor(Math.random() * Math.min(results.length, 5))];
+                            
+                            return [{
+                                title: randomResult.title || randomResult.name || `${searchTerm} content`,
+                                views: randomResult.views || Math.floor(Math.random() * 2000000) + 100000,
+                                duration: randomResult.duration || this.generateRandomDuration(),
+                                tags: [searchTerm, category].filter(Boolean),
+                                streams: [
+                                    { 
+                                        quality: '720p', 
+                                        url: randomResult.link || randomResult.url || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
+                                    },
+                                    { 
+                                        quality: '1080p', 
+                                        url: randomResult.hd_link || randomResult.hd_url || randomResult.link || randomResult.url || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
+                                    }
+                                ],
+                                poster: randomResult.image || randomResult.thumbnail || randomResult.poster || null,
+                                source: 'Anime API'
+                            }];
+                        }
+                    }
+                } catch (apiError) {
+                    console.log(`API ${apiUrl} failed:`, apiError.message);
+                    continue;
+                }
             }
 
             return null;
 
         } catch (error) {
-            console.error('AnbuAnime API error:', error);
+            console.error('All anime APIs failed:', error);
             throw error;
         }
     }
@@ -770,14 +785,18 @@ class WaifuPlugin {
 
         // Return only 1 video
         const selectedVideo = videos[Math.floor(Math.random() * videos.length)];
+        const searchTerm = this.getCategorySearchTerm(category) || selectedVideo.tags[0];
         
         return [{
             ...selectedVideo,
             streams: [
-                { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` },
-                { quality: '1080p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` }
+                { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` },
+                { quality: '1080p', url: `https://hanime.tv/videos/hentai/${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}` },
+                { quality: 'Mobile', url: `https://hentaihaven.xxx/search/${encodeURIComponent(searchTerm)}` },
+                { quality: 'HD', url: `https://www.tsumino.com/search/entry?tags=${encodeURIComponent(searchTerm)}` }
             ],
-            poster: `https://i.imgur.com/placeholder.jpg` // Will try to get real thumbnail
+            poster: null, // Will try to get real thumbnail from waifu APIs
+            source: 'Curated Content'
         }];
     }
 
