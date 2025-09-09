@@ -222,53 +222,38 @@ class CorePlugin {
 
                 let helpText = `*🤖 MATDEV COMMAND MENU*\n\n`;
 
-                // Create command aliases mapping
-                const commandAliases = {
-                    'download': ['dl'],
-                    'addcaption': ['ac'],
-                    'editcaption': ['ec'],
-                    'removecaption': ['rc'],
-                    'copycaption': ['cc'],
-                    'gemini': ['ai'],
-                    'ytv': ['ytvideo', 'ytmp4'],
-                    'yts': ['ytsong', 'ytmp3'],
-                    'worldclock': ['wc'],
-                    'permissions': ['pm']
-                };
+                // Group commands by handler function to auto-detect aliases
+                const handlerGroups = new Map();
+                commands.forEach(cmd => {
+                    const handlerKey = cmd.handler.toString();
+                    if (!handlerGroups.has(handlerKey)) {
+                        handlerGroups.set(handlerKey, []);
+                    }
+                    handlerGroups.get(handlerKey).push(cmd);
+                });
 
                 for (const [category, cmds] of Object.entries(categories)) {
                     helpText += `*${category.toUpperCase()}*\n`;
 
-                    // Group commands with their aliases
+                    // Group commands with their auto-detected aliases
                     const processedCommands = new Set();
 
                     cmds.forEach(cmd => {
                         if (processedCommands.has(cmd.name)) return;
 
-                        // Check if this command has aliases or is an alias
-                        let mainCommand = cmd;
-                        let aliases = commandAliases[cmd.name] || [];
+                        // Find all commands with the same handler (aliases)
+                        const aliasGroup = handlerGroups.get(cmd.handler.toString());
+                        const mainCommand = aliasGroup.find(c => !c.description.includes('alias for')) || aliasGroup[0];
+                        const aliases = aliasGroup.filter(c => c !== mainCommand && cmds.includes(c)).map(c => c.name);
 
-                        // Check if current command is an alias of another
-                        for (const [main, aliasArray] of Object.entries(commandAliases)) {
-                            if (aliasArray.includes(cmd.name)) {
-                                // Find the main command object
-                                mainCommand = cmds.find(c => c.name === main) || cmd;
-                                aliases = aliasArray.filter(alias => alias !== cmd.name);
-                                break;
-                            }
-                        }
+                        // Mark all commands in this group as processed
+                        aliasGroup.forEach(c => processedCommands.add(c.name));
 
-                        // Mark all related commands as processed
-                        processedCommands.add(mainCommand.name);
-                        aliases.forEach(alias => processedCommands.add(alias));
-
-                        // Display command with aliases
-                        if (aliases.length > 0 && cmds.some(c => c.name === mainCommand.name)) {
+                        // Display command with auto-detected aliases
+                        if (aliases.length > 0) {
                             helpText += `• ${config.PREFIX}${mainCommand.name} ~ ${aliases.map(a => config.PREFIX + a).join(' ~ ')} - ${mainCommand.description}\n`;
-                        } else if (!aliases.some(alias => cmds.some(c => c.name === alias))) {
-                            // Show command only if none of its aliases are in the same category
-                            helpText += `• ${config.PREFIX}${cmd.name} - ${cmd.description}\n`;
+                        } else {
+                            helpText += `• ${config.PREFIX}${mainCommand.name} - ${mainCommand.description}\n`;
                         }
                     });
 
