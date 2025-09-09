@@ -362,7 +362,25 @@ class AutoReactPlugin {
      * Send status reaction using primary method
      */
     async sendStatusReaction(message, reaction) {
-        console.log('🔍 Trying primary method - original key structure');
+        console.log('🔍 Trying primary method with LID support');
+        
+        // Try using participantLid if available (WhatsApp's new LID system)
+        if (message.key.participantLid) {
+            console.log('🆔 Found participantLid, using LID-based reaction');
+            return await this.bot.sock.sendMessage(message.key.participantLid, {
+                react: {
+                    text: reaction,
+                    key: {
+                        remoteJid: message.key.participantLid,
+                        id: message.key.id,
+                        fromMe: false
+                    }
+                }
+            });
+        }
+        
+        // Fallback to original method
+        console.log('🔍 No LID found, using original key structure');
         return await this.bot.sock.sendMessage(message.key.remoteJid, {
             react: {
                 text: reaction,
