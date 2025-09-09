@@ -263,7 +263,7 @@ class CorePlugin {
 
             // Edit the message with actual latency
             if (sentMessage && sentMessage.key) {
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                await this.bot.sendMessage(messageInfo.chat_jid, {
                     text: `🏓 Pong! ${latency}ms`,
                     edit: sentMessage.key
                 });
