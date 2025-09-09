@@ -1,7 +1,7 @@
-
 /**
  * MATDEV Auto React Plugin
- * Automatically reacts to chat messages with emojis based on keywords or random reactions
+ * Automatically reacts to chat messages and status updates with emojis
+ * Simplified version with enhanced emoji list and status support
  */
 
 const config = require('../config');
@@ -9,77 +9,184 @@ const config = require('../config');
 class AutoReactPlugin {
     constructor() {
         this.name = 'autoreact';
-        this.description = 'Auto react to chat messages';
-        this.version = '1.0.0';
+        this.description = 'Auto react to messages and status updates';
+        this.version = '2.0.0';
         
-        // Auto react settings
+        // Auto react settings for messages
         this.isEnabled = false;
-        this.reactionChance = 30; // 30% chance by default
-        this.useKeywordReactions = true;
-        this.useRandomReactions = true;
+        this.reactionChance = 25; // 25% chance by default
         
-        // Keyword-based reactions
+        // Status auto react settings
+        this.statusReactEnabled = false;
+        this.statusReactionChance = 60; // 60% chance for status
+        this.statusReactionDelay = { min: 30000, max: 300000 }; // 30s to 5min delay
+        
+        // Keep track of reacted statuses to avoid duplicates
+        this.reactedStatuses = new Set();
+        
+        // Enhanced keyword-based reactions for messages
         this.keywordReactions = {
-            // Greetings
-            'hello': ['👋', '😊', '🙋‍♂️'],
-            'hi': ['👋', '😊', '🙋‍♂️'],
-            'good morning': ['🌅', '☀️', '😊'],
-            'good night': ['🌙', '😴', '💤'],
-            'good afternoon': ['☀️', '😊', '👋'],
+            // Greetings & Social
+            'hello': ['👋', '😊', '🙋‍♂️', '🤝', '✨'],
+            'hi': ['👋', '😊', '🙋‍♂️', '🌟', '💫'],
+            'good morning': ['🌅', '☀️', '😊', '🌻', '🌞'],
+            'good night': ['🌙', '😴', '💤', '⭐', '🌃'],
+            'good afternoon': ['☀️', '😊', '👋', '🌤️', '💫'],
+            'welcome': ['🤗', '👋', '🎉', '✨', '💫'],
+            'goodbye': ['👋', '😢', '💔', '✋', '🫂'],
+            'bye': ['👋', '😊', '✋', '💫', '🌟'],
             
-            // Gratitude
-            'thank you': ['🙏', '😊', '❤️'],
-            'thanks': ['🙏', '😊', '❤️'],
-            'appreciate': ['🙏', '💕', '😊'],
+            // Gratitude & Appreciation
+            'thank you': ['🙏', '😊', '❤️', '💕', '🤗'],
+            'thanks': ['🙏', '😊', '❤️', '✨', '💫'],
+            'appreciate': ['🙏', '💕', '😊', '🤗', '🌟'],
+            'grateful': ['🙏', '❤️', '😊', '💖', '🌸'],
+            'bless': ['🙏', '✨', '💫', '😇', '💛'],
             
-            // Emotions
-            'love': ['❤️', '💕', '😍', '💖'],
-            'happy': ['😊', '😄', '🎉', '✨'],
-            'sad': ['😢', '💔', '🫂', '😔'],
-            'angry': ['😠', '💢', '🤬'],
-            'excited': ['🎉', '😆', '🤩', '⚡'],
-            'tired': ['😴', '💤', '😮‍💨'],
+            // Emotions & Feelings
+            'love': ['❤️', '💕', '😍', '💖', '💝', '💗', '🥰'],
+            'happy': ['😊', '😄', '🎉', '✨', '🌟', '😁', '🥳'],
+            'sad': ['😢', '💔', '🫂', '😔', '💙', '🤗', '😞'],
+            'angry': ['😠', '💢', '🤬', '😡', '👿'],
+            'excited': ['🎉', '😆', '🤩', '⚡', '🔥', '🚀', '🌟'],
+            'tired': ['😴', '💤', '😮‍💨', '😪', '🥱'],
+            'stressed': ['😰', '😫', '💆‍♂️', '🫂', '😟'],
+            'relaxed': ['😌', '😊', '🧘‍♂️', '✨', '🌸'],
+            'proud': ['🏆', '👏', '🎉', '💪', '⭐', '🔥'],
+            'nervous': ['😰', '😬', '🫣', '😟', '💆‍♂️'],
             
-            // Activities
-            'work': ['💼', '👨‍💻', '📊', '⚡'],
-            'study': ['📚', '🎓', '📖', '💡'],
-            'food': ['🍽️', '😋', '🤤', '🍕'],
-            'music': ['🎵', '🎶', '🎤', '🎸'],
-            'game': ['🎮', '🕹️', '🎯', '⚡'],
-            'movie': ['🎬', '🍿', '📺', '🎭'],
+            // Activities & Hobbies
+            'work': ['💼', '👨‍💻', '📊', '⚡', '💪', '🔥'],
+            'study': ['📚', '🎓', '📖', '💡', '🧠', '✏️'],
+            'food': ['🍽️', '😋', '🤤', '🍕', '🍔', '🍜', '🥘'],
+            'cooking': ['👨‍🍳', '🍳', '🔥', '😋', '🍽️', '👩‍🍳'],
+            'music': ['🎵', '🎶', '🎤', '🎸', '🎹', '🎧', '🔊'],
+            'game': ['🎮', '🕹️', '🎯', '⚡', '🔥', '🏆', '👾'],
+            'movie': ['🎬', '🍿', '📺', '🎭', '🎪', '📽️'],
+            'travel': ['✈️', '🌍', '🗺️', '📸', '🧳', '🏖️'],
+            'shopping': ['🛍️', '💳', '🛒', '💸', '👗', '👠'],
+            'exercise': ['💪', '🏋️‍♂️', '🏃‍♀️', '🔥', '⚡', '🏆'],
+            'yoga': ['🧘‍♀️', '🧘‍♂️', '✨', '🌸', '😌', '💆‍♀️'],
             
-            // Achievements
-            'success': ['🎉', '👏', '🔥', '⭐'],
-            'win': ['🏆', '🎉', '👏', '⭐'],
-            'lose': ['😔', '💔', '🫂'],
-            'fail': ['😔', '💔', '🫂'],
+            // Achievements & Success
+            'success': ['🎉', '👏', '🔥', '⭐', '🏆', '💪', '🚀'],
+            'win': ['🏆', '🎉', '👏', '⭐', '🥇', '🔥', '💪'],
+            'victory': ['🏆', '🎉', '👏', '🥇', '⚡', '🔥'],
+            'achievement': ['🏆', '⭐', '🎉', '👏', '💪', '🔥'],
+            'goal': ['🎯', '🏆', '⭐', '🔥', '💪', '🚀'],
+            'complete': ['✅', '🎉', '👏', '💯', '🔥', '⭐'],
+            'finish': ['✅', '🎉', '👏', '🏁', '💯', '🔥'],
+            'lose': ['😔', '💔', '🫂', '😞', '🤗', '💙'],
+            'fail': ['😔', '💔', '🫂', '💪', '🤗', '💙'],
             
-            // Weather
-            'sunny': ['☀️', '🌞', '😎'],
-            'rain': ['🌧️', '☔', '💧'],
-            'cold': ['🥶', '❄️', '🧊'],
-            'hot': ['🔥', '🥵', '☀️'],
+            // Weather & Nature
+            'sunny': ['☀️', '🌞', '😎', '🌻', '🌤️', '✨'],
+            'rain': ['🌧️', '☔', '💧', '🌦️', '⛈️', '💙'],
+            'cold': ['🥶', '❄️', '🧊', '🌨️', '☃️', '🧥'],
+            'hot': ['🔥', '🥵', '☀️', '🌞', '💦', '🌡️'],
+            'snow': ['❄️', '🌨️', '☃️', '⛄', '🛷', '🧊'],
+            'wind': ['💨', '🌬️', '🍃', '🌪️', '⛈️'],
             
-            // Social
-            'party': ['🎉', '🥳', '🎊', '🍾'],
-            'birthday': ['🎂', '🎉', '🥳', '🎈'],
-            'congrats': ['🎉', '👏', '🔥', '⭐'],
-            'sorry': ['😔', '🫂', '💔'],
+            // Social Events & Celebrations
+            'party': ['🎉', '🥳', '🎊', '🍾', '🎈', '🪩', '💃'],
+            'birthday': ['🎂', '🎉', '🥳', '🎈', '🎁', '🍰', '🎊'],
+            'anniversary': ['💕', '🎉', '🥂', '💖', '🎊', '✨'],
+            'wedding': ['💒', '👰', '🤵', '💕', '🎉', '💐'],
+            'graduation': ['🎓', '🎉', '👏', '📚', '🏆', '⭐'],
+            'celebration': ['🎉', '🥳', '🎊', '🍾', '🎈', '✨'],
+            'congrats': ['🎉', '👏', '🔥', '⭐', '🏆', '💪', '🥳'],
+            'congratulations': ['🎉', '👏', '🔥', '⭐', '🏆', '🥳'],
             
-            // Tech/Bot
-            'bot': ['🤖', '⚡', '🔥'],
-            'matdev': ['🚀', '⚡', '🤖', '🔥'],
-            'code': ['👨‍💻', '💻', '⚡', '🔥'],
-            'bug': ['🐛', '🔧', '💻'],
-            'update': ['🔄', '⚡', '✨']
+            // Apologies & Support
+            'sorry': ['😔', '🫂', '💔', '🤗', '💙', '😞'],
+            'apologize': ['😔', '🫂', '💔', '🤗', '💙'],
+            'forgive': ['🫂', '💙', '🤗', '💕', '😊', '✨'],
+            'support': ['🫂', '💪', '❤️', '🤗', '💙', '⚡'],
+            'help': ['🤝', '💪', '🫂', '⚡', '🔧', '💙'],
+            
+            // Tech & Development
+            'bot': ['🤖', '⚡', '🔥', '💻', '🚀', '⭐'],
+            'matdev': ['🚀', '⚡', '🤖', '🔥', '💻', '⭐', '💎'],
+            'code': ['👨‍💻', '💻', '⚡', '🔥', '🚀', '💎'],
+            'programming': ['👨‍💻', '💻', '🔥', '⚡', '🚀'],
+            'update': ['🔄', '⚡', '✨', '🚀', '💫', '🔥'],
+            'bug': ['🐛', '🔧', '💻', '😅', '🛠️'],
+            'fix': ['🔧', '✅', '💪', '⚡', '🛠️', '🔥'],
+            'deploy': ['🚀', '⚡', '🔥', '💻', '✨', '🌟'],
+            'launch': ['🚀', '🎉', '⚡', '🔥', '⭐', '💫'],
+            
+            // Money & Business
+            'money': ['💰', '💸', '💳', '💵', '🤑', '💎'],
+            'business': ['💼', '📊', '💰', '🚀', '⚡', '📈'],
+            'profit': ['📈', '💰', '🤑', '💵', '🚀', '💎'],
+            'investment': ['📈', '💰', '💎', '🚀', '📊'],
+            'sale': ['💸', '🛍️', '💰', '🤑', '💳', '🎉'],
+            
+            // Health & Wellness
+            'health': ['💪', '🏥', '❤️', '🧘‍♀️', '🍎', '✨'],
+            'sick': ['🤒', '😷', '🫂', '💊', '🏥', '🤗'],
+            'medicine': ['💊', '🏥', '🩺', '❤️', '💪', '✨'],
+            'doctor': ['👨‍⚕️', '🏥', '🩺', '💊', '❤️'],
+            'hospital': ['🏥', '👨‍⚕️', '🩺', '💊', '❤️', '🫂'],
+            'better': ['💪', '😊', '❤️', '✨', '🎉', '👏'],
+            
+            // Time & Calendar
+            'morning': ['🌅', '☀️', '🌞', '☕', '🌻', '✨'],
+            'afternoon': ['☀️', '🌤️', '😊', '💫', '🌟'],
+            'evening': ['🌅', '🌇', '✨', '💫', '🌟'],
+            'night': ['🌙', '⭐', '🌃', '✨', '💫', '😴'],
+            'weekend': ['🎉', '😎', '🏖️', '🎮', '🍿', '✨'],
+            'monday': ['☕', '💪', '⚡', '🔥', '🚀', '💼'],
+            'friday': ['🎉', '😎', '🍻', '🎊', '✨', '🥳'],
+            
+            // Random Positive
+            'amazing': ['🤩', '🔥', '⭐', '💫', '✨', '🚀'],
+            'awesome': ['🔥', '🤩', '⭐', '💪', '🚀', '💎'],
+            'fantastic': ['🌟', '🔥', '🤩', '⭐', '✨', '🚀'],
+            'incredible': ['🤩', '🔥', '⭐', '💫', '🚀', '💎'],
+            'wonderful': ['✨', '🌟', '😊', '💫', '🤩', '💕'],
+            'perfect': ['💯', '🔥', '⭐', '👌', '✨', '🚀'],
+            'excellent': ['🔥', '⭐', '💯', '👏', '🚀', '💎'],
+            'beautiful': ['😍', '✨', '🌸', '💕', '🌟', '💖'],
+            'cute': ['🥰', '😍', '💕', '🌸', '✨', '💖'],
+            'cool': ['😎', '🔥', '⚡', '🚀', '✨', '👌'],
+            'nice': ['👍', '😊', '✨', '💫', '🌟', '👌'],
+            'great': ['👍', '🔥', '⭐', '💪', '🚀', '✨'],
+            'good': ['👍', '😊', '✨', '🌟', '💫', '👌']
         };
         
-        // Random reactions pool
+        // Enhanced random reactions pool for messages
         this.randomReactions = [
+            // Classic positive
             '👍', '❤️', '😊', '🔥', '✨', '⭐', '💯', '👏',
             '😄', '😍', '🤩', '💪', '🙌', '👌', '⚡', '💎',
-            '🎉', '🎊', '🌟', '💫', '🚀', '💝', '💖', '🔆'
+            
+            // Celebration & Energy
+            '🎉', '🎊', '🌟', '💫', '🚀', '💝', '💖', '🔆',
+            '🥳', '🎈', '🎁', '🌈', '💐', '🌸', '🌺', '🌻',
+            
+            // Support & Love
+            '🤗', '🫂', '💕', '💗', '💙', '💚', '💛', '🧡',
+            '💜', '🤍', '🖤', '💋', '😘', '🥰', '😇', '🤭',
+            
+            // Fun & Playful
+            '😂', '🤣', '😁', '😆', '🙃', '😋', '🤪', '🥴',
+            '🤠', '🥶', '🤯', '🤓', '😎', '🥸', '🤩', '🥳',
+            
+            // Animals & Nature
+            '🐶', '🐱', '🦄', '🐝', '🦋', '🌙', '☀️', '🌞',
+            '🌍', '🏔️', '🌊', '🌲', '🍀', '🌿', '🌷', '🌹',
+            
+            // Objects & Symbols
+            '💡', '🔮', '💰', '🏆', '🎯', '🎪', '🎭', '🎨',
+            '🎵', '🎶', '📚', '✏️', '🖊️', '📝', '🔖', '📌'
         ];
+        
+        // Fixed status reactions (non-configurable)
+        this.statusReactions = config.STATUS_AUTO_REACT_EMOJIS.split('');
+        
+        // Cleanup interval for reacted statuses
+        this.cleanupInterval = null;
     }
 
     /**
@@ -89,11 +196,18 @@ class AutoReactPlugin {
         this.bot = bot;
         this.registerCommands();
         this.setupMessageListener();
+        this.setupStatusListener();
+        this.startCleanupTimer();
 
-        // Auto-enable if set in environment
-        if (process.env.AUTO_REACT === 'true') {
+        // Auto-enable from environment
+        if (config.AUTO_REACT) {
             this.isEnabled = true;
             console.log('🔥 Auto react enabled from environment');
+        }
+        
+        if (config.STATUS_AUTO_REACT) {
+            this.statusReactEnabled = true;
+            console.log('🔥 Auto status react enabled from environment');
         }
 
         console.log('✅ Auto React plugin loaded');
@@ -104,9 +218,9 @@ class AutoReactPlugin {
      * Register commands
      */
     registerCommands() {
-        // Toggle auto react
+        // Message auto react toggle
         this.bot.messageHandler.registerCommand('autoreact', this.toggleAutoReactCommand.bind(this), {
-            description: 'Toggle automatic message reactions on/off',
+            description: 'Toggle automatic message reactions on/off or show status',
             usage: `${config.PREFIX}autoreact [on/off]`,
             category: 'automation',
             plugin: 'autoreact',
@@ -114,50 +228,10 @@ class AutoReactPlugin {
             ownerOnly: true
         });
 
-        // Set reaction chance
-        this.bot.messageHandler.registerCommand('reactchance', this.setReactionChanceCommand.bind(this), {
-            description: 'Set reaction chance percentage (1-100)',
-            usage: `${config.PREFIX}reactchance <percentage>`,
-            category: 'automation',
-            plugin: 'autoreact',
-            source: 'autoreact.js',
-            ownerOnly: true
-        });
-
-        // Toggle keyword reactions
-        this.bot.messageHandler.registerCommand('keywordreact', this.toggleKeywordReactCommand.bind(this), {
-            description: 'Toggle keyword-based reactions on/off',
-            usage: `${config.PREFIX}keywordreact [on/off]`,
-            category: 'automation',
-            plugin: 'autoreact',
-            source: 'autoreact.js',
-            ownerOnly: true
-        });
-
-        // Add custom keyword reaction
-        this.bot.messageHandler.registerCommand('addreaction', this.addKeywordReactionCommand.bind(this), {
-            description: 'Add custom keyword reaction',
-            usage: `${config.PREFIX}addreaction <keyword> <emoji>`,
-            category: 'automation',
-            plugin: 'autoreact',
-            source: 'autoreact.js',
-            ownerOnly: true
-        });
-
-        // List keyword reactions
-        this.bot.messageHandler.registerCommand('reactions', this.listReactionsCommand.bind(this), {
-            description: 'List all keyword reactions',
-            usage: `${config.PREFIX}reactions`,
-            category: 'automation',
-            plugin: 'autoreact',
-            source: 'autoreact.js',
-            ownerOnly: true
-        });
-
-        // Auto react status
-        this.bot.messageHandler.registerCommand('reactstatus', this.statusCommand.bind(this), {
-            description: 'Show auto react status and settings',
-            usage: `${config.PREFIX}reactstatus`,
+        // Status auto react toggle
+        this.bot.messageHandler.registerCommand('sautoreact', this.toggleStatusReactCommand.bind(this), {
+            description: 'Toggle automatic status reactions on/off or show status',
+            usage: `${config.PREFIX}sautoreact [on/off]`,
             category: 'automation',
             plugin: 'autoreact',
             source: 'autoreact.js',
@@ -169,14 +243,43 @@ class AutoReactPlugin {
      * Setup message listener for auto reactions
      */
     setupMessageListener() {
-        // Hook into bot's message handling
         if (this.bot.sock) {
             this.bot.sock.ev.on('messages.upsert', async ({ messages }) => {
                 for (const message of messages) {
-                    await this.processMessageForReaction(message);
+                    // Process regular messages (not status)
+                    if (message.key.remoteJid !== 'status@broadcast') {
+                        await this.processMessageForReaction(message);
+                    }
                 }
             });
         }
+    }
+
+    /**
+     * Setup status message listener
+     */
+    setupStatusListener() {
+        if (this.bot.sock) {
+            this.bot.sock.ev.on('messages.upsert', async ({ messages }) => {
+                for (const message of messages) {
+                    // Process status messages
+                    if (message.key.remoteJid === 'status@broadcast') {
+                        await this.processStatusForReaction(message);
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Start cleanup timer for old reacted statuses
+     */
+    startCleanupTimer() {
+        // Clean up every 6 hours
+        this.cleanupInterval = setInterval(() => {
+            console.log(`🧹 Cleaning up reacted status cache (${this.reactedStatuses.size} entries)`);
+            this.reactedStatuses.clear();
+        }, 6 * 60 * 60 * 1000);
     }
 
     /**
@@ -189,9 +292,6 @@ class AutoReactPlugin {
             
             // Skip our own messages
             if (message.key.fromMe) return;
-            
-            // Skip status messages
-            if (message.key.remoteJid === 'status@broadcast') return;
             
             // Check reaction chance
             if (Math.random() * 100 > this.reactionChance) return;
@@ -214,7 +314,7 @@ class AutoReactPlugin {
                         }
                     });
                     
-                    console.log(`💝 Auto reacted with ${reaction} to message in ${message.key.remoteJid}`);
+                    // console.log(`💝 Auto reacted with ${reaction} to message`);
                 } catch (error) {
                     console.error('Error sending auto reaction:', error);
                 }
@@ -222,6 +322,60 @@ class AutoReactPlugin {
             
         } catch (error) {
             console.error('Error in processMessageForReaction:', error);
+        }
+    }
+
+    /**
+     * Process status message for potential reaction
+     */
+    async processStatusForReaction(message) {
+        try {
+            // Skip if auto status react is disabled
+            if (!this.statusReactEnabled) return;
+            
+            // Skip our own status
+            if (message.key.fromMe) return;
+            
+            // Create unique identifier for this status
+            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
+            
+            // Skip if we already reacted to this status
+            if (this.reactedStatuses.has(statusId)) return;
+            
+            // Check reaction chance
+            if (Math.random() * 100 > this.statusReactionChance) return;
+            
+            // Get random status reaction
+            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
+            if (!reaction) return;
+            
+            // Mark as processed to avoid duplicate reactions
+            this.reactedStatuses.add(statusId);
+            
+            // Calculate random delay to seem natural
+            const delay = this.statusReactionDelay.min + 
+                         Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min);
+            
+            // Schedule the reaction
+            setTimeout(async () => {
+                try {
+                    await this.bot.sock.sendMessage(message.key.remoteJid, {
+                        react: {
+                            text: reaction,
+                            key: message.key
+                        }
+                    });
+                    
+                    // console.log(`💝 Auto reacted to status with ${reaction}`);
+                } catch (error) {
+                    console.error('Error sending status reaction:', error);
+                    // Remove from cache if reaction failed
+                    this.reactedStatuses.delete(statusId);
+                }
+            }, delay);
+            
+        } catch (error) {
+            console.error('Error in processStatusForReaction:', error);
         }
     }
 
@@ -247,20 +401,14 @@ class AutoReactPlugin {
         const lowerText = text.toLowerCase();
         
         // Keyword-based reactions
-        if (this.useKeywordReactions) {
-            for (const [keyword, reactions] of Object.entries(this.keywordReactions)) {
-                if (lowerText.includes(keyword)) {
-                    return reactions[Math.floor(Math.random() * reactions.length)];
-                }
+        for (const [keyword, reactions] of Object.entries(this.keywordReactions)) {
+            if (lowerText.includes(keyword)) {
+                return reactions[Math.floor(Math.random() * reactions.length)];
             }
         }
         
-        // Random reactions
-        if (this.useRandomReactions) {
-            return this.randomReactions[Math.floor(Math.random() * this.randomReactions.length)];
-        }
-        
-        return null;
+        // Random reactions as fallback
+        return this.randomReactions[Math.floor(Math.random() * this.randomReactions.length)];
     }
 
     /**
@@ -272,16 +420,21 @@ class AutoReactPlugin {
             
             if (action === 'on' || action === 'enable') {
                 this.isEnabled = true;
-                await this.bot.messageHandler.reply(messageInfo, '✅ Auto reactions *ENABLED*\n\n💝 Bot will now react to messages automatically!');
+                await this.bot.messageHandler.reply(messageInfo, '✅ *MESSAGE AUTO REACTIONS ENABLED*\n\n💝 Bot will now react to messages automatically!\n\n📊 *Settings:*\n• Chance: 25%\n• Enhanced keyword detection\n• 120+ reaction emojis');
             } else if (action === 'off' || action === 'disable') {
                 this.isEnabled = false;
-                await this.bot.messageHandler.reply(messageInfo, '❌ Auto reactions *DISABLED*\n\n💝 Reactions stopped.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ *MESSAGE AUTO REACTIONS DISABLED*\n\n💝 Message reactions stopped.');
             } else {
-                // Toggle current state
-                this.isEnabled = !this.isEnabled;
-                await this.bot.messageHandler.reply(messageInfo, 
-                    this.isEnabled ? '✅ Auto reactions *ENABLED*' : '❌ Auto reactions *DISABLED*'
-                );
+                // Show status
+                const response = `*💝 MESSAGE AUTO REACT STATUS*\n\n` +
+                    `*Status:* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `*Reaction Chance:* ${this.reactionChance}%\n` +
+                    `*Keywords:* ${Object.keys(this.keywordReactions).length} patterns\n` +
+                    `*Random Pool:* ${this.randomReactions.length} emojis\n\n` +
+                    `*Commands:*\n` +
+                    `${config.PREFIX}autoreact on/off`;
+                
+                await this.bot.messageHandler.reply(messageInfo, response);
             }
         } catch (error) {
             console.error('Error in toggleAutoReactCommand:', error);
@@ -290,131 +443,34 @@ class AutoReactPlugin {
     }
 
     /**
-     * Set reaction chance command
+     * Toggle status react command
      */
-    async setReactionChanceCommand(messageInfo) {
-        try {
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide a percentage (1-100).\n\n*Usage:* ${config.PREFIX}reactchance <percentage>\n\n*Example:* ${config.PREFIX}reactchance 50`);
-                return;
-            }
-
-            const chance = parseInt(messageInfo.args[0]);
-            if (isNaN(chance) || chance < 1 || chance > 100) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please provide a valid percentage between 1 and 100');
-                return;
-            }
-
-            this.reactionChance = chance;
-            await this.bot.messageHandler.reply(messageInfo, `✅ Reaction chance set to *${chance}%*\n\n💝 Bot will react to approximately ${chance}% of messages.`);
-        } catch (error) {
-            console.error('Error in setReactionChanceCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error setting reaction chance: ' + error.message);
-        }
-    }
-
-    /**
-     * Toggle keyword react command
-     */
-    async toggleKeywordReactCommand(messageInfo) {
+    async toggleStatusReactCommand(messageInfo) {
         try {
             const action = messageInfo.args[0]?.toLowerCase();
             
             if (action === 'on' || action === 'enable') {
-                this.useKeywordReactions = true;
+                this.statusReactEnabled = true;
+                await this.bot.messageHandler.reply(messageInfo, '✅ *STATUS AUTO REACTIONS ENABLED*\n\n👁️ Bot will now react to friends\' status updates automatically!\n\n📊 *Settings:*\n• Chance: 60%\n• Delay: 30s-5min\n• Reactions: ❤💙💚');
             } else if (action === 'off' || action === 'disable') {
-                this.useKeywordReactions = false;
+                this.statusReactEnabled = false;
+                await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*\n\n👁️ Status reactions stopped.');
             } else {
-                this.useKeywordReactions = !this.useKeywordReactions;
+                // Show status
+                const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
+                    `*Status:* ${this.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `*Reaction Chance:* ${this.statusReactionChance}%\n` +
+                    `*Delay Range:* ${this.statusReactionDelay.min/1000}s - ${this.statusReactionDelay.max/1000}s\n` +
+                    `*Reactions:* ${this.statusReactions.join('')}\n` +
+                    `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
+                    `*Commands:*\n` +
+                    `${config.PREFIX}sautoreact on/off`;
+                
+                await this.bot.messageHandler.reply(messageInfo, response);
             }
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                `${this.useKeywordReactions ? '✅' : '❌'} Keyword reactions *${this.useKeywordReactions ? 'ENABLED' : 'DISABLED'}*\n\n💭 ${this.useKeywordReactions ? 'Bot will use keyword-based reactions' : 'Only random reactions will be used'}`
-            );
         } catch (error) {
-            console.error('Error in toggleKeywordReactCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling keyword reactions: ' + error.message);
-        }
-    }
-
-    /**
-     * Add keyword reaction command
-     */
-    async addKeywordReactionCommand(messageInfo) {
-        try {
-            if (messageInfo.args.length < 2) {
-                await this.bot.messageHandler.reply(messageInfo, `❌ Please provide keyword and emoji.\n\n*Usage:* ${config.PREFIX}addreaction <keyword> <emoji>\n\n*Example:* ${config.PREFIX}addreaction awesome 🔥`);
-                return;
-            }
-
-            const keyword = messageInfo.args[0].toLowerCase();
-            const emoji = messageInfo.args[1];
-
-            if (!this.keywordReactions[keyword]) {
-                this.keywordReactions[keyword] = [];
-            }
-
-            this.keywordReactions[keyword].push(emoji);
-
-            await this.bot.messageHandler.reply(messageInfo, `✅ Added reaction *${emoji}* for keyword "*${keyword}*"\n\n💝 Bot will now react with this emoji when the keyword is mentioned.`);
-        } catch (error) {
-            console.error('Error in addKeywordReactionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error adding keyword reaction: ' + error.message);
-        }
-    }
-
-    /**
-     * List reactions command
-     */
-    async listReactionsCommand(messageInfo) {
-        try {
-            let response = '*💝 KEYWORD REACTIONS*\n\n';
-            
-            let count = 0;
-            for (const [keyword, reactions] of Object.entries(this.keywordReactions)) {
-                if (count >= 15) { // Limit to prevent long messages
-                    response += `\n_...and ${Object.keys(this.keywordReactions).length - count} more_\n`;
-                    break;
-                }
-                response += `*${keyword}:* ${reactions.join(' ')}\n`;
-                count++;
-            }
-
-            response += `\n*📊 SETTINGS*\n`;
-            response += `Status: ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n`;
-            response += `Chance: ${this.reactionChance}%\n`;
-            response += `Keywords: ${this.useKeywordReactions ? '✅' : '❌'}\n`;
-            response += `Random: ${this.useRandomReactions ? '✅' : '❌'}\n\n`;
-            response += `*Usage:* ${config.PREFIX}addreaction <keyword> <emoji>`;
-
-            await this.bot.messageHandler.reply(messageInfo, response);
-        } catch (error) {
-            console.error('Error in listReactionsCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error listing reactions: ' + error.message);
-        }
-    }
-
-    /**
-     * Status command
-     */
-    async statusCommand(messageInfo) {
-        try {
-            const response = `*💝 AUTO REACT STATUS*\n\n` +
-                `*Status:* ${this.isEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
-                `*Reaction Chance:* ${this.reactionChance}%\n` +
-                `*Keyword Reactions:* ${this.useKeywordReactions ? '✅ Enabled' : '❌ Disabled'}\n` +
-                `*Random Reactions:* ${this.useRandomReactions ? '✅ Enabled' : '❌ Disabled'}\n` +
-                `*Keywords Count:* ${Object.keys(this.keywordReactions).length}\n` +
-                `*Random Pool:* ${this.randomReactions.length} emojis\n\n` +
-                `*Commands:*\n` +
-                `${config.PREFIX}autoreact [on/off]\n` +
-                `${config.PREFIX}reactchance <percentage>\n` +
-                `${config.PREFIX}reactions - View all keywords`;
-
-            await this.bot.messageHandler.reply(messageInfo, response);
-        } catch (error) {
-            console.error('Error in statusCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting status: ' + error.message);
+            console.error('Error in toggleStatusReactCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling status reactions: ' + error.message);
         }
     }
 }
