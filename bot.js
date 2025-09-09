@@ -427,7 +427,7 @@ class MATDEV {
             );
 
             // Create socket connection
-            // Create minimal logger for Baileys
+            // Create completely silent logger for Baileys to reduce crypto noise
             const baileyLogger = {
                 trace: () => {},
                 debug: () => {},
@@ -435,7 +435,8 @@ class MATDEV {
                 warn: () => {},
                 error: () => {},
                 fatal: () => {},
-                child: () => baileyLogger // Return self for child logger calls
+                child: () => baileyLogger, // Return self for child logger calls
+                level: 'silent'
             };
 
             this.sock = makeWASocket({
