@@ -134,8 +134,8 @@ class AutoReactPlugin {
      */
     setupStatusListener() {
         if (this.bot.sock) {
-            // Remove existing listeners to prevent duplicates
-            this.bot.sock.ev.removeAllListeners('messages.upsert.status');
+            // Create a unique listener identifier to prevent duplicates
+            const listenerKey = 'status-autoreact-' + Date.now();
             
             this.bot.sock.ev.on('messages.upsert', async ({ type, messages }) => {
                 // Only process notify type messages (new messages)
@@ -145,7 +145,10 @@ class AutoReactPlugin {
                         const jid = message.key.remoteJid;
                         if (this.isStatusMessage(message)) {
                             console.log('📟 Status message detected, processing for reaction...');
-                            await this.processStatusForReaction(message);
+                            // Add small delay to prevent race conditions
+                            setTimeout(() => {
+                                this.processStatusForReaction(message);
+                            }, 100);
                         }
                     }
                 }
@@ -301,6 +304,9 @@ class AutoReactPlugin {
                 return;
             }
             
+            // Mark as processed IMMEDIATELY to prevent duplicates
+            this.reactedStatuses.add(statusId);
+            
             console.log('📟 Processing status for reaction:', {
                 jid: message.key.remoteJid,
                 id: message.key.id,
@@ -315,8 +321,7 @@ class AutoReactPlugin {
                 return;
             }
             
-            // Mark as processed to avoid duplicate reactions
-            this.reactedStatuses.add(statusId);
+            // Already marked as processed above to prevent race conditions
             
             // Calculate delay based on delay mode
             const delay = this.statusReactDelayMode === 'delay' ? 
