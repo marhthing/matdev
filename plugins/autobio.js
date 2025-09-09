@@ -92,12 +92,9 @@ class AutoBioPlugin {
             } else {
                 // Show current status
                 const status = this.getStatus();
-                let response = `*🤖 AUTO BIO STATUS*\n\n`;
-                response += `📊 *Current Status:* ${status.enabled ? '✅ Enabled' : '❌ Disabled'}\n`;
-                response += `🤖 *AI Generation:* ${status.aiAvailable ? '✅ Active' : '❌ No API Key'}\n`;
-                response += `⏰ *Update Interval:* ${status.interval} minutes\n`;
-                response += `📝 *Templates Available:* ${status.templatesCount}\n`;
-                response += `🔄 *Timer Status:* ${status.hasTimer ? '✅ Running' : '❌ Stopped'}\n\n`;
+                const statusText = status.enabled ? '✅ Enabled' : '❌ Disabled';
+                
+                let response = `🤖 AUTO BIO STATUS ${statusText}\n\n`;
                 response += `*Usage:*\n• \`${config.PREFIX}autobio on\` - Enable auto bio\n• \`${config.PREFIX}autobio off\` - Disable auto bio`;
 
                 await this.bot.messageHandler.reply(messageInfo, response);
