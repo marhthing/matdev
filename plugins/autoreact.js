@@ -445,20 +445,217 @@ class AutoReactPlugin {
     }
 
     /**
-     * Find appropriate reaction for text
+     * Find appropriate reaction for text with intelligent mood analysis
      */
     async findReaction(text) {
         const lowerText = text.toLowerCase();
+        const textLength = text.length;
         
-        // Keyword-based reactions
+        // First, try exact keyword matches (highest priority)
         for (const [keyword, reactions] of Object.entries(this.keywordReactions)) {
             if (lowerText.includes(keyword)) {
                 return reactions[Math.floor(Math.random() * reactions.length)];
             }
         }
         
-        // Random reactions as fallback
-        return this.randomReactions[Math.floor(Math.random() * this.randomReactions.length)];
+        // Advanced mood and sentiment analysis
+        const mood = this.analyzeMood(lowerText);
+        const reactionByMood = this.getReactionByMood(mood);
+        if (reactionByMood) return reactionByMood;
+        
+        // Content type analysis
+        const contentType = this.analyzeContentType(lowerText);
+        const reactionByContent = this.getReactionByContentType(contentType);
+        if (reactionByContent) return reactionByContent;
+        
+        // Message length and structure analysis
+        if (textLength > 100) {
+            // Long messages get thoughtful reactions
+            return this.randomElement(['🤔', '📚', '💭', '👀', '🧐', '💡']);
+        }
+        
+        if (textLength < 10) {
+            // Short messages get simple reactions
+            return this.randomElement(['👍', '😊', '👌', '✨', '💫']);
+        }
+        
+        // Question detection
+        if (lowerText.includes('?') || lowerText.startsWith('how') || lowerText.startsWith('what') || 
+            lowerText.startsWith('why') || lowerText.startsWith('when') || lowerText.startsWith('where')) {
+            return this.randomElement(['🤔', '💭', '❓', '🧐', '💡', '🤷‍♂️']);
+        }
+        
+        // Fallback to contextual random reactions (not completely random)
+        return this.getContextualReaction(lowerText);
+    }
+
+    /**
+     * Analyze message mood/sentiment
+     */
+    analyzeMood(text) {
+        // Positive mood indicators
+        const positiveWords = [
+            'happy', 'joy', 'excited', 'love', 'amazing', 'awesome', 'great', 'wonderful', 
+            'fantastic', 'excellent', 'perfect', 'beautiful', 'good', 'best', 'win', 
+            'success', 'victory', 'celebrate', 'party', 'fun', 'smile', 'laugh', 'haha',
+            'lol', 'yay', 'woohoo', 'nice', 'cool', 'sweet', 'brilliant'
+        ];
+        
+        // Negative mood indicators
+        const negativeWords = [
+            'sad', 'angry', 'mad', 'hate', 'terrible', 'awful', 'bad', 'worst', 'fail',
+            'lose', 'problem', 'issue', 'wrong', 'broken', 'hurt', 'pain', 'cry', 
+            'disappointed', 'frustrated', 'annoyed', 'stressed', 'worried', 'scared'
+        ];
+        
+        // Neutral/thoughtful mood indicators
+        const neutralWords = [
+            'think', 'maybe', 'perhaps', 'wondering', 'consider', 'opinion', 'idea',
+            'hmm', 'interesting', 'curious', 'question', 'discuss', 'talk', 'chat'
+        ];
+        
+        // Count mood indicators
+        let positiveCount = 0;
+        let negativeCount = 0;
+        let neutralCount = 0;
+        
+        positiveWords.forEach(word => {
+            if (text.includes(word)) positiveCount++;
+        });
+        
+        negativeWords.forEach(word => {
+            if (text.includes(word)) negativeCount++;
+        });
+        
+        neutralWords.forEach(word => {
+            if (text.includes(word)) neutralCount++;
+        });
+        
+        // Determine dominant mood
+        if (positiveCount > negativeCount && positiveCount > neutralCount) {
+            return 'positive';
+        } else if (negativeCount > positiveCount && negativeCount > neutralCount) {
+            return 'negative';
+        } else if (neutralCount > 0) {
+            return 'neutral';
+        }
+        
+        // Check for exclamation marks (excitement)
+        if (text.includes('!')) {
+            return text.includes('!!') ? 'very_excited' : 'excited';
+        }
+        
+        return 'default';
+    }
+
+    /**
+     * Get reaction based on analyzed mood
+     */
+    getReactionByMood(mood) {
+        const moodReactions = {
+            'positive': ['😊', '😄', '🎉', '👏', '💪', '🔥', '⭐', '✨', '🌟', '💫'],
+            'very_excited': ['🤩', '🎉', '🚀', '🔥', '⚡', '💥', '🌟', '✨', '🙌', '💫'],
+            'excited': ['😆', '🎉', '😁', '🤗', '⚡', '✨', '🌟', '🔥'],
+            'negative': ['🫂', '💙', '😔', '🤗', '💪', '❤️', '🌈', '✨'],
+            'neutral': ['🤔', '💭', '👀', '💡', '🧐', '📚', '⚖️', '🤷‍♂️'],
+            'default': ['👍', '😊', '✨', '💫', '🌟']
+        };
+        
+        if (moodReactions[mood]) {
+            return this.randomElement(moodReactions[mood]);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Analyze content type
+     */
+    analyzeContentType(text) {
+        // Technical/coding content
+        if (this.containsAny(text, ['code', 'programming', 'bug', 'fix', 'update', 'deploy', 'function', 'variable', 'error', 'debug'])) {
+            return 'technical';
+        }
+        
+        // Media content
+        if (this.containsAny(text, ['photo', 'image', 'picture', 'video', 'music', 'song', 'movie', 'watch', 'listen'])) {
+            return 'media';
+        }
+        
+        // Food content
+        if (this.containsAny(text, ['food', 'eat', 'hungry', 'cooking', 'recipe', 'restaurant', 'dinner', 'lunch', 'breakfast'])) {
+            return 'food';
+        }
+        
+        // Work/business content
+        if (this.containsAny(text, ['work', 'job', 'meeting', 'business', 'office', 'project', 'deadline', 'boss'])) {
+            return 'work';
+        }
+        
+        // Social content
+        if (this.containsAny(text, ['friend', 'family', 'party', 'birthday', 'wedding', 'celebration', 'social'])) {
+            return 'social';
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get reaction based on content type
+     */
+    getReactionByContentType(contentType) {
+        const contentReactions = {
+            'technical': ['👨‍💻', '🤖', '⚡', '🔧', '💻', '🚀', '💎', '🔥'],
+            'media': ['📸', '🎵', '🎬', '🎨', '👀', '🔥', '✨', '🌟'],
+            'food': ['🍽️', '😋', '🤤', '👨‍🍳', '🔥', '💯', '👌', '😊'],
+            'work': ['💼', '📊', '💪', '⚡', '🔥', '🚀', '👍', '💯'],
+            'social': ['🎉', '🤗', '💕', '👥', '🥳', '✨', '🌟', '❤️']
+        };
+        
+        if (contentReactions[contentType]) {
+            return this.randomElement(contentReactions[contentType]);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get contextual reaction based on message patterns
+     */
+    getContextualReaction(text) {
+        // Greeting patterns
+        if (this.containsAny(text, ['morning', 'evening', 'afternoon', 'hi', 'hello', 'hey'])) {
+            return this.randomElement(['👋', '😊', '🌟', '✨', '💫']);
+        }
+        
+        // Farewell patterns
+        if (this.containsAny(text, ['bye', 'goodbye', 'see you', 'talk later', 'gtg'])) {
+            return this.randomElement(['👋', '😊', '💫', '✨', '🌟']);
+        }
+        
+        // Agreement patterns
+        if (this.containsAny(text, ['yes', 'yeah', 'yep', 'sure', 'okay', 'ok', 'agree', 'right'])) {
+            return this.randomElement(['👍', '✅', '💯', '👌', '😊']);
+        }
+        
+        // Default contextual reactions (more thoughtful than random)
+        return this.randomElement([
+            '😊', '👍', '✨', '💫', '🌟', '💙', '🤗', '👌'
+        ]);
+    }
+
+    /**
+     * Helper method to check if text contains any of the given words
+     */
+    containsAny(text, words) {
+        return words.some(word => text.includes(word));
+    }
+
+    /**
+     * Helper method to get random element from array
+     */
+    randomElement(array) {
+        return array[Math.floor(Math.random() * array.length)];
     }
 
     /**
