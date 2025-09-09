@@ -406,4 +406,11 @@ class CaptionEditorPlugin {
     }
 }
 
-module.exports = CaptionEditorPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new CaptionEditorPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};

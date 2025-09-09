@@ -417,4 +417,11 @@ class AutoStatusReactPlugin {
     }
 }
 
-module.exports = AutoStatusReactPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new AutoStatusReactPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};

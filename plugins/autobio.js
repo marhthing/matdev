@@ -323,4 +323,11 @@ class AutoBioPlugin {
     }
 }
 
-module.exports = AutoBioPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new AutoBioPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};

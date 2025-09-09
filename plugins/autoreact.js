@@ -419,4 +419,11 @@ class AutoReactPlugin {
     }
 }
 
-module.exports = AutoReactPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new AutoReactPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
