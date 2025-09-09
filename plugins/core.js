@@ -492,7 +492,7 @@ class CorePlugin {
             menuText += `│ ⏰ Uptime      │ ${botUptime.padEnd(21)} │\n`;
             menuText += `│ 💻 Platform    │ ${(platformName + ' (' + systemInfo.arch + ')').padEnd(21)} │\n`;
             menuText += `└─────────────────────────────────────┘\n`;
-            menuText += `\`\`\`\n\n`;
+            menuText += `\`\`\`\n`;
 
             // Add command categories in a list format for better readability
             const categoryIcons = {
@@ -569,7 +569,7 @@ class CorePlugin {
                     }
                 });
 
-                menuText += `\`\`\`\n\n`;
+                menuText += `\`\`\`\n`;
             }
 
             menuText += `\`\`\`\n`;
