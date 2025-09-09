@@ -498,29 +498,34 @@ class CorePlugin {
                 'admin': '👑',
                 'media': '📸',
                 'system': '⚙️',
-                'antidelete': '🛡️',
-                'antiviewonce': '👁️',
+                'privacy': '🛡️',
                 'status': '📱',
-                'utility': '📋',
-                'automation': '📋',
-                'group': '📋',
-                'ai': '📋',
-                'fun': '📋',
-                'time': '🕐'
+                'utility': '🔧',
+                'automation': '🤖',
+                'group': '👥',
+                'ai': '🧠',
+                'fun': '🎮',
+                'time': '🕐',
+                'download': '⬇️'
             };
 
             // Create command aliases mapping
             const commandAliases = {
                 'DOWNLOAD': ['DL'],
                 'ADDCAPTION': ['AC'],
-                'EDITCAPTION': ['EC'],
+                'EDITCAPTION': ['EC'], 
                 'REMOVECAPTION': ['RC'],
                 'COPYCAPTION': ['CC'],
                 'GEMINI': ['AI'],
                 'YTV': ['YTVIDEO', 'YTMP4'],
                 'YTS': ['YTSONG', 'YTMP3'],
                 'WORLDCLOCK': ['WC'],
-                'PERMISSIONS': ['PM']
+                'PERMISSIONS': ['PM'],
+                'TIKTOK': ['TTDL'],
+                'SCHEDULE': ['SCHED'],
+                'SCHEDULES': ['SCHEDS'],
+                'CANCELSCHEDULE': ['CANCELSCHED'],
+                'TIMEZONES': ['TZ']
             };
 
             for (const [category, cmds] of Object.entries(categories)) {

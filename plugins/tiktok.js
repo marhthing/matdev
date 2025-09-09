@@ -118,7 +118,7 @@ class TikTokPlugin {
         this.bot.messageHandler.registerCommand('tiktok', this.downloadTikTok.bind(this), {
             description: 'Download TikTok video without watermark',
             usage: `${config.PREFIX}tiktok <url>`,
-            category: 'media',
+            category: 'download',
             plugin: 'tiktok',
             source: 'tiktok.js'
         });

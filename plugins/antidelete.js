@@ -44,7 +44,7 @@ class AntiDeletePlugin {
         this.bot.messageHandler.registerCommand('delete', this.toggleAntiDelete.bind(this), {
             description: 'Toggle anti-delete monitoring or set default destination',
             usage: `${config.PREFIX}delete [on|off|jid] - Toggle monitoring or set destination`,
-            category: 'admin',
+            category: 'privacy',
             ownerOnly: true
         });
 

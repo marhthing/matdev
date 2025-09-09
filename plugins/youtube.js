@@ -194,7 +194,7 @@ class YouTubePlugin {
         this.bot.messageHandler.registerCommand('ytv', this.downloadYouTube.bind(this), {
             description: 'Download YouTube video or short',
             usage: `${config.PREFIX}ytv <url>`,
-            category: 'media',
+            category: 'download',
             plugin: 'youtube',
             source: 'youtube.js'
         });
@@ -202,7 +202,7 @@ class YouTubePlugin {
         this.bot.messageHandler.registerCommand('yts', this.searchYouTube.bind(this), {
             description: 'Search YouTube videos',
             usage: `${config.PREFIX}yts <search term>`,
-            category: 'media',
+            category: 'download',
             plugin: 'youtube',
             source: 'youtube.js'
         });

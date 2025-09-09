@@ -33,7 +33,7 @@ class DownloadPlugin {
         this.bot.messageHandler.registerCommand('download', this.downloadFile.bind(this), {
             description: 'Download file from direct link',
             usage: `${config.PREFIX}download <url>`,
-            category: 'utility',
+            category: 'download',
             plugin: 'download',
             source: 'download.js'
         });
@@ -41,7 +41,7 @@ class DownloadPlugin {
         this.bot.messageHandler.registerCommand('dl', this.downloadFile.bind(this), {
             description: 'Download file from direct link (short)',
             usage: `${config.PREFIX}dl <url>`,
-            category: 'utility',
+            category: 'download',
             plugin: 'download',
             source: 'download.js'
         });

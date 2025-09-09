@@ -44,7 +44,7 @@ class AntiViewOncePlugin {
         this.bot.messageHandler.registerCommand('vv', this.handleAntiViewOnce.bind(this), {
             description: 'Extract and send original content from view once messages',
             usage: `${config.PREFIX}vv [jid] - Set default destination or extract view once`,
-            category: 'utility'
+            category: 'privacy'
         });
     }
 

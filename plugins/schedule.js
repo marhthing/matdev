@@ -154,7 +154,7 @@ class SchedulePlugin {
         this.bot.messageHandler.registerCommand('schedule', this.scheduleCommand.bind(this), {
             description: 'Schedule a message to be sent at a specific time',
             usage: `${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message] or reply to a message`,
-            category: 'utility',
+            category: 'automation',
             plugin: 'schedule',
             source: 'schedule.js'
         });
@@ -162,7 +162,7 @@ class SchedulePlugin {
         this.bot.messageHandler.registerCommand('schedules', this.listSchedules.bind(this), {
             description: 'List all pending schedules',
             usage: `${config.PREFIX}schedules`,
-            category: 'utility',
+            category: 'automation',
             plugin: 'schedule',
             source: 'schedule.js'
         });
@@ -170,7 +170,7 @@ class SchedulePlugin {
         this.bot.messageHandler.registerCommand('cancelschedule', this.cancelSchedule.bind(this), {
             description: 'Cancel a scheduled message',
             usage: `${config.PREFIX}cancelschedule <schedule_id>`,
-            category: 'utility',
+            category: 'automation',
             plugin: 'schedule',
             source: 'schedule.js'
         });
