@@ -248,37 +248,53 @@ class GroqPlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎤 Converting text to speech...');
 
             try {
-                // Use Groq TTS API
-                const ttsResponse = await groq.audio.speech.create({
-                    model: 'playai-tts',
-                    voice: 'alloy',
-                    input: text
-                });
+                // Try Groq TTS API with correct PlayAI voice
+                try {
+                    const ttsResponse = await groq.audio.speech.create({
+                        model: 'playai-tts',
+                        voice: 'Fritz-PlayAI', // Using correct PlayAI voice name
+                        input: text,
+                        response_format: 'mp3'
+                    });
 
-                const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
-                await fs.writeFile(audioPath, audioBuffer);
+                    const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
+                    const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
+                    await fs.writeFile(audioPath, audioBuffer);
 
-                // Send audio file
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: { url: audioPath },
-                    mimetype: 'audio/mpeg',
-                    ptt: false
-                });
+                    // Send audio file
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        audio: { url: audioPath },
+                        mimetype: 'audio/mpeg',
+                        ptt: false
+                    });
 
-                // Clean up temp file
-                await fs.remove(audioPath);
-                
-                const response = `🎤 *Text converted to speech successfully!*`;
+                    // Clean up temp file
+                    await fs.remove(audioPath);
+                    
+                    const response = `🎤 *Text converted to speech successfully!*`;
 
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: response,
-                    edit: processingMsg.key
-                });
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: response,
+                        edit: processingMsg.key
+                    });
+                    return;
+                    
+                } catch (ttsError) {
+                    console.error('TTS API error:', ttsError);
+                    
+                    // Fallback: Provide text formatted for TTS use
+                    const response = `🎤 *Text for Speech Conversion:*\n\n"${text}"\n\n⚠️ _Note: TTS service temporarily unavailable. Text formatted for voice synthesis._`;
+
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: response,
+                        edit: processingMsg.key
+                    });
+                }
 
             } catch (error) {
+                console.error('TTS processing error:', error);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Error processing text-to-speech request.',
+                    text: '❌ Error processing text-to-speech request. Please try again later.',
                     edit: processingMsg.key
                 });
             }
