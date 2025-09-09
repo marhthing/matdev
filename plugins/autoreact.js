@@ -35,8 +35,8 @@ class AutoReactPlugin {
             neutral: '👍'    // General approval, neutral positive
         };
         
-        // Fixed status reactions (non-configurable)
-        this.statusReactions = config.STATUS_AUTO_REACT_EMOJIS.split('');
+        // Fixed status reactions (non-configurable) - properly split emojis
+        this.statusReactions = ['❤️', '💙', '💚'];
         
         // Cleanup interval for reacted statuses
         this.cleanupInterval = null;
@@ -134,6 +134,9 @@ class AutoReactPlugin {
      */
     setupStatusListener() {
         if (this.bot.sock) {
+            // Remove existing listeners to prevent duplicates
+            this.bot.sock.ev.removeAllListeners('messages.upsert.status');
+            
             this.bot.sock.ev.on('messages.upsert', async ({ type, messages }) => {
                 // Only process notify type messages (new messages)
                 if (type === 'notify') {
@@ -147,6 +150,8 @@ class AutoReactPlugin {
                     }
                 }
             });
+            
+            console.log('✅ Status listener set up successfully');
         }
     }
 
@@ -271,9 +276,13 @@ class AutoReactPlugin {
      */
     async processStatusForReaction(message) {
         try {
-            // Skip if auto status react is disabled
-            if (!this.statusReactEnabled) {
-                console.log('⏭️ Status auto-react disabled, skipping...');
+            // Skip if auto status react is disabled - double check both ways
+            const isEnabled = this.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true';
+            if (!isEnabled) {
+                console.log('⏭️ Status auto-react disabled, skipping...', {
+                    statusReactEnabled: this.statusReactEnabled,
+                    envVar: process.env.STATUS_AUTO_REACT
+                });
                 return;
             }
             
