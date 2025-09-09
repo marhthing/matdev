@@ -782,7 +782,7 @@ class CorePlugin {
 
             if (args.length === 0) {
                 // Show all permissions
-                const allPermissions = this.bot.database.getAllPermissions();
+                const allPermissions = this.bot.storage.getAllPermissions();
 
                 if (Object.keys(allPermissions).length === 0) {
                     await this.bot.messageHandler.reply(messageInfo, '📋 No permissions set.');
@@ -835,7 +835,7 @@ class CorePlugin {
                         }
                     }
 
-                    const success = await this.bot.database.addUserPermission(targetJid, command);
+                    const success = await this.bot.storage.addUserPermission(targetJid, command);
 
                     if (success) {
                         const displayJid = targetJid.split('@')[0];
@@ -866,7 +866,7 @@ class CorePlugin {
                     jid = `${jid}@s.whatsapp.net`;
                 }
 
-                const success = await this.bot.database.addUserPermission(jid, command);
+                const success = await this.bot.storage.addUserPermission(jid, command);
 
                 if (success) {
                     const displayJid = jid.split('@')[0];
@@ -906,7 +906,7 @@ class CorePlugin {
                         }
                     }
 
-                    const success = await this.bot.database.removeUserPermission(targetJid, command);
+                    const success = await this.bot.storage.removeUserPermission(targetJid, command);
 
                     if (success) {
                         const displayJid = targetJid.split('@')[0];
@@ -937,7 +937,7 @@ class CorePlugin {
                     jid = `${jid}@s.whatsapp.net`;
                 }
 
-                const success = await this.bot.database.removeUserPermission(jid, command);
+                const success = await this.bot.storage.removeUserPermission(jid, command);
 
                 if (success) {
                     const displayJid = jid.split('@')[0];
@@ -957,7 +957,7 @@ class CorePlugin {
                     jid = `${jid}@s.whatsapp.net`;
                 }
 
-                const userPermissions = this.bot.database.getUserPermissions(jid);
+                const userPermissions = this.bot.storage.getUserPermissions(jid);
                 const displayJid = jid.split('@')[0];
 
                 if (userPermissions.length === 0) {
