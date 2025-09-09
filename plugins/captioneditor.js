@@ -99,7 +99,6 @@ class CaptionEditorPlugin {
             }
 
             const newCaption = messageInfo.args.join(' ');
-            console.log('DEBUG: Adding caption:', newCaption);
             await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'added');
 
         } catch (error) {
@@ -229,8 +228,6 @@ class CaptionEditorPlugin {
 
             // Prepare media message
             let mediaMessage = {};
-            console.log('DEBUG: Media type:', mediaInfo.type);
-            console.log('DEBUG: New caption for media:', newCaption);
             
             if (mediaInfo.type === 'image') {
                 mediaMessage = {
@@ -248,28 +245,8 @@ class CaptionEditorPlugin {
                 };
             }
 
-            // Send the media
+            // Send the media silently
             await this.bot.sock.sendMessage(messageInfo.chat_jid, mediaMessage);
-
-            // Only send success message for specific actions, not for addcaption
-            if (action !== 'removed' && action !== 'added') {
-                let successMsg = '';
-                if (action === 'edited') {
-                    successMsg = '✅ Caption edited successfully!';
-                } else if (action === 'copied') {
-                    successMsg = '✅ Media copied with new caption!';
-                }
-
-                if (newCaption) {
-                    successMsg += `\n\n📝 *New caption:* ${newCaption}`;
-                }
-
-                if (mediaInfo.originalCaption) {
-                    successMsg += `\n📄 *Original caption:* ${mediaInfo.originalCaption}`;
-                }
-
-                await this.bot.messageHandler.reply(messageInfo, successMsg);
-            }
 
         } catch (error) {
             console.error('Error processing media with caption:', error);
