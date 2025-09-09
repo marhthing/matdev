@@ -533,11 +533,7 @@ class GroqPlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🖼️ Describing image...');
 
             try {
-                // Create proper message object for download
-                const messageToDownload = {
-                    key: messageInfo.message.extendedTextMessage?.contextInfo?.quotedMessage?.key || {},
-                    message: quotedMessage
-                };
+                // messageToDownload is already defined above, no need to redefine
 
                 // Download image
                 const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
