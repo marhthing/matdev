@@ -883,6 +883,150 @@ class GroqPlugin {
     }
 
     /**
+     * Advanced Reasoning Command with GPT-OSS
+     */
+    async reasoningCommand(messageInfo, args) {
+        try {
+            const prompt = args.join(' ').trim();
+            if (!prompt) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a problem to solve.\nUsage: .reason <complex problem>');
+                return;
+            }
+
+            const groq = this.getGroqClient();
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🧠 Analyzing with step-by-step reasoning...');
+
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Solve this problem with detailed step-by-step reasoning: ${prompt}`
+                    }
+                ],
+                model: 'openai/gpt-oss-120b', // OpenAI GPT-OSS 120B for advanced reasoning
+                temperature: 0.6,
+                max_completion_tokens: 2048,
+                reasoning_effort: 'high', // High effort reasoning
+                include_reasoning: true
+            });
+
+            const response = completion.choices[0]?.message?.content;
+            const reasoning = completion.choices[0]?.message?.reasoning;
+
+            let finalResponse = `🧠 *Advanced Reasoning Result:*\n\n`;
+            
+            if (reasoning) {
+                finalResponse += `💭 *Thinking Process:*\n${reasoning}\n\n`;
+            }
+            
+            finalResponse += `✅ *Solution:*\n${response}`;
+
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                text: finalResponse,
+                edit: thinkingMsg.key
+            });
+
+        } catch (error) {
+            console.error('Reasoning command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error with reasoning model. Please try again.');
+        }
+    }
+
+    /**
+     * Think Command with Raw Reasoning Format
+     */
+    async thinkCommand(messageInfo, args) {
+        try {
+            const prompt = args.join(' ').trim();
+            if (!prompt) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a problem to think about.\nUsage: .think <problem>');
+                return;
+            }
+
+            const groq = this.getGroqClient();
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '💭 Thinking deeply...');
+
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Think about this problem and show your reasoning process: ${prompt}`
+                    }
+                ],
+                model: 'qwen/qwen3-32b', // Qwen 3 32B for thinking tasks
+                temperature: 0.5,
+                max_completion_tokens: 1536,
+                reasoning_format: 'raw', // Show thinking in <think> tags
+                reasoning_effort: 'default'
+            });
+
+            const response = completion.choices[0]?.message?.content;
+
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                text: `💭 *AI Thinking Process:*\n\n${response}`,
+                edit: thinkingMsg.key
+            });
+
+        } catch (error) {
+            console.error('Think command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error with thinking model. Please try again.');
+        }
+    }
+
+    /**
+     * Solve Command for Mathematical Problems
+     */
+    async solveCommand(messageInfo, args) {
+        try {
+            const prompt = args.join(' ').trim();
+            if (!prompt) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a problem to solve.\nUsage: .solve <math problem>');
+                return;
+            }
+
+            const groq = this.getGroqClient();
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🧮 Solving with mathematical reasoning...');
+
+            const completion = await groq.chat.completions.create({
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Solve this mathematical or logical problem with clear step-by-step work and validation: ${prompt}`
+                    }
+                ],
+                model: 'openai/gpt-oss-20b', // GPT-OSS 20B for math solving
+                temperature: 0.3, // Lower temperature for precise calculations
+                max_completion_tokens: 1536,
+                reasoning_effort: 'medium',
+                include_reasoning: true
+            });
+
+            const response = completion.choices[0]?.message?.content;
+            const reasoning = completion.choices[0]?.message?.reasoning;
+
+            let finalResponse = `🧮 *Mathematical Solution:*\n\n`;
+            
+            if (reasoning) {
+                finalResponse += `📝 *Step-by-step Work:*\n${reasoning}\n\n`;
+            }
+            
+            finalResponse += `✅ *Final Answer:*\n${response}`;
+
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                text: finalResponse,
+                edit: thinkingMsg.key
+            });
+
+        } catch (error) {
+            console.error('Solve command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error with math solver. Please try again.');
+        }
+    }
+
+    /**
      * Cleanup method
      */
     async cleanup() {
