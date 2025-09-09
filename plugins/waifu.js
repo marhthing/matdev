@@ -607,18 +607,7 @@ class WaifuPlugin {
 
             this.requestCount++;
 
-            // Try AnbuAnime API first
-            try {
-                const anbuResults = await this.fetchFromAnbuAnime(category);
-                if (anbuResults && anbuResults.length > 0) {
-                    console.log('✅ AnbuAnime API successful');
-                    return anbuResults;
-                }
-            } catch (anbuError) {
-                console.log('AnbuAnime API failed, using fallback:', anbuError.message);
-            }
-
-            // Fallback to static content with search links
+            // Generate curated content based on category
             const videoContent = this.generateVideoContent(category);
             return videoContent;
 
@@ -626,124 +615,6 @@ class WaifuPlugin {
             console.error('Error fetching video content:', error);
             return [];
         }
-    }
-
-    /**
-     * Fetch content from AnbuAnime API
-     */
-    async fetchFromAnbuAnime(category = null) {
-        try {
-            // Map categories to search terms
-            const searchTerm = this.getCategorySearchTerm(category);
-            
-            // Try multiple API endpoints
-            const apiEndpoints = [
-                `https://api.anbu.live/search?q=${encodeURIComponent(searchTerm)}`,
-                `https://anbu-api.vercel.app/api/search?query=${encodeURIComponent(searchTerm)}`,
-                `https://hanime-api.vercel.app/search/${encodeURIComponent(searchTerm)}`
-            ];
-            
-            console.log(`🔍 Searching for: ${searchTerm}`);
-            
-            for (const apiUrl of apiEndpoints) {
-                try {
-                    const response = await axios.get(apiUrl, {
-                        timeout: 10000,
-                        headers: {
-                            'User-Agent': 'MATDEV-Bot/1.0',
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    if (response.data && response.status === 200) {
-                        // Handle different API response formats
-                        let results = response.data.results || response.data.data || response.data;
-                        
-                        if (Array.isArray(results) && results.length > 0) {
-                            const randomResult = results[Math.floor(Math.random() * Math.min(results.length, 5))];
-                            
-                            return [{
-                                title: randomResult.title || randomResult.name || `${searchTerm} content`,
-                                views: randomResult.views || Math.floor(Math.random() * 2000000) + 100000,
-                                duration: randomResult.duration || this.generateRandomDuration(),
-                                tags: [searchTerm, category].filter(Boolean),
-                                streams: [
-                                    { 
-                                        quality: '720p', 
-                                        url: randomResult.link || randomResult.url || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
-                                    },
-                                    { 
-                                        quality: '1080p', 
-                                        url: randomResult.hd_link || randomResult.hd_url || randomResult.link || randomResult.url || `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` 
-                                    }
-                                ],
-                                poster: randomResult.image || randomResult.thumbnail || randomResult.poster || null,
-                                source: 'Anime API'
-                            }];
-                        }
-                    }
-                } catch (apiError) {
-                    console.log(`API ${apiUrl} failed:`, apiError.message);
-                    continue;
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.error('All anime APIs failed:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get search term for category
-     */
-    getCategorySearchTerm(category) {
-        const categoryMap = {
-            'oral': 'blowjob',
-            'nurse': 'nurse',
-            'school': 'school girl',
-            'maid': 'maid',
-            'teacher': 'teacher',
-            'student': 'student',
-            'office': 'office lady',
-            'uniform': 'uniform',
-            'milf': 'milf',
-            'teen': 'teen',
-            'bikini': 'bikini',
-            'swimsuit': 'swimsuit',
-            'shower': 'shower',
-            'bath': 'bathroom',
-            'lingerie': 'lingerie',
-            'panties': 'panties',
-            'catgirl': 'cat girl',
-            'bunny': 'bunny girl',
-            'demon': 'demon girl',
-            'elf': 'elf',
-            'princess': 'princess',
-            'queen': 'queen',
-            'witch': 'witch',
-            'vampire': 'vampire',
-            'lesbian': 'lesbian',
-            'yuri': 'yuri',
-            'futanari': 'futanari',
-            'tentacle': 'tentacle',
-            'monster': 'monster girl',
-            'bdsm': 'bdsm',
-            'bondage': 'bondage'
-        };
-
-        return categoryMap[category] || category || 'anime';
-    }
-
-    /**
-     * Generate random duration
-     */
-    generateRandomDuration() {
-        const minutes = Math.floor(Math.random() * 25) + 15; // 15-40 minutes
-        const seconds = Math.floor(Math.random() * 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
     /**
@@ -785,18 +656,14 @@ class WaifuPlugin {
 
         // Return only 1 video
         const selectedVideo = videos[Math.floor(Math.random() * videos.length)];
-        const searchTerm = this.getCategorySearchTerm(category) || selectedVideo.tags[0];
         
         return [{
             ...selectedVideo,
             streams: [
-                { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(searchTerm)}` },
-                { quality: '1080p', url: `https://hanime.tv/videos/hentai/${encodeURIComponent(searchTerm.replace(/\s+/g, '-'))}` },
-                { quality: 'Mobile', url: `https://hentaihaven.xxx/search/${encodeURIComponent(searchTerm)}` },
-                { quality: 'HD', url: `https://www.tsumino.com/search/entry?tags=${encodeURIComponent(searchTerm)}` }
+                { quality: '720p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` },
+                { quality: '1080p', url: `https://hanime.tv/search?query=${encodeURIComponent(selectedVideo.tags[0])}` }
             ],
-            poster: null, // Will try to get real thumbnail from waifu APIs
-            source: 'Curated Content'
+            poster: `https://i.imgur.com/placeholder.jpg` // Will try to get real thumbnail
         }];
     }
 
@@ -836,11 +703,6 @@ class WaifuPlugin {
                 caption += `⏱️ Duration: ${video.duration}\n`;
             }
 
-            // Add source info
-            if (video.source) {
-                caption += `📡 Source: ${video.source}\n`;
-            }
-
             // Add streaming links
             if (video.streams && video.streams.length > 0) {
                 caption += `🔗 *Stream:* `;
@@ -860,17 +722,12 @@ class WaifuPlugin {
 
             // Try to send with thumbnail first
             try {
-                // Use API poster if available, otherwise get random thumbnail
-                let thumbnailUrl = video.poster;
+                // Get a random anime thumbnail from waifu APIs
+                const thumbnailData = await this.getRandomThumbnail(category);
                 
-                if (!thumbnailUrl) {
-                    const thumbnailData = await this.getRandomThumbnail(category);
-                    thumbnailUrl = thumbnailData?.url;
-                }
-                
-                if (thumbnailUrl) {
+                if (thumbnailData && thumbnailData.url) {
                     // Download and send image with caption
-                    const response = await axios.get(thumbnailUrl, {
+                    const response = await axios.get(thumbnailData.url, {
                         responseType: 'arraybuffer',
                         timeout: 10000,
                         headers: {
