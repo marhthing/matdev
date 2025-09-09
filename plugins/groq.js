@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Groq AI Plugin
  * Advanced AI capabilities including TTS, STT, Vision, and Chat
@@ -27,7 +26,7 @@ class GroqPlugin {
         try {
             // Ensure temp directory exists
             await fs.ensureDir(this.tempDir);
-            
+
             this.registerCommands();
             console.log('✅ Groq AI plugin loaded');
             return true;
@@ -116,7 +115,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'mixtral-8x7b-32768',
+                    model: 'llama-3.2-90b-8192-long-context', // Updated model
                     temperature: 0.7,
                     max_tokens: 1024
                 });
@@ -134,11 +133,13 @@ class GroqPlugin {
             } catch (apiError) {
                 console.error('Groq API error:', apiError);
                 let errorMessage = '❌ Error communicating with Groq AI. Please try again.';
-                
+
                 if (apiError.message.includes('API_KEY_INVALID')) {
                     errorMessage = '❌ Invalid API key. Please check your GROQ_API_KEY.';
                 } else if (apiError.message.includes('quota')) {
                     errorMessage = '❌ API quota exceeded. Please try again later.';
+                } else if (apiError.message.includes('model is not available')) {
+                    errorMessage = '❌ The requested model is not available. Please check the model name or try again later.';
                 }
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -213,7 +214,7 @@ class GroqPlugin {
 
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio message.');
                 return;
@@ -229,7 +230,7 @@ class GroqPlugin {
             try {
                 // Download audio
                 const audioBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
-                
+
                 if (!audioBuffer || audioBuffer.length === 0) {
                     throw new Error('Failed to download audio');
                 }
@@ -292,7 +293,7 @@ class GroqPlugin {
 
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.imageMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image.');
                 return;
@@ -303,7 +304,7 @@ class GroqPlugin {
             try {
                 // Download image
                 const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
-                
+
                 if (!imageBuffer || imageBuffer.length === 0) {
                     throw new Error('Failed to download image');
                 }
@@ -331,7 +332,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llava-v1.5-7b-4096-preview',
+                    model: 'llama-3.2-90b-vision-preview', // Updated model
                     max_tokens: 1024
                 });
 
@@ -372,7 +373,7 @@ class GroqPlugin {
 
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.imageMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image.');
                 return;
@@ -383,7 +384,7 @@ class GroqPlugin {
             try {
                 // Download image
                 const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
-                
+
                 if (!imageBuffer || imageBuffer.length === 0) {
                     throw new Error('Failed to download image');
                 }
@@ -411,7 +412,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llava-v1.5-7b-4096-preview',
+                    model: 'llama-3.2-90b-vision-preview', // Updated model
                     max_tokens: 1024
                 });
 
