@@ -47,10 +47,10 @@ class SystemPlugin {
 
 
 
-        // Configuration command
-        this.bot.messageHandler.registerCommand('config', this.configCommand.bind(this), {
-            description: 'Show configuration settings',
-            usage: `${config.PREFIX}config`,
+        // Environment variables command
+        this.bot.messageHandler.registerCommand('env', this.envCommand.bind(this), {
+            description: 'Show environment variables',
+            usage: `${config.PREFIX}env`,
             category: 'system',
             ownerOnly: true
         });
@@ -385,24 +385,59 @@ class SystemPlugin {
     }
 
     /**
-     * Configuration command
+     * Environment variables command
      */
-    async configCommand(messageInfo) {
+    async envCommand(messageInfo) {
         try {
-            const configText = `*⚙️ BOT CONFIGURATION*\n\n` +
-                `*Identity:*\n` +
-                `• PREFIX: ${config.PREFIX}\n\n` +
-                `*Behavior:*\n` +
-                `• AUTO_TYPING: ${config.AUTO_TYPING}\n` +
-                `• AUTO_READ: ${config.AUTO_READ}\n` +
-                `• AUTO_STATUS_VIEW: ${config.AUTO_STATUS_VIEW}\n` +
-                `• REJECT_CALLS: ${config.REJECT_CALLS}\n\n` +
-                `_To change: ${config.PREFIX}setenv <KEY>=<VALUE>_\n` +
-                `_Example: ${config.PREFIX}setenv AUTO_TYPING=true_`;
+            const envPath = path.join(process.cwd(), '.env');
+            
+            // Hidden variables that should not be displayed
+            const hiddenVars = [
+                'BOT_NAME',
+                'MAX_CONCURRENT_MESSAGES',
+                'MESSAGE_TIMEOUT',
+                'CACHE_TTL',
+                'ANTI_BAN',
+                'RATE_LIMIT_WINDOW',
+                'RATE_LIMIT_MAX_REQUESTS',
+                'MAX_MEDIA_SIZE',
+                'ALLOWED_MEDIA_TYPES',
+                'LOG_LEVEL',
+                'LOG_TO_FILE',
+                'PLUGIN_AUTO_LOAD',
+                'STATUS_REPORTS',
+                'PORT',
+                'NODE_ENV'
+            ];
 
-            await this.bot.messageHandler.reply(messageInfo, configText);
+            if (await fs.pathExists(envPath)) {
+                const envContent = await fs.readFile(envPath, 'utf8');
+                const envLines = envContent.split('\n')
+                    .filter(line => line.trim() && !line.startsWith('#'))
+                    .map(line => line.trim());
+
+                const visibleVars = envLines.filter(line => {
+                    const [key] = line.split('=');
+                    return !hiddenVars.includes(key);
+                });
+
+                let envText = `*📋 ENVIRONMENT VARIABLES*\n\n`;
+                
+                if (visibleVars.length > 0) {
+                    envText += visibleVars.join('\n');
+                } else {
+                    envText += '_No user-configurable variables set_';
+                }
+
+                envText += `\n\n_To change: ${config.PREFIX}setenv <KEY>=<VALUE>_\n`;
+                envText += `_Example: ${config.PREFIX}setenv PREFIX=!_`;
+
+                await this.bot.messageHandler.reply(messageInfo, envText);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, '❌ .env file not found');
+            }
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving configuration.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error reading environment variables.');
         }
     }
 
