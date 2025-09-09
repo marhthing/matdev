@@ -413,12 +413,7 @@ class CorePlugin {
         const lagosTime = moment().tz(config.TIMEZONE);
         const utcTime = moment().utc();
 
-        const timeInfo = `🕐 *Bot Time Information*\n\n` +
-                        `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}\n` +
-                        `🌍 *UTC Time:* ${utcTime.format('DD/MM/YYYY HH:mm:ss')}\n` +
-                        `⏰ *Timezone:* ${config.TIMEZONE}\n` +
-                        `📍 *Offset:* UTC${lagosTime.format('Z')}\n\n` +
-                        `_Use this time for scheduling messages_`;
+        const timeInfo = `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}`;
 
         await this.bot.messageHandler.reply(messageInfo, timeInfo);
     }
