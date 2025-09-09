@@ -104,7 +104,7 @@ class StatusPlugin {
                     }
                 }
             } catch (error) {
-                console.error(`Error in status message handler: ${error.message}`);
+                // console.error(`Error in status message handler: ${error.message}`);
             }
         }
     }
