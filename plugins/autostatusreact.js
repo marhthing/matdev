@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Auto Status React Plugin
  * Automatically reacts to WhatsApp status updates from friends
@@ -54,6 +55,7 @@ class AutoStatusReactPlugin {
         }
 
         console.log('✅ Auto Status React plugin loaded');
+        return this;
     }
 
     /**

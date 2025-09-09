@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Caption Editor Plugin
  * Edit video and image captions without downloading media
@@ -20,6 +21,7 @@ class CaptionEditorPlugin {
         this.registerCommands();
 
         console.log('✅ Caption Editor plugin loaded');
+        return this;
     }
 
     /**

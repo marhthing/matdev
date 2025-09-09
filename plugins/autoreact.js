@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Auto React Plugin
  * Automatically reacts to chat messages with emojis based on keywords or random reactions
@@ -96,6 +97,7 @@ class AutoReactPlugin {
         }
 
         console.log('✅ Auto React plugin loaded');
+        return this;
     }
 
     /**
@@ -169,8 +171,6 @@ class AutoReactPlugin {
     setupMessageListener() {
         // Hook into bot's message handling
         if (this.bot.sock) {
-            const originalHandler = this.bot.sock.ev.listenerCount('messages.upsert') > 0;
-            
             this.bot.sock.ev.on('messages.upsert', async ({ messages }) => {
                 for (const message of messages) {
                     await this.processMessageForReaction(message);

@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Auto Bio Plugin
  * Automatically updates WhatsApp bio with customizable messages and intervals
@@ -47,6 +48,7 @@ class AutoBioPlugin {
         }
 
         console.log('✅ Auto Bio plugin loaded');
+        return this;
     }
 
     /**
