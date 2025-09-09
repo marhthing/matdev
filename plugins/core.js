@@ -807,10 +807,54 @@ class CorePlugin {
             const subCommand = args[0].toLowerCase();
 
             if (subCommand === 'allow') {
-                // Handle allow subcommand: .permissions allow <jid> <cmd>
+                // Smart JID detection for .pm allow <command>
+                if (args.length === 2) {
+                    const command = args[1].replace('.', '').toLowerCase();
+                    let targetJid = null;
+
+                    // Check if this is a private chat
+                    if (!messageInfo.is_group) {
+                        // Use the chat JID (the person we're talking to)
+                        targetJid = messageInfo.chat_jid;
+                    } else {
+                        // This is a group - check if message is replying to someone
+                        const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                        if (quotedMessage) {
+                            // Get the participant JID from quoted message
+                            const quotedParticipant = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
+                            if (quotedParticipant) {
+                                targetJid = quotedParticipant;
+                            }
+                        }
+
+                        if (!targetJid) {
+                            await this.bot.messageHandler.reply(messageInfo,
+                                `❌ In groups, reply to a message to give permissions to that user.\n\n` +
+                                `Usage: Reply to someone's message, then use \`${config.PREFIX}pm allow ${command}\``);
+                            return;
+                        }
+                    }
+
+                    const success = await this.bot.database.addUserPermission(targetJid, command);
+
+                    if (success) {
+                        const displayJid = targetJid.split('@')[0];
+                        const contextText = messageInfo.is_group ? ' (from quoted message)' : ' (from this chat)';
+                        await this.bot.messageHandler.reply(messageInfo,
+                            `✅ User ${displayJid}${contextText} can now use .${command}`);
+                    } else {
+                        await this.bot.messageHandler.reply(messageInfo,
+                            '❌ Failed to add permission. User may already have this permission.');
+                    }
+                    return;
+                }
+
+                // Legacy method: .pm allow <jid> <cmd>
                 if (args.length < 3) {
                     await this.bot.messageHandler.reply(messageInfo,
-                        `❌ Usage: ${config.PREFIX}permissions allow <jid> <command>`);
+                        `❌ Usage: \n` +
+                        `• \`${config.PREFIX}pm allow <command>\` - Give permission to current chat or quoted user\n` +
+                        `• \`${config.PREFIX}pm allow <jid> <command>\` - Give permission to specific user`);
                     return;
                 }
 
@@ -834,10 +878,54 @@ class CorePlugin {
                 }
 
             } else if (subCommand === 'disallow') {
-                // Handle disallow subcommand: .permissions disallow <jid> <cmd>
+                // Smart JID detection for .pm disallow <command>
+                if (args.length === 2) {
+                    const command = args[1].replace('.', '').toLowerCase();
+                    let targetJid = null;
+
+                    // Check if this is a private chat
+                    if (!messageInfo.is_group) {
+                        // Use the chat JID (the person we're talking to)
+                        targetJid = messageInfo.chat_jid;
+                    } else {
+                        // This is a group - check if message is replying to someone
+                        const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                        if (quotedMessage) {
+                            // Get the participant JID from quoted message
+                            const quotedParticipant = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
+                            if (quotedParticipant) {
+                                targetJid = quotedParticipant;
+                            }
+                        }
+
+                        if (!targetJid) {
+                            await this.bot.messageHandler.reply(messageInfo,
+                                `❌ In groups, reply to a message to remove permissions from that user.\n\n` +
+                                `Usage: Reply to someone's message, then use \`${config.PREFIX}pm disallow ${command}\``);
+                            return;
+                        }
+                    }
+
+                    const success = await this.bot.database.removeUserPermission(targetJid, command);
+
+                    if (success) {
+                        const displayJid = targetJid.split('@')[0];
+                        const contextText = messageInfo.is_group ? ' (from quoted message)' : ' (from this chat)';
+                        await this.bot.messageHandler.reply(messageInfo,
+                            `✅ Removed .${command} permission from ${displayJid}${contextText}`);
+                    } else {
+                        await this.bot.messageHandler.reply(messageInfo,
+                            '❌ Failed to remove permission. User may not have this permission.');
+                    }
+                    return;
+                }
+
+                // Legacy method: .pm disallow <jid> <cmd>
                 if (args.length < 3) {
                     await this.bot.messageHandler.reply(messageInfo,
-                        `❌ Usage: ${config.PREFIX}permissions disallow <jid> <command>`);
+                        `❌ Usage: \n` +
+                        `• \`${config.PREFIX}pm disallow <command>\` - Remove permission from current chat or quoted user\n` +
+                        `• \`${config.PREFIX}pm disallow <jid> <command>\` - Remove permission from specific user`);
                     return;
                 }
 
@@ -886,6 +974,7 @@ class CorePlugin {
             }
 
         } catch (error) {
+            console.error('Permissions command error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error managing permissions.');
         }
     }
