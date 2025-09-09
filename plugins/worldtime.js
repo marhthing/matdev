@@ -179,14 +179,6 @@ class WorldTimePlugin {
             source: 'worldtime.js'
         });
 
-        // World clock alias
-        this.bot.messageHandler.registerCommand('wc', this.worldClockCommand.bind(this), {
-            description: 'Show multiple world times at once (alias for worldclock)',
-            usage: `${config.PREFIX}wc`,
-            category: 'time',
-            plugin: 'worldtime',
-            source: 'worldtime.js'
-        });
 
         // Timezones command
         this.bot.messageHandler.registerCommand('timezones', this.timezonesCommand.bind(this), {
@@ -197,14 +189,6 @@ class WorldTimePlugin {
             source: 'worldtime.js'
         });
 
-        // Timezones alias
-        this.bot.messageHandler.registerCommand('tz', this.timezonesCommand.bind(this), {
-            description: 'List all available timezone codes (alias for timezones)',
-            usage: `${config.PREFIX}tz`,
-            category: 'time',
-            plugin: 'worldtime',
-            source: 'worldtime.js'
-        });
 
         
     }

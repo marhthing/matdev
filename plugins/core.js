@@ -100,13 +100,6 @@ class CorePlugin {
             ownerOnly: true
         });
 
-        // Permission aliases
-        this.bot.messageHandler.registerCommand('pm', this.permissionsCommand.bind(this), {
-            description: 'Manage user permissions (alias for permissions)',
-            usage: `${config.PREFIX}pm [allow|disallow] <jid> <cmd>`,
-            category: 'admin',
-            ownerOnly: true
-        });
 
         // Group LID registration command
         this.bot.messageHandler.registerCommand('rg', this.registerGroupLidCommand.bind(this), {
