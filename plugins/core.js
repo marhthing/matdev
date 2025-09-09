@@ -450,11 +450,20 @@ class CorePlugin {
             // Get bot user name (from WhatsApp profile or bot name)
             const botName = this.bot.sock?.user?.name || config.BOT_NAME;
 
-            // Get all commands and organize by category
+            // Get all commands and organize by category with intelligent alias detection
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
             
-            // Simple approach: group commands by category only, no alias detection
+            // Group commands by handler function to detect aliases
+            const handlerGroups = new Map();
+            commands.forEach(cmd => {
+                const handlerKey = cmd.handler.toString();
+                if (!handlerGroups.has(handlerKey)) {
+                    handlerGroups.set(handlerKey, []);
+                }
+                handlerGroups.get(handlerKey).push(cmd);
+            });
+            
             const processedCommands = new Set();
             
             commands.forEach(cmd => {
@@ -466,13 +475,34 @@ class CorePlugin {
                     categories[category] = [];
                 }
                 
-                // Simple command entry without complex alias detection
-                categories[category].push({
-                    name: cmd.name.toUpperCase(),
-                    aliases: [] // Keep empty to prevent loops
-                });
+                // Find all commands that share the same handler (aliases)
+                const aliasGroup = handlerGroups.get(cmd.handler.toString());
                 
-                processedCommands.add(cmd.name);
+                // Filter to only include commands in the same category
+                const categoryAliases = aliasGroup.filter(c => 
+                    c.category === cmd.category && c.name !== cmd.name
+                );
+                
+                // Use the shortest command name as primary, others as aliases
+                const allInCategory = [cmd, ...categoryAliases];
+                const primaryCmd = allInCategory.reduce((shortest, current) => 
+                    current.name.length < shortest.name.length ? current : shortest
+                );
+                
+                const aliases = allInCategory
+                    .filter(c => c.name !== primaryCmd.name)
+                    .map(c => c.name.toUpperCase());
+                
+                // Only add if this is the primary command
+                if (cmd.name === primaryCmd.name) {
+                    categories[category].push({
+                        name: primaryCmd.name.toUpperCase(),
+                        aliases: aliases
+                    });
+                }
+                
+                // Mark all commands in this alias group as processed
+                allInCategory.forEach(c => processedCommands.add(c.name));
             });
 
             // Create modern menu design with better typography
@@ -517,7 +547,11 @@ class CorePlugin {
                 menuText += `\n${icon} ═══ ${categoryName} ═══ ${icon}\n`;
                 
                 cmds.forEach(commandEntry => {
-                    menuText += `▸ ${commandEntry.name}\n`;
+                    if (commandEntry.aliases && commandEntry.aliases.length > 0) {
+                        menuText += `▸ ${commandEntry.name} (${commandEntry.aliases.join(', ')})\n`;
+                    } else {
+                        menuText += `▸ ${commandEntry.name}\n`;
+                    }
                 });
             }
 
