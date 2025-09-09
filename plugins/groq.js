@@ -186,10 +186,30 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const text = messageInfo.args.join(' ').trim();
+            let text = messageInfo.args.join(' ').trim();
+            
+            // If no direct text provided, check if replying to a message
+            if (!text) {
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
+
+                if (quotedMessage) {
+                    // Extract text from quoted message
+                    if (quotedMessage.conversation) {
+                        text = quotedMessage.conversation;
+                    } else if (quotedMessage.extendedTextMessage?.text) {
+                        text = quotedMessage.extendedTextMessage.text;
+                    } else if (quotedMessage.imageMessage?.caption) {
+                        text = quotedMessage.imageMessage.caption;
+                    } else if (quotedMessage.videoMessage?.caption) {
+                        text = quotedMessage.videoMessage.caption;
+                    }
+                }
+            }
+
             if (!text) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide text to convert.\nUsage: .tts <text>');
+                    '❌ Please provide text to convert or reply to a message.\nUsage: .tts <text> OR reply to any text message with .tts');
                 return;
             }
 
