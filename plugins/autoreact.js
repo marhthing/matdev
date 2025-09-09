@@ -314,8 +314,7 @@ class AutoReactPlugin {
                 fromMe: message.key.fromMe
             });
             
-            // Log complete message structure for debugging
-            console.log('🔍 Complete message key structure:', JSON.stringify(message.key, null, 2));
+            // Status reaction is working properly
             
             // Get random status reaction
             const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
@@ -351,67 +350,21 @@ class AutoReactPlugin {
     }
 
     /**
-     * Send status reaction using multiple methods
+     * Send status reaction using the working method
      */
     async sendStatusReaction(message, reaction) {
-        console.log('🔍 Trying multiple status reaction methods...');
-        
-        // Method 1: React using participant JID with status key structure
-        if (message.key.participant) {
-            console.log('📱 Method 1: Participant JID with status key');
-            try {
-                const result = await this.bot.sock.sendMessage(message.key.participant, {
-                    react: {
-                        text: reaction,
-                        key: {
-                            remoteJid: 'status@broadcast',
-                            id: message.key.id,
-                            participant: message.key.participant,
-                            fromMe: false
-                        }
-                    }
-                });
-                console.log('✅ Method 1 SUCCESS - Participant JID reaction sent');
-                return result;
-            } catch (error) {
-                console.log('❌ Method 1 FAILED:', error.message);
+        // Use the proven working method: React using participant JID with status key structure
+        return await this.bot.sock.sendMessage(message.key.participant, {
+            react: {
+                text: reaction,
+                key: {
+                    remoteJid: 'status@broadcast',
+                    id: message.key.id,
+                    participant: message.key.participant,
+                    fromMe: false
+                }
             }
-        }
-        
-        // Method 2: React using the exact original message key
-        console.log('📱 Method 2: Original message key reaction');
-        try {
-            const result = await this.bot.sock.sendMessage(message.key.remoteJid, {
-                react: {
-                    text: reaction,
-                    key: message.key
-                }
-            });
-            console.log('✅ Method 2 SUCCESS - Original key reaction sent');
-            return result;
-        } catch (error) {
-            console.log('❌ Method 2 FAILED:', error.message);
-        }
-        
-        // Method 3: React to status@broadcast with full key info
-        console.log('📱 Method 3: Status broadcast reaction');
-        try {
-            const result = await this.bot.sock.sendMessage('status@broadcast', {
-                react: {
-                    text: reaction,
-                    key: {
-                        remoteJid: 'status@broadcast',
-                        id: message.key.id,
-                        participant: message.key.participant
-                    }
-                }
-            });
-            console.log('✅ Method 3 SUCCESS - Status broadcast reaction sent');
-            return result;
-        } catch (error) {
-            console.log('❌ Method 3 FAILED:', error.message);
-            throw error;
-        }
+        });
     }
 
     /**
