@@ -115,7 +115,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'groq/llama3-70b-8192', // Available Groq model
+                    model: 'llama-3.1-70b-versatile', // Available Groq model
                     temperature: 0.7,
                     max_tokens: 1024
                 });
