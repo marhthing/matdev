@@ -190,7 +190,7 @@ class WaifuPlugin {
             const category = messageInfo.args[0]?.toLowerCase();
             const tag = this.getSFWTag(category);
 
-            await this.bot.messageHandler.reply(messageInfo, '🎨 Generating your anime waifu... ✨');
+            // await this.bot.messageHandler.reply(messageInfo, '🎨 Generating your anime waifu... ✨');
 
             const waifuData = await this.fetchWaifu(tag, false);
             
@@ -226,7 +226,7 @@ class WaifuPlugin {
             const category = messageInfo.args[0]?.toLowerCase();
             const tag = this.getNSFWTag(category);
 
-            await this.bot.messageHandler.reply(messageInfo, '🔞 Generating your NSFW waifu... ✨');
+            // await this.bot.messageHandler.reply(messageInfo, '🔞 Generating your NSFW waifu... ✨');
 
             const waifuData = await this.fetchWaifu(tag, true);
             
@@ -387,7 +387,7 @@ class WaifuPlugin {
             if (tempFilePath && await fs.pathExists(tempFilePath)) {
                 try {
                     await fs.remove(tempFilePath);
-                    console.log(`🗑️ Cleaned up waifu temp file: ${tempFilePath}`);
+                    // console.log(`🗑️ Cleaned up waifu temp file: ${tempFilePath}`);
                 } catch (cleanupError) {
                     console.error('Error cleaning up waifu temp file:', cleanupError);
                 }
