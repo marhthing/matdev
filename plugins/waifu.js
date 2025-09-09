@@ -533,4 +533,11 @@ class WaifuPlugin {
     }
 }
 
-module.exports = WaifuPlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new WaifuPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};

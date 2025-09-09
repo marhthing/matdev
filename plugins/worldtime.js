@@ -524,4 +524,11 @@ class WorldTimePlugin {
     }
 }
 
-module.exports = WorldTimePlugin;
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new WorldTimePlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
