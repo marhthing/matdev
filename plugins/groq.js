@@ -54,13 +54,6 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // AI with function calling capabilities
-        this.bot.messageHandler.registerCommand('action', this.toolUseCommand.bind(this), {
-            description: 'AI with function calling capabilities',
-            usage: `${config.PREFIX}action <your request>`,
-            category: 'ai'
-        });
-
         // Text to Speech with real TTS
         this.bot.messageHandler.registerCommand('tts', this.textToSpeechCommand.bind(this), {
             description: 'Convert text to speech using Groq TTS',
@@ -82,12 +75,6 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Image Description
-        this.bot.messageHandler.registerCommand('describe', this.describeImageCommand.bind(this), {
-            description: 'Describe an image using Groq Vision',
-            usage: `${config.PREFIX}describe (reply to image)`,
-            category: 'ai'
-        });
 
         // Reasoning Commands with Advanced Models
         this.bot.messageHandler.registerCommand('reason', this.reasoningCommand.bind(this), {
@@ -96,17 +83,6 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        this.bot.messageHandler.registerCommand('think', this.thinkCommand.bind(this), {
-            description: 'Show AI thinking process with detailed reasoning',
-            usage: `${config.PREFIX}think <problem>`,
-            category: 'ai'
-        });
-
-        this.bot.messageHandler.registerCommand('solve', this.solveCommand.bind(this), {
-            description: 'Mathematical and logical problem solving with reasoning',
-            usage: `${config.PREFIX}solve <math problem>`,
-            category: 'ai'
-        });
     }
 
     /**
