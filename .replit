@@ -33,4 +33,4 @@ args = "node index.js"
 
 [deployment]
 deploymentTarget = "vm"
-run = ["node", "bot.js"]
+run = ["node", "index.js"]
