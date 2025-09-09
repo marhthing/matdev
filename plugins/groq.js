@@ -88,6 +88,25 @@ class GroqPlugin {
             usage: `${config.PREFIX}describe (reply to image)`,
             category: 'ai'
         });
+
+        // Reasoning Commands with Advanced Models
+        this.bot.messageHandler.registerCommand('reason', this.reasoningCommand.bind(this), {
+            description: 'Complex problem-solving with step-by-step reasoning using GPT-OSS',
+            usage: `${config.PREFIX}reason <complex problem>`,
+            category: 'ai'
+        });
+
+        this.bot.messageHandler.registerCommand('think', this.thinkCommand.bind(this), {
+            description: 'Show AI thinking process with detailed reasoning',
+            usage: `${config.PREFIX}think <problem>`,
+            category: 'ai'
+        });
+
+        this.bot.messageHandler.registerCommand('solve', this.solveCommand.bind(this), {
+            description: 'Mathematical and logical problem solving with reasoning',
+            usage: `${config.PREFIX}solve <math problem>`,
+            category: 'ai'
+        });
     }
 
     /**
