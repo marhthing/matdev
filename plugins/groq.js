@@ -577,7 +577,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'llama-3-groq-70b-tool-use',
+                    model: 'llama-3.3-70b-versatile', // Using versatile model for tool analysis
                     temperature: 0.3,
                     max_tokens: 1024
                 });
