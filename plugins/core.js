@@ -475,8 +475,8 @@ class CorePlugin {
                 const mainCommand = aliasGroup.find(c => !c.description.includes('alias for')) || aliasGroup[0];
                 const aliases = aliasGroup.filter(c => c !== mainCommand).map(c => c.name.toUpperCase());
                 
-                // Use the command's actual category, not mainCommand category
-                const category = cmd.category || 'utility';
+                // Use the main command's category for the group
+                const category = mainCommand.category || 'utility';
                 
                 // Add to category
                 if (!categories[category]) {
@@ -485,7 +485,7 @@ class CorePlugin {
                 
                 // Create command entry with aliases
                 const commandEntry = {
-                    name: cmd.name.toUpperCase(),
+                    name: mainCommand.name.toUpperCase(),
                     aliases: aliases.length > 0 ? aliases : []
                 };
                 
