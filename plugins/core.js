@@ -1055,7 +1055,9 @@ class CorePlugin {
 
             await this.bot.messageHandler.reply(messageInfo, report);
         } catch (error) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving bot statistics.');
+            console.error('❌ Stats command error:', error);
+            console.error('❌ Stats command stack:', error.stack);
+            await this.bot.messageHandler.reply(messageInfo, `❌ Error retrieving bot statistics: ${error.message}`);
         }
     }
 
