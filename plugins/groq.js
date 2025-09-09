@@ -115,7 +115,7 @@ class GroqPlugin {
                             content: prompt
                         }
                     ],
-                    model: 'llama3-70b-8192', // Available Groq model
+                    model: 'groq/llama3-70b-8192', // Available Groq model
                     temperature: 0.7,
                     max_tokens: 1024
                 });
@@ -183,7 +183,7 @@ class GroqPlugin {
                 // Use external TTS API (you can integrate with services like ElevenLabs, OpenAI TTS, etc.)
                 // For now, we'll provide the text formatted for TTS usage
                 const response = `🎤 *Text for Speech:*\n\n"${text}"\n\n⚠️ _Note: For actual audio generation, integrate with a TTS service like ElevenLabs or OpenAI TTS API._`;
-                
+
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: response,
                     edit: processingMsg.key
@@ -333,7 +333,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llama-3.2-11b-vision-preview', // Available Groq vision model
+                    model: 'llava-v1.5-7b-4096-preview', // Available Groq vision model
                     max_tokens: 1024
                 });
 
@@ -413,7 +413,7 @@ class GroqPlugin {
                             ]
                         }
                     ],
-                    model: 'llama-3.2-11b-vision-preview', // Available Groq vision model
+                    model: 'llava-v1.5-7b-4096-preview', // Available Groq vision model
                     max_tokens: 1024
                 });
 
