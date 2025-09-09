@@ -211,8 +211,6 @@ class CaptionEditorPlugin {
         let tempFilePath = null;
         
         try {
-            await this.bot.messageHandler.reply(messageInfo, '📝 Processing media caption...');
-
             // Download media to temp directory
             const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
             if (!buffer) {
@@ -247,27 +245,27 @@ class CaptionEditorPlugin {
             // Send the media
             await this.bot.sock.sendMessage(messageInfo.chat_jid, mediaMessage);
 
-            // Send success message
-            let successMsg = '';
-            if (action === 'added') {
-                successMsg = '✅ Caption added successfully!';
-            } else if (action === 'edited') {
-                successMsg = '✅ Caption edited successfully!';
-            } else if (action === 'removed') {
-                successMsg = '✅ Caption removed successfully!';
-            } else if (action === 'copied') {
-                successMsg = '✅ Media copied with new caption!';
-            }
+            // Send success message only for non-removal actions
+            if (action !== 'removed') {
+                let successMsg = '';
+                if (action === 'added') {
+                    successMsg = '✅ Caption added successfully!';
+                } else if (action === 'edited') {
+                    successMsg = '✅ Caption edited successfully!';
+                } else if (action === 'copied') {
+                    successMsg = '✅ Media copied with new caption!';
+                }
 
-            if (newCaption && action !== 'removed') {
-                successMsg += `\n\n📝 *New caption:* ${newCaption}`;
-            }
+                if (newCaption) {
+                    successMsg += `\n\n📝 *New caption:* ${newCaption}`;
+                }
 
-            if (mediaInfo.originalCaption && action !== 'added') {
-                successMsg += `\n📄 *Original caption:* ${mediaInfo.originalCaption}`;
-            }
+                if (mediaInfo.originalCaption && action !== 'added') {
+                    successMsg += `\n📄 *Original caption:* ${mediaInfo.originalCaption}`;
+                }
 
-            await this.bot.messageHandler.reply(messageInfo, successMsg);
+                await this.bot.messageHandler.reply(messageInfo, successMsg);
+            }
 
         } catch (error) {
             console.error('Error processing media with caption:', error);
