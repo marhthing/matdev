@@ -7,19 +7,11 @@
 const fs = require('fs-extra');
 const path = require('path');
 
-// Only create .env file if it doesn't exist
-function ensureEnvFileIfMissing() {
+// Ensure .env file exists and has all required keys
+function ensureEnvFileWithDefaults() {
     const envPath = path.join(__dirname, '.env');
     
-    // If .env already exists, don't touch it - preserve user settings
-    if (fs.existsSync(envPath)) {
-        console.log('✅ Using existing .env file (preserving user settings)');
-        return;
-    }
-    
-    console.log('📝 Creating default .env file...');
-    
-    // Default environment variables (only used if .env doesn't exist)
+    // Default environment variables
     const defaultEnv = {
         BOT_NAME: 'MATDEV',
         PREFIX: '.',
@@ -54,21 +46,70 @@ function ensureEnvFileIfMissing() {
     };
     
     try {
-        // Write default .env file
-        const envLines = Object.entries(defaultEnv)
-            .map(([key, value]) => `${key}=${value}`)
-            .join('\n');
-            
-        fs.writeFileSync(envPath, envLines + '\n');
+        let envContent = '';
+        let existingKeys = new Set();
         
-        console.log('✅ Default .env file created');
+        // Read existing .env file if it exists
+        if (fs.existsSync(envPath)) {
+            console.log('✅ Found existing .env file - checking for missing keys...');
+            envContent = fs.readFileSync(envPath, 'utf8');
+            
+            // Parse existing keys
+            const lines = envContent.split('\n');
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (trimmedLine && !trimmedLine.startsWith('#') && trimmedLine.includes('=')) {
+                    const key = trimmedLine.split('=')[0].trim();
+                    existingKeys.add(key);
+                }
+            });
+        } else {
+            console.log('📝 Creating new .env file...');
+        }
+        
+        // Find missing keys
+        const missingKeys = [];
+        Object.keys(defaultEnv).forEach(key => {
+            if (!existingKeys.has(key)) {
+                missingKeys.push(key);
+            }
+        });
+        
+        if (missingKeys.length > 0) {
+            console.log(`📝 Adding ${missingKeys.length} missing keys to .env file...`);
+            
+            // Add missing keys to the end of the file
+            const newLines = missingKeys.map(key => `${key}=${defaultEnv[key]}`);
+            
+            if (envContent && !envContent.endsWith('\n')) {
+                envContent += '\n';
+            }
+            
+            envContent += newLines.join('\n') + '\n';
+            
+            // Write updated .env file
+            fs.writeFileSync(envPath, envContent);
+            
+            console.log(`✅ Added missing keys: ${missingKeys.join(', ')}`);
+        } else if (fs.existsSync(envPath)) {
+            console.log('✅ All required keys present in .env file');
+        } else {
+            // Create new .env file with all defaults
+            const envLines = Object.entries(defaultEnv)
+                .map(([key, value]) => `${key}=${value}`)
+                .join('\n');
+                
+            fs.writeFileSync(envPath, envLines + '\n');
+            console.log('✅ Default .env file created');
+        }
+        
     } catch (error) {
-        console.warn('⚠️ Could not create default .env file:', error.message);
+        console.warn('⚠️ Could not update .env file:', error.message);
     }
 }
 
-// Only create .env if it doesn't exist
-ensureEnvFileIfMissing();
+// Ensure .env file exists and has all required keys
+ensureEnvFileWithDefaults();
 
 // Load environment variables
 require('dotenv').config();
