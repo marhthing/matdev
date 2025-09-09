@@ -70,6 +70,39 @@ class CaptionEditorPlugin {
             plugin: 'captioneditor',
             source: 'captioneditor.js'
         });
+
+        // Register aliases
+        this.bot.messageHandler.registerCommand('ac', this.addCaptionCommand.bind(this), {
+            description: 'Add caption to media (alias for addcaption)',
+            usage: `${config.PREFIX}ac <caption> (reply to media)`,
+            category: 'media',
+            plugin: 'captioneditor',
+            source: 'captioneditor.js'
+        });
+
+        this.bot.messageHandler.registerCommand('ec', this.editCaptionCommand.bind(this), {
+            description: 'Edit media caption (alias for editcaption)',
+            usage: `${config.PREFIX}ec <new caption> (reply to media)`,
+            category: 'media',
+            plugin: 'captioneditor',
+            source: 'captioneditor.js'
+        });
+
+        this.bot.messageHandler.registerCommand('rc', this.removeCaptionCommand.bind(this), {
+            description: 'Remove media caption (alias for removecaption)',
+            usage: `${config.PREFIX}rc (reply to media)`,
+            category: 'media',
+            plugin: 'captioneditor',
+            source: 'captioneditor.js'
+        });
+
+        this.bot.messageHandler.registerCommand('cc', this.copyCaptionCommand.bind(this), {
+            description: 'Copy caption text (alias for copycaption)',
+            usage: `${config.PREFIX}cc (reply to media)`,
+            category: 'media',
+            plugin: 'captioneditor',
+            source: 'captioneditor.js'
+        });
     }
 
     /**
