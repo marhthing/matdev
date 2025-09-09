@@ -115,12 +115,39 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const prompt = messageInfo.args.join(' ').trim();
-            if (!prompt) {
+            let prompt = messageInfo.args.join(' ').trim();
+            let contextText = '';
+            
+            // Check if replying to a message
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    contextText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    contextText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    contextText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    contextText = quotedMessage.videoMessage.caption;
+                }
+                
+                // If replying to a message but no additional prompt, use a default
+                if (!prompt && contextText) {
+                    prompt = 'Please analyze or respond to this message:';
+                }
+            }
+
+            if (!prompt && !contextText) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a message.\nUsage: .groq <your message>');
+                    '❌ Please provide a message or reply to any message.\nUsage: .groq <your message> OR reply to any message with .groq');
                 return;
             }
+            
+            // Combine context and prompt
+            const fullPrompt = contextText ? `${prompt}\n\nMessage to analyze: "${contextText}"` : prompt;
 
             const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🤖 Thinking...');
 
@@ -133,7 +160,7 @@ class GroqPlugin {
                         },
                         {
                             role: 'user',
-                            content: prompt
+                            content: fullPrompt
                         }
                     ],
                     model: 'llama-3.3-70b-versatile', // Latest Llama 3.3 model
@@ -345,72 +372,127 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const question = messageInfo.args.join(' ').trim();
-            if (!question) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a question about the image.\nUsage: .vision <question> (reply to image)');
-                return;
-            }
-
+            let question = messageInfo.args.join(' ').trim();
+            let contextText = '';
+            
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
 
-            if (!quotedMessage || !quotedMessage.imageMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image.');
+            // Handle both image analysis and text analysis
+            if (quotedMessage) {
+                if (quotedMessage.imageMessage) {
+                    // Image analysis mode
+                    if (!question) {
+                        question = 'What do you see in this image? Please describe it in detail.';
+                    }
+                } else {
+                    // Text analysis mode
+                    if (quotedMessage.conversation) {
+                        contextText = quotedMessage.conversation;
+                    } else if (quotedMessage.extendedTextMessage?.text) {
+                        contextText = quotedMessage.extendedTextMessage.text;
+                    } else if (quotedMessage.imageMessage?.caption) {
+                        contextText = quotedMessage.imageMessage.caption;
+                    } else if (quotedMessage.videoMessage?.caption) {
+                        contextText = quotedMessage.videoMessage.caption;
+                    }
+                    
+                    if (!question && contextText) {
+                        question = 'Please analyze this text and provide insights:';
+                    }
+                }
+            }
+
+            if (!question && !contextText && (!quotedMessage || !quotedMessage.imageMessage)) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a question or reply to an image/message.\nUsage: .vision <question> (reply to image/text)');
                 return;
             }
 
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '👁️ Analyzing image...');
 
             try {
-                // Download image
-                const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                if (quotedMessage && quotedMessage.imageMessage) {
+                    // Image analysis mode
+                    const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
 
-                if (!imageBuffer || imageBuffer.length === 0) {
-                    throw new Error('Failed to download image');
-                }
+                    if (!imageBuffer || imageBuffer.length === 0) {
+                        throw new Error('Failed to download image');
+                    }
 
-                // Convert to base64
-                const base64Image = imageBuffer.toString('base64');
-                const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
+                    // Convert to base64
+                    const base64Image = imageBuffer.toString('base64');
+                    const mimeType = quotedMessage.imageMessage.mimetype || 'image/jpeg';
 
-                // Analyze with Groq Vision
-                const completion = await groq.chat.completions.create({
-                    messages: [
-                        {
-                            role: 'user',
-                            content: [
-                                {
-                                    type: 'text',
-                                    text: question
-                                },
-                                {
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: `data:${mimeType};base64,${base64Image}`
+                    // Analyze with Groq Vision
+                    const completion = await groq.chat.completions.create({
+                        messages: [
+                            {
+                                role: 'user',
+                                content: [
+                                    {
+                                        type: 'text',
+                                        text: question
+                                    },
+                                    {
+                                        type: 'image_url',
+                                        image_url: {
+                                            url: `data:${mimeType};base64,${base64Image}`
+                                        }
                                     }
-                                }
-                            ]
-                        }
-                    ],
-                    model: 'llama-3.3-70b-versatile', // Using multimodal capabilities
-                    max_tokens: 1024
-                });
+                                ]
+                            }
+                        ],
+                        model: 'llama-3.3-70b-versatile',
+                        max_tokens: 1024
+                    });
 
-                const response = completion.choices[0]?.message?.content;
-                if (!response) {
-                    throw new Error('Empty response from vision model');
+                    const response = completion.choices[0]?.message?.content;
+                    if (!response) {
+                        throw new Error('Empty response from vision model');
+                    }
+
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `👁️ *Vision Analysis:*\n\n**Question:** ${question}\n\n**Answer:** ${response}`,
+                        edit: processingMsg.key
+                    });
+                } else if (contextText) {
+                    // Text analysis mode
+                    const fullPrompt = `${question}\n\nText to analyze: "${contextText}"`;
+                    
+                    const completion = await groq.chat.completions.create({
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are MATDEV Vision AI, specialized in detailed analysis and insights. Provide comprehensive analysis of the given content.'
+                            },
+                            {
+                                role: 'user',
+                                content: fullPrompt
+                            }
+                        ],
+                        model: 'llama-3.3-70b-versatile',
+                        temperature: 0.7,
+                        max_tokens: 1024
+                    });
+
+                    const response = completion.choices[0]?.message?.content;
+                    if (!response) {
+                        throw new Error('Empty response from vision model');
+                    }
+
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `👁️ *Vision Text Analysis:*\n\n**Question:** ${question}\n\n**Analysis:** ${response}`,
+                        edit: processingMsg.key
+                    });
+                } else {
+                    throw new Error('No image or text content found');
                 }
-
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `👁️ *Vision Analysis:*\n\n**Question:** ${question}\n\n**Answer:** ${response}`,
-                    edit: processingMsg.key
-                });
 
             } catch (error) {
                 console.error('Vision processing error:', error);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Error analyzing image. Please ensure the image is clear and in a supported format.',
+                    text: '❌ Error analyzing content. Please ensure the image is clear or text is readable.',
                     edit: processingMsg.key
                 });
             }
@@ -512,12 +594,39 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const prompt = messageInfo.args.join(' ').trim();
-            if (!prompt) {
+            let prompt = messageInfo.args.join(' ').trim();
+            let contextText = '';
+            
+            // Check if replying to a message
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    contextText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    contextText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    contextText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    contextText = quotedMessage.videoMessage.caption;
+                }
+                
+                // If replying to a message but no additional prompt, use a default
+                if (!prompt && contextText) {
+                    prompt = 'Please provide a comprehensive analysis with web search for this:';
+                }
+            }
+
+            if (!prompt && !contextText) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a question or request.\nUsage: .compound <your question>');
+                    '❌ Please provide a question or reply to any message.\nUsage: .compound <your question> OR reply to any message with .compound');
                 return;
             }
+            
+            // Combine context and prompt
+            const fullPrompt = contextText ? `${prompt}\n\nContent to analyze: "${contextText}"` : prompt;
 
             const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🧠 Processing with advanced AI...');
 
@@ -530,7 +639,7 @@ class GroqPlugin {
                         },
                         {
                             role: 'user',
-                            content: prompt
+                            content: fullPrompt
                         }
                     ],
                     model: 'groq/compound',
@@ -576,12 +685,39 @@ class GroqPlugin {
         try {
             const groq = this.getGroqClient();
 
-            const prompt = messageInfo.args.join(' ').trim();
-            if (!prompt) {
+            let prompt = messageInfo.args.join(' ').trim();
+            let contextText = '';
+            
+            // Check if replying to a message
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    contextText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    contextText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    contextText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    contextText = quotedMessage.videoMessage.caption;
+                }
+                
+                // If replying to a message but no additional prompt, use a default
+                if (!prompt && contextText) {
+                    prompt = 'Analyze what tools or steps would be needed for this task:';
+                }
+            }
+
+            if (!prompt && !contextText) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a request that requires function calling.\nUsage: .tools <your request>');
+                    '❌ Please provide a request or reply to any message.\nUsage: .tools <your request> OR reply to any message with .tools');
                 return;
             }
+            
+            // Combine context and prompt
+            const fullPrompt = contextText ? `${prompt}\n\nTask to analyze: "${contextText}"` : prompt;
 
             const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🛠️ AI analyzing tools needed...');
 
@@ -594,7 +730,7 @@ class GroqPlugin {
                         },
                         {
                             role: 'user',
-                            content: prompt
+                            content: fullPrompt
                         }
                     ],
                     model: 'llama-3.3-70b-versatile', // Using versatile model for tool analysis
