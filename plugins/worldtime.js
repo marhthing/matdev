@@ -179,6 +179,15 @@ class WorldTimePlugin {
             source: 'worldtime.js'
         });
 
+        // World clock alias
+        this.bot.messageHandler.registerCommand('wc', this.worldClockCommand.bind(this), {
+            description: 'Show multiple world times at once (alias for worldclock)',
+            usage: `${config.PREFIX}wc`,
+            category: 'utility',
+            plugin: 'worldtime',
+            source: 'worldtime.js'
+        });
+
         // Timezone converter
         this.bot.messageHandler.registerCommand('timeconv', this.timeConverterCommand.bind(this), {
             description: 'Convert time between timezones',
