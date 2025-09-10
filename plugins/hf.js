@@ -122,12 +122,18 @@ class HuggingFacePlugin {
                 const outputPath = path.join(this.tempDir, `sdxl_${timestamp}.png`);
                 
                 // Check if response is actually an image or an error
-                const responseText = Buffer.from(response.data).toString('utf8');
-                if (responseText.includes('"error"') || responseText.includes('{"error"')) {
+                if (response.headers['content-type']?.includes('application/json')) {
                     // Response is JSON error, not image data
-                    const errorData = JSON.parse(responseText);
+                    const errorData = response.data;
                     throw new Error(`API Error: ${errorData.error || 'Unknown error'}`);
                 }
+                
+                // Verify we have binary image data
+                if (!Buffer.isBuffer(response.data)) {
+                    throw new Error('Invalid response: Expected binary image data');
+                }
+                
+                console.log(`📊 Image data info: ${response.data.length} bytes, Content-Type: ${response.headers['content-type'] || 'unknown'}`);
                 
                 // Save image data to temp file
                 await fs.writeFile(outputPath, response.data);
