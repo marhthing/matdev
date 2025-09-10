@@ -29,6 +29,24 @@ class CurrencyPlugin {
             'lbp': '£', 'pkr': '₨', 'lkr': '₨', 'bdt': '৳', 'afn': '؋'
         };
 
+        // Currency name mapping for common names to codes
+        this.currencyMapping = {
+            'dollar': 'usd',
+            'dollars': 'usd',
+            'euro': 'eur',
+            'euros': 'eur',
+            'pound': 'gbp',
+            'pounds': 'gbp',
+            'yen': 'jpy',
+            'yuan': 'cny',
+            'rupee': 'inr',
+            'rupees': 'inr',
+            'naira': 'ngn',
+            'rand': 'zar',
+            'bitcoin': 'btc',
+            'ethereum': 'eth'
+        };
+
     }
 
     /**
