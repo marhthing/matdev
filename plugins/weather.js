@@ -322,9 +322,6 @@ class WeatherPlugin {
 
             const location = args.join(' ').trim();
             
-            // Send typing indicator
-            await this.bot.messageHandler.reply(messageInfo, '🔍 Getting weather data...');
-
             // Get weather data
             const weatherData = await this.getWeatherData(location);
             
