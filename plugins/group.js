@@ -18,6 +18,10 @@ class GroupPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
+        
+        // Initialize tempkick system
+        await this.initializeTempKickSystem();
+        
         console.log('✅ Group plugin loaded');
     }
 
@@ -485,26 +489,18 @@ class GroupPlugin {
                 `⏰ User @${displayName} has been temporarily removed from the group.\nThey will be added back in 5 minutes.`
             );
 
-            // Set timeout to add them back after 5 minutes (300,000 milliseconds)
-            setTimeout(async () => {
-                try {
-                    // Add the user back to the group
-                    await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'add');
-                    
-                    // Send notification
-                    await this.bot.sock.sendMessage(chat_jid, {
-                        text: `✅ User @${displayName} has been added back to the group after temporary kick.`,
-                        mentions: [targetJid]
-                    });
-                } catch (error) {
-                    console.error('Error adding user back after temp kick:', error);
-                    
-                    // Notify about the error
-                    await this.bot.sock.sendMessage(chat_jid, {
-                        text: `❌ Failed to add @${displayName} back to the group automatically. Please add them back manually.`
-                    });
-                }
-            }, 5 * 60 * 1000); // 5 minutes
+            // Save tempkick data persistently instead of using setTimeout
+            const kickTime = Date.now();
+            const restoreTime = kickTime + (5 * 60 * 1000); // 5 minutes from now
+            
+            await this.saveTempKick({
+                userJid: targetJid,
+                groupJid: chat_jid,
+                displayName: displayName,
+                kickTime: kickTime,
+                restoreTime: restoreTime,
+                kickedBy: sender_jid
+            });
 
         } catch (error) {
             console.error('Error in temp kick user:', error);
@@ -1048,9 +1044,121 @@ class GroupPlugin {
     }
 
     /**
+     * Initialize tempkick system
+     */
+    async initializeTempKickSystem() {
+        try {
+            // Start periodic checker for pending tempkicks (every 30 seconds)
+            this.tempKickInterval = setInterval(async () => {
+                await this.checkPendingTempKicks();
+            }, 30 * 1000);
+            
+            // Check for any pending tempkicks from previous session on startup
+            setTimeout(async () => {
+                await this.checkPendingTempKicks();
+            }, 5000); // Wait 5 seconds after startup to ensure connection is stable
+            
+            console.log('⏰ TempKick persistence system initialized');
+        } catch (error) {
+            console.error('Error initializing tempkick system:', error);
+        }
+    }
+
+    /**
+     * Save tempkick data persistently
+     */
+    async saveTempKick(tempKickData) {
+        try {
+            const tempKicks = this.bot.database.getData('tempKicks') || {};
+            const kickId = `${tempKickData.groupJid}_${tempKickData.userJid}_${tempKickData.kickTime}`;
+            
+            tempKicks[kickId] = tempKickData;
+            
+            this.bot.database.setData('tempKicks', tempKicks);
+            console.log(`💾 Saved tempkick: ${tempKickData.displayName} in ${tempKickData.groupJid}`);
+        } catch (error) {
+            console.error('Error saving tempkick data:', error);
+        }
+    }
+
+    /**
+     * Remove tempkick data after restoration
+     */
+    async removeTempKick(kickId) {
+        try {
+            const tempKicks = this.bot.database.getData('tempKicks') || {};
+            delete tempKicks[kickId];
+            this.bot.database.setData('tempKicks', tempKicks);
+        } catch (error) {
+            console.error('Error removing tempkick data:', error);
+        }
+    }
+
+    /**
+     * Check for pending tempkicks and restore users when time is up
+     */
+    async checkPendingTempKicks() {
+        try {
+            const tempKicks = this.bot.database.getData('tempKicks') || {};
+            const currentTime = Date.now();
+            const restored = [];
+            
+            for (const [kickId, tempKickData] of Object.entries(tempKicks)) {
+                if (currentTime >= tempKickData.restoreTime) {
+                    try {
+                        // Add the user back to the group
+                        await this.bot.sock.groupParticipantsUpdate(
+                            tempKickData.groupJid, 
+                            [tempKickData.userJid], 
+                            'add'
+                        );
+                        
+                        // Send notification
+                        await this.bot.sock.sendMessage(tempKickData.groupJid, {
+                            text: `✅ User @${tempKickData.displayName} has been added back to the group after temporary kick.`,
+                            mentions: [tempKickData.userJid]
+                        });
+                        
+                        // Remove from storage
+                        await this.removeTempKick(kickId);
+                        restored.push(tempKickData.displayName);
+                        
+                        console.log(`✅ Restored tempkick: ${tempKickData.displayName} to ${tempKickData.groupJid}`);
+                        
+                    } catch (error) {
+                        console.error(`Error restoring tempkick for ${tempKickData.displayName}:`, error);
+                        
+                        // Notify about the error in the group
+                        try {
+                            await this.bot.sock.sendMessage(tempKickData.groupJid, {
+                                text: `❌ Failed to add @${tempKickData.displayName} back to the group automatically. Please add them back manually.`
+                            });
+                        } catch (notifyError) {
+                            console.error('Error sending restoration failure notification:', notifyError);
+                        }
+                        
+                        // Remove from storage even if restoration failed to prevent repeated attempts
+                        await this.removeTempKick(kickId);
+                    }
+                }
+            }
+            
+            if (restored.length > 0) {
+                console.log(`⏰ Restored ${restored.length} tempkicked users: ${restored.join(', ')}`);
+            }
+        } catch (error) {
+            console.error('Error checking pending tempkicks:', error);
+        }
+    }
+
+    /**
      * Cleanup method
      */
     async cleanup() {
+        // Clear tempkick interval
+        if (this.tempKickInterval) {
+            clearInterval(this.tempKickInterval);
+        }
         console.log('🧹 Group plugin cleanup completed');
     }
 }
