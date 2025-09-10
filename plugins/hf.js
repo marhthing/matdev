@@ -121,22 +121,29 @@ class HuggingFacePlugin {
                 const timestamp = Date.now();
                 const outputPath = path.join(this.tempDir, `sdxl_${timestamp}.png`);
                 
-                // Check if response is actually an image or an error
+                // Check if response is JSON error
                 if (response.headers['content-type']?.includes('application/json')) {
-                    // Response is JSON error, not image data
                     const errorData = response.data;
                     throw new Error(`API Error: ${errorData.error || 'Unknown error'}`);
                 }
                 
-                // Verify we have binary image data
-                if (!Buffer.isBuffer(response.data)) {
-                    throw new Error('Invalid response: Expected binary image data');
+                let imageData = response.data;
+                
+                // Check if response is Base64-encoded
+                if (Buffer.isBuffer(imageData)) {
+                    const dataString = imageData.toString('utf8');
+                    // If it starts with quote and contains Base64 PNG header
+                    if (dataString.startsWith('"') && dataString.includes('iVBORw0KGgo')) {
+                        console.log('📦 Detected Base64-encoded image, decoding...');
+                        // Remove quotes and decode Base64
+                        const base64String = dataString.replace(/^"/, '').replace(/"$/, '');
+                        imageData = Buffer.from(base64String, 'base64');
+                        console.log(`✅ Decoded: ${base64String.length} chars -> ${imageData.length} bytes`);
+                    }
                 }
                 
-                console.log(`📊 Image data info: ${response.data.length} bytes, Content-Type: ${response.headers['content-type'] || 'unknown'}`);
-                
-                // Save image data to temp file
-                await fs.writeFile(outputPath, response.data);
+                // Save decoded image data to temp file
+                await fs.writeFile(outputPath, imageData);
                 
                 // Verify file was created and has content
                 const stats = await fs.stat(outputPath);
