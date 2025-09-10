@@ -473,12 +473,37 @@ class GroupPlugin {
                 return;
             }
 
-            // Get display name for the target user
+            // Resolve LID to proper phone number for restoration and display
+            let resolvedJid = targetJid;
             let displayName = targetJid;
-            if (displayName.includes('@lid')) {
-                displayName = displayName.split('@')[0];
-            } else if (displayName.includes('@s.whatsapp.net')) {
-                displayName = displayName.replace('@s.whatsapp.net', '');
+            
+            // Get the quoted message context for proper JID resolution
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage && targetJid.includes('@lid')) {
+                // For LID users, try to get the phone number from context
+                const participantPn = message?.extendedTextMessage?.contextInfo?.participantPn;
+                const senderPn = message?.extendedTextMessage?.contextInfo?.senderPn;
+                
+                if (participantPn) {
+                    resolvedJid = participantPn;
+                    displayName = participantPn.replace('@s.whatsapp.net', '');
+                    console.log(`📱 Resolved LID ${targetJid} to phone ${participantPn}`);
+                } else if (senderPn) {
+                    resolvedJid = senderPn;
+                    displayName = senderPn.replace('@s.whatsapp.net', '');
+                    console.log(`📱 Resolved LID ${targetJid} to phone ${senderPn}`);
+                } else {
+                    // Fallback: convert LID to phone format manually
+                    const lidPart = targetJid.split('@')[0];
+                    resolvedJid = `${lidPart}@s.whatsapp.net`;
+                    displayName = lidPart;
+                    console.log(`📱 Manual LID conversion: ${targetJid} -> ${resolvedJid}`);
+                }
+            } else {
+                // Regular phone number JID
+                if (displayName.includes('@s.whatsapp.net')) {
+                    displayName = displayName.replace('@s.whatsapp.net', '');
+                }
             }
 
             // Perform the temporary kick
@@ -494,7 +519,8 @@ class GroupPlugin {
             const restoreTime = kickTime + (5 * 60 * 1000); // 5 minutes from now
             
             await this.saveTempKick({
-                userJid: targetJid,
+                userJid: targetJid,           // Original JID used for kicking
+                resolvedJid: resolvedJid,     // Phone JID for adding back
                 groupJid: chat_jid,
                 displayName: displayName,
                 kickTime: kickTime,
@@ -1106,12 +1132,17 @@ class GroupPlugin {
             for (const [kickId, tempKickData] of Object.entries(tempKicks)) {
                 if (currentTime >= tempKickData.restoreTime) {
                     try {
+                        // Use resolved JID for adding back (works for both LID and regular users)
+                        const jidToAdd = tempKickData.resolvedJid || tempKickData.userJid;
+                        
                         // Add the user back to the group
                         await this.bot.sock.groupParticipantsUpdate(
                             tempKickData.groupJid, 
-                            [tempKickData.userJid], 
+                            [jidToAdd], 
                             'add'
                         );
+                        
+                        console.log(`✅ Successfully added back ${tempKickData.displayName} using JID: ${jidToAdd}`);
                         
                         // Send notification
                         await this.bot.sock.sendMessage(tempKickData.groupJid, {
