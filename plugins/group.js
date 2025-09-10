@@ -54,6 +54,16 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Add user command
+        this.bot.messageHandler.registerCommand('add', this.addUser.bind(this), {
+            description: 'Add a user to the group by JID or phone number (admin only)',
+            usage: `${config.PREFIX}add <jid|phone>`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -480,6 +490,157 @@ class GroupPlugin {
             console.error('Error in temp kick user:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to temporarily kick user. Please try again or check if I have admin permissions.'
+            );
+        }
+    }
+
+    /**
+     * Add user to group (admin only)
+     */
+    async addUser(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, args } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Check if target JID/phone is provided
+            if (!args || args.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide a JID or phone number to add.\nExample: `.add 234701234567` or `.add 234701234567@s.whatsapp.net`'
+                );
+                return;
+            }
+
+            let targetInput = args[0];
+            let targetJid;
+
+            // Convert phone number to JID format if needed
+            if (targetInput.includes('@')) {
+                // Already in JID format
+                targetJid = targetInput;
+            } else {
+                // Convert phone number to JID
+                // Remove any non-digit characters
+                const cleanPhone = targetInput.replace(/\D/g, '');
+                
+                if (cleanPhone.length < 10) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Invalid phone number. Please provide a valid phone number or JID.'
+                    );
+                    return;
+                }
+                
+                targetJid = `${cleanPhone}@s.whatsapp.net`;
+            }
+
+            // Check if user is already in the group
+            const existingParticipant = groupMetadata.participants.find(p => p.id === targetJid);
+            if (existingParticipant) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is already in this group.'
+                );
+                return;
+            }
+
+            // Get display name for the target user
+            let displayName = targetJid;
+            if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            } else if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            }
+
+            try {
+                // Attempt to add the user directly
+                const addResult = await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'add');
+                
+                // Check if the add was successful
+                if (addResult && addResult[0] && addResult[0].status === '200') {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `✅ User @${displayName} has been added to the group successfully.`
+                    );
+                } else {
+                    // Add failed, try to send invitation link
+                    await this.sendInvitationLink(messageInfo, targetJid, displayName, chat_jid);
+                }
+
+            } catch (addError) {
+                console.error('Direct add failed:', addError);
+                // Add failed, try to send invitation link
+                await this.sendInvitationLink(messageInfo, targetJid, displayName, chat_jid);
+            }
+
+        } catch (error) {
+            console.error('Error in add user:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to add user. Please try again or check if I have admin permissions.'
+            );
+        }
+    }
+
+    /**
+     * Send invitation link when direct add fails
+     */
+    async sendInvitationLink(messageInfo, targetJid, displayName, chat_jid) {
+        try {
+            // Generate group invitation link
+            const inviteCode = await this.bot.sock.groupInviteCode(chat_jid);
+            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+
+            // Try to send the invitation link to the target user
+            try {
+                await this.bot.sock.sendMessage(targetJid, {
+                    text: `🎉 You've been invited to join a WhatsApp group!\n\n` +
+                          `Click the link below to join:\n${inviteLink}\n\n` +
+                          `If the link doesn't work, please ask the group admin to add you manually.`
+                });
+
+                // Notify in the group that invitation was sent
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `📩 Could not add @${displayName} directly. An invitation link has been sent to them privately.\n\n` +
+                    `Invitation link: ${inviteLink}`
+                );
+
+            } catch (sendError) {
+                console.error('Failed to send invitation privately:', sendError);
+                
+                // If we can't send privately, just show the link in the group
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `📩 Could not add @${displayName} directly or send invitation privately.\n\n` +
+                    `Please share this invitation link with them:\n${inviteLink}`
+                );
+            }
+
+        } catch (inviteError) {
+            console.error('Failed to generate invitation link:', inviteError);
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Could not add @${displayName} and failed to generate invitation link. ` +
+                `Please try adding them manually or check group settings.`
             );
         }
     }
