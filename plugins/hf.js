@@ -146,10 +146,12 @@ class HuggingFacePlugin {
 
                 // Send the generated image by reading from temp file
                 const imageBuffer = await fs.readFile(outputPath);
+                
+                // Send image with proper format
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    image: imageBuffer,
+                    image: { url: outputPath },
                     caption: caption
-                });
+                }, { quoted: messageInfo.message });
 
                 console.log(`✅ Image sent successfully, cleaning up temp file`);
                 
