@@ -499,7 +499,7 @@ class GroupPlugin {
      */
     async addUser(messageInfo) {
         try {
-            const { chat_jid, sender_jid, args } = messageInfo;
+            const { chat_jid, sender_jid, args, message } = messageInfo;
             
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
@@ -528,16 +528,37 @@ class GroupPlugin {
                 return;
             }
 
-            // Check if target JID/phone is provided
-            if (!args || args.length === 0) {
+            let targetInput = null;
+            let targetJid = null;
+
+            // First, try to extract from quoted/tagged message
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage) {
+                // Try to extract phone number from quoted message
+                targetInput = await this.extractPhoneFromMessage(quotedMessage);
+                
+                if (targetInput) {
+                    console.log(`📱 Extracted phone number from tagged message: ${targetInput}`);
+                }
+            }
+
+            // If no phone found in quoted message, check args
+            if (!targetInput && args && args.length > 0) {
+                targetInput = args[0];
+            }
+
+            // If still no input, show usage
+            if (!targetInput) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a JID or phone number to add.\nExample: `.add 234701234567` or `.add 234701234567@s.whatsapp.net`'
+                    '❌ Please provide a JID or phone number to add, or tag a message containing a phone number/contact.\n\n' +
+                    'Examples:\n' +
+                    '• `.add 234701234567`\n' +
+                    '• `.add 234701234567@s.whatsapp.net`\n' +
+                    '• Tag a message with phone number and use `.add`\n' +
+                    '• Tag a contact message and use `.add`'
                 );
                 return;
             }
-
-            let targetInput = args[0];
-            let targetJid;
 
             // Convert phone number to JID format if needed
             if (targetInput.includes('@')) {
@@ -600,6 +621,102 @@ class GroupPlugin {
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to add user. Please try again or check if I have admin permissions.'
             );
+        }
+    }
+
+    /**
+     * Extract phone number from various message types
+     */
+    async extractPhoneFromMessage(quotedMessage) {
+        try {
+            // Handle contact messages
+            if (quotedMessage.contactMessage) {
+                const contact = quotedMessage.contactMessage;
+                
+                // Try to extract from vCard
+                if (contact.vcard) {
+                    const vcard = contact.vcard;
+                    
+                    // Look for phone numbers in vCard format
+                    const phoneMatch = vcard.match(/TEL[^:]*:[\+]?([0-9\s\-\(\)]+)/i);
+                    if (phoneMatch) {
+                        const phone = phoneMatch[1].replace(/[\s\-\(\)]/g, '');
+                        console.log(`📇 Extracted phone from vCard: ${phone}`);
+                        return phone;
+                    }
+                }
+                
+                // Try display name if it contains numbers
+                if (contact.displayName) {
+                    const nameMatch = contact.displayName.match(/[\+]?([0-9]{10,15})/);
+                    if (nameMatch) {
+                        const phone = nameMatch[1];
+                        console.log(`📇 Extracted phone from contact display name: ${phone}`);
+                        return phone;
+                    }
+                }
+            }
+
+            // Handle contact array messages
+            if (quotedMessage.contactsArrayMessage && quotedMessage.contactsArrayMessage.contacts) {
+                for (const contact of quotedMessage.contactsArrayMessage.contacts) {
+                    if (contact.vcard) {
+                        const phoneMatch = contact.vcard.match(/TEL[^:]*:[\+]?([0-9\s\-\(\)]+)/i);
+                        if (phoneMatch) {
+                            const phone = phoneMatch[1].replace(/[\s\-\(\)]/g, '');
+                            console.log(`📇 Extracted phone from contacts array: ${phone}`);
+                            return phone;
+                        }
+                    }
+                }
+            }
+
+            // Handle regular text messages with phone numbers
+            let messageText = '';
+            
+            if (quotedMessage.conversation) {
+                messageText = quotedMessage.conversation;
+            } else if (quotedMessage.extendedTextMessage?.text) {
+                messageText = quotedMessage.extendedTextMessage.text;
+            } else if (quotedMessage.imageMessage?.caption) {
+                messageText = quotedMessage.imageMessage.caption;
+            } else if (quotedMessage.videoMessage?.caption) {
+                messageText = quotedMessage.videoMessage.caption;
+            } else if (quotedMessage.documentMessage?.caption) {
+                messageText = quotedMessage.documentMessage.caption;
+            }
+
+            if (messageText) {
+                // Look for phone numbers in text
+                // Support various phone number formats
+                const phonePatterns = [
+                    /(?:\+?234)?[\s\-]?([0-9]{10,11})/g,           // Nigerian numbers
+                    /(?:\+?1)?[\s\-]?([0-9]{10})/g,               // US numbers
+                    /(?:\+?44)?[\s\-]?([0-9]{10,11})/g,           // UK numbers
+                    /(?:\+?91)?[\s\-]?([0-9]{10})/g,              // Indian numbers
+                    /(?:\+?[0-9]{1,4})?[\s\-]?([0-9]{8,15})/g     // General international
+                ];
+
+                for (const pattern of phonePatterns) {
+                    const matches = messageText.match(pattern);
+                    if (matches) {
+                        // Get the longest match (most likely to be complete)
+                        const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
+                        const cleanPhone = longestMatch.replace(/[\s\-\+]/g, '');
+                        
+                        if (cleanPhone.length >= 10) {
+                            console.log(`📱 Extracted phone from message text: ${cleanPhone}`);
+                            return cleanPhone;
+                        }
+                    }
+                }
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('Error extracting phone from message:', error);
+            return null;
         }
     }
 
