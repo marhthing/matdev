@@ -4,6 +4,18 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 
 # Recent Changes
 
+## September 10, 2025 - Weather Plugin Implementation ✅
+- **NEW FEATURE**: Complete weather plugin with global location support
+- Added `.weather` and `.w` commands for weather information lookup
+- **OpenWeatherMap Integration**: Uses OpenWeatherMap API for accurate weather data
+- **Global Coverage**: Supports cities, countries, and coordinates worldwide
+- **Smart Location Recognition**: Handles city names, country codes, and lat/lon coordinates
+- **Rich Weather Display**: Shows temperature, humidity, wind, pressure, visibility, sunrise/sunset
+- **Visual Enhancements**: Weather condition icons and country flags
+- **Error Handling**: Comprehensive error handling for invalid locations and API issues
+- **Free Tier Ready**: Optimized for OpenWeatherMap's free tier (1,000 calls/day)
+- **Hot Reload Support**: Plugin automatically loaded via bot's hot reload system
+
 ## September 4, 2025 - Group LID Registration System Implementation
 - **NEW FEATURE**: Complete group LID registration system for WhatsApp Business accounts
 - Added `.rg` command for one-time LID registration in groups (becomes invalid after registration)
@@ -88,8 +100,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Bot Operation Notes
 - Bot is operational and displaying QR code for WhatsApp connection
-- All 6 plugins loaded successfully 
+- All 20 plugins loaded successfully including new weather plugin
 - Update commands (.update, .updatenow) are owner-only and working correctly
+- Weather plugin ready (requires WEATHER_API_KEY for OpenWeatherMap)
 - Bot ready for production deployment as VM service
 
 # System Architecture
@@ -154,7 +167,7 @@ The system follows a modular, object-oriented design with clear separation of co
 - Environment variable configuration for easy deployment
 
 ## Optional External APIs
-- **Weather API** - Weather information commands (API key required)
+- **OpenWeatherMap API** - Weather information commands (.weather, .w) with global coverage (API key required)
 - **News API** - News fetching functionality (API key required)
 - **Remove.bg API** - Background removal for images (API key required)
 
