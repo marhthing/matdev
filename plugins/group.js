@@ -566,15 +566,24 @@ class GroupPlugin {
                 targetJid = targetInput;
             } else {
                 // Convert phone number to JID
-                // Remove any non-digit characters
-                const cleanPhone = targetInput.replace(/\D/g, '');
+                // Remove any non-digit characters (spaces, +, -, etc.)
+                let cleanPhone = targetInput.replace(/\D/g, '');
                 
-                if (cleanPhone.length < 10) {
+                // Handle various international formats
+                if (cleanPhone.length < 8) {
                     await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Invalid phone number. Please provide a valid phone number or JID.'
+                        '❌ Invalid phone number. Please provide a valid phone number (minimum 8 digits) or JID.\n\n' +
+                        'Examples:\n' +
+                        '• `+234 913 504 8063`\n' +
+                        '• `234913504063`\n' +
+                        '• `2349135048063`'
                     );
                     return;
                 }
+                
+                // If the phone starts with country code, use as is
+                // If it's a local number (10-11 digits), you might want to add country code
+                console.log(`📱 Processing phone number: ${targetInput} → ${cleanPhone}`);
                 
                 targetJid = `${cleanPhone}@s.whatsapp.net`;
             }
