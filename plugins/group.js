@@ -477,27 +477,26 @@ class GroupPlugin {
             let resolvedJid = targetJid;
             let displayName = targetJid;
             
-            // Get the quoted message context for proper JID resolution
-            const quotedMsgContext = message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            if (quotedMsgContext && targetJid.includes('@lid')) {
-                // For LID users, try to get the phone number from context
+            // For business accounts (@lid), we need to extract the actual phone number
+            if (targetJid.includes('@lid')) {
+                // Try to get phone number from message context
                 const participantPn = message?.extendedTextMessage?.contextInfo?.participantPn;
                 const senderPn = message?.extendedTextMessage?.contextInfo?.senderPn;
                 
-                if (participantPn) {
+                if (participantPn && participantPn.includes('@s.whatsapp.net')) {
                     resolvedJid = participantPn;
                     displayName = participantPn.replace('@s.whatsapp.net', '');
                     console.log(`📱 Resolved LID ${targetJid} to phone ${participantPn}`);
-                } else if (senderPn) {
+                } else if (senderPn && senderPn.includes('@s.whatsapp.net')) {
                     resolvedJid = senderPn;
                     displayName = senderPn.replace('@s.whatsapp.net', '');
                     console.log(`📱 Resolved LID ${targetJid} to phone ${senderPn}`);
                 } else {
-                    // Fallback: convert LID to phone format manually
-                    const lidPart = targetJid.split('@')[0];
-                    resolvedJid = `${lidPart}@s.whatsapp.net`;
-                    displayName = lidPart;
-                    console.log(`📱 Manual LID conversion: ${targetJid} -> ${resolvedJid}`);
+                    // For business accounts, we cannot reliably convert LID to phone number
+                    // We'll store the original LID and try to add back using the same JID
+                    resolvedJid = targetJid;
+                    displayName = targetJid.split('@')[0];
+                    console.log(`⚠️ Could not resolve LID to phone: ${targetJid} - will use original JID for restoration`);
                 }
             } else {
                 // Regular phone number JID
@@ -1132,22 +1131,45 @@ class GroupPlugin {
             for (const [kickId, tempKickData] of Object.entries(tempKicks)) {
                 if (currentTime >= tempKickData.restoreTime) {
                     try {
-                        // Use resolved JID for adding back (works for both LID and regular users)
-                        const jidToAdd = tempKickData.resolvedJid || tempKickData.userJid;
+                        // For business accounts (@lid), try multiple approaches
+                        let addResult = null;
+                        let jidToAdd = tempKickData.resolvedJid || tempKickData.userJid;
                         
-                        // Add the user back to the group
-                        await this.bot.sock.groupParticipantsUpdate(
-                            tempKickData.groupJid, 
-                            [jidToAdd], 
-                            'add'
-                        );
-                        
-                        console.log(`✅ Successfully added back ${tempKickData.displayName} using JID: ${jidToAdd}`);
+                        // First, try with resolved JID (if we have a phone number)
+                        if (tempKickData.resolvedJid && tempKickData.resolvedJid !== tempKickData.userJid) {
+                            try {
+                                addResult = await this.bot.sock.groupParticipantsUpdate(
+                                    tempKickData.groupJid, 
+                                    [tempKickData.resolvedJid], 
+                                    'add'
+                                );
+                                console.log(`✅ Successfully added back ${tempKickData.displayName} using resolved JID: ${tempKickData.resolvedJid}`);
+                            } catch (resolvedError) {
+                                console.log(`⚠️ Failed to add back using resolved JID ${tempKickData.resolvedJid}, trying original JID`);
+                                // Try with original JID if resolved fails
+                                addResult = await this.bot.sock.groupParticipantsUpdate(
+                                    tempKickData.groupJid, 
+                                    [tempKickData.userJid], 
+                                    'add'
+                                );
+                                jidToAdd = tempKickData.userJid;
+                                console.log(`✅ Successfully added back ${tempKickData.displayName} using original JID: ${tempKickData.userJid}`);
+                            }
+                        } else {
+                            // Use original JID if no resolved JID available
+                            addResult = await this.bot.sock.groupParticipantsUpdate(
+                                tempKickData.groupJid, 
+                                [tempKickData.userJid], 
+                                'add'
+                            );
+                            jidToAdd = tempKickData.userJid;
+                            console.log(`✅ Successfully added back ${tempKickData.displayName} using original JID: ${tempKickData.userJid}`);
+                        }
                         
                         // Send notification
                         await this.bot.sock.sendMessage(tempKickData.groupJid, {
                             text: `✅ User @${tempKickData.displayName} has been added back to the group after temporary kick.`,
-                            mentions: [tempKickData.userJid]
+                            mentions: [jidToAdd]
                         });
                         
                         // Remove from storage
