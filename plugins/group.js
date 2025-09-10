@@ -28,7 +28,7 @@ class GroupPlugin {
         // Tag admins only command
         this.bot.messageHandler.registerCommand('tag', this.tagCommand.bind(this), {
             description: 'Tag everyone or admins only',
-            usage: `${config.PREFIX}tag [admin] [message]`,
+            usage: `${config.PREFIX}tag [admin]`,
             category: 'group',
             plugin: 'group',
             source: 'group.js',
@@ -44,12 +44,7 @@ class GroupPlugin {
         
         // Check if first argument is "admin"
         if (args.length > 0 && args[0].toLowerCase() === 'admin') {
-            // Remove "admin" from args and call admin tagging
-            const adminMessageInfo = {
-                ...messageInfo,
-                args: args.slice(1) // Remove "admin" from arguments
-            };
-            return this.tagAdmins(adminMessageInfo);
+            return this.tagAdmins(messageInfo);
         } else {
             // Call regular tag everyone
             return this.tagEveryone(messageInfo);
@@ -97,13 +92,8 @@ class GroupPlugin {
             // Build mentions array
             const mentions = participants.map(participant => participant.id);
             
-            // Build message with optional custom text
-            let messageText = '';
-            if (args.length > 0) {
-                messageText = args.join(' ') + '\n\n';
-            }
-            
-            messageText += `👥 *Tagging Everyone* (${participants.length} members)\n\n`;
+            // Build message
+            let messageText = `👥 *Tagging Everyone* (${participants.length} members)\n\n`;
             
             // Add mentions in numbered list format
             for (let i = 0; i < participants.length; i++) {
@@ -175,13 +165,8 @@ class GroupPlugin {
             // Build mentions array
             const mentions = admins.map(admin => admin.id);
             
-            // Build message with optional custom text
-            let messageText = '';
-            if (args.length > 0) {
-                messageText = args.join(' ') + '\n\n';
-            }
-            
-            messageText += `👑 *Tagging Admins* (${admins.length} admins)\n\n`;
+            // Build message
+            let messageText = `👑 *Tagging Admins* (${admins.length} admins)\n\n`;
             
             // Add mentions in numbered list format
             for (let i = 0; i < admins.length; i++) {
