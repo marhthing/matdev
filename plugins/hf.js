@@ -103,14 +103,18 @@ class HuggingFacePlugin {
             try {
                 // Make request to Hugging Face API
                 const response = await axios.post(this.apiUrl, {
-                    inputs: prompt
+                    inputs: prompt,
+                    parameters: {
+                        guidance_scale: 7.5,
+                        num_inference_steps: 50
+                    }
                 }, {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,
                         'Content-Type': 'application/json'
                     },
                     responseType: 'arraybuffer',
-                    timeout: 60000 // 60 seconds timeout
+                    timeout: 120000 // 2 minutes timeout for image generation
                 });
 
                 if (!response.data || response.data.length === 0) {
