@@ -121,10 +121,25 @@ class HuggingFacePlugin {
                 const timestamp = Date.now();
                 const outputPath = path.join(this.tempDir, `sdxl_${timestamp}.png`);
                 
-                // Check if response is JSON error
+                // Check if response is JSON error or contains error data
                 if (response.headers['content-type']?.includes('application/json')) {
                     const errorData = response.data;
-                    throw new Error(`API Error: ${errorData.error || 'Unknown error'}`);
+                    console.log('🚨 API returned JSON error:', JSON.stringify(errorData, null, 2));
+                    throw new Error(`API Error: ${errorData.error || JSON.stringify(errorData)}`);
+                }
+                
+                // Also check if response data looks like JSON error (even if content-type is wrong)
+                if (Buffer.isBuffer(response.data)) {
+                    const dataString = response.data.toString('utf8');
+                    if (dataString.startsWith('{') && dataString.includes('error')) {
+                        try {
+                            const errorData = JSON.parse(dataString);
+                            console.log('🚨 API returned JSON error (wrong content-type):', JSON.stringify(errorData, null, 2));
+                            throw new Error(`API Error: ${errorData.error || errorData.message || JSON.stringify(errorData)}`);
+                        } catch (parseError) {
+                            console.log('🚨 Could not parse error response:', dataString.slice(0, 200));
+                        }
+                    }
                 }
                 
                 let imageData = response.data;
