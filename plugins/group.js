@@ -34,6 +34,16 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Kick user command
+        this.bot.messageHandler.registerCommand('kick', this.kickUser.bind(this), {
+            description: 'Remove a user from the group (admin only)',
+            usage: `${config.PREFIX}kick @user`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -195,6 +205,128 @@ class GroupPlugin {
             console.error('Error in tag admins:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to tag admins. Please try again.'
+            );
+        }
+    }
+
+    /**
+     * Kick user from group (admin only)
+     */
+    async kickUser(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, message } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Get target user from quoted message or mentions
+            let targetJid = null;
+
+            // Check for quoted message first
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage) {
+                const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) {
+                    targetJid = quotedParticipant;
+                }
+            }
+
+            // Check for mentions if no quoted message
+            if (!targetJid && message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                targetJid = message.extendedTextMessage.contextInfo.mentionedJid[0];
+            }
+
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a message or mention (@) the user you want to kick.'
+                );
+                return;
+            }
+
+            // Check if target is in the group
+            const targetParticipant = groupMetadata.participants.find(p => p.id === targetJid);
+            if (!targetParticipant) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is not in this group.'
+                );
+                return;
+            }
+
+            // Prevent kicking other admins (unless you're superadmin)
+            if (targetParticipant.admin === 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot kick a super admin.'
+                );
+                return;
+            }
+
+            if (targetParticipant.admin === 'admin' && senderParticipant.admin !== 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only super admins can kick other admins.'
+                );
+                return;
+            }
+
+            // Prevent self-kick
+            if (targetJid === sender_jid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ You cannot kick yourself.'
+                );
+                return;
+            }
+
+            // Prevent kicking the bot
+            if (targetJid === this.bot.sock.user?.id) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot kick the bot.'
+                );
+                return;
+            }
+
+            // Get display name for the target user
+            let displayName = targetJid;
+            if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            } else if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            }
+
+            // Perform the kick
+            await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'remove');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ User @${displayName} has been removed from the group.`
+            );
+
+        } catch (error) {
+            console.error('Error in kick user:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to kick user. Please try again or check if I have admin permissions.'
             );
         }
     }
