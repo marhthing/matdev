@@ -64,6 +64,26 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Promote user command
+        this.bot.messageHandler.registerCommand('promote', this.promoteUser.bind(this), {
+            description: 'Promote a user to admin (admin only)',
+            usage: `${config.PREFIX}promote @user`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Demote user command
+        this.bot.messageHandler.registerCommand('demote', this.demoteUser.bind(this), {
+            description: 'Remove admin status from a user (admin only)',
+            usage: `${config.PREFIX}demote @user`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -785,6 +805,244 @@ class GroupPlugin {
             await this.bot.messageHandler.reply(messageInfo, 
                 `❌ Could not add @${displayName} and failed to generate invitation link. ` +
                 `Please try adding them manually or check group settings.`
+            );
+        }
+    }
+
+    /**
+     * Promote user to admin (admin only)
+     */
+    async promoteUser(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, message } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Get target user from quoted message or mentions
+            let targetJid = null;
+
+            // Check for quoted message first
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage) {
+                const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) {
+                    targetJid = quotedParticipant;
+                }
+            }
+
+            // Check for mentions if no quoted message
+            if (!targetJid && message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                targetJid = message.extendedTextMessage.contextInfo.mentionedJid[0];
+            }
+
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a message or mention (@) the user you want to promote.'
+                );
+                return;
+            }
+
+            // Check if target is in the group
+            const targetParticipant = groupMetadata.participants.find(p => p.id === targetJid);
+            if (!targetParticipant) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is not in this group.'
+                );
+                return;
+            }
+
+            // Check if user is already an admin
+            if (targetParticipant.admin === 'admin' || targetParticipant.admin === 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is already an admin.'
+                );
+                return;
+            }
+
+            // Prevent promoting yourself (redundant but safe)
+            if (targetJid === sender_jid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ You cannot promote yourself.'
+                );
+                return;
+            }
+
+            // Prevent promoting the bot
+            if (targetJid === this.bot.sock.user?.id) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot promote the bot.'
+                );
+                return;
+            }
+
+            // Get display name for the target user
+            let displayName = targetJid;
+            if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            } else if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            }
+
+            // Perform the promotion
+            await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'promote');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ User @${displayName} has been promoted to admin.`
+            );
+
+        } catch (error) {
+            console.error('Error in promote user:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to promote user. Please try again or check if I have admin permissions.'
+            );
+        }
+    }
+
+    /**
+     * Demote user from admin (admin only)
+     */
+    async demoteUser(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, message } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Get target user from quoted message or mentions
+            let targetJid = null;
+
+            // Check for quoted message first
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage) {
+                const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) {
+                    targetJid = quotedParticipant;
+                }
+            }
+
+            // Check for mentions if no quoted message
+            if (!targetJid && message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                targetJid = message.extendedTextMessage.contextInfo.mentionedJid[0];
+            }
+
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a message or mention (@) the user you want to demote.'
+                );
+                return;
+            }
+
+            // Check if target is in the group
+            const targetParticipant = groupMetadata.participants.find(p => p.id === targetJid);
+            if (!targetParticipant) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is not in this group.'
+                );
+                return;
+            }
+
+            // Check if user is actually an admin
+            if (targetParticipant.admin !== 'admin' && targetParticipant.admin !== 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is not an admin.'
+                );
+                return;
+            }
+
+            // Prevent demoting super admins (unless you're also superadmin)
+            if (targetParticipant.admin === 'superadmin' && senderParticipant.admin !== 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only super admins can demote other super admins.'
+                );
+                return;
+            }
+
+            // Prevent self-demotion
+            if (targetJid === sender_jid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ You cannot demote yourself.'
+                );
+                return;
+            }
+
+            // Prevent demoting the bot
+            if (targetJid === this.bot.sock.user?.id) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot demote the bot.'
+                );
+                return;
+            }
+
+            // Get display name for the target user
+            let displayName = targetJid;
+            if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            } else if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            }
+
+            // Perform the demotion
+            await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'demote');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ User @${displayName} has been demoted from admin.`
+            );
+
+        } catch (error) {
+            console.error('Error in demote user:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to demote user. Please try again or check if I have admin permissions.'
             );
         }
     }
