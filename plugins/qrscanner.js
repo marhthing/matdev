@@ -38,22 +38,6 @@ class QRScannerPlugin {
             plugin: 'qrscanner',
             source: 'qrscanner.js'
         });
-
-        this.bot.messageHandler.registerCommand('readqr', this.scanQR.bind(this), {
-            description: 'Read QR code from image (alias)',
-            usage: `${config.PREFIX}readqr (reply to image or send with image)`,
-            category: 'utility',
-            plugin: 'qrscanner',
-            source: 'qrscanner.js'
-        });
-
-        this.bot.messageHandler.registerCommand('decode', this.scanQR.bind(this), {
-            description: 'Decode QR code from image (alias)',
-            usage: `${config.PREFIX}decode (reply to image or send with image)`,
-            category: 'utility',
-            plugin: 'qrscanner',
-            source: 'qrscanner.js'
-        });
     }
 
     /**
