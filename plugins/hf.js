@@ -123,9 +123,17 @@ class HuggingFacePlugin {
                 
                 // Check if response is JSON error or contains error data
                 if (response.headers['content-type']?.includes('application/json')) {
-                    const errorData = response.data;
-                    console.log('🚨 API returned JSON error:', JSON.stringify(errorData, null, 2));
-                    throw new Error(`API Error: ${errorData.error || JSON.stringify(errorData)}`);
+                    try {
+                        const errorData = Buffer.isBuffer(response.data) ? 
+                            JSON.parse(response.data.toString('utf8')) : response.data;
+                        if (errorData && typeof errorData === 'object' && errorData.error) {
+                            console.log('🚨 API returned JSON error:', errorData.error);
+                            throw new Error(`API Error: ${errorData.error}`);
+                        }
+                    } catch (parseError) {
+                        // If we can't parse as JSON, it might be image data with wrong content-type
+                        console.log('📦 Content-type says JSON but parsing failed, treating as image data');
+                    }
                 }
                 
                 // Also check if response data looks like JSON error (even if content-type is wrong)
