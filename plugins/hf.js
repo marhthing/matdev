@@ -14,7 +14,7 @@ class HuggingFacePlugin {
         this.name = 'hf';
         this.description = 'Hugging Face text-to-image generation';
         this.version = '1.0.0';
-        this.enabled = false; // Temporarily disabled due to API key issues
+        this.enabled = true;
         this.tempDir = path.join(process.cwd(), 'tmp');
         this.apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
     }
@@ -101,13 +101,20 @@ class HuggingFacePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with Stable Diffusion XL...');
 
             try {
-                // Make request to Hugging Face API
+                // Make request to Hugging Face API with proper parameters
                 const response = await axios.post(this.apiUrl, {
-                    inputs: prompt
+                    inputs: prompt,
+                    parameters: {
+                        num_inference_steps: 20,
+                        guidance_scale: 7.5,
+                        width: 1024,
+                        height: 1024
+                    }
                 }, {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
                     responseType: 'arraybuffer',
                     timeout: 120000 // 2 minutes timeout for image generation
