@@ -5,7 +5,6 @@
  */
 
 const QrReader = require('qrcode-reader');
-const Jimp = require('jimp');
 const { downloadMediaMessage } = require('baileys');
 const config = require('../config');
 const fs = require('fs-extra');
@@ -116,6 +115,9 @@ class QRScannerPlugin {
             await fs.writeFile(tempFile, imageBuffer);
 
             try {
+                // Import Jimp dynamically
+                const Jimp = (await import('jimp')).default;
+                
                 // Read and process image with Jimp
                 const image = await Jimp.read(tempFile);
                 
