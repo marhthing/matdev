@@ -93,7 +93,12 @@ class GroqPlugin {
         if (!apiKey) {
             throw new Error('No API found, use .setenv GROQ_API_KEY=<key>');
         }
-        return new Groq({ apiKey });
+        return new Groq({ 
+            apiKey,
+            defaultHeaders: {
+                "Groq-Model-Version": "latest"
+            }
+        });
     }
 
     /**
@@ -642,10 +647,6 @@ class GroqPlugin {
             try {
                 const completion = await groq.chat.completions.create({
                     messages: [
-                        {
-                            role: 'system',
-                            content: 'You are MATDEV Compound AI with native website visiting, web search, and code execution capabilities. When given URLs, automatically visit and analyze the websites. Be comprehensive and helpful.'
-                        },
                         {
                             role: 'user',
                             content: fullPrompt
