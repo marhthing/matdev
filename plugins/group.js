@@ -564,15 +564,26 @@ class GroupPlugin {
             if (targetInput.includes('@')) {
                 // Already in JID format
                 targetJid = targetInput;
+                console.log(`📱 Using provided JID: ${targetJid}`);
             } else {
                 // Convert phone number to JID
+                console.log(`📱 Raw input received: "${targetInput}"`);
+                console.log(`📱 Input length: ${targetInput.length}`);
+                console.log(`📱 Input characters: ${targetInput.split('').map(c => `'${c}'`).join(', ')}`);
+                
                 // Remove any non-digit characters (spaces, +, -, etc.)
                 let cleanPhone = targetInput.replace(/\D/g, '');
                 
+                console.log(`📱 After cleaning: "${cleanPhone}"`);
+                console.log(`📱 Clean phone length: ${cleanPhone.length}`);
+                
                 // Handle various international formats
                 if (cleanPhone.length < 8) {
+                    console.log(`❌ Phone validation failed: ${cleanPhone.length} digits (minimum 8 required)`);
                     await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Invalid phone number. Please provide a valid phone number (minimum 8 digits) or JID.\n\n' +
+                        `❌ Invalid phone number. Please provide a valid phone number (minimum 8 digits) or JID.\n\n` +
+                        `Received: "${targetInput}"\n` +
+                        `Cleaned to: "${cleanPhone}" (${cleanPhone.length} digits)\n\n` +
                         'Examples:\n' +
                         '• `+234 913 504 8063`\n' +
                         '• `234913504063`\n' +
@@ -581,11 +592,9 @@ class GroupPlugin {
                     return;
                 }
                 
-                // If the phone starts with country code, use as is
-                // If it's a local number (10-11 digits), you might want to add country code
-                console.log(`📱 Processing phone number: ${targetInput} → ${cleanPhone}`);
-                
+                console.log(`✅ Phone validation passed: ${cleanPhone} (${cleanPhone.length} digits)`);
                 targetJid = `${cleanPhone}@s.whatsapp.net`;
+                console.log(`📱 Final JID: ${targetJid}`);
             }
 
             // Check if user is already in the group
