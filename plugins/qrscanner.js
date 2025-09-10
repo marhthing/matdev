@@ -5,7 +5,7 @@
  */
 
 const QrReader = require('qrcode-reader');
-const Jimp = require('jimp').default || require('jimp');
+const Jimp = require('jimp');
 const { downloadMediaMessage } = require('baileys');
 const config = require('../config');
 const fs = require('fs-extra');
