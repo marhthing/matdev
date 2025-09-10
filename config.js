@@ -19,7 +19,6 @@ function ensureEnvFileWithDefaults() {
         AUTO_TYPING: 'false',
         AUTO_READ: 'false',
         AUTO_STATUS_VIEW: 'false',
-        AUTO_BIO: 'false',
         AUTO_REACT: 'false',
         STATUS_AUTO_REACT: 'false',
         REACT_DELAY: 'nodelay',
@@ -128,7 +127,6 @@ const config = {
     AUTO_TYPING: process.env.AUTO_TYPING === 'true' || false,
     AUTO_READ: process.env.AUTO_READ === 'true' || false,
     AUTO_STATUS_VIEW: process.env.AUTO_STATUS_VIEW === 'true' || false,
-    AUTO_BIO: process.env.AUTO_BIO === 'true' || false,
     AUTO_REACT: process.env.AUTO_REACT === 'true' || false,
     STATUS_AUTO_REACT: process.env.STATUS_AUTO_REACT === 'true' || false,
     STATUS_AUTO_REACT_EMOJIS: '❤💙💚', // Fixed reactions for status
