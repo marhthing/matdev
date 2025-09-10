@@ -121,8 +121,16 @@ class HuggingFacePlugin {
                 const timestamp = Date.now();
                 const outputPath = path.join(this.tempDir, `sdxl_${timestamp}.png`);
                 
+                // Check if response is actually an image or an error
+                const responseText = Buffer.from(response.data).toString('utf8');
+                if (responseText.includes('"error"') || responseText.includes('{"error"')) {
+                    // Response is JSON error, not image data
+                    const errorData = JSON.parse(responseText);
+                    throw new Error(`API Error: ${errorData.error || 'Unknown error'}`);
+                }
+                
                 // Save image data to temp file
-                await fs.writeFile(outputPath, Buffer.from(response.data), 'binary');
+                await fs.writeFile(outputPath, response.data);
                 
                 // Verify file was created and has content
                 const stats = await fs.stat(outputPath);
