@@ -478,8 +478,8 @@ class GroupPlugin {
             let displayName = targetJid;
             
             // Get the quoted message context for proper JID resolution
-            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            if (quotedMessage && targetJid.includes('@lid')) {
+            const quotedMsgContext = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMsgContext && targetJid.includes('@lid')) {
                 // For LID users, try to get the phone number from context
                 const participantPn = message?.extendedTextMessage?.contextInfo?.participantPn;
                 const senderPn = message?.extendedTextMessage?.contextInfo?.senderPn;
