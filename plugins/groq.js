@@ -843,7 +843,7 @@ class GroqPlugin {
                 console.error('Models API error:', apiError);
                 
                 // Fallback to hardcoded list
-                const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
+                const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with native website visiting & web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🌐 Pro tip: Use .search with URLs to automatically visit and analyze websites!*\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: fallbackList,
