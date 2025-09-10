@@ -25,25 +25,35 @@ class GroupPlugin {
      * Register group commands
      */
     registerCommands() {
-        // Tag everyone command
-        this.bot.messageHandler.registerCommand('tag', this.tagEveryone.bind(this), {
-            description: 'Tag everyone in the group',
-            usage: `${config.PREFIX}tag [message]`,
-            category: 'group',
-            plugin: 'group',
-            source: 'group.js',
-            groupOnly: true
-        });
-
         // Tag admins only command
-        this.bot.messageHandler.registerCommand('tagadmin', this.tagAdmins.bind(this), {
-            description: 'Tag only group admins',
-            usage: `${config.PREFIX}tagadmin [message]`,
+        this.bot.messageHandler.registerCommand('tag', this.tagCommand.bind(this), {
+            description: 'Tag everyone or admins only',
+            usage: `${config.PREFIX}tag [admin] [message]`,
             category: 'group',
             plugin: 'group',
             source: 'group.js',
             groupOnly: true
         });
+    }
+
+    /**
+     * Unified tag command - handles both everyone and admin tagging
+     */
+    async tagCommand(messageInfo) {
+        const { args } = messageInfo;
+        
+        // Check if first argument is "admin"
+        if (args.length > 0 && args[0].toLowerCase() === 'admin') {
+            // Remove "admin" from args and call admin tagging
+            const adminMessageInfo = {
+                ...messageInfo,
+                args: args.slice(1) // Remove "admin" from arguments
+            };
+            return this.tagAdmins(adminMessageInfo);
+        } else {
+            // Call regular tag everyone
+            return this.tagEveryone(messageInfo);
+        }
     }
 
     /**
