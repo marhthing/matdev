@@ -103,11 +103,7 @@ class HuggingFacePlugin {
             try {
                 // Make request to Hugging Face API
                 const response = await axios.post(this.apiUrl, {
-                    inputs: prompt,
-                    parameters: {
-                        guidance_scale: 7.5,
-                        num_inference_steps: 50
-                    }
+                    inputs: prompt
                 }, {
                     headers: {
                         'Authorization': `Bearer ${apiKey}`,
