@@ -40,7 +40,7 @@ class PasswordGeneratorPlugin {
      */
     async generatePassword(messageInfo) {
         try {
-            const args = messageInfo.body.split(' ').slice(1);
+            const { args } = messageInfo;
             
             // Default settings
             let length = 16;
