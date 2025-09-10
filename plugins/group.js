@@ -544,7 +544,16 @@ class GroupPlugin {
 
             // If no phone found in quoted message, check args
             if (!targetInput && args && args.length > 0) {
+                // First try the first argument
                 targetInput = args[0];
+                
+                // If first argument looks incomplete (too short after cleaning), try joining all args
+                const testClean = targetInput.replace(/\D/g, '');
+                if (testClean.length < 8 && args.length > 1) {
+                    // Join all arguments with spaces to handle "234 913 504 8063" format
+                    targetInput = args.join(' ');
+                    console.log(`📱 Joined all arguments: "${targetInput}"`);
+                }
             }
 
             // If still no input, show usage
