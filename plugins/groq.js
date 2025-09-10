@@ -667,8 +667,11 @@ class GroqPlugin {
                     throw new Error('Empty response from Compound AI');
                 }
 
+                // Format the response for better WhatsApp readability
+                const formattedResponse = this.formatCompoundResponse(response);
+
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `🧠 *MATDEV Compound AI:*\n\n${response}`,
+                    text: formattedResponse,
                     edit: thinkingMsg.key
                 });
 
@@ -691,6 +694,75 @@ class GroqPlugin {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Error processing compound AI request.');
             }
         }
+    }
+
+    /**
+     * Format Compound AI Response for Better WhatsApp Display
+     */
+    formatCompoundResponse(content) {
+        let formatted = content;
+
+        // Add main header with branding
+        formatted = `🔍 *MATDEV Advanced Research*\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n${formatted}`;
+
+        // Enhanced table formatting for WhatsApp
+        formatted = formatted.replace(/\|([^|]+)\|([^|]+)\|/g, (match, col1, col2) => {
+            const cleanCol1 = col1.trim().replace(/\*/g, '').replace(/^_|_$/g, '');
+            const cleanCol2 = col2.trim().replace(/\*/g, '').replace(/^_|_$/g, '');
+            return `┣ *${cleanCol1}:*\n┗ ${cleanCol2}\n`;
+        });
+
+        // Remove table header separators
+        formatted = formatted.replace(/\|[-\s|:]+\|/g, '');
+
+        // Better heading hierarchy with styled emojis
+        formatted = formatted.replace(/^### (.+)/gm, '\n🔹 *$1*');
+        formatted = formatted.replace(/^## (.+)/gm, '\n\n📋 *$1*\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓');
+        formatted = formatted.replace(/^# (.+)/gm, '\n\n🎯 *$1*\n═══════════════════════════════');
+
+        // Clean up markdown formatting for WhatsApp
+        formatted = formatted.replace(/\*\*(.+?)\*\*/g, '*$1*');
+        formatted = formatted.replace(/_(.+?)_/g, '_$1_');
+
+        // Add visual separators with style
+        formatted = formatted.replace(/---+/g, '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬');
+
+        // Better list formatting with consistent bullets
+        formatted = formatted.replace(/^\* (.+)/gm, '◦ $1');
+        formatted = formatted.replace(/^- (.+)/gm, '◦ $1');
+
+        // Format numbered lists with emoji numbers
+        formatted = formatted.replace(/^(\d+)\.\s+(.+)/gm, (match, num, text) => {
+            const emojiNumbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+            const emojiNum = emojiNumbers[parseInt(num) - 1] || `${num}️⃣`;
+            return `${emojiNum} ${text}`;
+        });
+
+        // Add proper spacing for sections
+        formatted = formatted.replace(/\n\n\n+/g, '\n\n');
+        formatted = formatted.replace(/(📋[^\n]+)\n([^┏🔹📋🎯])/g, '$1\n\n$2');
+        formatted = formatted.replace(/(🎯[^\n]+)\n([^═🔹📋🎯])/g, '$1\n\n$2');
+
+        // Clean spacing around boxes
+        formatted = formatted.replace(/┏━+┓\n([^┗])/g, '┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n\n$1');
+        formatted = formatted.replace(/([^┏])\n┗━+┛/g, '$1\n\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛');
+
+        // Enhance contact info and important details
+        formatted = formatted.replace(/(Phone|Email|Address|Contact)[:\s]+([^\n]+)/gi, '📞 *$1:* $2');
+        formatted = formatted.replace(/(\+\d{3}\s?\d{3}\s?\d{3}\s?\d{4})/g, '☎️ $1');
+        formatted = formatted.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '📧 $1');
+
+        // Format URLs nicely
+        formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '🔗 $1');
+
+        // Clean up any remaining formatting issues
+        formatted = formatted.replace(/\*\*\*/g, '*');
+        formatted = formatted.replace(/\*\s*\*/g, '*');
+
+        // Add final footer
+        formatted += '\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n🤖 *Powered by MATDEV Browser Automation*';
+
+        return formatted;
     }
 
     /**
