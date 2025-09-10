@@ -1335,7 +1335,16 @@ class CorePlugin {
         const chatJid = messageInfo.chat_jid;
 
         try {
-            // Attempt direct chat deletion first
+            // Method 1: Simple chat delete
+            await this.bot.sock.chatModify({ delete: true }, chatJid);
+            console.log(`✅ Private chat deleted directly for ${chatJid}`);
+            return true;
+        } catch (deleteError) {
+            console.log(`❌ Simple delete failed: ${deleteError.message}`);
+        }
+
+        try {
+            // Method 2: Delete with last message reference
             const lastMessage = await this.getLastMessageForChat(chatJid);
             if (lastMessage) {
                 await this.bot.sock.chatModify({
@@ -1345,18 +1354,25 @@ class CorePlugin {
                         messageTimestamp: lastMessage.messageTimestamp || Date.now()
                     }]
                 }, chatJid);
-                console.log(`✅ Private chat deleted directly for ${chatJid}`);
-                return true; // Indicate successful deletion
+                console.log(`✅ Private chat deleted with message reference for ${chatJid}`);
+                return true;
             }
         } catch (deleteError) {
-            console.log('Private chat direct deletion failed, attempting fallback methods.');
-            // Continue to other methods if direct deletion fails
+            console.log(`❌ Delete with message reference failed: ${deleteError.message}`);
         }
 
-        // Add other potential deletion methods here if necessary
-        // For now, if direct deletion fails, we rely on the fallback in clearCommand
+        try {
+            // Method 3: Clear all messages first, then delete chat
+            await this.bot.sock.chatModify({ clear: { messages: [{ id: '*', fromMe: undefined }] } }, chatJid);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await this.bot.sock.chatModify({ delete: true }, chatJid);
+            console.log(`✅ Private chat cleared and deleted for ${chatJid}`);
+            return true;
+        } catch (clearError) {
+            console.log(`❌ Clear and delete failed: ${clearError.message}`);
+        }
 
-        return false; // Indicate that direct deletion was not successful
+        return false; // All methods failed
     }
 
     /**
@@ -1408,10 +1424,43 @@ class CorePlugin {
                 // For GROUPS: Use enhanced message flooding
                 await this.clearChatWithFlooding(messageInfo);
             } else {
-                // For PRIVATE CHATS: Try multiple deletion methods
-                const deleted = await this.clearPrivateChatEnhanced(messageInfo);
-                if (!deleted) {
-                    // Fallback to flooding if deletion fails
+                // For PRIVATE CHATS: Try multiple deletion attempts
+                console.log(`🧹 Attempting to clear private chat: ${chatJid}`);
+                
+                // Method 1: Direct chat deletion (multiple attempts)
+                let deletionSuccess = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    console.log(`🔄 Deletion attempt ${attempt}/3 for ${chatJid}`);
+                    const deleted = await this.clearPrivateChatEnhanced(messageInfo);
+                    if (deleted) {
+                        deletionSuccess = true;
+                        console.log(`✅ Chat deletion successful on attempt ${attempt}`);
+                        break;
+                    }
+                    // Wait before next attempt
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                // Method 2: If direct deletion didn't work, try archive + delete
+                if (!deletionSuccess) {
+                    console.log(`📦 Trying archive + delete method for ${chatJid}`);
+                    try {
+                        // First archive the chat
+                        await this.bot.sock.chatModify({ archive: true }, chatJid);
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        // Then try to delete
+                        await this.bot.sock.chatModify({ delete: true }, chatJid);
+                        console.log(`✅ Archive + delete method successful for ${chatJid}`);
+                        deletionSuccess = true;
+                    } catch (archiveError) {
+                        console.log(`❌ Archive + delete method failed: ${archiveError.message}`);
+                    }
+                }
+
+                // Method 3: Fallback to flooding if all deletion methods fail
+                if (!deletionSuccess) {
+                    console.log(`🌊 Using flooding method as final fallback for ${chatJid}`);
                     await this.clearChatWithFlooding(messageInfo);
                 }
             }
