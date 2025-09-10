@@ -75,15 +75,11 @@ class CurrencyPlugin {
             const chunks = this.splitCurrencyList(currencyList);
             
             for (let i = 0; i < chunks.length; i++) {
-                const header = i === 0 ? `💱 *Available Currencies* (${i + 1}/${chunks.length})\n\n` : `💱 *Available Currencies* (${i + 1}/${chunks.length})\n\n`;
-                const message = header + chunks[i];
+                const header = `💱 *Popular Currencies Supported*\n\n`;
+                const footer = `\n\n_Supports 200+ currencies worldwide_\n_Use: ${config.PREFIX}convert 100usd to ngn_`;
+                const message = header + chunks[i] + footer;
                 
                 await this.bot.messageHandler.reply(messageInfo, message);
-                
-                // Small delay between messages to avoid spam detection
-                if (i < chunks.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
             }
         } catch (error) {
             console.error('Error in list command:', error);
@@ -321,156 +317,64 @@ class CurrencyPlugin {
     }
 
     /**
-     * Get comprehensive list of all available currencies
+     * Get popular currencies list
      */
     getCompleteCurrencyList() {
         return {
             // Major Global Currencies
-            'USD': 'United States Dollar',
-            'EUR': 'Euro',
-            'GBP': 'British Pound Sterling', 
-            'JPY': 'Japanese Yen',
-            'CNY': 'Chinese Yuan',
-            'AUD': 'Australian Dollar',
-            'CAD': 'Canadian Dollar',
-            'CHF': 'Swiss Franc',
-            'KRW': 'South Korean Won',
-            'SGD': 'Singapore Dollar',
+            'USD': 'United States Dollar 🇺🇸',
+            'EUR': 'Euro 🇪🇺',
+            'GBP': 'British Pound Sterling 🇬🇧', 
+            'JPY': 'Japanese Yen 🇯🇵',
+            'CNY': 'Chinese Yuan 🇨🇳',
+            'AUD': 'Australian Dollar 🇦🇺',
+            'CAD': 'Canadian Dollar 🇨🇦',
+            'CHF': 'Swiss Franc 🇨🇭',
+            'KRW': 'South Korean Won 🇰🇷',
+            'SGD': 'Singapore Dollar 🇸🇬',
             
-            // European Currencies
-            'NOK': 'Norwegian Krone',
-            'SEK': 'Swedish Krona',
-            'DKK': 'Danish Krone',
-            'PLN': 'Polish Zloty',
-            'CZK': 'Czech Koruna',
-            'HUF': 'Hungarian Forint',
-            'RON': 'Romanian Leu',
-            'BGN': 'Bulgarian Lev',
-            'HRK': 'Croatian Kuna',
-            'RSD': 'Serbian Dinar',
+            // Popular Regional Currencies
+            'INR': 'Indian Rupee 🇮🇳',
+            'NGN': 'Nigerian Naira 🇳🇬',
+            'ZAR': 'South African Rand 🇿🇦',
+            'BRL': 'Brazilian Real 🇧🇷',
+            'MXN': 'Mexican Peso 🇲🇽',
+            'THB': 'Thai Baht 🇹🇭',
+            'TRY': 'Turkish Lira 🇹🇷',
+            'RUB': 'Russian Ruble 🇷🇺',
             
-            // Americas
-            'MXN': 'Mexican Peso',
-            'BRL': 'Brazilian Real',
-            'ARS': 'Argentine Peso',
-            'CLP': 'Chilean Peso',
-            'COP': 'Colombian Peso',
-            'PEN': 'Peruvian Sol',
-            'UYU': 'Uruguayan Peso',
-            'VES': 'Venezuelan Bolívar',
-            'BOB': 'Bolivian Boliviano',
-            'PYG': 'Paraguayan Guarani',
+            // Middle East & Gulf
+            'SAR': 'Saudi Riyal 🇸🇦',
+            'AED': 'UAE Dirham 🇦🇪',
+            'KWD': 'Kuwaiti Dinar 🇰🇼',
+            'QAR': 'Qatari Riyal 🇶🇦',
+            'ILS': 'Israeli New Shekel 🇮🇱',
             
-            // Asia-Pacific
-            'INR': 'Indian Rupee',
-            'THB': 'Thai Baht',
-            'MYR': 'Malaysian Ringgit',
-            'IDR': 'Indonesian Rupiah',
-            'PHP': 'Philippine Peso',
-            'VND': 'Vietnamese Dong',
-            'HKD': 'Hong Kong Dollar',
-            'TWD': 'Taiwan Dollar',
-            'NZD': 'New Zealand Dollar',
-            'PKR': 'Pakistani Rupee',
-            'LKR': 'Sri Lankan Rupee',
-            'BDT': 'Bangladeshi Taka',
-            'NPR': 'Nepalese Rupee',
-            'MMK': 'Myanmar Kyat',
-            'KHR': 'Cambodian Riel',
-            'LAK': 'Laotian Kip',
+            // European Popular
+            'NOK': 'Norwegian Krone 🇳🇴',
+            'SEK': 'Swedish Krona 🇸🇪',
+            'DKK': 'Danish Krone 🇩🇰',
+            'PLN': 'Polish Zloty 🇵🇱',
             
-            // Middle East
-            'SAR': 'Saudi Riyal',
-            'AED': 'UAE Dirham',
-            'QAR': 'Qatari Riyal',
-            'KWD': 'Kuwaiti Dinar',
-            'BHD': 'Bahraini Dinar',
-            'OMR': 'Omani Rial',
-            'JOD': 'Jordanian Dinar',
-            'LBP': 'Lebanese Pound',
-            'SYP': 'Syrian Pound',
-            'IQD': 'Iraqi Dinar',
-            'IRR': 'Iranian Rial',
-            'ILS': 'Israeli New Shekel',
-            'TRY': 'Turkish Lira',
+            // Asian Popular
+            'HKD': 'Hong Kong Dollar 🇭🇰',
+            'IDR': 'Indonesian Rupiah 🇮🇩',
+            'MYR': 'Malaysian Ringgit 🇲🇾',
+            'PHP': 'Philippine Peso 🇵🇭',
+            'VND': 'Vietnamese Dong 🇻🇳',
+            'PKR': 'Pakistani Rupee 🇵🇰',
+            'BDT': 'Bangladeshi Taka 🇧🇩',
             
-            // Africa
-            'ZAR': 'South African Rand',
-            'EGP': 'Egyptian Pound',
-            'NGN': 'Nigerian Naira',
-            'KES': 'Kenyan Shilling',
-            'UGX': 'Ugandan Shilling',
-            'TZS': 'Tanzanian Shilling',
-            'RWF': 'Rwandan Franc',
-            'GHS': 'Ghanaian Cedi',
-            'XOF': 'West African CFA Franc',
-            'XAF': 'Central African CFA Franc',
-            'MAD': 'Moroccan Dirham',
-            'TND': 'Tunisian Dinar',
-            'DZD': 'Algerian Dinar',
-            'LYD': 'Libyan Dinar',
-            'ETB': 'Ethiopian Birr',
-            'MUR': 'Mauritian Rupee',
-            'ZMW': 'Zambian Kwacha',
-            'BWP': 'Botswana Pula',
-            'NAD': 'Namibian Dollar',
-            'SZL': 'Swazi Lilangeni',
-            'LSL': 'Lesotho Loti',
+            // African Popular
+            'EGP': 'Egyptian Pound 🇪🇬',
+            'KES': 'Kenyan Shilling 🇰🇪',
+            'GHS': 'Ghanaian Cedi 🇬🇭',
+            'MAD': 'Moroccan Dirham 🇲🇦',
             
-            // Russia & Eastern Europe
-            'RUB': 'Russian Ruble',
-            'UAH': 'Ukrainian Hryvnia',
-            'BYN': 'Belarusian Ruble',
-            'KZT': 'Kazakhstani Tenge',
-            'UZS': 'Uzbekistani Som',
-            'KGS': 'Kyrgyzstani Som',
-            'TJS': 'Tajikistani Somoni',
-            'TMT': 'Turkmenistani Manat',
-            'AZN': 'Azerbaijani Manat',
-            'GEL': 'Georgian Lari',
-            'AMD': 'Armenian Dram',
-            'MDL': 'Moldovan Leu',
-            
-            // Caribbean & Island Nations  
-            'JMD': 'Jamaican Dollar',
-            'BBD': 'Barbadian Dollar',
-            'TTD': 'Trinidad & Tobago Dollar',
-            'BSD': 'Bahamian Dollar',
-            'BZD': 'Belize Dollar',
-            'KYD': 'Cayman Islands Dollar',
-            'XCD': 'East Caribbean Dollar',
-            'AWG': 'Aruban Florin',
-            'CUP': 'Cuban Peso',
-            'DOP': 'Dominican Peso',
-            'HTG': 'Haitian Gourde',
-            'FJD': 'Fijian Dollar',
-            'PGK': 'Papua New Guinea Kina',
-            'SBD': 'Solomon Islands Dollar',
-            'TOP': 'Tongan Pa\'anga',
-            'VUV': 'Vanuatu Vatu',
-            'WST': 'Samoan Tala',
-            
-            // Additional Global Currencies
-            'ISK': 'Icelandic Krona',
-            'ALL': 'Albanian Lek',
-            'MKD': 'Macedonian Denar',
-            'BAM': 'Bosnia-Herzegovina Convertible Mark',
-            'RSD': 'Serbian Dinar',
-            'MNT': 'Mongolian Tugrik',
-            'AFN': 'Afghan Afghani',
-            'BDT': 'Bangladeshi Taka',
-            'BTN': 'Bhutanese Ngultrum',
-            'BND': 'Brunei Dollar',
-            'KPW': 'North Korean Won',
-            'MVR': 'Maldivian Rufiyaa',
-            'LKR': 'Sri Lankan Rupee',
-            
-            // Special & Historical
-            'XAU': 'Gold (Troy Ounce)',
-            'XAG': 'Silver (Troy Ounce)',
-            'XPD': 'Palladium (Troy Ounce)',
-            'XPT': 'Platinum (Troy Ounce)',
-            'XDR': 'IMF Special Drawing Rights'
+            // Americas Popular
+            'ARS': 'Argentine Peso 🇦🇷',
+            'CLP': 'Chilean Peso 🇨🇱',
+            'COP': 'Colombian Peso 🇨🇴'
         };
     }
 
@@ -480,13 +384,10 @@ class CurrencyPlugin {
     splitCurrencyList(currencyList) {
         const entries = Object.entries(currencyList);
         const chunks = [];
-        const maxPerChunk = 30; // Adjust based on message length limits
         
-        for (let i = 0; i < entries.length; i += maxPerChunk) {
-            const chunk = entries.slice(i, i + maxPerChunk);
-            const chunkText = chunk.map(([code, name]) => `${code} - ${name}`).join('\n');
-            chunks.push(chunkText);
-        }
+        // Since we now have only popular currencies (~40), show all in one message
+        const chunkText = entries.map(([code, name]) => `${code} - ${name}`).join('\n');
+        chunks.push(chunkText);
         
         return chunks;
     }
