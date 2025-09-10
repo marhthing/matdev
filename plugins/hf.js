@@ -1,7 +1,7 @@
 
 /**
  * MATDEV Hugging Face Plugin
- * Text-to-image generation using Qwen-Image model
+ * Text-to-image generation using FLUX.1-schnell model
  */
 
 const axios = require('axios');
@@ -16,7 +16,7 @@ class HuggingFacePlugin {
         this.version = '1.0.0';
         this.enabled = true;
         this.tempDir = path.join(process.cwd(), 'tmp');
-        this.apiUrl = 'https://api-inference.huggingface.co/models/Qwen/Qwen-Image';
+        this.apiUrl = 'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell';
     }
 
     /**
@@ -43,14 +43,14 @@ class HuggingFacePlugin {
     registerCommands() {
         // Text to image command
         this.bot.messageHandler.registerCommand('ttm', this.textToImageCommand.bind(this), {
-            description: 'Generate image from text using Qwen-Image',
+            description: 'Generate image from text using FLUX.1-schnell',
             usage: `${config.PREFIX}ttm <your prompt>`,
             category: 'ai'
         });
 
         // Alternative command name
         this.bot.messageHandler.registerCommand('imagine', this.textToImageCommand.bind(this), {
-            description: 'Generate image from text using Qwen-Image',
+            description: 'Generate image from text using FLUX.1-schnell',
             usage: `${config.PREFIX}imagine <your prompt>`,
             category: 'ai'
         });
@@ -98,7 +98,7 @@ class HuggingFacePlugin {
                 return;
             }
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with Qwen-Image...');
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with FLUX.1-schnell...');
 
             try {
                 // Make request to Hugging Face API
@@ -118,7 +118,7 @@ class HuggingFacePlugin {
                 }
 
                 // Save image to temp file
-                const outputPath = path.join(this.tempDir, `qwen_${Date.now()}.png`);
+                const outputPath = path.join(this.tempDir, `flux_${Date.now()}.png`);
                 await fs.writeFile(outputPath, response.data);
 
                 // Create simple caption like other plugins
