@@ -14,7 +14,7 @@ class HuggingFacePlugin {
         this.name = 'hf';
         this.description = 'Hugging Face text-to-image generation';
         this.version = '1.0.0';
-        this.enabled = true;
+        this.enabled = false; // Temporarily disabled due to API key issues
         this.tempDir = path.join(process.cwd(), 'tmp');
         this.apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
     }
