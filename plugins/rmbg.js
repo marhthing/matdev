@@ -55,7 +55,7 @@ class RemoveBgPlugin {
             const apiKey = process.env.REMOVEBG_API_KEY;
             if (!apiKey) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No API found, use .setenv REMOVEBG_API_KEY=<key>');
+                    '❌ No API found, use .setenv REMOVEBG_API_KEY=<key>\n\n🔑 Get your API key from: https://www.remove.bg/dashboard#api-key');
                 return;
             }
 
