@@ -183,6 +183,17 @@ class HuggingFacePlugin {
 
                 console.log(`✅ Image sent successfully, cleaning up temp file`);
                 
+                // Try to edit the processing message to show completion
+                try {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '✅ Image generated successfully!',
+                        edit: processingMsg.key
+                    });
+                } catch (editError) {
+                    // Editing failed, but image was sent successfully so no need to notify
+                    console.log('Could not edit processing message, but image was sent successfully');
+                }
+                
                 // Clean up temp file after sending
                 await fs.remove(outputPath);
                 console.log(`✅ Temp file deleted: ${outputPath}`);
@@ -202,15 +213,32 @@ class HuggingFacePlugin {
                     errorMessage = '❌ Request timeout. The model might be busy, please try again.';
                 }
 
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: errorMessage,
-                    edit: processingMsg.key
-                });
+                // Try to edit the processing message, but don't fail if it doesn't work
+                try {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: errorMessage,
+                        edit: processingMsg.key
+                    });
+                } catch (editError) {
+                    // If editing fails, send a new message
+                    await this.bot.messageHandler.reply(messageInfo, errorMessage);
+                }
             }
 
         } catch (error) {
             console.error('Error in text-to-image command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your request.');
+            
+            // More specific error message based on the error type
+            let errorMsg = '❌ Error processing your request.';
+            if (error.message && error.message.includes('API')) {
+                errorMsg = '❌ API error occurred. Please try again.';
+            } else if (error.message && error.message.includes('timeout')) {
+                errorMsg = '❌ Request timed out. Please try again.';
+            } else if (error.message && error.message.includes('file')) {
+                errorMsg = '❌ File processing error. Please try again.';
+            }
+            
+            await this.bot.messageHandler.reply(messageInfo, errorMsg);
         }
     }
 
