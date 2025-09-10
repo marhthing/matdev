@@ -14,7 +14,6 @@ class WeatherPlugin {
         
         // OpenWeatherMap API endpoints
         this.apiBaseUrl = 'https://api.openweathermap.org/data/2.5';
-        this.geoApiUrl = 'https://api.openweathermap.org/geo/1.0';
         
         // Weather condition icons mapping
         this.weatherIcons = {
@@ -170,26 +169,10 @@ class WeatherPlugin {
      */
     async getWeatherData(location) {
         try {
-            let lat, lon;
-
-            // Check if input is coordinates (lat,lon)
-            const coordMatch = location.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
-            if (coordMatch) {
-                lat = parseFloat(coordMatch[1]);
-                lon = parseFloat(coordMatch[2]);
-            } else {
-                // Use geocoding to get coordinates from location name
-                const coords = await this.geocodeLocation(location);
-                if (!coords) return null;
-                lat = coords.lat;
-                lon = coords.lon;
-            }
-
-            // Get current weather data
+            // Get current weather data using the location name directly
             const weatherResponse = await axios.get(`${this.apiBaseUrl}/weather`, {
                 params: {
-                    lat: lat,
-                    lon: lon,
+                    q: location,
                     appid: config.WEATHER_API_KEY,
                     units: 'metric'
                 },
@@ -200,38 +183,6 @@ class WeatherPlugin {
 
         } catch (error) {
             console.error('Error fetching weather data:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Convert location name to coordinates using geocoding
-     */
-    async geocodeLocation(location) {
-        try {
-            const response = await axios.get(`${this.geoApiUrl}/direct`, {
-                params: {
-                    q: location,
-                    limit: 1,
-                    appid: config.WEATHER_API_KEY
-                },
-                timeout: 10000
-            });
-
-            if (response.data && response.data.length > 0) {
-                const result = response.data[0];
-                return {
-                    lat: result.lat,
-                    lon: result.lon,
-                    name: result.name,
-                    country: result.country,
-                    state: result.state
-                };
-            }
-
-            return null;
-        } catch (error) {
-            console.error('Error in geocoding:', error.message);
             return null;
         }
     }
