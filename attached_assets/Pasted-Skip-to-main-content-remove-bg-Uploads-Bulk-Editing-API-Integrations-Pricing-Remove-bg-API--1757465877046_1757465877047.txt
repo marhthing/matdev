@@ -1,0 +1,766 @@
+Skip to main content
+remove.bg
+Uploads
+Bulk Editing
+API
+Integrations
+Pricing
+
+Remove.bg API
+Remove Background
+Easy to integrate
+Get started
+Sample code
+Libraries + Tools
+Output Formats
+How to use the ZIP format
+OAuth 2.0
+API Reference
+Rate limit
+Exponential backoff
+API Changelog
+Remove Background automatically with 1 API call
+Explore our API documentation and examples to integrate remove.bg into your application or workflow.
+
+Not a developer?
+There are plenty ready to use Tools & Apps by remove.bg and our community.
+Was this section helpful? Yes No
+Easy to integrate
+Our API is a simple HTTP interface with various options:
+
+Source images:
+Direct uploads or URL reference
+Result images:
+Image file or JSON-encoded data
+Output resolution:
+up to 50 megapixels
+Requires images that have a foreground (e.g. people, products, animals, cars, etc.)
+Was this section helpful? Yes No
+
+Get started
+Our API is a simple HTTP interface with various options:
+
+Get your API Key.
+Your first 50 API calls per month are on us (see Pricing).
+Use the following code samples to get started quickly
+Review the reference docs to adjust any parameters
+Was this section helpful? Yes No
+
+Sample Code
+import fs from "node:fs";
+
+async function removeBg(blob) {
+  const formData = new FormData();
+  formData.append("size", "auto");
+  formData.append("image_file", blob);
+
+  const response = await fetch("https://api.remove.bg/v1.0/removebg", {
+    method: "POST",
+    headers: { "X-Api-Key": "INSERT_YOUR_API_KEY_HERE" },
+    body: formData,
+  });
+
+  if (response.ok) {
+    return await response.arrayBuffer();
+  } else {
+    throw new Error(`${response.status}: ${response.statusText}`);
+  }
+}
+
+const inputPath = "/path/to/file.jpg";
+const fileBlob = await fs.openAsBlob(inputPath)
+const rbgResultData = await removeBg(fileBlob);
+fs.writeFileSync("no-bg.png", Buffer.from(rbgResultData));
+Was this section helpful? Yes No
+Libraries
+Get up and running faster with official and third-party libraries.
+
+Not a developer?
+There are plenty ready to use Tools & Apps by remove.bg and our community.
+Was this section helpful? Yes No
+Commandline Tool
+Official
+by remove.bg
+Ruby Gem
+Official
+by remove.bg
+PHP/Laravel Library
+by @mtownsend5512
+Node.js: remove.bg
+by @eddyverbruggen
+Node.js: removd
+by @przemyslawpluta
+Python: remove.bg
+by Brian Lam
+Output formats
+You can request one of four formats via the format parameter:
+
+Format	Resolution	Pros and cons
+Example
+PNG	Up to 10 Megapixels
+e.g. 4000x2500	+ Simple integration
++ Supports transparency
+- Large file size
+ Download
+7 MB
+JPG	Up to 50 Megapixels
+e.g. 8000x6250	+ Simple Integration
++ Smallest file size
+- No transparency supported
+ Download
+1 MB
+WebP	Up to 50 Megapixels
+e.g. 8000x6250	+ Simple integration
++ Supports transparency
+- Not universally supported file format
+ Download
+6 MB
+ZIP	Up to 50 Megapixels
+e.g. 8000x6250	+ Fastest
++ Small file size
++ Supports transparency
+- Integration requires composition
+ Download
+3 MB
+Please note that PNG images above 10 megapixels are not supported. If you require transparency for images of that size, use either WebP or ZIP format (see below). For the fastest processing we recommend the ZIP format. If you don't need transparency (e.g. white background), we recommend JPG.
+
+Was this section helpful? Yes No
+How to use the ZIP format
+The ZIP format has the best runtime performance for transparent images.
+
+In comparison to PNG, the resulting file is up to 80% smaller (faster to download) and up to 40% faster to generate. For performance optimization we recommend using the ZIP format whenever possible.
+
+The ZIP file always contains the following files:
+
+color.jpg	A non-transparent RGB image in JPG format containing the colors for each pixel. (Note: This image differs from the input image due to edge color corrections.) – Show example
+alpha.png	A non-transparent grayscale image in PNG format containing the alpha matte. White pixels are foreground regions, black is background. – Show example
+To compose the final image file:
+
+Extract the files from the ZIP
+Apply the alpha matte (alpha.png) to the color image (color.jpg).
+Save the result in a format of your choice (e.g. PNG)
+Sample code for linux (requires zip and imagemagick):
+
+$ unzip no-bg.zip                      && \
+  convert color.jpg alpha.png             \
+    -compose CopyOpacity                  \
+    -composite no-bg.png
+A zip2png command is integrated in our command line interface. More code samples can be found here.
+
+Was this section helpful? Yes No
+OAuth 2.0
+If you want to authenticate users with the click of a button instead of having them enter an API Key, get in touch to try our OAuth 2.0 login.
+
+Was this section helpful? Yes No
+API Reference
+Note: Your API Key has been prefilled in the following section. Sending requests affects your account balance.
+Servers
+
+https://api.remove.bg/v1.0
+Background Removal
+
+
+POST
+/removebg
+Remove the background of an image
+
+Removes the background of a JPG/PNG/WebP image.
+
+File size: up to 22 MB
+Input resolution: up to 50 megapixels
+Image source: File upload (binary or as base64 encoded string) or download from URL
+Image Content: Any photo with a foreground (e.g. people, products, animals, cars, etc.)
+Output resolutions available: Preview (up to 0.25 megapixels), Full (up to 25 megapixels), 50MP (up to 50 megapixels)
+Requires either an API Key to be provided in the X-API-Key request header or an OAuth 2.0 access token to be provided in the Authorization request header.
+
+Parameters
+Request body
+
+multipart/form-data
+image_file
+string($binary)
+Source image file (binary). (If this parameter is present, the other image source parameters must be empty.)
+
+image_file_b64
+string
+Source image file (base64-encoded string). (If this parameter is present, the other image source parameters must be empty.)
+
+image_url
+string
+Source image URL. (If this parameter is present, the other image source parameters must be empty.)
+
+size
+string
+Maximum output image resolution:
+
+"preview" (default) = Resize image to 0.25 megapixels (e.g., 625×400 pixels) – 0.25 credits per image
+"full" = Use original image resolution, up to 25 megapixels (e.g., 6250×4000) with formats ZIP / JPG / WebP, or up to 10 megapixels (e.g., 4000×2500) with PNG – 1 credit per image
+"50MP" = Use original image resolution, up to 50 megapixels (e.g., 8000×6250) with formats ZIP / JPG / WebP, or up to 10 megapixels (e.g., 4000×2500) with PNG – 1 credit per image
+"auto" = Use highest available resolution, up to 25 megapixels (e.g. 6250×4000) (based on image size and available credits).
+For backwards-compatibility this parameter also accepts the values "medium" (up to 1.5 megapixels) and "hd" (up to 4 megapixels) for 1 credit per image. The value "full" is also available under the name "4k" and the value "preview" is aliased as "small" and "regular".
+
+type
+string
+Detect or set a foreground type.
+
+We recommend using type = auto to automatically detect the type of foreground.
+
+To specify only one type of foreground, set type to one of these values:
+car, product, person, animal, graphic, transportation.
+
+type_level
+string
+Classification level of the detected foreground type:
+
+"none" = No classification (X-Type Header won't bet set on the response)
+"1" = Use coarse classification classes: [person, product, animal, car, other]
+"2" = Use more specific classification classes: [person, product, animal, car, car_interior, car_part, transportation, graphics, other]
+"latest" = Always use the latest classification classes available
+format
+string
+Result image format:
+
+"auto" = Use PNG format if transparent regions exist, otherwise use JPG format (default),
+"png" = PNG format with alpha transparency,
+"webp" = WebP format with alpha transparency,
+"jpg" = JPG format, no transparency,
+"zip" = ZIP format, contains color image and alpha matte image, supports transparency (recommended for fastest processing).
+roi
+string
+Region of interest: Only contents of this rectangular region can be detected as foreground. Everything outside is considered background and will be removed. The rectangle is defined as two x/y coordinates in the format "x1 y1 x2 y2". The coordinates can be in absolute pixels (suffix 'px') or relative to the width/height of the image (suffix '%'). By default, the whole image is the region of interest ("0% 0% 100% 100%").
+
+crop
+boolean
+Whether to crop off all empty regions (default: false).
+Note: Cropping has no effect on the amount of charged credits.
+
+crop_margin
+string
+Adds a margin around the cropped subject (default: 0). Can be an absolute value (e.g. "30px") or relative to the subject size (e.g. "10%"). Can be a single value (all sides), two values (top/bottom and left/right) or four values (top, right, bottom, left). This parameter only has an effect when "crop=true". The maximum margin that can be added on each side is 50% of the subject dimensions or 500 pixels.
+
+scale
+string
+Scales the subject relative to the total image size. Can be any value from "10%" to "100%", or "original" (default). Scaling the subject implies "position=center" (unless specified otherwise).
+
+position
+string
+Positions the subject within the image canvas. Can be "original" (default unless "scale" is given), "center" (default when "scale" is given) or a value from "0%" to "100%" (both horizontal and vertical) or two values (horizontal, vertical).
+
+channels
+string
+Request either the finalized image ("rgba", default) or an alpha mask ("alpha").
+Note: Since remove.bg also applies RGB color corrections on edges, using only the alpha mask often leads to a lower final image quality. Therefore "rgba" is recommended.
+
+add_shadow
+boolean
+Warning: add_shadow is deprecated and will be removed in the next major release, version 2.0. Please use shadow_type instead.
+
+Setting add_shadow = true will set the shadow_type parameter to shadow_type [car] = car. A car shadow will only be generated if the foreground type is detected or specified as car.
+
+shadow_type
+string
+Generate shadows based on your foreground type. remove.bg supports four different shadow types: car, 3D, drop, none.
+
+Use shadow_type = auto to automatically assign the most suitable shadow_type for each foreground type. See the default assignments below. Use shadow_type = $shadow_type to specify a single type of shadow for all foreground types.
+
+Replace shadow_type = auto with shadow_type [$type] = $shadow_type to assign specific shadow types per foreground type. Unmentioned foreground type(s) will return no shadow.
+
+Default assignments:
+shadow_type [car] = car,
+shadow_type [product] = drop,
+shadow_type [person] = 3D,
+shadow_type [animal] = drop,
+shadow_type [transportation] = 3D,
+shadow_type [graphic] = drop,
+shadow_type [other] = drop
+
+shadow_opacity
+string
+Set a shadow's opacity, i.e. darkness. Can be set to any value from 0 (lightest) to 100 (darkest) or auto for default values, shown below.
+
+shadow_opacity = n (0 - 100), auto
+
+Replace shadow_opacity = auto with shadow_opacity [$type] = $n to assign specific opacity values per foreground type. Unmentioned foreground type(s) with set shadows will fall back on default opacity assignments.
+
+Default values:
+shadow_opacity [car] = 90
+shadow_opacity [product] = 50
+shadow_opacity [person] = 50
+shadow_opacity [animal] = 50
+shadow_opacity[transportation] = 50
+shadow_opacity [graphic] = 50
+shadow_opacity [other] = 50
+
+semitransparency
+boolean
+Whether to have semi-transparent regions in the result (default: true).
+Note: Semitransparency is currently only supported for car windows (this might change in the future). Other objects are returned without semitransparency, even if set to true.
+
+bg_color
+string
+Adds a solid color background. Can be a hex color code (e.g. 81d4fa, fff) or a color name (e.g. green). For semi-transparency, 4-/8-digit hex codes are also supported (e.g. 81d4fa77). (If this parameter is present, the other bg_ parameters must be empty.)
+
+bg_image_url
+string
+Adds a background image from a URL. The image is centered and resized to fill the canvas while preserving the aspect ratio, unless it already has the exact same dimensions as the foreground image. (If this parameter is present, the other bg_ parameters must be empty.)
+
+bg_image_file
+string($binary)
+Adds a background image from a file (binary). The image is centered and resized to fill the canvas while preserving the aspect ratio, unless it already has the exact same dimensions as the foreground image. (If this parameter is present, the other bg_ parameters must be empty.)
+
+Responses
+Code	Description
+200	
+Image background removed
+
+Media type
+
+image/*
+Controls Accept header.
+Example Value
+Schema
+(binary image data)
+Headers:
+Name	Description	Type
+X-Type	
+Detected foreground type (How specific this classification is depends on the type_level parameter sent in the request)
+
+string
+X-Width	
+Width of the result image
+
+integer
+X-Height	
+Height of the result image
+
+integer
+X-Credits-Charged	
+Amount of credits charged for this call
+
+float
+X-Foreground-Top	
+Top position of the foreground image along the vertical axis. In case the input image resolution is higher than the limit (> 50 megapixels) this value is expressed with respect to the input image resolution.
+
+integer
+X-Foreground-Left	
+Left position of the foreground image along the horizontal axis. In case the input image resolution is higher than the limit (> 50 megapixels) this value is expressed with respect to the input image resolution.
+
+integer
+X-Foreground-Width	
+Width of the foreground image. In case the input image resolution is higher than the limit (> 50 megapixels) this value is expressed with respect to the input image resolution.
+
+integer
+X-Foreground-Height	
+Height of the foreground image. In case the input image resolution is higher than the limit (> 50 megapixels) this value is expressed with respect to the input image resolution.
+
+integer
+400	
+Error: Invalid parameters or input file unprocessable (no credits charged)
+
+Media type
+
+*/*
+Examples
+
+multiple_sources
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "code": "multiple_sources",
+      "title": "Multiple image sources given: Please provide either the image_url, image_file or image_file_b64 parameter."
+    }
+  ]
+}
+402	
+Error: Insufficient credits (no credits charged)
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Insufficient credits"
+    }
+  ]
+}
+403	
+Error: Authentication failed (no credits charged)
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Missing API Key"
+    }
+  ]
+}
+429	
+Error: Rate limit exceeded (no credits charged)
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Rate limit exceeded"
+    }
+  ]
+}
+Improvement Program
+
+
+POST
+/improve
+
+Submit an image to the remove.bg Improvement program
+
+Contribute an image that remove.bg is currently not able to remove the background from properly
+Help us make remove.bg better
+Get better results for similiar images in the future
+Notes:
+
+By submitting images through the API you agree to the Improvement Program Conditions
+File size: up to 22MB
+Input resolution: up to 50 megapixels
+up to 100 files per day.
+Higher rate limits are only available to high-volume solution users; get in touch here.
+Requires either an API Key to be provided in the X-API-Key request header or an OAuth 2.0 access token to be provided in the Authorization request header.
+
+Please note that submissions are used on a best-effort basis and the extent of expected improvement varies depending on many factors, including the number of provided images, their complexity and visual similarity. Improvements usually take several weeks to become effective.
+
+Parameters
+Request body
+
+multipart/form-data
+image_file
+string($binary)
+Source image file (binary). (If this parameter is present, the other image source parameters must be empty.)
+
+image_file_b64
+string
+Source image file (base64-encoded string). (If this parameter is present, the other image source parameters must be empty.)
+
+image_url
+string
+Source image URL. (If this parameter is present, the other image source parameters must be empty.)
+
+image_filename
+string
+Filename of the image, if not provided it will be autodetected form the submitted data.
+
+tag
+string
+Images with the same tag are grouped together.
+
+Responses
+Code	Description
+200	
+Image submitted
+
+Media type
+
+*/*
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "fe09820b-be79-4511-8836-679583529882"
+}
+400	
+Error: Invalid parameters or input file unprocessable
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "File too large"
+    }
+  ]
+}
+403	
+Error: Authentication failed
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Missing API Key"
+    }
+  ]
+}
+429	
+Error: Rate limit exceeded
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Rate limit exceeded"
+    }
+  ]
+}
+Fetch account info
+
+
+GET
+/account
+Fetch credit balance and free API calls.
+
+Get the current credit balance and number of free API calls.
+
+Notes:
+
+Balance changes may be delayed by several seconds. To locally keep track of your credit balance, you should therefore only call this endpoint initially (or e.g. when the user manually triggers a refresh), then use the X-Credits-Charged response header returned with each image processing response to adjust the local balance.
+The "sizes" field is always "all", is deprecated and will soon be removed.
+Parameters
+Responses
+Code	Description
+200	
+Media type
+
+*/*
+Controls Accept header.
+Example Value
+Schema
+{
+  "data": {
+    "attributes": {
+      "credits": {
+        "total": 200,
+        "subscription": 150,
+        "payg": 50,
+        "enterprise": 0
+      },
+      "api": {
+        "free_calls": 50,
+        "sizes": "all"
+      }
+    }
+  }
+}
+403	
+Error: Authentication failed
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Missing API Key"
+    }
+  ]
+}
+429	
+Error: Rate limit exceeded
+
+Media type
+
+*/*
+Example Value
+Schema
+{
+  "errors": [
+    {
+      "title": "Rate limit exceeded"
+    }
+  ]
+}
+Was this section helpful? Yes No
+Rate Limit
+You can process up to 500 images per minute through the API, depending on the input image resolution in megapixels.
+
+Examples:
+
+Input image	Megapixels	Effective Rate Limit
+625 x 400	1 MP	500 images per minute
+1200 x 800	1 MP	500 images per minute
+1600 x 1200	2 MP	500 / 2 = 250 images per minute
+2500 x 1600	4 MP	500 / 4 = 125 images per minute
+4000 x 2500	10 MP	500 / 10 = 50 images per minute
+6250 x 4000	25 MP	500 / 25 = 20 images per minute
+8000 x 6250	50 MP	500 / 50 = 10 images per minute
+Exceedance of rate limits leads to a HTTP status 429 response (no credits charged). Clients can use the following response headers to gracefully handle rate limits:
+
+Response header	Sample value	Description
+X-RateLimit-Limit	500	Total rate limit in megapixel images
+X-RateLimit-Remaining	499	Remaining rate limit for this minute
+X-RateLimit-Reset	1757465959	Unix timestamp when rate limit will reset
+Retry-After	59	Seconds until rate limit will reset (only present if rate limit exceeded)
+Higher rate limits are only available to high-volume solution users; get in touch here.
+
+Sample Code
+Handling Rate Limits in your code using the HTTP Retry-After header:
+
+#!/bin/bash
+
+make_request_with_retry() {
+    while true; do
+        response=$(get_result)
+        status_code=$(echo "$response" | grep HTTP | awk '{print $2}')
+        
+        if [ "$status_code" -eq 200 ]; then
+            echo "$response" | grep -v HTTP
+            return
+        elif [ "$status_code" -eq 429 ]; then
+            retry_after=$(echo "$response" | grep -i "Retry-After" | awk '{print $2}')
+            if [ -n "$retry_after" ]; then
+                echo "Rate limit reached. Retrying after $retry_after seconds..."
+                sleep "$retry_after"
+            else
+                echo "Rate limit reached. Retrying after a default delay..."
+                sleep 10  # Default fallback delay
+            fi
+        else
+            echo "Request failed with status code $status_code"
+            exit 1
+        fi
+    done
+}
+
+get_result() {
+    # Placeholder for actual API call logic
+    # Example
+    curl -i -s -X POST "https://api.remove.bg/v1.0/removebg" \
+    -H "Content-Type: application/json" \
+    -d '{"image_url":"https://www.remove.bg/example.jpg"}'
+    echo "HTTP/1.1 429 Too Many Requests"
+    echo "Retry-After: 5"
+}
+
+make_request_with_retry
+Was this section helpful? Yes No
+Exponential backoff
+Exponential backoff is an error handling strategy in which a client periodically retries a failed request. This technique reduces the number of failed requests and prevents server overload by gradually increasing the waiting time between retries.
+
+The delay increases between requests and often includes jitter (randomized delay) to avoid collisions when using concurrent clients. Clients should use exponential backoff whenever they receive a 5XX HTTP status code, such as 503 - Service Unavailable.
+
+As a general rule, this should be avoided in case of 429 - Too Many Requests, as they are usually caused by client-side issues.
+
+Sample Code
+#!/bin/bash
+
+MAX_RETRIES=5
+
+call_api_with_exponential_backoff() {
+  local retry=true
+  local retries=0
+
+  while $retry && [ $retries -lt $MAX_RETRIES ]; do
+    local wait_time=$(echo "2^$retries + $RANDOM/32768" | bc -l)
+    sleep $wait_time
+
+    local result=$(get_result) # Assume this function retrieves the result
+
+    if [ "$result" == "SUCCESS" ]; then
+      retry=false
+    elif [ "$result" == "ERROR" ] || [ "$result" == "THROTTLED" ]; then
+      retry=true
+    fi
+
+    retries=$((retries + 1))
+  done
+}
+
+get_result() {
+  # Placeholder for actual API call logic
+}
+Was this section helpful? Yes No
+API Changelog
+Most recent API updates:
+
+2025-04-07: Drop Shadow is now more consistent across images, regardless of their resolution.
+2025-03-31: Added support for WebP as an accepted input and output image format.
+2024-12-13: Added code samples and tips in the Exponential Backoff section.
+2024-06-03: Introduced new parameters: shadow_type and shadow_opacity. Deprecated parameter: add_shadow. Extended type parameter with new values: "graphic", "transportation" and "animal".
+2024-03-17: Added new value for size parameter: 50MP for up to 50 megapixels (e.g., 8000x6250 pixels) with formats ZIP or JPG, or up to 10 megapixels (e.g., 4000x2500 pixels) with PNG – costs 1 credit per image. The "auto" option keeps supporting a maximum of 25MP for backwards compatibility.
+2024-01-10: Final reminder - Deprecation of TLS 1.0 and 1.1. Upgrade to TLS 1.2 or higher for uninterrupted service before 2024-02-05.
+2023-12-06: Second notice - Deprecation of TLS 1.0 and 1.1. Upgrade to TLS 1.2 or higher for uninterrupted service before 2024-02-05.
+2023-11-22: First notice - Deprecation of TLS 1.0 and 1.1. Upgrade to TLS 1.2 or higher for uninterrupted service before 2024-02-05.
+2021-12-07: Added foreground position and size to background removal responses. (JSON fields: foreground_top, foreground_left, foreground_width and foreground_height. Response headers: X-Foreground-Top, X-Foreground-Left, X-Foreground-Width and X-Foreground-Height.)
+2021-04-13: Removed deprecated shadow_method=legacy option and shadow_method parameter as it no longer has any effect.
+2021-03-01: Added examples for 400 error codes.
+2021-01-21: Added shadow_method parameter to control shadow appearance. Deprecated legacy value for shadow_method.
+2020-09-30: Added type_level parameter and POST /improve endpoint.
+2020-05-06: Added semitransparency parameter.
+2019-09-27: Introduce ZIP format and support for images up to 25 megapixels.
+2019-09-25: Increased maximum file size to 12 MB and rate limit to 500 images per minute. Rate limit is now resolution-dependent.
+2019-09-16: Added enterprise credit balance field to account endpoint.
+2019-08-01: Added add_shadow option for car images.
+2019-06-26: Added crop_margin, scale and position parameters.
+2019-06-19: Added support for animals and other foregrounds (response header X-Type: animal and X-Type: other)
+2019-06-11: Credit balances can now have fractional digits, this affects the X-Credits-Charged value
+2019-06-03: Added parameters bg_image_url, bg_image_file (add a background image), crop (crop off empty regions) and roi (specify a region of interest).
+2019-05-13: Added car support (type=car parameter and X-Type: car response header)
+2019-05-02: Renamed size "regular" to "small". Clients should use the new value, but the old one will continue to work (deprecated)
+2019-05-01: Added endpoint GET /account for credit balance lookups
+2019-04-15: Added parameter format to set the result image format
+2019-04-15: Added parameter bg_color to add a background color to the result image
+Was this section helpful? Yes No
+remove.bg - Remove Background from Image 100% Free! | Product Hunt
+Learn more
+All features
+Photographers
+Marketing
+Developers
+Ecommerce
+Media
+Car Dealerships
+Enterprise
+Success stories
+Tools & API
+API Documentation
+Integrations, tools & apps
+Photoshop Extension
+Windows / Mac / Linux
+Android App
+Design Templates
+Support
+Help & FAQs
+Contact us
+Refunds
+Platform Status
+Resources
+Company
+Blog
+Affiliate Program
+Create automatic designs
+Video Background Removal
+Careers
+About us
+Press & Partnerships
+
+English
+© remove.bg, a Canva Austria GmbH brand
+
+Terms of Service
+General Terms and Conditions
+Privacy Policy
+Cookie Policy
+Imprint
