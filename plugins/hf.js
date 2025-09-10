@@ -183,20 +183,6 @@ class HuggingFacePlugin {
 
                 console.log(`✅ Image sent successfully, cleaning up temp file`);
                 
-                // Mark success before trying to edit message
-                const imageSentSuccessfully = true;
-                
-                // Try to edit the processing message to show completion
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '✅ Image generated successfully!',
-                        edit: processingMsg.key
-                    });
-                } catch (editError) {
-                    // If editing fails, just log it - image was already sent successfully
-                    console.log('Could not edit processing message, but image was sent successfully');
-                }
-                
                 // Clean up temp file after sending
                 await fs.remove(outputPath);
                 console.log(`✅ Temp file deleted: ${outputPath}`);
@@ -216,27 +202,12 @@ class HuggingFacePlugin {
                     errorMessage = '❌ Request timeout. The model might be busy, please try again.';
                 }
 
-                // Try to edit the processing message, but don't fail if it doesn't work
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: errorMessage,
-                        edit: processingMsg.key
-                    });
-                } catch (editError) {
-                    // If editing fails, send a new message
-                    await this.bot.messageHandler.reply(messageInfo, errorMessage);
-                }
+                // Send error message
+                await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
         } catch (error) {
             console.error('Error in text-to-image command:', error);
-            
-            // Check if this error occurred after the image was already sent
-            // Look for specific patterns that indicate the image generation succeeded
-            if (error.message && error.message.includes('edit') && error.message.includes('key')) {
-                console.log('Image was generated successfully, error was in message editing');
-                return; // Don't send error message since image was already sent
-            }
             
             // More specific error message based on the error type
             let errorMsg = '❌ Error processing your request.';
