@@ -4,6 +4,18 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 
 # Recent Changes
 
+## September 10, 2025 - Currency Conversion Plugin Implementation ✅
+- **NEW FEATURE**: Complete currency conversion plugin with global support  
+- Added `.convert 2000usd to ngn` command for real-time currency conversion
+- Added `.convert list` command showing all 170+ available currencies with full names and codes
+- **Free API Integration**: Uses Fawaz Ahmed Currency API (no API key required, no rate limits)
+- **Global Coverage**: Supports USD, EUR, GBP, JPY, NGN, INR, and 165+ other currencies worldwide
+- **Smart Formatting**: Displays currency symbols (₦, $, €, £, ¥) and proper number formatting
+- **Multiple Formats**: Supports "2000usd to ngn", "100 eur to usd", and "convert list"
+- **Comprehensive List**: Shows currency codes with full country names (USD - United States Dollar)
+- **Hot Reload Support**: Plugin automatically loaded via bot's hot reload system
+- **Clean Display**: Removed API attribution text for professional output
+
 ## September 10, 2025 - Weather Plugin Implementation ✅
 - **NEW FEATURE**: Complete weather plugin with global location support
 - Added `.weather` and `.w` commands for weather information lookup
@@ -32,7 +44,7 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - **COMPLETED**: Set up workflow "MATDEV Bot" with proper console output monitoring
 - **COMPLETED**: Configured VM deployment for continuous 24/7 operation
 - **COMPLETED**: Bot starts successfully and connects to WhatsApp automatically
-- **COMPLETED**: All 19 plugins load correctly including new plugins (gemini, autobio, autoreact, etc.)
+- **COMPLETED**: All plugins load correctly including new plugins (gemini, autobio, autoreact, weather, currency, etc.)
 - **COMPLETED**: Environment configuration validated (.env file auto-created with defaults)
 - **COMPLETED**: Owner number auto-detection and configuration working (2347018091555)
 - **COMPLETED**: Security manager initialized with anti-ban protection
@@ -41,7 +53,7 @@ MATDEV is a high-performance WhatsApp bot built with Node.js and the Baileys lib
 - **COMPLETED**: VM deployment configuration set for production using node bot.js
 - **COMPLETED**: Fixed caption editor plugin to work silently without success messages
 - **COMPLETED**: WhatsApp connection established successfully (Bot Number: 2347018091555, Bot Name: POF)
-- **COMPLETED**: All 19 plugins initialized successfully with hot reload system
+- **COMPLETED**: All plugins initialized successfully with hot reload system
 - **COMPLETED**: Startup confirmation sent to bot private chat
 - **COMPLETED**: Fixed Groq AI vision commands (.ask and .describe) to support direct image captions
 - **STATUS**: Bot is fully operational with complete AI capabilities (TTS, STT, Vision) - ready for production

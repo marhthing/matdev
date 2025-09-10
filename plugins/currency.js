@@ -29,19 +29,6 @@ class CurrencyPlugin {
             'lbp': '£', 'pkr': '₨', 'lkr': '₨', 'bdt': '৳', 'afn': '؋'
         };
 
-        // Common currency names mapping
-        this.currencyMapping = {
-            'dollar': 'usd', 'dollars': 'usd', 'buck': 'usd', 'bucks': 'usd',
-            'euro': 'eur', 'euros': 'eur',
-            'pound': 'gbp', 'pounds': 'gbp', 'sterling': 'gbp',
-            'yen': 'jpy', 'yuan': 'cny', 'renminbi': 'cny',
-            'naira': 'ngn', 'kobo': 'ngn',
-            'rupee': 'inr', 'rupees': 'inr',
-            'rand': 'zar', 'ruble': 'rub', 'lira': 'try',
-            'peso': 'mxn', 'real': 'brl', 'won': 'krw',
-            'dirham': 'aed', 'riyal': 'sar', 'shekel': 'ils',
-            'dinar': 'kwd', 'baht': 'thb', 'rupiah': 'idr'
-        };
     }
 
     /**
@@ -78,11 +65,46 @@ class CurrencyPlugin {
     }
 
     /**
+     * Handle list command to show all available currencies
+     */
+    async listCommand(messageInfo) {
+        try {
+            const currencyList = this.getCompleteCurrencyList();
+            
+            // Split into chunks to avoid message length limits
+            const chunks = this.splitCurrencyList(currencyList);
+            
+            for (let i = 0; i < chunks.length; i++) {
+                const header = i === 0 ? `💱 *Available Currencies* (${i + 1}/${chunks.length})\n\n` : `💱 *Available Currencies* (${i + 1}/${chunks.length})\n\n`;
+                const message = header + chunks[i];
+                
+                await this.bot.messageHandler.reply(messageInfo, message);
+                
+                // Small delay between messages to avoid spam detection
+                if (i < chunks.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+        } catch (error) {
+            console.error('Error in list command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Error loading currency list. Please try again later.'
+            );
+        }
+    }
+
+    /**
      * Main currency conversion command handler
      */
     async convertCommand(messageInfo) {
         try {
             const { args } = messageInfo;
+
+            // Check if user wants to see currency list
+            if (args.length === 1 && args[0].toLowerCase() === 'list') {
+                await this.listCommand(messageInfo);
+                return;
+            }
 
             // Check if conversion parameters are provided
             if (args.length < 3) {
@@ -92,7 +114,8 @@ class CurrencyPlugin {
                     `• ${config.PREFIX}convert 2000usd to ngn\n` +
                     `• ${config.PREFIX}convert 100eur to usd\n` +
                     `• ${config.PREFIX}convert 50gbp to inr\n` +
-                    `• ${config.PREFIX}convert 1000 usd to eur\n\n` +
+                    `• ${config.PREFIX}convert 1000 usd to eur\n` +
+                    `• ${config.PREFIX}convert list\n\n` +
                     `_Supports 200+ currencies worldwide_`
                 );
                 return;
@@ -262,7 +285,7 @@ class CurrencyPlugin {
                 `${fromSymbol}${originalAmount} ${data.fromCurrency} = ${toSymbol}${convertedAmount} ${data.toCurrency}\n\n` +
                 `📊 *Exchange Rate:* 1 ${data.fromCurrency} = ${rate} ${data.toCurrency}\n` +
                 `🕐 *Updated:* ${data.timestamp.toLocaleTimeString('en-US', { hour12: false })}\n\n` +
-                `_Rates provided by free currency API_`;
+                `_Live exchange rates_`;
 
             return response;
         } catch (error) {
@@ -295,6 +318,177 @@ class CurrencyPlugin {
         } else {
             return rate.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
         }
+    }
+
+    /**
+     * Get comprehensive list of all available currencies
+     */
+    getCompleteCurrencyList() {
+        return {
+            // Major Global Currencies
+            'USD': 'United States Dollar',
+            'EUR': 'Euro',
+            'GBP': 'British Pound Sterling', 
+            'JPY': 'Japanese Yen',
+            'CNY': 'Chinese Yuan',
+            'AUD': 'Australian Dollar',
+            'CAD': 'Canadian Dollar',
+            'CHF': 'Swiss Franc',
+            'KRW': 'South Korean Won',
+            'SGD': 'Singapore Dollar',
+            
+            // European Currencies
+            'NOK': 'Norwegian Krone',
+            'SEK': 'Swedish Krona',
+            'DKK': 'Danish Krone',
+            'PLN': 'Polish Zloty',
+            'CZK': 'Czech Koruna',
+            'HUF': 'Hungarian Forint',
+            'RON': 'Romanian Leu',
+            'BGN': 'Bulgarian Lev',
+            'HRK': 'Croatian Kuna',
+            'RSD': 'Serbian Dinar',
+            
+            // Americas
+            'MXN': 'Mexican Peso',
+            'BRL': 'Brazilian Real',
+            'ARS': 'Argentine Peso',
+            'CLP': 'Chilean Peso',
+            'COP': 'Colombian Peso',
+            'PEN': 'Peruvian Sol',
+            'UYU': 'Uruguayan Peso',
+            'VES': 'Venezuelan Bolívar',
+            'BOB': 'Bolivian Boliviano',
+            'PYG': 'Paraguayan Guarani',
+            
+            // Asia-Pacific
+            'INR': 'Indian Rupee',
+            'THB': 'Thai Baht',
+            'MYR': 'Malaysian Ringgit',
+            'IDR': 'Indonesian Rupiah',
+            'PHP': 'Philippine Peso',
+            'VND': 'Vietnamese Dong',
+            'HKD': 'Hong Kong Dollar',
+            'TWD': 'Taiwan Dollar',
+            'NZD': 'New Zealand Dollar',
+            'PKR': 'Pakistani Rupee',
+            'LKR': 'Sri Lankan Rupee',
+            'BDT': 'Bangladeshi Taka',
+            'NPR': 'Nepalese Rupee',
+            'MMK': 'Myanmar Kyat',
+            'KHR': 'Cambodian Riel',
+            'LAK': 'Laotian Kip',
+            
+            // Middle East
+            'SAR': 'Saudi Riyal',
+            'AED': 'UAE Dirham',
+            'QAR': 'Qatari Riyal',
+            'KWD': 'Kuwaiti Dinar',
+            'BHD': 'Bahraini Dinar',
+            'OMR': 'Omani Rial',
+            'JOD': 'Jordanian Dinar',
+            'LBP': 'Lebanese Pound',
+            'SYP': 'Syrian Pound',
+            'IQD': 'Iraqi Dinar',
+            'IRR': 'Iranian Rial',
+            'ILS': 'Israeli New Shekel',
+            'TRY': 'Turkish Lira',
+            
+            // Africa
+            'ZAR': 'South African Rand',
+            'EGP': 'Egyptian Pound',
+            'NGN': 'Nigerian Naira',
+            'KES': 'Kenyan Shilling',
+            'UGX': 'Ugandan Shilling',
+            'TZS': 'Tanzanian Shilling',
+            'RWF': 'Rwandan Franc',
+            'GHS': 'Ghanaian Cedi',
+            'XOF': 'West African CFA Franc',
+            'XAF': 'Central African CFA Franc',
+            'MAD': 'Moroccan Dirham',
+            'TND': 'Tunisian Dinar',
+            'DZD': 'Algerian Dinar',
+            'LYD': 'Libyan Dinar',
+            'ETB': 'Ethiopian Birr',
+            'MUR': 'Mauritian Rupee',
+            'ZMW': 'Zambian Kwacha',
+            'BWP': 'Botswana Pula',
+            'NAD': 'Namibian Dollar',
+            'SZL': 'Swazi Lilangeni',
+            'LSL': 'Lesotho Loti',
+            
+            // Russia & Eastern Europe
+            'RUB': 'Russian Ruble',
+            'UAH': 'Ukrainian Hryvnia',
+            'BYN': 'Belarusian Ruble',
+            'KZT': 'Kazakhstani Tenge',
+            'UZS': 'Uzbekistani Som',
+            'KGS': 'Kyrgyzstani Som',
+            'TJS': 'Tajikistani Somoni',
+            'TMT': 'Turkmenistani Manat',
+            'AZN': 'Azerbaijani Manat',
+            'GEL': 'Georgian Lari',
+            'AMD': 'Armenian Dram',
+            'MDL': 'Moldovan Leu',
+            
+            // Caribbean & Island Nations  
+            'JMD': 'Jamaican Dollar',
+            'BBD': 'Barbadian Dollar',
+            'TTD': 'Trinidad & Tobago Dollar',
+            'BSD': 'Bahamian Dollar',
+            'BZD': 'Belize Dollar',
+            'KYD': 'Cayman Islands Dollar',
+            'XCD': 'East Caribbean Dollar',
+            'AWG': 'Aruban Florin',
+            'CUP': 'Cuban Peso',
+            'DOP': 'Dominican Peso',
+            'HTG': 'Haitian Gourde',
+            'FJD': 'Fijian Dollar',
+            'PGK': 'Papua New Guinea Kina',
+            'SBD': 'Solomon Islands Dollar',
+            'TOP': 'Tongan Pa\'anga',
+            'VUV': 'Vanuatu Vatu',
+            'WST': 'Samoan Tala',
+            
+            // Additional Global Currencies
+            'ISK': 'Icelandic Krona',
+            'ALL': 'Albanian Lek',
+            'MKD': 'Macedonian Denar',
+            'BAM': 'Bosnia-Herzegovina Convertible Mark',
+            'RSD': 'Serbian Dinar',
+            'MNT': 'Mongolian Tugrik',
+            'AFN': 'Afghan Afghani',
+            'BDT': 'Bangladeshi Taka',
+            'BTN': 'Bhutanese Ngultrum',
+            'BND': 'Brunei Dollar',
+            'KPW': 'North Korean Won',
+            'MVR': 'Maldivian Rufiyaa',
+            'LKR': 'Sri Lankan Rupee',
+            
+            // Special & Historical
+            'XAU': 'Gold (Troy Ounce)',
+            'XAG': 'Silver (Troy Ounce)',
+            'XPD': 'Palladium (Troy Ounce)',
+            'XPT': 'Platinum (Troy Ounce)',
+            'XDR': 'IMF Special Drawing Rights'
+        };
+    }
+
+    /**
+     * Split currency list into chunks for WhatsApp messages
+     */
+    splitCurrencyList(currencyList) {
+        const entries = Object.entries(currencyList);
+        const chunks = [];
+        const maxPerChunk = 30; // Adjust based on message length limits
+        
+        for (let i = 0; i < entries.length; i += maxPerChunk) {
+            const chunk = entries.slice(i, i + maxPerChunk);
+            const chunkText = chunk.map(([code, name]) => `${code} - ${name}`).join('\n');
+            chunks.push(chunkText);
+        }
+        
+        return chunks;
     }
 }
 
