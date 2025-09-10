@@ -144,16 +144,26 @@ class HuggingFacePlugin {
                 
                 let imageData = response.data;
                 
-                // Check if response is Base64-encoded
+                // Handle different response formats
                 if (Buffer.isBuffer(imageData)) {
-                    const dataString = imageData.toString('utf8');
-                    // If it starts with quote and contains Base64 PNG header
-                    if (dataString.startsWith('"') && dataString.includes('iVBORw0KGgo')) {
-                        console.log('📦 Detected Base64-encoded image, decoding...');
-                        // Remove quotes and decode Base64
-                        const base64String = dataString.replace(/^"/, '').replace(/"$/, '');
-                        imageData = Buffer.from(base64String, 'base64');
-                        console.log(`✅ Decoded: ${base64String.length} chars -> ${imageData.length} bytes`);
+                    // Check if it's a string that needs Base64 decoding
+                    try {
+                        const dataString = imageData.toString('utf8');
+                        if (dataString.startsWith('"') && dataString.includes('iVBORw0KGgo')) {
+                            console.log('📦 Detected Base64-encoded image, decoding...');
+                            const base64String = dataString.replace(/^"/, '').replace(/"$/, '');
+                            imageData = Buffer.from(base64String, 'base64');
+                            console.log(`✅ Decoded: ${base64String.length} chars -> ${imageData.length} bytes`);
+                        } else if (dataString.length > 1000 && !dataString.includes('\n')) {
+                            // Likely a raw Base64 string without quotes
+                            console.log('📦 Detected raw Base64 string, decoding...');
+                            imageData = Buffer.from(dataString, 'base64');
+                            console.log(`✅ Decoded raw Base64: ${dataString.length} chars -> ${imageData.length} bytes`);
+                        }
+                        // If none of the above, assume it's already binary image data
+                    } catch (decodeError) {
+                        console.log('⚠️ Could not decode as Base64, using raw buffer data');
+                        // Use original buffer data
                     }
                 }
                 
