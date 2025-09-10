@@ -136,7 +136,7 @@ class PasswordGeneratorPlugin {
             }
 
             // Build simplified response
-            const responseText = `🔐 Generated Password: ${password}`;
+            const responseText = `🔐 Generated Password:\n\n${password}`;
 
             await this.bot.messageHandler.reply(messageInfo, responseText);
 
