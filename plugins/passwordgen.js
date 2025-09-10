@@ -33,6 +33,14 @@ class PasswordGeneratorPlugin {
             plugin: 'passwordgen',
             source: 'passwordgen.js'
         });
+
+        this.bot.messageHandler.registerCommand('pg help', this.showHelp.bind(this), {
+            description: 'Show password generator help',
+            usage: `${config.PREFIX}pg help`,
+            category: 'utility',
+            plugin: 'passwordgen',
+            source: 'passwordgen.js'
+        });
     }
 
     /**
@@ -41,6 +49,11 @@ class PasswordGeneratorPlugin {
     async generatePassword(messageInfo) {
         try {
             const { args } = messageInfo;
+            
+            // Check if help is requested
+            if (args.length > 0 && args[0].toLowerCase() === 'help') {
+                return await this.showHelp(messageInfo);
+            }
             
             // Default settings
             let length = 16;
@@ -122,37 +135,25 @@ class PasswordGeneratorPlugin {
                 password = password.substring(0, pos) + symbols[Math.floor(Math.random() * symbols.length)] + password.substring(pos + 1);
             }
 
-            // Calculate strength
-            let strength = 'Weak';
-            let strengthScore = 0;
-            
-            if (length >= 8) strengthScore += 1;
-            if (length >= 12) strengthScore += 1;
-            if (length >= 16) strengthScore += 1;
-            if (/[a-z]/.test(password)) strengthScore += 1;
-            if (/[A-Z]/.test(password)) strengthScore += 1;
-            if (/[0-9]/.test(password)) strengthScore += 1;
-            if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) strengthScore += 1;
-            
-            if (strengthScore >= 6) strength = 'Very Strong 🔒';
-            else if (strengthScore >= 5) strength = 'Strong 🛡️';
-            else if (strengthScore >= 3) strength = 'Medium ⚠️';
-            else strength = 'Weak ❌';
+            // Build simplified response
+            const responseText = `🔐 Generated Password: ${password}`;
 
-            // Build response
-            let responseText = `🔐 *Generated Password:*\n\n`;
-            responseText += `\`\`\`${password}\`\`\`\n\n`;
-            responseText += `📊 *Strength:* ${strength}\n`;
-            responseText += `📏 *Length:* ${length} characters\n`;
-            responseText += `🔧 *Composition:*\n`;
-            
-            if (includeLowercase) responseText += `• Lowercase letters ✅\n`;
-            if (includeUppercase) responseText += `• Uppercase letters ✅\n`;
-            if (includeNumbers) responseText += `• Numbers ✅\n`;
-            if (includeSymbols) responseText += `• Symbols ✅\n`;
-            if (excludeSimilar) responseText += `• Similar chars excluded ✅\n`;
-            
-            responseText += `\n💡 *Usage:*\n`;
+            await this.bot.messageHandler.reply(messageInfo, responseText);
+
+        } catch (error) {
+            console.error('Error generating password:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Error generating password. Please try again.'
+            );
+        }
+    }
+
+    /**
+     * Show password generator help
+     */
+    async showHelp(messageInfo) {
+        try {
+            let responseText = `💡 *Usage:*\n`;
             responseText += `• ${config.PREFIX}pg - Default 16 chars\n`;
             responseText += `• ${config.PREFIX}pg 24 - Custom length\n`;
             responseText += `• ${config.PREFIX}pg simple - No symbols\n`;
@@ -164,9 +165,9 @@ class PasswordGeneratorPlugin {
             await this.bot.messageHandler.reply(messageInfo, responseText);
 
         } catch (error) {
-            console.error('Error generating password:', error);
+            console.error('Error showing password generator help:', error);
             await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Error generating password. Please try again.'
+                '❌ Error showing help. Please try again.'
             );
         }
     }
