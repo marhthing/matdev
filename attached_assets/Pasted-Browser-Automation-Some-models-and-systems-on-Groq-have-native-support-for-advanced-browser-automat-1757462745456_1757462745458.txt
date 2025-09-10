@@ -1,0 +1,147 @@
+Browser Automation
+Some models and systems on Groq have native support for advanced browser automation, allowing them to launch and control up to 10 browsers simultaneously to gather comprehensive information from multiple sources. This powerful tool enables parallel web research, deeper analysis, and richer evidence collection.
+
+The use of this tool with a supported model in GroqCloud is not a HIPAA Covered Cloud Service under Groq's Business Associate Addendum at this time. This tool is also not available currently for use with regional / sovereign endpoints.
+
+Supported Models
+Browser automation is supported for the following models and systems (on versions later than 2025-07-23):
+
+Model ID	Model
+groq/compound
+
+Compound
+groq/compound-mini
+
+Compound Mini
+
+For a comparison between the groq/compound and groq/compound-mini systems and more information regarding extra capabilities, see the Compound Systems page.
+
+Quick Start
+To use browser automation, you must enable both browser_automation and web_search tools in your request to one of the supported models. The examples below show how to access all parts of the response: the final content, reasoning process, and tool execution details.
+
+
+python
+
+import json
+from groq import Groq
+
+client = Groq(
+    default_headers={
+        "Groq-Model-Version": "latest"
+    }
+)
+
+chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "What are the latest models on Groq and what are they good at?",
+        }
+    ],
+    model="groq/compound-mini",
+    compound_custom={
+        "tools": {
+            "enabled_tools": ["browser_automation", "web_search"]
+        }
+    }
+)
+
+message = chat_completion.choices[0].message
+
+# Print the final content
+print(message.content)
+
+# Print the reasoning process
+print(message.reasoning)
+
+# Print executed tools
+if message.executed_tools:
+    print(message.executed_tools[0])
+These examples show how to enable browser automation to get deeper search results through parallel browser control.
+
+
+When the API is called with browser automation enabled, it will launch multiple browsers to gather comprehensive information. The response includes three key components:
+
+Content: The final synthesized response from the model based on all browser sessions
+Reasoning: The internal decision-making process showing browser automation steps
+Executed Tools: Detailed information about the browser automation sessions and web searches
+How It Works
+When you enable browser automation:
+
+Tool Activation: Both browser_automation and web_search tools are enabled in your request. Browser automation will not work without both tools enabled.
+Parallel Browser Launch: Up to 10 browsers are launched simultaneously to search different sources
+Deep Content Analysis: Each browser navigates and extracts relevant information from multiple pages
+Evidence Aggregation: Information from all browser sessions is combined and analyzed
+Response Generation: The model synthesizes findings from all sources into a comprehensive response
+Final Output
+This is the final response from the model, containing analysis based on information gathered from multiple browser automation sessions. The model can provide comprehensive insights, multi-source comparisons, and detailed analysis based on extensive web research.
+
+
+The newest models Groq is offering (as of the latest public announcement)
+
+Model (available on GroqCloud)	Size	Typical Strengths / What It’s Good At
+openai/gpt‑oss‑120B	120 billion parameters	• Very strong at complex, multi‑step reasoning and long‑form generation (e.g., detailed essays, technical documentation, code synthesis). <br>• Handles nuanced language, maintains context over very long prompts (Groq supports up to 128 K tokens). <br>• Best for high‑value, low‑latency use‑cases where quality outweighs cost.
+openai/gpt‑oss‑20B	20 billion parameters	• Fast, cost‑effective LLM for a wide range of general‑purpose tasks (chat, summarization, classification, simple code generation). <br>• Good balance of speed and capability; ideal for production workloads that need high throughput. <br>• Works well when you don’t need the full power of the 120B model but still want strong language understanding.
+Why these models matter on Groq
+Speed & Scale – Groq’s custom LPU hardware delivers “day‑zero” inference at very low latency, so even the 120 B model can be served in near‑real‑time for interactive apps.
+Extended Context – Both models can be run with up to 128 K token context length, enabling very long documents, codebases, or conversation histories to be processed in a single request.
+Built‑in Tools – GroqCloud adds code execution and browser search as first‑class capabilities, letting you augment the LLM’s output with live code runs or up‑to‑date web information without leaving the platform.
+Pricing – Groq’s pricing (e.g., $0.15 / M input tokens and $0.75 / M output tokens for the 120 B model) is positioned to be competitive for high‑throughput production workloads.
+Quick “what‑to‑use‑when” guide
+Use‑case	Recommended Model
+Deep research, long‑form writing, complex code generation	gpt‑oss‑120B
+Chatbots, summarization, classification, moderate‑size generation	gpt‑oss‑20B
+High‑throughput, cost‑sensitive inference (e.g., batch processing, real‑time UI)	gpt‑oss‑20B (or a smaller custom model if you have one)
+Any task that benefits from > 8 K token context	Either model, thanks to Groq’s 128 K token support
+In short, Groq’s latest offerings are the OpenAI open‑source models—gpt‑oss‑120B and gpt‑oss‑20B—delivered on Groq’s ultra‑fast inference hardware, with extended context and integrated tooling that make them well‑suited for everything from heavyweight reasoning to high‑volume production AI.
+
+Reasoning and Internal Tool Calls
+This shows the model's internal reasoning process and the browser automation sessions it executed to gather information. You can inspect this to understand how the model approached the problem, which browsers it launched, and what sources it accessed. This is useful for debugging and understanding the model's research methodology.
+
+
+<tool></tool> <output>Page content analyzed: Found matches for 'groq': 【0†match at L2】 08/05/2025 · Groq
+
+Day Zero Support for OpenAI Open Models
+
+【1†match at L8】 We're excited to announce that GroqCloud now supports the much anticipated OpenAI open models, openai/gpt-oss-120B
+
+【2†match at L12】 openai/gpt-oss-20B! This launch brings day-zero support for the latest open models, empowering developers worldwide to build innovative AI applications with unprecedented
+
+【3†match at L20】 execution and browser search are essential. Groq's platform delivers these capabilities from day zero, with full support for 128K token context length and built-in tools such as [code
+
+【4†match at L23】 execution](https://console.groq.com/docs/code-execution) and browser search. This enables developers to build complex workflows, provide accurate and relevant information, and leverage [...truncated]
+
+Tool Execution Details
+This shows the details of the browser automation operations, including the type of tools executed, browser sessions launched, and the content that was retrieved from multiple sources simultaneously.
+
+
+JSON
+
+{
+  "index": 2,
+  "type": "browser_automation",
+  "arguments": "",
+  "output": "Page content analyzed: Found matches for 'groq':
+# 【0†match at L2】
+[Groq Cloud](/)
+
+[](/)
+
+# 【1†match at L12】
+Join 2M+ developers building on GroqCloud™
+
+We deliver inference with unmatched speed and cost, so you can ship fast.
+
+# 【2†match at L26】
+that I have read the [Privacy Policy](https://groq.com/privacy-policy).
+
+The Models
+
+Found matches for 'models':
+# 【0†match at L28】
+The Models
+
+[![OpenAI](/_next/static/media/openailogo.523c87a0.svg) OpenAI GPT-OSS (20B &
+
+# 【1†match at L31】
+120B) models now available for instant inference. These mo

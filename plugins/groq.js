@@ -47,10 +47,10 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Advanced AI with web search and website visiting
+        // Advanced AI with browser automation and web search
         this.bot.messageHandler.registerCommand('search', this.compoundCommand.bind(this), {
-            description: 'Advanced AI with web search and native website visiting capabilities',
-            usage: `${config.PREFIX}search <question> OR ${config.PREFIX}search <website URL>`,
+            description: 'Advanced AI with browser automation (up to 10 browsers), web search, and website visiting',
+            usage: `${config.PREFIX}search <complex research question> OR ${config.PREFIX}search <website URL>`,
             category: 'ai'
         });
 
@@ -642,7 +642,7 @@ class GroqPlugin {
             // Check if the prompt contains URLs for website visiting
             const hasURL = /https?:\/\/[^\s]+/.test(fullPrompt);
             const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, 
-                hasURL ? '🌐 Visiting website and analyzing...' : '🧠 Processing with advanced AI...');
+                hasURL ? '🌐 Launching browsers and analyzing website...' : '🤖 Launching browser automation for deep research...');
 
             try {
                 const completion = await groq.chat.completions.create({
@@ -654,7 +654,12 @@ class GroqPlugin {
                     ],
                     model: 'groq/compound',
                     temperature: 0.7,
-                    max_tokens: 2048
+                    max_tokens: 2048,
+                    compound_custom: {
+                        tools: {
+                            enabled_tools: ["browser_automation", "web_search"]
+                        }
+                    }
                 });
 
                 const response = completion.choices[0]?.message?.content;
@@ -844,7 +849,7 @@ class GroqPlugin {
                 console.error('Models API error:', apiError);
                 
                 // Fallback to hardcoded list
-                const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with native website visiting & web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🌐 Pro tip: Use .search with URLs to automatically visit and analyze websites!*\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
+                const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with browser automation (up to 10 browsers) & web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🤖 Pro tip: .search launches multiple browsers for comprehensive research!*\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     text: fallbackList,
