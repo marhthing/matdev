@@ -115,8 +115,8 @@ class QRScannerPlugin {
             await fs.writeFile(tempFile, imageBuffer);
 
             try {
-                // Import Jimp dynamically
-                const Jimp = (await import('jimp')).default;
+                // Import Jimp using CommonJS require (v1.x syntax)
+                const { Jimp } = require('jimp');
                 
                 // Read and process image with Jimp
                 const image = await Jimp.read(tempFile);
@@ -124,8 +124,7 @@ class QRScannerPlugin {
                 // Enhance image for better QR detection
                 image
                     .contrast(0.3)      // Increase contrast
-                    .brightness(0.1)    // Slight brightness boost
-                    .quality(100);      // Maximum quality
+                    .brightness(0.1);   // Slight brightness boost
 
                 // Create QR reader
                 const qr = new QrReader();
