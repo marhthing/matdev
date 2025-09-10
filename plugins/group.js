@@ -44,6 +44,16 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Temporary kick user command
+        this.bot.messageHandler.registerCommand('tempkick', this.tempKickUser.bind(this), {
+            description: 'Temporarily remove a user from the group for 5 minutes (admin only)',
+            usage: `${config.PREFIX}tempkick @user`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -327,6 +337,149 @@ class GroupPlugin {
             console.error('Error in kick user:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to kick user. Please try again or check if I have admin permissions.'
+            );
+        }
+    }
+
+    /**
+     * Temporarily kick user from group (admin only)
+     */
+    async tempKickUser(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, message } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Get target user from quoted message or mentions
+            let targetJid = null;
+
+            // Check for quoted message first
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage) {
+                const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) {
+                    targetJid = quotedParticipant;
+                }
+            }
+
+            // Check for mentions if no quoted message
+            if (!targetJid && message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                targetJid = message.extendedTextMessage.contextInfo.mentionedJid[0];
+            }
+
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a message or mention (@) the user you want to temporarily kick.'
+                );
+                return;
+            }
+
+            // Check if target is in the group
+            const targetParticipant = groupMetadata.participants.find(p => p.id === targetJid);
+            if (!targetParticipant) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ User is not in this group.'
+                );
+                return;
+            }
+
+            // Prevent kicking other admins (unless you're superadmin)
+            if (targetParticipant.admin === 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot temporarily kick a super admin.'
+                );
+                return;
+            }
+
+            if (targetParticipant.admin === 'admin' && senderParticipant.admin !== 'superadmin') {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only super admins can temporarily kick other admins.'
+                );
+                return;
+            }
+
+            // Prevent self-kick
+            if (targetJid === sender_jid) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ You cannot temporarily kick yourself.'
+                );
+                return;
+            }
+
+            // Prevent kicking the bot
+            if (targetJid === this.bot.sock.user?.id) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Cannot temporarily kick the bot.'
+                );
+                return;
+            }
+
+            // Get display name for the target user
+            let displayName = targetJid;
+            if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            } else if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            }
+
+            // Perform the temporary kick
+            await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'remove');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                `⏰ User @${displayName} has been temporarily removed from the group.\nThey will be added back in 5 minutes.`
+            );
+
+            // Set timeout to add them back after 5 minutes (300,000 milliseconds)
+            setTimeout(async () => {
+                try {
+                    // Add the user back to the group
+                    await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'add');
+                    
+                    // Send notification
+                    await this.bot.sock.sendMessage(chat_jid, {
+                        text: `✅ User @${displayName} has been added back to the group after temporary kick.`,
+                        mentions: [targetJid]
+                    });
+                } catch (error) {
+                    console.error('Error adding user back after temp kick:', error);
+                    
+                    // Notify about the error
+                    await this.bot.sock.sendMessage(chat_jid, {
+                        text: `❌ Failed to add @${displayName} back to the group automatically. Please add them back manually.`
+                    });
+                }
+            }, 5 * 60 * 1000); // 5 minutes
+
+        } catch (error) {
+            console.error('Error in temp kick user:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to temporarily kick user. Please try again or check if I have admin permissions.'
             );
         }
     }
