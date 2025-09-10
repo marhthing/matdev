@@ -156,47 +156,8 @@ class QRScannerPlugin {
                     qr.decode(image.bitmap);
                 });
 
-                // Format the result
-                let responseText = `✅ *QR Code Decoded Successfully!*\n\n`;
-                responseText += `📄 *Content:*\n${result.result}\n\n`;
-                
-                // Analyze content type
-                const content = result.result;
-                let contentType = '📝 Text';
-                
-                if (content.startsWith('http://') || content.startsWith('https://')) {
-                    contentType = '🔗 URL/Website';
-                } else if (content.startsWith('mailto:')) {
-                    contentType = '📧 Email';
-                } else if (content.startsWith('tel:')) {
-                    contentType = '📞 Phone Number';
-                } else if (content.startsWith('sms:')) {
-                    contentType = '💬 SMS';
-                } else if (content.startsWith('wifi:')) {
-                    contentType = '📶 WiFi Configuration';
-                } else if (content.includes('BEGIN:VCARD')) {
-                    contentType = '👤 Contact Card (vCard)';
-                } else if (content.includes('BEGIN:VEVENT')) {
-                    contentType = '📅 Calendar Event';
-                } else if (/^\d+$/.test(content)) {
-                    contentType = '🔢 Number/Code';
-                }
-                
-                responseText += `🏷️ *Type:* ${contentType}\n`;
-                responseText += `📏 *Length:* ${content.length} characters\n\n`;
-                
-                // Add action suggestions based on content type
-                if (content.startsWith('http')) {
-                    responseText += `💡 *Quick Actions:*\n`;
-                    responseText += `• Click the link to open in browser\n`;
-                    responseText += `• Copy link for sharing\n`;
-                } else if (content.startsWith('mailto:')) {
-                    responseText += `💡 *Email detected:* ${content.replace('mailto:', '')}\n`;
-                } else if (content.startsWith('tel:')) {
-                    responseText += `💡 *Phone detected:* ${content.replace('tel:', '')}\n`;
-                }
-                
-                responseText += `\n_🔧 Scanned by: ${config.BOT_NAME}_`;
+                // Format the result - simplified
+                const responseText = `${result.result}\n\n_🔧 Scanned by: ${config.BOT_NAME}_`;
 
                 // Update the processing message with results
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
