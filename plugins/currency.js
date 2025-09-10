@@ -45,10 +45,10 @@ class CurrencyPlugin {
      * Register commands
      */
     registerCommands() {
-        // Main currency conversion command
-        this.bot.messageHandler.registerCommand('convert', this.convertCommand.bind(this), {
-            description: 'Convert between currencies worldwide',
-            usage: `${config.PREFIX}convert 2000usd to ngn`,
+        // Main currency exchange command
+        this.bot.messageHandler.registerCommand('exchange', this.convertCommand.bind(this), {
+            description: 'Exchange between currencies worldwide',
+            usage: `${config.PREFIX}exchange 2000usd to ngn`,
             category: 'utility',
             plugin: 'currency',
             source: 'currency.js'
@@ -56,7 +56,7 @@ class CurrencyPlugin {
 
         // Alternative command name
         this.bot.messageHandler.registerCommand('currency', this.convertCommand.bind(this), {
-            description: 'Currency conversion (alternative)',
+            description: 'Currency exchange (alternative)',
             usage: `${config.PREFIX}currency 100eur to usd`,
             category: 'utility',
             plugin: 'currency', 
@@ -76,7 +76,7 @@ class CurrencyPlugin {
             
             for (let i = 0; i < chunks.length; i++) {
                 const header = `💱 *Popular Currencies Supported*\n\n`;
-                const footer = `\n\n_Supports 200+ currencies worldwide_\n_Use: ${config.PREFIX}convert 100usd to ngn_`;
+                const footer = `\n\n_Supports 200+ currencies worldwide_\n_Use: ${config.PREFIX}exchange 100usd to ngn_`;
                 const message = header + chunks[i] + footer;
                 
                 await this.bot.messageHandler.reply(messageInfo, message);
@@ -105,13 +105,13 @@ class CurrencyPlugin {
             // Check if conversion parameters are provided
             if (args.length < 3) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide conversion details!\n\n` +
+                    `❌ Please provide exchange details!\n\n` +
                     `💡 *Usage examples:*\n` +
-                    `• ${config.PREFIX}convert 2000usd to ngn\n` +
-                    `• ${config.PREFIX}convert 100eur to usd\n` +
-                    `• ${config.PREFIX}convert 50gbp to inr\n` +
-                    `• ${config.PREFIX}convert 1000 usd to eur\n` +
-                    `• ${config.PREFIX}convert list\n\n` +
+                    `• ${config.PREFIX}exchange 2000usd to ngn\n` +
+                    `• ${config.PREFIX}exchange 100eur to usd\n` +
+                    `• ${config.PREFIX}exchange 50gbp to inr\n` +
+                    `• ${config.PREFIX}exchange 1000 usd to eur\n` +
+                    `• ${config.PREFIX}exchange list\n\n` +
                     `_Supports 200+ currencies worldwide_`
                 );
                 return;
@@ -123,9 +123,9 @@ class CurrencyPlugin {
             if (!conversionData) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Invalid format! Please use:\n\n` +
-                    `• ${config.PREFIX}convert 2000usd to ngn\n` +
-                    `• ${config.PREFIX}convert 100 eur to usd\n` +
-                    `• ${config.PREFIX}convert 50gbp to inr\n\n` +
+                    `• ${config.PREFIX}exchange 2000usd to ngn\n` +
+                    `• ${config.PREFIX}exchange 100 eur to usd\n` +
+                    `• ${config.PREFIX}exchange 50gbp to inr\n\n` +
                     `_Format: amount + currency + "to" + target currency_`
                 );
                 return;
@@ -140,11 +140,11 @@ class CurrencyPlugin {
             
             if (!result) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Conversion failed. Please check:\n\n` +
+                    `❌ Exchange failed. Please check:\n\n` +
                     `• Currency codes are valid (USD, EUR, NGN, etc.)\n` +
                     `• Network connection is stable\n` +
                     `• Try again in a moment\n\n` +
-                    `_Example: ${config.PREFIX}convert 100usd to eur_`
+                    `_Example: ${config.PREFIX}exchange 100usd to eur_`
                 );
                 return;
             }
@@ -154,9 +154,9 @@ class CurrencyPlugin {
             await this.bot.messageHandler.reply(messageInfo, responseMessage);
 
         } catch (error) {
-            console.error('Error in currency conversion command:', error);
+            console.error('Error in currency exchange command:', error);
             await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Error processing currency conversion. Please try again later.\n\n' +
+                '❌ Error processing currency exchange. Please try again later.\n\n' +
                 '_If the problem persists, the currency service might be temporarily unavailable._'
             );
         }
@@ -277,7 +277,7 @@ class CurrencyPlugin {
             const convertedAmount = this.formatAmount(data.convertedAmount);
             const rate = this.formatRate(data.rate);
 
-            const response = `💱 *Currency Conversion*\n\n` +
+            const response = `💱 *Currency Exchange*\n\n` +
                 `${fromSymbol}${originalAmount} ${data.fromCurrency} = ${toSymbol}${convertedAmount} ${data.toCurrency}\n\n` +
                 `📊 *Exchange Rate:* 1 ${data.fromCurrency} = ${rate} ${data.toCurrency}\n` +
                 `🕐 *Updated:* ${data.timestamp.toLocaleTimeString('en-US', { hour12: false })}\n\n` +
