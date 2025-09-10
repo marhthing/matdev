@@ -47,10 +47,10 @@ class GroqPlugin {
             category: 'ai'
         });
 
-        // Advanced AI with web search and code execution
+        // Advanced AI with web search and website visiting
         this.bot.messageHandler.registerCommand('search', this.compoundCommand.bind(this), {
-            description: 'Advanced AI with web search and code execution',
-            usage: `${config.PREFIX}search <your question>`,
+            description: 'Advanced AI with web search and native website visiting capabilities',
+            usage: `${config.PREFIX}search <question> OR ${config.PREFIX}search <website URL>`,
             category: 'ai'
         });
 
@@ -634,14 +634,17 @@ class GroqPlugin {
             // Combine context and prompt
             const fullPrompt = contextText ? `${prompt}\n\nContent to analyze: "${contextText}"` : prompt;
 
-            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, '🧠 Processing with advanced AI...');
+            // Check if the prompt contains URLs for website visiting
+            const hasURL = /https?:\/\/[^\s]+/.test(fullPrompt);
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, 
+                hasURL ? '🌐 Visiting website and analyzing...' : '🧠 Processing with advanced AI...');
 
             try {
                 const completion = await groq.chat.completions.create({
                     messages: [
                         {
                             role: 'system',
-                            content: 'You are MATDEV Compound AI, an advanced assistant with web search and code execution capabilities. Be comprehensive and helpful.'
+                            content: 'You are MATDEV Compound AI with native website visiting, web search, and code execution capabilities. When given URLs, automatically visit and analyze the websites. Be comprehensive and helpful.'
                         },
                         {
                             role: 'user',
