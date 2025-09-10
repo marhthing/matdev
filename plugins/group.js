@@ -85,10 +85,10 @@ class GroupPlugin {
             
             messageText += `👥 *Tagging Everyone* (${participants.length} members)\n\n`;
             
-            // Add mentions
-            for (const participant of participants) {
-                const phoneNumber = participant.id.replace('@s.whatsapp.net', '');
-                messageText += `@${phoneNumber} `;
+            // Add mentions in numbered list format
+            for (let i = 0; i < participants.length; i++) {
+                const phoneNumber = participants[i].id.replace('@s.whatsapp.net', '');
+                messageText += `${i + 1}. @${phoneNumber}\n`;
             }
 
             // Send message with mentions
