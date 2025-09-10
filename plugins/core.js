@@ -446,25 +446,25 @@ class CorePlugin {
             // Get all commands and organize by category
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
-            
+
             // Simple approach: group commands by category only, no alias detection
             const processedCommands = new Set();
-            
+
             commands.forEach(cmd => {
                 if (processedCommands.has(cmd.name)) return;
-                
+
                 const category = cmd.category || 'utility';
-                
+
                 if (!categories[category]) {
                     categories[category] = [];
                 }
-                
+
                 // Simple command entry without complex alias detection
                 categories[category].push({
                     name: cmd.name.toUpperCase(),
                     aliases: [] // Keep empty to prevent loops
                 });
-                
+
                 processedCommands.add(cmd.name);
             });
 
@@ -506,9 +506,9 @@ class CorePlugin {
             for (const [category, cmds] of Object.entries(categories)) {
                 const icon = categoryIcons[category] || '📋';
                 const categoryName = category.toUpperCase();
-                
+
                 menuText += `\n${icon} ═══ ${categoryName} ═══ ${icon}\n`;
-                
+
                 cmds.forEach(commandEntry => {
                     menuText += `▸ ${commandEntry.name}\n`;
                 });
@@ -722,7 +722,7 @@ class CorePlugin {
         }
     }
 
-    
+
 
     /**
      * Permissions command handler (handles subcommands: allow, disallow, or view)
@@ -1287,69 +1287,12 @@ class CorePlugin {
     }
 
     /**
-     * Clear chat using best method for chat type (2025 approach)
+     * Clear chat with flooding method
      */
-    async clearCommand(messageInfo) {
-        try {
-            const chatJid = messageInfo.chat_jid;
-            const isGroup = chatJid.includes('@g.us');
-
-            if (isGroup) {
-                // For GROUPS: Use message flooding method (works 100%)
-                await this.clearGroupChat(messageInfo);
-            } else {
-                // For PRIVATE CHATS: Try chat deletion first, fallback to flooding
-                await this.clearPrivateChat(messageInfo);
-            }
-
-        } catch (error) {
-            console.error('Error in clear command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat.');
-        }
-    }
-
-    /**
-     * Clear private chat by attempting deletion
-     */
-    async clearPrivateChat(messageInfo) {
+    async clearChatWithFlooding(messageInfo) {
         const chatJid = messageInfo.chat_jid;
 
-        try {
-            // Get the last message for deletion method
-            const lastMessage = await this.getLastMessageForChat(chatJid);
-
-            if (lastMessage) {
-                // Try to delete entire private chat
-                await this.bot.sock.chatModify({
-                    delete: true,
-                    lastMessages: [{
-                        key: lastMessage.key,
-                        messageTimestamp: lastMessage.messageTimestamp || Date.now()
-                    }]
-                }, chatJid);
-
-                console.log(`✅ Private chat deleted for ${chatJid}`);
-                return;
-            }
-        } catch (deleteError) {
-            // Fail silently - no error message to user
-            console.log('Private chat deletion failed, using fallback method');
-        }
-
-        // Fallback to message flooding for private chats too
-        await this.clearGroupChat(messageInfo);
-    }
-
-    /**
-     * Clear group chat using message flooding method
-     */
-    async clearGroupChat(messageInfo) {
-        const chatJid = messageInfo.chat_jid;
-
-        // Send clearing indicator
-        const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat...');
-
-        // Use invisible characters and spaces to push chat up
+        // Invisible characters to push chat up
         const invisibleChars = [
             '⠀', // Braille space
             '​', // Zero-width space
@@ -1370,57 +1313,79 @@ class CorePlugin {
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
 
-            // Send completion message
-            await this.bot.sock.sendMessage(chatJid, {
-                text: '✅ Chat area cleared!',
-                edit: clearingMsg.key
-            });
+            // Final confirmation message
+            setTimeout(async () => {
+                await this.bot.sock.sendMessage(chatJid, {
+                    text: '✅ Chat cleared successfully!'
+                });
+            }, 1000);
 
-            console.log(`✅ Group chat cleared using flooding method for ${chatJid}`);
+            console.log(`✅ Chat flooded for clearing: ${chatJid}`);
 
         } catch (error) {
-            // Fail silently - no error message to user
-            console.error('Group clearing failed:', error);
-            try {
-                await this.bot.sock.sendMessage(chatJid, {
-                    text: '✅ Chat area cleared!',
-                    edit: clearingMsg.key
-                });
-            } catch (editError) {
-                // Even editing failed, completely silent
-            }
+            console.error('Error in chat flooding:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat with flooding method.');
         }
     }
 
     /**
-     * Get the last message from a chat for deletion purposes
+     * Enhanced private chat clearing with multiple methods
+     */
+    async clearPrivateChatEnhanced(messageInfo) {
+        const chatJid = messageInfo.chat_jid;
+
+        try {
+            // Attempt direct chat deletion first
+            const lastMessage = await this.getLastMessageForChat(chatJid);
+            if (lastMessage) {
+                await this.bot.sock.chatModify({
+                    delete: true,
+                    lastMessages: [{
+                        key: lastMessage.key,
+                        messageTimestamp: lastMessage.messageTimestamp || Date.now()
+                    }]
+                }, chatJid);
+                console.log(`✅ Private chat deleted directly for ${chatJid}`);
+                return true; // Indicate successful deletion
+            }
+        } catch (deleteError) {
+            console.log('Private chat direct deletion failed, attempting fallback methods.');
+            // Continue to other methods if direct deletion fails
+        }
+
+        // Add other potential deletion methods here if necessary
+        // For now, if direct deletion fails, we rely on the fallback in clearCommand
+
+        return false; // Indicate that direct deletion was not successful
+    }
+
+    /**
+     * Get last message from chat for deletion purposes
      */
     async getLastMessageForChat(chatJid) {
         try {
-            // Get messages from our storage
-            const allMessages = Array.from(this.bot.database.messages.values());
-
-            // Find the most recent message in this chat
-            const chatMessages = allMessages
-                .filter(msg => msg.chat_jid === chatJid)
-                .sort((a, b) => b.timestamp - a.timestamp);
-
-            if (chatMessages.length === 0) {
-                return null;
+            // Try to get from database first
+            if (this.bot.database && this.bot.database.getRecentMessages) {
+                const recentMessages = await this.bot.database.getRecentMessages(chatJid, 1);
+                if (recentMessages && recentMessages.length > 0) {
+                    return {
+                        key: {
+                            id: recentMessages[0].id,
+                            remoteJid: chatJid
+                        },
+                        messageTimestamp: recentMessages[0].timestamp
+                    };
+                }
             }
 
-            const lastMsg = chatMessages[0];
-
-            // Return in the format needed for chatModify
+            // Fallback: create a dummy message reference
             return {
                 key: {
-                    id: lastMsg.id,
-                    fromMe: lastMsg.from_me,
+                    id: Date.now().toString(),
                     remoteJid: chatJid
                 },
-                messageTimestamp: lastMsg.timestamp
+                messageTimestamp: Date.now()
             };
-
         } catch (error) {
             console.error('Error getting last message:', error);
             return null;
@@ -1428,6 +1393,34 @@ class CorePlugin {
     }
 
 
+    /**
+     * Clear chat using best method for chat type (2025 approach)
+     */
+    async clearCommand(messageInfo) {
+        try {
+            const chatJid = messageInfo.chat_jid;
+            const isGroup = chatJid.includes('@g.us');
+
+            // Send clearing indicator
+            const clearingMsg = await this.bot.messageHandler.reply(messageInfo, '🧹 Clearing chat...');
+
+            if (isGroup) {
+                // For GROUPS: Use enhanced message flooding
+                await this.clearChatWithFlooding(messageInfo);
+            } else {
+                // For PRIVATE CHATS: Try multiple deletion methods
+                const deleted = await this.clearPrivateChatEnhanced(messageInfo);
+                if (!deleted) {
+                    // Fallback to flooding if deletion fails
+                    await this.clearChatWithFlooding(messageInfo);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error in clear command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error clearing chat.');
+        }
+    }
 }
 
 // Export function for plugin initialization
