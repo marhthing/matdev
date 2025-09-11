@@ -25,8 +25,112 @@ class YouTubePlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
+        this.setupQualityListener();
         console.log('✅ YouTube plugin loaded with y2mate-dl API');
         return this;
+    }
+
+    /**
+     * Set up quality selection listener
+     */
+    setupQualityListener() {
+        // Listen to all messages for quality selection numbers
+        this.bot.sock.ev.on('messages.upsert', async (messageUpdate) => {
+            if (messageUpdate.type !== 'notify') return;
+
+            for (const message of messageUpdate.messages) {
+                if (!message.message || message.key.fromMe) continue;
+
+                const text = message.message?.conversation || 
+                           message.message?.extendedTextMessage?.text || '';
+                
+                const chatId = message.key.remoteJid;
+                const userId = message.key.participant || message.key.remoteJid;
+
+                // Check if this is a quality selection (100, 101, 102)
+                if (['100', '101', '102'].includes(text.trim())) {
+                    const cacheKey = `ytv_quality_${chatId}_${userId}`;
+                    const pendingDownload = this.bot.cache.get(cacheKey);
+
+                    if (pendingDownload) {
+                        // Clear the cache
+                        this.bot.cache.del(cacheKey);
+
+                        // Process the quality selection
+                        await this.processQualitySelection(text.trim(), pendingDownload, chatId);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Process quality selection and download video
+     */
+    async processQualitySelection(qualityNumber, pendingDownload, chatId) {
+        try {
+            let quality, y2mateMethod;
+            
+            switch (qualityNumber) {
+                case '100':
+                    quality = '720p';
+                    y2mateMethod = y2mate.yt720;
+                    break;
+                case '101':
+                    quality = '480p';
+                    y2mateMethod = y2mate.yt480;
+                    break;
+                case '102':
+                    quality = '360p';
+                    y2mateMethod = y2mate.yt360;
+                    break;
+                default:
+                    return;
+            }
+
+            // Send processing message
+            const processingMsg = await this.bot.sock.sendMessage(chatId, {
+                text: `🔄 Downloading ${quality} video...`
+            });
+
+            try {
+                // Download video using y2mate
+                const videoData = await y2mateMethod(pendingDownload.url);
+
+                if (videoData && videoData.url) {
+                    // Send video file
+                    await this.bot.sock.sendMessage(chatId, {
+                        video: { url: videoData.url },
+                        caption: `✅ ${videoData.title || 'Video'} (${quality})`
+                    });
+
+                    // Delete processing message
+                    await this.bot.sock.sendMessage(chatId, {
+                        delete: processingMsg.key
+                    });
+
+                    console.log(`✅ Video downloaded: ${quality}`, videoData.title);
+                } else {
+                    await this.bot.sock.sendMessage(chatId, {
+                        text: `❌ Failed to download ${quality} video`,
+                        edit: processingMsg.key
+                    });
+                }
+
+            } catch (error) {
+                console.error('Y2mate download error:', error);
+                await this.bot.sock.sendMessage(chatId, {
+                    text: `❌ Failed to download ${quality} video. Please try again.`,
+                    edit: processingMsg.key
+                });
+            }
+
+        } catch (error) {
+            console.error('Quality selection processing error:', error);
+            await this.bot.sock.sendMessage(chatId, {
+                text: '❌ An error occurred while processing your selection'
+            });
+        }
     }
 
     /**
@@ -78,70 +182,22 @@ class YouTubePlugin {
                     `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>`);
             }
 
-            // Handle quality selection (720p, 480p, 360p)
-            if (url.includes('quality:')) {
-                const [realUrl, quality] = url.split(' quality:');
-                url = realUrl.trim();
-                
-                // Validate YouTube URL
-                if (!this.ytIdRegex.test(url)) {
-                    return await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Please provide a valid YouTube URL');
-                }
-
-                const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
-
-                try {
-                    let videoData;
-                    switch (quality) {
-                        case '720p':
-                            videoData = await y2mate.yt720(url);
-                            break;
-                        case '480p':
-                            videoData = await y2mate.yt480(url);
-                            break;
-                        case '360p':
-                            videoData = await y2mate.yt360(url);
-                            break;
-                        default:
-                            videoData = await y2mate.yt480(url); // Default to 480p
-                    }
-
-                    if (videoData && videoData.url) {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            video: { url: videoData.url },
-                            caption: `✅ ${videoData.title || 'Video'} (${quality})`
-                        });
-                        
-                        // Delete processing message
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            delete: processingMsg.key
-                        });
-                    } else {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: '❌ Failed to download video',
-                            edit: processingMsg.key
-                        });
-                    }
-
-                } catch (error) {
-                    console.error('Y2mate download error:', error);
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ Failed to download ${quality} video`,
-                        edit: processingMsg.key
-                    });
-                }
-                return;
-            }
-
             // Validate YouTube URL
             if (!this.ytIdRegex.test(url)) {
                 return await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please provide a valid YouTube URL');
             }
 
-            // Send quality options
-            const qualityText = `🎬 *YouTube Video Download*\n\n📱 *Select Quality:*\n\n1️⃣ 720p HD\n2️⃣ 480p (Recommended)\n3️⃣ 360p (Small size)\n\n💡 Reply with:\n\`${config.PREFIX}ytv ${url} quality:720p\`\n\`${config.PREFIX}ytv ${url} quality:480p\`\n\`${config.PREFIX}ytv ${url} quality:360p\``;
+            // Store pending download info in cache
+            const cacheKey = `ytv_quality_${messageInfo.chat_jid}_${messageInfo.from_jid}`;
+            this.bot.cache.set(cacheKey, {
+                url: url,
+                chatId: messageInfo.chat_jid,
+                userId: messageInfo.from_jid
+            }, 300); // 5 minutes expiry
+
+            // Send quality selection message
+            const qualityText = `📱 *Select Quality:*\n\n*100* 720p HD\n*101* 480p (Recommended) \n*102* 360p (Small size)\n\n💡 Just type the number (100, 101, or 102)`;
 
             await this.bot.messageHandler.reply(messageInfo, qualityText);
 
