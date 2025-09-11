@@ -34,25 +34,7 @@ class TwitterPlugin {
      * Register Twitter commands
      */
     registerCommands() {
-        // Twitter download command
-        this.bot.messageHandler.registerCommand('twitter', this.downloadTwitter.bind(this), {
-            description: 'Download Twitter/X media',
-            usage: `${config.PREFIX}twitter <url>`,
-            category: 'download',
-            plugin: 'twitter',
-            source: 'twitter.js'
-        });
-
-        // Short alias
-        this.bot.messageHandler.registerCommand('tw', this.downloadTwitter.bind(this), {
-            description: 'Download Twitter/X media (short)',
-            usage: `${config.PREFIX}tw <url>`,
-            category: 'download',
-            plugin: 'twitter',
-            source: 'twitter.js'
-        });
-
-        // X.com alias
+        // X.com command only
         this.bot.messageHandler.registerCommand('x', this.downloadTwitter.bind(this), {
             description: 'Download X.com media',
             usage: `${config.PREFIX}x <url>`,
