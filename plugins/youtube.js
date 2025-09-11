@@ -1,9 +1,9 @@
 /**
  * MATDEV YouTube Downloader Plugin
- * Download YouTube videos and audio using simple y2mate-dl API
+ * Download YouTube videos and audio using @distube/ytdl-core
  */
 
-const y2mate = require('y2mate-dl');
+const ytdl = require('@distube/ytdl-core');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
@@ -12,8 +12,8 @@ const ytsr = require('ytsr');
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
-        this.description = 'YouTube video and audio downloader using y2mate API';
-        this.version = '3.0.0';
+        this.description = 'YouTube video and audio downloader using @distube/ytdl-core';
+        this.version = '4.0.0';
         
         // YouTube URL regex
         this.ytIdRegex = /(?:http(?:s|):\/\/|)(?:(?:www\.|)youtube(?:\-nocookie|)\.com\/(?:watch\?.*(?:|\&)v=|embed|shorts\/|v\/)|youtu\.be\/)([-_0-9A-Za-z]{11})/;
@@ -25,7 +25,7 @@ class YouTubePlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ YouTube plugin loaded with y2mate-dl API');
+        console.log('✅ YouTube plugin loaded with @distube/ytdl-core API');
         return this;
     }
 
@@ -78,7 +78,7 @@ class YouTubePlugin {
                     `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>`);
             }
 
-            // Handle quality selection (720p, 480p, 360p)
+            // Handle quality selection
             if (url.includes('quality:')) {
                 const [realUrl, quality] = url.split(' quality:');
                 url = realUrl.trim();
@@ -92,25 +92,69 @@ class YouTubePlugin {
                 const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
 
                 try {
-                    let videoData;
-                    switch (quality) {
-                        case '720p':
-                            videoData = await y2mate.yt720(url);
-                            break;
-                        case '480p':
-                            videoData = await y2mate.yt480(url);
-                            break;
-                        case '360p':
-                            videoData = await y2mate.yt360(url);
-                            break;
-                        default:
-                            videoData = await y2mate.yt480(url); // Default to 480p
+                    const info = await ytdl.getInfo(url);
+                    
+                    // Filter video formats with strict HLS/DASH filtering and hard size constraints
+                    let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
+                        .filter(format => {
+                            // Always exclude HLS/DASH and live streams
+                            if (format.isHLS || format.isDashMPD || format.isLive || !format.url || !format.container) {
+                                return false;
+                            }
+                            
+                            // Hard size constraint: strict 14MB limit
+                            const VIDEO_SIZE_LIMIT = 14 * 1024 * 1024; // 14MB
+                            if (format.contentLength) {
+                                return parseInt(format.contentLength) <= VIDEO_SIZE_LIMIT;
+                            }
+                            
+                            // Estimate size for missing contentLength using bitrate * duration
+                            if (format.bitrate && info.videoDetails.lengthSeconds) {
+                                const estimatedSize = (format.bitrate * parseInt(info.videoDetails.lengthSeconds)) / 8;
+                                return estimatedSize <= VIDEO_SIZE_LIMIT;
+                            }
+                            
+                            // Reject formats with no size info as they're risky
+                            return false;
+                        })
+                        .sort((a, b) => {
+                            // Sort by quality (height) descending, then by bitrate descending
+                            const heightDiff = (b.height || 0) - (a.height || 0);
+                            if (heightDiff !== 0) return heightDiff;
+                            return (b.bitrate || 0) - (a.bitrate || 0);
+                        });
+                    
+                    if (!videoFormats.length) {
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            text: '❌ No suitable video format found within size limits (14MB max). Video may be too large.',
+                            edit: processingMsg.key
+                        });
+                        return;
+                    }
+                    
+                    // Select best format for requested quality with proper degradation
+                    let selectedFormat;
+                    const targetHeight = {
+                        '720p': 720,
+                        '480p': 480, 
+                        '360p': 360
+                    }[quality] || 480;
+                    
+                    // Find formats that match or are lower than target quality
+                    const suitableFormats = videoFormats.filter(f => (f.height || 0) <= targetHeight);
+                    
+                    if (suitableFormats.length > 0) {
+                        // Choose highest quality within target
+                        selectedFormat = suitableFormats[0]; // Already sorted by quality descending
+                    } else {
+                        // Graceful degradation: use lowest available quality
+                        selectedFormat = videoFormats[videoFormats.length - 1];
                     }
 
-                    if (videoData && videoData.url) {
+                    if (selectedFormat && selectedFormat.url) {
                         await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            video: { url: videoData.url },
-                            caption: `✅ ${videoData.title || 'Video'} (${quality})`
+                            video: { url: selectedFormat.url },
+                            caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`
                         });
                         
                         // Delete processing message
@@ -119,15 +163,15 @@ class YouTubePlugin {
                         });
                     } else {
                         await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: '❌ Failed to download video',
+                            text: '❌ No suitable video format found',
                             edit: processingMsg.key
                         });
                     }
 
                 } catch (error) {
-                    console.error('Y2mate download error:', error);
+                    console.error('YouTube download error:', error);
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ Failed to download ${quality} video`,
+                        text: `❌ Failed to download ${quality} video: ${error.message}`,
                         edit: processingMsg.key
                     });
                 }
@@ -140,10 +184,67 @@ class YouTubePlugin {
                     '❌ Please provide a valid YouTube URL');
             }
 
-            // Send quality options
-            const qualityText = `🎬 *YouTube Video Download*\n\n📱 *Select Quality:*\n\n1️⃣ 720p HD\n2️⃣ 480p (Recommended)\n3️⃣ 360p (Small size)\n\n💡 Reply with:\n\`${config.PREFIX}ytv ${url} quality:720p\`\n\`${config.PREFIX}ytv ${url} quality:480p\`\n\`${config.PREFIX}ytv ${url} quality:360p\``;
+            // Get video info to show available qualities
+            try {
+                const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Getting video info...');
+                const info = await ytdl.getInfo(url);
+                
+                // Filter video formats with strict HLS/DASH filtering for quality listing
+                let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
+                    .filter(format => {
+                        // Always exclude HLS/DASH and live streams
+                        if (format.isHLS || format.isDashMPD || format.isLive || !format.url || !format.container) {
+                            return false;
+                        }
+                        
+                        // For quality listing, show formats that could potentially work
+                        const VIDEO_SIZE_LIMIT = 14 * 1024 * 1024; // 14MB
+                        if (format.contentLength) {
+                            return parseInt(format.contentLength) <= VIDEO_SIZE_LIMIT * 1.5; // Show slightly larger for user choice
+                        }
+                        
+                        // Estimate size for missing contentLength
+                        if (format.bitrate && info.videoDetails.lengthSeconds) {
+                            const estimatedSize = (format.bitrate * parseInt(info.videoDetails.lengthSeconds)) / 8;
+                            return estimatedSize <= VIDEO_SIZE_LIMIT * 1.5;
+                        }
+                        
+                        return true; // Show unknown sizes for user choice in quality listing
+                    });
+                
+                // Group formats by quality
+                const qualities = {};
+                videoFormats.forEach(format => {
+                    const quality = format.qualityLabel;
+                    if (quality && !qualities[quality]) {
+                        qualities[quality] = format;
+                    }
+                });
 
-            await this.bot.messageHandler.reply(messageInfo, qualityText);
+                const availableQualities = Object.keys(qualities).sort((a, b) => {
+                    const aHeight = parseInt(a.replace('p', ''));
+                    const bHeight = parseInt(b.replace('p', ''));
+                    return bHeight - aHeight; // Sort highest to lowest
+                });
+
+                let qualityText = `🎬 *${info.videoDetails.title}*\n⏱️ Duration: ${Math.floor(info.videoDetails.lengthSeconds / 60)}:${(info.videoDetails.lengthSeconds % 60).toString().padStart(2, '0')}\n\n📱 *Available Qualities:*\n\n`;
+
+                availableQualities.slice(0, 5).forEach((quality, index) => {
+                    qualityText += `${index + 1}️⃣ ${quality}\n`;
+                });
+
+                qualityText += `\n💡 Reply with:\n\`${config.PREFIX}ytv ${url} quality:${availableQualities[1] || '480p'}\``;
+
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: qualityText,
+                    edit: processingMsg.key
+                });
+
+            } catch (error) {
+                console.error('Error getting video info:', error);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Failed to get video info: ${error.message}`);
+            }
 
         } catch (error) {
             console.error('YouTube video download error:', error);
@@ -179,8 +280,10 @@ class YouTubePlugin {
             if (!urlMatch) {
                 // Search for the video
                 try {
-                    const searchResults = await ytsr(input, { limit: 1 });
-                    if (!searchResults.items.length) {
+                    const searchResults = await ytsr(input, { limit: 5 });
+                    // Filter to videos only
+                    const videoResults = searchResults.items.filter(item => item.type === 'video');
+                    if (!videoResults.length) {
                         await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                             text: '❌ No videos found for your search',
                             edit: processingMsg.key
@@ -188,7 +291,7 @@ class YouTubePlugin {
                         return;
                     }
 
-                    const firstResult = searchResults.items[0];
+                    const firstResult = videoResults[0];
                     url = firstResult.url;
                 } catch (searchError) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -200,15 +303,85 @@ class YouTubePlugin {
             }
 
             try {
-                // Download audio using y2mate
-                const audioData = await y2mate.ytmp3(url);
+                // Get video info and audio formats
+                const info = await ytdl.getInfo(url);
                 
-                if (audioData && audioData.url) {
+                // Filter audio formats with strict HLS/DASH filtering and hard size constraints
+                let audioFormats = ytdl.filterFormats(info.formats, 'audioonly')
+                    .filter(format => {
+                        // Always exclude HLS/DASH and live streams
+                        if (format.isHLS || format.isDashMPD || format.isLive || !format.url || !format.container) {
+                            return false;
+                        }
+                        
+                        // Hard size constraint: strict 12MB limit
+                        const AUDIO_SIZE_LIMIT = 12 * 1024 * 1024; // 12MB
+                        if (format.contentLength) {
+                            return parseInt(format.contentLength) <= AUDIO_SIZE_LIMIT;
+                        }
+                        
+                        // Estimate size for missing contentLength using bitrate * duration
+                        if (format.audioBitrate && info.videoDetails.lengthSeconds) {
+                            const estimatedSize = (format.audioBitrate * 1000 * parseInt(info.videoDetails.lengthSeconds)) / 8;
+                            return estimatedSize <= AUDIO_SIZE_LIMIT;
+                        }
+                        
+                        // Reject formats with no size info as they're risky
+                        return false;
+                    })
+                    .sort((a, b) => {
+                        // Prefer m4a over webm for better compatibility
+                        const aContainer = (a.container || '').toLowerCase();
+                        const bContainer = (b.container || '').toLowerCase();
+                        
+                        const aIsM4a = aContainer.includes('m4a') || aContainer.includes('mp4');
+                        const bIsM4a = bContainer.includes('m4a') || bContainer.includes('mp4');
+                        
+                        if (aIsM4a && !bIsM4a) return -1;
+                        if (!aIsM4a && bIsM4a) return 1;
+                        
+                        // Then sort by audio quality (bitrate) descending
+                        return (b.audioBitrate || 0) - (a.audioBitrate || 0);
+                    });
+                
+                if (!audioFormats.length) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ No suitable audio format found within size limits (12MB max). Audio may be too large.',
+                        edit: processingMsg.key
+                    });
+                    return;
+                }
+                
+                const selectedFormat = audioFormats[0];
+
+                if (selectedFormat && selectedFormat.url) {
+                    // Determine correct mimetype and extension based on container
+                    let mimetype = 'audio/mpeg';
+                    let extension = 'mp3';
+                    
+                    const container = selectedFormat.container?.toLowerCase() || '';
+                    if (container.includes('webm')) {
+                        mimetype = 'audio/webm';
+                        extension = 'webm';
+                    } else if (container.includes('m4a') || container.includes('mp4')) {
+                        mimetype = 'audio/mp4';
+                        extension = 'm4a';
+                    } else if (container.includes('ogg')) {
+                        mimetype = 'audio/ogg';
+                        extension = 'ogg';
+                    }
+                    
+                    // Clean filename for WhatsApp compatibility
+                    const cleanTitle = info.videoDetails.title
+                        .replace(/[^a-zA-Z0-9\s-_]/g, '')
+                        .substring(0, 50)
+                        .trim();
+
                     // Send audio file
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        audio: { url: audioData.url },
-                        mimetype: 'audio/mpeg',
-                        fileName: `${audioData.title || 'audio'}.mp3`
+                        audio: { url: selectedFormat.url },
+                        mimetype: mimetype,
+                        fileName: `${cleanTitle}.${extension}`
                     });
 
                     // Delete processing message
@@ -216,18 +389,18 @@ class YouTubePlugin {
                         delete: processingMsg.key
                     });
 
-                    console.log('✅ Audio downloaded:', audioData.title);
+                    console.log('✅ Audio downloaded:', info.videoDetails.title, `(${container}, ${selectedFormat.audioBitrate}kbps)`);
                 } else {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Failed to download audio',
+                        text: '❌ No suitable audio format available',
                         edit: processingMsg.key
                     });
                 }
 
             } catch (error) {
-                console.error('Y2mate audio error:', error);
+                console.error('YouTube audio error:', error);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Failed to download audio. Please try again later.',
+                    text: `❌ Failed to download audio: ${error.message}`,
                     edit: processingMsg.key
                 });
             }
@@ -255,9 +428,12 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching...');
 
             try {
-                const searchResults = await ytsr(query, { limit: 10 });
+                const searchResults = await ytsr(query, { limit: 15 });
                 
-                if (!searchResults.items.length) {
+                // Filter to videos only, exclude channels, playlists, etc.
+                const videoResults = searchResults.items.filter(item => item.type === 'video' && item.url);
+                
+                if (!videoResults.length) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ No videos found for your search',
                         edit: processingMsg.key
@@ -267,7 +443,7 @@ class YouTubePlugin {
 
                 let resultText = `🔍 *Search Results for "${query}":*\n\n`;
                 
-                searchResults.items.slice(0, 5).forEach((item, index) => {
+                videoResults.slice(0, 5).forEach((item, index) => {
                     const duration = item.duration || 'Live';
                     const views = item.views ? `${item.views} views` : 'No view count';
                     
