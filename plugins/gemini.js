@@ -146,13 +146,10 @@ class GeminiPlugin {
                 const genAI = new GoogleGenerativeAI(apiKey);
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
 
-                // Generate image with proper configuration
-                const result = await model.generateContent({
-                    contents: [{ role: "user", parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        responseMimeType: "image/png"
-                    }
-                });
+                // Generate image
+                const result = await model.generateContent([
+                    { text: prompt }
+                ]);
                 
                 const response = await result.response;
                 const candidates = response.candidates;
