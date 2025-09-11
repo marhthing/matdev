@@ -78,19 +78,60 @@ class YouTubePlugin {
                     `❌ Please provide a YouTube URL\n\nUsage: ${config.PREFIX}ytv <url>`);
             }
 
-            // Handle quality selection (if user provides y2mate;quality;id format)
-            if (url.startsWith('y2mate;')) {
-                const [_, quality, videoId] = url.split(';');
-                const downloadUrl = await y2mate.dl(videoId, 'video', quality);
+            // Handle quality selection (720p, 480p, 360p)
+            if (url.includes('quality:')) {
+                const [realUrl, quality] = url.split(' quality:');
+                url = realUrl.trim();
                 
-                if (!downloadUrl) {
-                    return await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get download link');
+                // Validate YouTube URL
+                if (!this.ytIdRegex.test(url)) {
+                    return await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Please provide a valid YouTube URL');
                 }
 
-                return await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: downloadUrl },
-                    caption: `✅ Video downloaded in ${quality} quality`
-                });
+                const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
+
+                try {
+                    let videoData;
+                    switch (quality) {
+                        case '720p':
+                            videoData = await y2mate.yt720(url);
+                            break;
+                        case '480p':
+                            videoData = await y2mate.yt480(url);
+                            break;
+                        case '360p':
+                            videoData = await y2mate.yt360(url);
+                            break;
+                        default:
+                            videoData = await y2mate.yt480(url); // Default to 480p
+                    }
+
+                    if (videoData && videoData.url) {
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            video: { url: videoData.url },
+                            caption: `✅ ${videoData.title || 'Video'} (${quality})`
+                        });
+                        
+                        // Delete processing message
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            delete: processingMsg.key
+                        });
+                    } else {
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            text: '❌ Failed to download video',
+                            edit: processingMsg.key
+                        });
+                    }
+
+                } catch (error) {
+                    console.error('Y2mate download error:', error);
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `❌ Failed to download ${quality} video`,
+                        edit: processingMsg.key
+                    });
+                }
+                return;
             }
 
             // Validate YouTube URL
@@ -99,86 +140,10 @@ class YouTubePlugin {
                     '❌ Please provide a valid YouTube URL');
             }
 
-            // Extract video ID
-            const vidMatch = this.ytIdRegex.exec(url);
-            if (!vidMatch) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Could not extract video ID from URL');
-            }
+            // Send quality options
+            const qualityText = `🎬 *YouTube Video Download*\n\n📱 *Select Quality:*\n\n1️⃣ 720p HD\n2️⃣ 480p (Recommended)\n3️⃣ 360p (Small size)\n\n💡 Reply with:\n\`${config.PREFIX}ytv ${url} quality:720p\`\n\`${config.PREFIX}ytv ${url} quality:480p\`\n\`${config.PREFIX}ytv ${url} quality:360p\``;
 
-            const videoId = vidMatch[1];
-            
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing video...');
-
-            try {
-                // Get video info using y2mate
-                const videoInfo = await y2mate.get(videoId, 'video');
-                
-                if (typeof videoInfo === 'string') {
-                    // Direct download URL returned
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        video: { url: videoInfo },
-                        caption: '✅ Video'
-                    });
-                    
-                    // Delete processing message
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        delete: processingMsg.key
-                    });
-                    return;
-                }
-
-                const { title, video, thumbnail, time } = videoInfo;
-                
-                if (!video || Object.keys(video).length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No video formats available',
-                        edit: processingMsg.key
-                    });
-                    return;
-                }
-
-                // Create quality selection buttons
-                let qualityText = `🎬 *${title}*\n⏱️ Duration: ${time}\n\n📱 *Available Qualities:*\n\n`;
-                let buttonIndex = 1;
-
-                for (const [quality, info] of Object.entries(video)) {
-                    const size = info.fileSizeH || info.size || 'Unknown size';
-                    qualityText += `${buttonIndex}. ${quality} (${size})\n`;
-                    buttonIndex++;
-                }
-
-                qualityText += `\n💡 Reply with quality number (1-${Object.keys(video).length})`;
-
-                // Send thumbnail with quality options
-                if (thumbnail) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        image: { url: thumbnail },
-                        caption: qualityText,
-                        edit: processingMsg.key
-                    });
-                } else {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: qualityText,
-                        edit: processingMsg.key
-                    });
-                }
-
-                // Store video info for quality selection
-                this.bot.cache.set(`ytv_${messageInfo.chat_jid}_${messageInfo.from_jid}`, {
-                    videoId,
-                    video,
-                    title
-                }, 300); // 5 minutes cache
-
-            } catch (error) {
-                console.error('Y2mate API error:', error);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Failed to get video info. Please try again later.',
-                    edit: processingMsg.key
-                });
-            }
+            await this.bot.messageHandler.reply(messageInfo, qualityText);
 
         } catch (error) {
             console.error('YouTube video download error:', error);
@@ -207,13 +172,11 @@ class YouTubePlugin {
             // Send processing message
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Processing audio...');
 
-            let videoId;
+            let url = input;
 
             // Check if it's a URL or search term
             const urlMatch = this.ytIdRegex.exec(input);
-            if (urlMatch) {
-                videoId = urlMatch[1];
-            } else {
+            if (!urlMatch) {
                 // Search for the video
                 try {
                     const searchResults = await ytsr(input, { limit: 1 });
@@ -226,15 +189,7 @@ class YouTubePlugin {
                     }
 
                     const firstResult = searchResults.items[0];
-                    const videoMatch = this.ytIdRegex.exec(firstResult.url);
-                    if (!videoMatch) {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: '❌ Could not extract video ID from search result',
-                            edit: processingMsg.key
-                        });
-                        return;
-                    }
-                    videoId = videoMatch[1];
+                    url = firstResult.url;
                 } catch (searchError) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ Search failed. Please provide a direct YouTube URL.',
@@ -245,50 +200,29 @@ class YouTubePlugin {
             }
 
             try {
-                // Get audio using y2mate
-                const audioInfo = await y2mate.get(videoId, 'audio');
+                // Download audio using y2mate
+                const audioData = await y2mate.ytmp3(url);
                 
-                if (typeof audioInfo === 'string') {
-                    // Direct download URL returned
+                if (audioData && audioData.url) {
+                    // Send audio file
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        audio: { url: audioInfo },
-                        mimetype: 'audio/mpeg'
+                        audio: { url: audioData.url },
+                        mimetype: 'audio/mpeg',
+                        fileName: `${audioData.title || 'audio'}.mp3`
                     });
-                    
+
                     // Delete processing message
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         delete: processingMsg.key
                     });
-                    return;
-                }
 
-                const { title, thumbnail } = audioInfo;
-                
-                // Download the audio
-                const audioUrl = await y2mate.dl(videoId, 'audio');
-                
-                if (!audioUrl) {
+                    console.log('✅ Audio downloaded:', audioData.title);
+                } else {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ Failed to download audio',
                         edit: processingMsg.key
                     });
-                    return;
                 }
-
-                // Send audio file
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: { url: audioUrl },
-                    mimetype: 'audio/mpeg',
-                    ptt: false,
-                    fileName: `${title}.mp3`
-                });
-
-                // Delete processing message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    delete: processingMsg.key
-                });
-
-                console.log('✅ Audio downloaded:', title);
 
             } catch (error) {
                 console.error('Y2mate audio error:', error);
