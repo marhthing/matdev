@@ -185,7 +185,6 @@ class YouTubePlugin {
                         // Send video
                         await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                             video: videoBuffer,
-                            caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`,
                             mimetype: 'video/mp4'
                         });
 
