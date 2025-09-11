@@ -318,13 +318,11 @@ class TwitterPlugin {
             if (media.type === 'video') {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: mediaBuffer,
-                    caption: caption,
                     mimetype: 'video/mp4'
                 });
             } else {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    image: mediaBuffer,
-                    caption: caption
+                    image: mediaBuffer
                 });
             }
 
