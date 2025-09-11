@@ -2,7 +2,7 @@ modules = ["nodejs-20"]
 run = "node index.js"
 [agent]
 expertMode = true
-integrations = ["javascript_mem_db:1.0.0", "javascript_gemini:1.0.0"]
+integrations = ["javascript_mem_db==1.0.0"]
 
 [nix]
 channel = "stable-25_05"
