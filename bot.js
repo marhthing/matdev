@@ -337,15 +337,6 @@ class MATDEV {
      */
     async unloadPlugin(pluginName) {
         try {
-            // Call plugin dispose method if it exists
-            if (this.plugins[pluginName] && typeof this.plugins[pluginName].dispose === 'function') {
-                try {
-                    await this.plugins[pluginName].dispose();
-                } catch (disposeError) {
-                    logger.error(`Error disposing plugin ${pluginName}:`, disposeError.message);
-                }
-            }
-
             // Remove plugin from stored references
             if (this.plugins[pluginName]) {
                 delete this.plugins[pluginName];
