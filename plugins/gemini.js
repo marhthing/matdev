@@ -142,16 +142,16 @@ class GeminiPlugin {
             const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with free AI...');
 
             try {
-                // Generate image using DeepAI free API (using Node.js built-in fetch)
-                const form = new FormData();
-                form.append('text', prompt);
-
+                // Generate image using DeepAI API with proper JSON format
                 const response = await fetch('https://api.deepai.org/api/text2img', {
                     method: 'POST',
                     headers: {
+                        'Content-Type': 'application/json',
                         'api-key': apiKey
                     },
-                    body: form
+                    body: JSON.stringify({
+                        text: prompt
+                    })
                 });
 
                 if (!response.ok) {
