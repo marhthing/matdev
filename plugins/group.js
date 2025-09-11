@@ -22,6 +22,9 @@ class GroupPlugin {
         // Initialize tempkick system
         await this.initializeTempKickSystem();
         
+        // Initialize participant mapping system
+        await this.initializeParticipantMapping();
+        
         console.log('✅ Group plugin loaded');
     }
 
@@ -473,36 +476,27 @@ class GroupPlugin {
                 return;
             }
 
-            // Resolve LID to proper phone number for restoration and display
-            let resolvedJid = targetJid;
-            let displayName = targetJid;
+            // Resolve LID to proper JID using stored mappings
+            let resolvedJid = this.getRealJidFromLid(targetJid);
+            let displayName = resolvedJid;
             
-            // For business accounts (@lid), we need to extract the actual phone number
-            if (targetJid.includes('@lid')) {
-                // Try to get phone number from message context
-                const participantPn = message?.extendedTextMessage?.contextInfo?.participantPn;
-                const senderPn = message?.extendedTextMessage?.contextInfo?.senderPn;
-                
-                if (participantPn && participantPn.includes('@s.whatsapp.net')) {
-                    resolvedJid = participantPn;
-                    displayName = participantPn.replace('@s.whatsapp.net', '');
-                    console.log(`📱 Resolved LID ${targetJid} to phone ${participantPn}`);
-                } else if (senderPn && senderPn.includes('@s.whatsapp.net')) {
-                    resolvedJid = senderPn;
-                    displayName = senderPn.replace('@s.whatsapp.net', '');
-                    console.log(`📱 Resolved LID ${targetJid} to phone ${senderPn}`);
-                } else {
-                    // For business accounts, we cannot reliably convert LID to phone number
-                    // We'll store the original LID and try to add back using the same JID
-                    resolvedJid = targetJid;
-                    displayName = targetJid.split('@')[0];
-                    console.log(`⚠️ Could not resolve LID to phone: ${targetJid} - will use original JID for restoration`);
-                }
-            } else {
-                // Regular phone number JID
-                if (displayName.includes('@s.whatsapp.net')) {
-                    displayName = displayName.replace('@s.whatsapp.net', '');
-                }
+            // Extract display name from JID
+            if (displayName.includes('@s.whatsapp.net')) {
+                displayName = displayName.replace('@s.whatsapp.net', '');
+            } else if (displayName.includes('@lid')) {
+                displayName = displayName.split('@')[0];
+            }
+            
+            // Log resolution status
+            if (targetJid.includes('@lid') && resolvedJid !== targetJid) {
+                console.log(`📱 Resolved LID ${targetJid} to JID ${resolvedJid} using stored mapping`);
+            } else if (targetJid.includes('@lid')) {
+                console.log(`⚠️ No mapping found for LID ${targetJid} - tempkick may fail during restoration`);
+                // Don't proceed with tempkick if we can't resolve LID to JID
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Cannot temporarily kick this user. No stored phone number mapping available for business account. They need to send a message first for mapping to be captured.`
+                );
+                return;
             }
 
             // Perform the temporary kick
@@ -518,8 +512,8 @@ class GroupPlugin {
             const restoreTime = kickTime + (5 * 60 * 1000); // 5 minutes from now
             
             await this.saveTempKick({
-                userJid: targetJid,           // Original JID used for kicking
-                resolvedJid: resolvedJid,     // Phone JID for adding back
+                userJid: targetJid,           // Original JID used for kicking  
+                resolvedJid: resolvedJid,     // Resolved JID for adding back (from mapping)
                 groupJid: chat_jid,
                 displayName: displayName,
                 kickTime: kickTime,
@@ -1087,6 +1081,132 @@ class GroupPlugin {
         } catch (error) {
             console.error('Error initializing tempkick system:', error);
         }
+    }
+
+    /**
+     * Initialize participant mapping system to track LID->JID mappings
+     */
+    async initializeParticipantMapping() {
+        try {
+            // Listen for messages to capture JID mappings
+            this.bot.sock.ev.on('messages.upsert', ({ messages }) => {
+                messages.forEach(msg => this.captureParticipantMapping(msg));
+            });
+
+            // Listen for group participant updates
+            this.bot.sock.ev.on('group-participants.update', async (event) => {
+                await this.updateParticipantMappings(event);
+            });
+
+            // Capture initial group metadata for existing groups
+            setTimeout(async () => {
+                await this.captureExistingGroupMappings();
+            }, 10000);
+
+            console.log('🗺️  Participant mapping system initialized');
+        } catch (error) {
+            console.error('Error initializing participant mapping:', error);
+        }
+    }
+
+    /**
+     * Capture participant mappings from messages
+     */
+    captureParticipantMapping(message) {
+        try {
+            const { key } = message;
+            const { remoteJid, participant, fromMe } = key;
+
+            if (fromMe || !remoteJid || !remoteJid.endsWith('@g.us')) return;
+
+            // If we have a participant (group message), store the mapping
+            if (participant) {
+                const participantMappings = this.bot.database.getData('participantMappings') || {};
+                
+                // If participant is in JID format, store it
+                if (participant.includes('@s.whatsapp.net')) {
+                    const phoneNumber = participant.split('@')[0];
+                    const lidFormat = `${phoneNumber}@lid`;
+                    
+                    // Store both LID->JID and JID->JID mappings
+                    participantMappings[lidFormat] = participant;
+                    participantMappings[participant] = participant;
+                    
+                    this.bot.database.setData('participantMappings', participantMappings);
+                }
+            }
+        } catch (error) {
+            // Silently handle errors to avoid spam
+        }
+    }
+
+    /**
+     * Update participant mappings from group events
+     */
+    async updateParticipantMappings(event) {
+        try {
+            const { id: groupJid, participants, action } = event;
+            
+            if (action === 'add') {
+                // Store mappings for newly added participants
+                const participantMappings = this.bot.database.getData('participantMappings') || {};
+                
+                participants.forEach(participant => {
+                    if (participant.includes('@s.whatsapp.net')) {
+                        const phoneNumber = participant.split('@')[0];
+                        const lidFormat = `${phoneNumber}@lid`;
+                        
+                        participantMappings[lidFormat] = participant;
+                        participantMappings[participant] = participant;
+                    }
+                });
+                
+                this.bot.database.setData('participantMappings', participantMappings);
+            }
+        } catch (error) {
+            console.error('Error updating participant mappings:', error);
+        }
+    }
+
+    /**
+     * Capture existing group mappings on startup
+     */
+    async captureExistingGroupMappings() {
+        try {
+            const groups = await this.bot.sock.groupFetchAllParticipating();
+            const participantMappings = this.bot.database.getData('participantMappings') || {};
+            
+            for (const group of Object.values(groups)) {
+                if (group.participants) {
+                    group.participants.forEach(participant => {
+                        const participantJid = participant.id;
+                        
+                        if (participantJid.includes('@s.whatsapp.net')) {
+                            const phoneNumber = participantJid.split('@')[0];
+                            const lidFormat = `${phoneNumber}@lid`;
+                            
+                            participantMappings[lidFormat] = participantJid;
+                            participantMappings[participantJid] = participantJid;
+                        }
+                    });
+                }
+            }
+            
+            this.bot.database.setData('participantMappings', participantMappings);
+            console.log('📝 Captured existing group participant mappings');
+        } catch (error) {
+            console.error('Error capturing existing group mappings:', error);
+        }
+    }
+
+    /**
+     * Get real JID from LID using stored mappings
+     */
+    getRealJidFromLid(lidOrJid) {
+        const participantMappings = this.bot.database.getData('participantMappings') || {};
+        
+        // Return stored mapping if available, otherwise return original
+        return participantMappings[lidOrJid] || lidOrJid;
     }
 
     /**
