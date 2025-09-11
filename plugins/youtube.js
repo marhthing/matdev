@@ -79,117 +79,25 @@ class YouTubePlugin {
             }
 
             // Handle quality selection
+            let quality = '720p'; // Default quality
             if (url.includes('quality:')) {
-                const [realUrl, quality] = url.split(' quality:');
+                const [realUrl, customQuality] = url.split(' quality:');
                 url = realUrl.trim();
-                
-                // Validate YouTube URL
-                if (!this.ytIdRegex.test(url)) {
-                    return await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ Please provide a valid YouTube URL');
-                }
-
-                const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
-
-                try {
-                    const info = await ytdl.getInfo(url);
-                    
-                    // Filter video formats with strict HLS/DASH filtering and hard size constraints
-                    let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
-                        .filter(format => {
-                            // Always exclude HLS/DASH and live streams
-                            if (format.isHLS || format.isDashMPD || format.isLive || !format.url || !format.container) {
-                                return false;
-                            }
-                            
-                            // Hard size constraint: strict 14MB limit
-                            const VIDEO_SIZE_LIMIT = 14 * 1024 * 1024; // 14MB
-                            if (format.contentLength) {
-                                return parseInt(format.contentLength) <= VIDEO_SIZE_LIMIT;
-                            }
-                            
-                            // Estimate size for missing contentLength using bitrate * duration
-                            if (format.bitrate && info.videoDetails.lengthSeconds) {
-                                const estimatedSize = (format.bitrate * parseInt(info.videoDetails.lengthSeconds)) / 8;
-                                return estimatedSize <= VIDEO_SIZE_LIMIT;
-                            }
-                            
-                            // Reject formats with no size info as they're risky
-                            return false;
-                        })
-                        .sort((a, b) => {
-                            // Sort by quality (height) descending, then by bitrate descending
-                            const heightDiff = (b.height || 0) - (a.height || 0);
-                            if (heightDiff !== 0) return heightDiff;
-                            return (b.bitrate || 0) - (a.bitrate || 0);
-                        });
-                    
-                    if (!videoFormats.length) {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: '❌ No suitable video format found within size limits (14MB max). Video may be too large.',
-                            edit: processingMsg.key
-                        });
-                        return;
-                    }
-                    
-                    // Select best format for requested quality with proper degradation
-                    let selectedFormat;
-                    const targetHeight = {
-                        '720p': 720,
-                        '480p': 480, 
-                        '360p': 360
-                    }[quality] || 480;
-                    
-                    // Find formats that match or are lower than target quality
-                    const suitableFormats = videoFormats.filter(f => (f.height || 0) <= targetHeight);
-                    
-                    if (suitableFormats.length > 0) {
-                        // Choose highest quality within target
-                        selectedFormat = suitableFormats[0]; // Already sorted by quality descending
-                    } else {
-                        // Graceful degradation: use lowest available quality
-                        selectedFormat = videoFormats[videoFormats.length - 1];
-                    }
-
-                    if (selectedFormat && selectedFormat.url) {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            video: { url: selectedFormat.url },
-                            caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`
-                        });
-                        
-                        // Delete processing message
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            delete: processingMsg.key
-                        });
-                    } else {
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: '❌ No suitable video format found',
-                            edit: processingMsg.key
-                        });
-                    }
-
-                } catch (error) {
-                    console.error('YouTube download error:', error);
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ Failed to download ${quality} video: ${error.message}`,
-                        edit: processingMsg.key
-                    });
-                }
-                return;
+                quality = customQuality.trim();
             }
-
+            
             // Validate YouTube URL
             if (!this.ytIdRegex.test(url)) {
                 return await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please provide a valid YouTube URL');
             }
 
-            // Get video info to show available qualities
-            try {
-                const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔄 Getting video info...');
+            const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
+
+                try {
                 const info = await ytdl.getInfo(url);
                 
-                // Filter video formats with strict HLS/DASH filtering for quality listing
+                // Filter video formats with strict HLS/DASH filtering and hard size constraints
                 let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
                     .filter(format => {
                         // Always exclude HLS/DASH and live streams
@@ -197,53 +105,81 @@ class YouTubePlugin {
                             return false;
                         }
                         
-                        // For quality listing, show formats that could potentially work
+                        // Hard size constraint: strict 14MB limit
                         const VIDEO_SIZE_LIMIT = 14 * 1024 * 1024; // 14MB
                         if (format.contentLength) {
-                            return parseInt(format.contentLength) <= VIDEO_SIZE_LIMIT * 1.5; // Show slightly larger for user choice
+                            return parseInt(format.contentLength) <= VIDEO_SIZE_LIMIT;
                         }
                         
-                        // Estimate size for missing contentLength
+                        // Estimate size for missing contentLength using bitrate * duration
                         if (format.bitrate && info.videoDetails.lengthSeconds) {
                             const estimatedSize = (format.bitrate * parseInt(info.videoDetails.lengthSeconds)) / 8;
-                            return estimatedSize <= VIDEO_SIZE_LIMIT * 1.5;
+                            return estimatedSize <= VIDEO_SIZE_LIMIT;
                         }
                         
-                        return true; // Show unknown sizes for user choice in quality listing
+                        // Reject formats with no size info as they're risky
+                        return false;
+                    })
+                    .sort((a, b) => {
+                        // Sort by quality (height) descending, then by bitrate descending
+                        const heightDiff = (b.height || 0) - (a.height || 0);
+                        if (heightDiff !== 0) return heightDiff;
+                        return (b.bitrate || 0) - (a.bitrate || 0);
                     });
                 
-                // Group formats by quality
-                const qualities = {};
-                videoFormats.forEach(format => {
-                    const quality = format.qualityLabel;
-                    if (quality && !qualities[quality]) {
-                        qualities[quality] = format;
-                    }
-                });
+                if (!videoFormats.length) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ No suitable video format found within size limits (14MB max). Video may be too large.',
+                        edit: processingMsg.key
+                    });
+                    return;
+                }
+                
+                // Select best format for requested quality with proper degradation
+                let selectedFormat;
+                const targetHeight = {
+                    '1080p': 1080,
+                    '720p': 720,
+                    '480p': 480, 
+                    '360p': 360,
+                    '240p': 240,
+                    '144p': 144
+                }[quality] || 720; // Default to 720p
+                
+                // Find formats that match or are lower than target quality
+                const suitableFormats = videoFormats.filter(f => (f.height || 0) <= targetHeight);
+                
+                if (suitableFormats.length > 0) {
+                    // Choose highest quality within target
+                    selectedFormat = suitableFormats[0]; // Already sorted by quality descending
+                } else {
+                    // Graceful degradation: use lowest available quality
+                    selectedFormat = videoFormats[videoFormats.length - 1];
+                }
 
-                const availableQualities = Object.keys(qualities).sort((a, b) => {
-                    const aHeight = parseInt(a.replace('p', ''));
-                    const bHeight = parseInt(b.replace('p', ''));
-                    return bHeight - aHeight; // Sort highest to lowest
-                });
-
-                let qualityText = `🎬 *${info.videoDetails.title}*\n⏱️ Duration: ${Math.floor(info.videoDetails.lengthSeconds / 60)}:${(info.videoDetails.lengthSeconds % 60).toString().padStart(2, '0')}\n\n📱 *Available Qualities:*\n\n`;
-
-                availableQualities.slice(0, 5).forEach((quality, index) => {
-                    qualityText += `${index + 1}️⃣ ${quality}\n`;
-                });
-
-                qualityText += `\n💡 Reply with:\n\`${config.PREFIX}ytv ${url} quality:${availableQualities[1] || '480p'}\``;
-
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: qualityText,
-                    edit: processingMsg.key
-                });
+                if (selectedFormat && selectedFormat.url) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        video: { url: selectedFormat.url },
+                        caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`
+                    });
+                    
+                    // Delete processing message
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        delete: processingMsg.key
+                    });
+                } else {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ No suitable video format found',
+                        edit: processingMsg.key
+                    });
+                }
 
             } catch (error) {
-                console.error('Error getting video info:', error);
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Failed to get video info: ${error.message}`);
+                console.error('YouTube download error:', error);
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `❌ Failed to download ${quality} video: ${error.message}`,
+                    edit: processingMsg.key
+                });
             }
 
         } catch (error) {
