@@ -1,6 +1,6 @@
 /**
  * MATDEV YouTube Downloader Plugin
- * Download YouTube videos and audio using @distube/ytdl-core
+ * Download YouTube videos and audio using @distube/ytdl-core with proxy support
  */
 
 const ytdl = require('@distube/ytdl-core');
@@ -8,16 +8,125 @@ const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
 const ytsr = require('ytsr');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 const axios = require('axios');
 
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
-        this.description = 'YouTube video and audio downloader using @distube/ytdl-core';
-        this.version = '4.0.0';
+        this.description = 'YouTube video and audio downloader using @distube/ytdl-core with proxy support';
+        this.version = '5.0.0';
         
         // YouTube URL regex
         this.ytIdRegex = /(?:http(?:s|):\/\/|)(?:(?:www\.|)youtube(?:\-nocookie|)\.com\/(?:watch\?.*(?:|\&)v=|embed|shorts\/|v\/)|youtu\.be\/)([-_0-9A-Za-z]{11})/;
+        
+        // Proxy configuration
+        this.proxyList = this.loadProxies();
+        this.currentProxyIndex = 0;
+        this.userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'
+        ];
+    }
+
+    /**
+     * Load proxy configuration from environment variables
+     */
+    loadProxies() {
+        const proxies = [];
+        
+        // Load HTTP/HTTPS proxies
+        const httpProxies = process.env.YOUTUBE_HTTP_PROXIES || process.env.HTTP_PROXIES || '';
+        if (httpProxies) {
+            const httpProxyList = httpProxies.split(',').map(p => p.trim()).filter(Boolean);
+            proxies.push(...httpProxyList.map(proxy => ({ type: 'http', url: proxy })));
+        }
+        
+        // Load SOCKS proxies
+        const socksProxies = process.env.YOUTUBE_SOCKS_PROXIES || process.env.SOCKS_PROXIES || '';
+        if (socksProxies) {
+            const socksProxyList = socksProxies.split(',').map(p => p.trim()).filter(Boolean);
+            proxies.push(...socksProxyList.map(proxy => ({ type: 'socks', url: proxy })));
+        }
+
+        if (proxies.length > 0) {
+            console.log(`🔄 YouTube plugin: Loaded ${proxies.length} proxy server(s) for IP masking`);
+        }
+        
+        return proxies;
+    }
+
+    /**
+     * Get next proxy from the list (round-robin)
+     */
+    getNextProxy() {
+        if (this.proxyList.length === 0) return null;
+        
+        const proxy = this.proxyList[this.currentProxyIndex];
+        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.proxyList.length;
+        return proxy;
+    }
+
+    /**
+     * Create proxy agent based on proxy configuration
+     */
+    createProxyAgent(proxy) {
+        if (!proxy) return null;
+        
+        try {
+            if (proxy.type === 'http') {
+                return new HttpsProxyAgent(proxy.url);
+            } else if (proxy.type === 'socks') {
+                return new SocksProxyAgent(proxy.url);
+            }
+        } catch (error) {
+            console.warn(`⚠️ Failed to create proxy agent for ${proxy.url}:`, error.message);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get random user agent
+     */
+    getRandomUserAgent() {
+        return this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
+    }
+
+    /**
+     * Get ytdl options with proxy support
+     */
+    getYtdlOptions(proxy = null) {
+        const userAgent = this.getRandomUserAgent();
+        const options = {
+            requestOptions: {
+                timeout: 30000,
+                headers: {
+                    'User-Agent': userAgent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            }
+        };
+
+        // Add proxy agent if available
+        if (proxy) {
+            const agent = this.createProxyAgent(proxy);
+            if (agent) {
+                options.requestOptions.agent = agent;
+                console.log(`🌐 Using proxy: ${proxy.url} for YouTube request`);
+            }
+        }
+
+        return options;
     }
 
     /**
@@ -26,7 +135,7 @@ class YouTubePlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ YouTube plugin loaded with @distube/ytdl-core API');
+        console.log('✅ YouTube plugin loaded with @distube/ytdl-core API and proxy support');
         return this;
     }
 
@@ -94,7 +203,9 @@ class YouTubePlugin {
             }
 
             try {
-                const info = await ytdl.getInfo(url);
+                const proxy = this.getNextProxy();
+                const ytdlOptions = this.getYtdlOptions(proxy);
+                const info = await ytdl.getInfo(url, ytdlOptions);
                 
                 // Filter video formats with strict HLS/DASH filtering and hard size constraints
                 let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
@@ -266,8 +377,10 @@ class YouTubePlugin {
             }
 
             try {
-                // Get video info and audio formats
-                const info = await ytdl.getInfo(url);
+                // Get video info and audio formats with proxy support
+                const proxy = this.getNextProxy();
+                const ytdlOptions = this.getYtdlOptions(proxy);
+                const info = await ytdl.getInfo(url, ytdlOptions);
                 
                 // Filter audio formats with strict HLS/DASH filtering and hard size constraints
                 let audioFormats = ytdl.filterFormats(info.formats, 'audioonly')

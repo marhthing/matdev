@@ -37,6 +37,8 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - All AI commands produce professional output without unnecessary verbose logging.
 
 ## Technical Implementations
+- **YouTube Plugin v5.0.0**: Complete rewrite using @distube/ytdl-core with advanced proxy support for IP masking. Features include proxy rotation, user-agent randomization, strict format filtering (excludes HLS/DASH), hard size constraints (14MB video, 12MB audio), and intelligent quality degradation.
+- **Proxy Support**: Full HTTP/HTTPS and SOCKS proxy support to bypass hosting platform detection ("bot detection" errors). Includes automatic proxy rotation and realistic browser headers.
 - **Currency Conversion Plugin**: Supports 170+ currencies with real-time conversion and smart formatting.
 - **Weather Plugin**: Global location support using OpenWeatherMap API, displaying rich weather data with visual enhancements.
 - **Group LID Registration System**: One-time registration for WhatsApp Business accounts, owner management, and persistent storage.
