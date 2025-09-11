@@ -27,9 +27,9 @@ class GeminiPlugin {
             });
 
             // Register the image generation command
-            this.bot.messageHandler.registerCommand('imagine', this.imagineCommand.bind(this), {
+            this.bot.messageHandler.registerCommand('img', this.imagineCommand.bind(this), {
                 description: 'Generate an image using Nano Banana (Gemini 2.5 Flash Image)',
-                usage: `${config.PREFIX}imagine <image description>`,
+                usage: `${config.PREFIX}img <image description>`,
                 category: 'ai',
                 plugin: 'gemini',
                 source: 'gemini.js'
@@ -134,7 +134,7 @@ class GeminiPlugin {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide an image description.\nUsage: .imagine <description>');
+                    '❌ Please provide an image description.\nUsage: .img <description>');
                 return;
             }
 
