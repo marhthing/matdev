@@ -12,8 +12,8 @@ const path = require('path');
 class InstagramPlugin {
     constructor() {
         this.name = 'instagram';
-        this.description = 'Instagram media downloader';
-        this.version = '1.0.0';
+        this.description = 'Instagram media downloader with 2025 anti-bot bypass';
+        this.version = '2.0.0';
         
         // Instagram URL regex patterns
         this.instagramRegex = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)\/?/i;
@@ -26,7 +26,7 @@ class InstagramPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ Instagram plugin loaded');
+        console.log('✅ Instagram plugin loaded with 2025 anti-bot enhancements');
         return this;
     }
 
@@ -71,26 +71,17 @@ class InstagramPlugin {
             const shortcode = match[1];
             
             try {
-                // Try multiple Instagram download methods
-                let mediaData = null;
+                // Try multiple Instagram download methods with enhanced retry logic (2025)
+                console.log(`🎯 Processing Instagram URL: ${url}`);
                 
-                // Method 1: Try rapidapi Instagram downloader
-                mediaData = await this.tryRapidAPI(url);
-                
-                // Method 2: Try alternative API
-                if (!mediaData) {
-                    mediaData = await this.tryAlternativeAPI(shortcode);
-                }
-                
-                // Method 3: Try Instagram scraper
-                if (!mediaData) {
-                    mediaData = await this.tryInstagramScraper(url);
-                }
+                const mediaData = await this.tryWithRetry(url, shortcode, 2);
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     return await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ No media found in this post or media extraction failed. The post may be private or unavailable.');
+                        '❌ No media found in this post or media extraction failed. The post may be private, unavailable, or Instagram has blocked our requests. Try again later or use a different post.');
                 }
+
+                console.log(`✅ Successfully found ${mediaData.media.length} media item(s) from Instagram`);
 
                 // Process and send each media item
                 for (let i = 0; i < mediaData.media.length; i++) {
@@ -124,17 +115,42 @@ class InstagramPlugin {
     }
 
     /**
-     * Try RapidAPI Instagram downloader
+     * Get random user agent for Instagram requests
+     */
+    getRandomUserAgent() {
+        const userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'
+        ];
+        return userAgents[Math.floor(Math.random() * userAgents.length)];
+    }
+
+    /**
+     * Try RapidAPI Instagram downloader with enhanced headers (2025)
      */
     async tryRapidAPI(url) {
         try {
+            // Add delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
             const response = await axios.get(`https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index`, {
                 params: { url: url },
-                timeout: 15000,
+                timeout: 20000,
                 headers: {
-                    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || 'demo-key',
+                    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY || 'demo-key',
                     'X-RapidAPI-Host': 'instagram-downloader-download-instagram-videos-stories.p.rapidapi.com',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': this.getRandomUserAgent(),
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'cross-site'
                 }
             });
 
@@ -155,31 +171,49 @@ class InstagramPlugin {
                 }
             }
 
+            console.log(`🟢 RapidAPI success: Found ${media.length} media item(s)`);
             return {
                 media: media,
                 caption: response.data.caption || ''
             };
 
         } catch (error) {
-            console.log('RapidAPI Instagram failed:', error.message);
+            if (error.response?.status === 429) {
+                console.log('⚠️ RapidAPI rate limited - will retry with different method');
+            } else if (error.response?.status === 403) {
+                console.log('⚠️ RapidAPI 403 forbidden - Instagram blocked request');
+            } else {
+                console.log('RapidAPI Instagram failed:', error.message);
+            }
             return null;
         }
     }
 
     /**
-     * Try alternative Instagram API
+     * Try alternative Instagram API with enhanced 2025 headers
      */
     async tryAlternativeAPI(shortcode) {
         try {
+            // Add delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
             const response = await axios.get(`https://www.instagram.com/p/${shortcode}/`, {
-                timeout: 15000,
+                timeout: 20000,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
+                    'User-Agent': this.getRandomUserAgent(),
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Upgrade-Insecure-Requests': '1',
                     'DNT': '1',
-                    'Connection': 'keep-alive'
+                    'Connection': 'keep-alive',
+                    'Cookie': 'csrftoken=missing; sessionid='
                 }
             });
 
@@ -250,26 +284,116 @@ class InstagramPlugin {
                 }
             }
 
-            return media.length > 0 ? { media: media } : null;
+            if (media.length > 0) {
+                console.log(`🟡 Alternative API success: Found ${media.length} media item(s)`);
+                return { media: media };
+            }
+            return null;
 
         } catch (error) {
-            console.log('Alternative Instagram API failed:', error.message);
+            if (error.response?.status === 404) {
+                console.log('⚠️ Alternative API: Post not found or private');
+            } else if (error.response?.status === 429) {
+                console.log('⚠️ Alternative API: Rate limited');
+            } else {
+                console.log('Alternative Instagram API failed:', error.message);
+            }
             return null;
         }
     }
 
     /**
-     * Try Instagram scraper method
+     * Try modern Instagram scraper method (2025)
      */
     async tryInstagramScraper(url) {
         try {
-            // This is a placeholder for additional scraping methods
-            // You can implement more sophisticated scraping here
+            // Add delay to avoid detection
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Try third-party Instagram API services
+            const services = [
+                {
+                    name: 'Instagram-API-python',
+                    url: `https://instagram-api-2025.p.rapidapi.com/v1/post_info`,
+                    params: { url: url },
+                    headers: {
+                        'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY || 'demo-key',
+                        'X-RapidAPI-Host': 'instagram-api-2025.p.rapidapi.com'
+                    }
+                }
+            ];
+
+            for (const service of services) {
+                try {
+                    const response = await axios.get(service.url, {
+                        params: service.params,
+                        timeout: 15000,
+                        headers: {
+                            ...service.headers,
+                            'User-Agent': this.getRandomUserAgent(),
+                            'Accept': 'application/json',
+                            'Accept-Language': 'en-US,en;q=0.9'
+                        }
+                    });
+
+                    if (response.data && response.data.media_urls && response.data.media_urls.length > 0) {
+                        const media = response.data.media_urls.map(item => ({
+                            type: item.includes('.mp4') ? 'video' : 'image',
+                            url: item
+                        }));
+                        
+                        console.log(`🟠 ${service.name} success: Found ${media.length} media item(s)`);
+                        return { media: media };
+                    }
+                } catch (serviceError) {
+                    console.log(`⚠️ ${service.name} failed:`, serviceError.message);
+                    continue;
+                }
+            }
+
             return null;
         } catch (error) {
             console.log('Instagram scraper failed:', error.message);
             return null;
         }
+    }
+
+    /**
+     * Try with exponential backoff and multiple methods
+     */
+    async tryWithRetry(url, shortcode, maxRetries = 2) {
+        const methods = [
+            { name: 'RapidAPI', fn: () => this.tryRapidAPI(url) },
+            { name: 'Alternative API', fn: () => this.tryAlternativeAPI(shortcode) },
+            { name: 'Instagram Scraper', fn: () => this.tryInstagramScraper(url) }
+        ];
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            for (const method of methods) {
+                try {
+                    console.log(`🔄 Trying ${method.name} (attempt ${attempt + 1}/${maxRetries})`);
+                    const result = await method.fn();
+                    
+                    if (result && result.media && result.media.length > 0) {
+                        return result;
+                    }
+                    
+                    // Small delay between methods
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (error) {
+                    console.log(`❌ ${method.name} error:`, error.message);
+                }
+            }
+            
+            // Exponential backoff between retry attempts
+            if (attempt < maxRetries - 1) {
+                const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s...
+                console.log(`⏳ Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        return null;
     }
 
     /**
