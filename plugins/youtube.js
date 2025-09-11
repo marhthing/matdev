@@ -104,38 +104,87 @@ class YouTubePlugin {
     }
 
     /**
-     * Get ytdl options with proxy support and debug configuration
+     * Get browser cookies for YouTube authentication (2025 solution)
      */
-    getYtdlOptions(proxy = null) {
-        const userAgent = this.getRandomUserAgent();
-        const options = {
-            requestOptions: {
-                timeout: 30000,
-                headers: {
-                    'User-Agent': userAgent,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                }
-            },
-            // Configure debug file location
-            debug: false, // Disable debug by default to avoid file creation
-            debugFile: path.join(DEBUG_FOLDER, `debug-${Date.now()}.html`)
-        };
+    getYouTubeCookies() {
+        // Essential cookies to bypass YouTube's 2025 anti-bot measures
+        const baseCookies = [
+            { name: "CONSENT", value: "YES+1" },
+            { name: "VISITOR_INFO1_LIVE", value: "Uv89bjKyYls" },
+            { name: "YSC", value: "DjdAiUkuVgc" }
+        ];
+        
+        // Load additional cookies from environment if provided
+        const customCookies = process.env.YOUTUBE_COOKIES || '';
+        if (customCookies) {
+            try {
+                const parsed = JSON.parse(customCookies);
+                baseCookies.push(...parsed);
+                console.log(`🍪 Loaded ${parsed.length} custom YouTube cookies`);
+            } catch (error) {
+                console.warn('⚠️ Failed to parse YOUTUBE_COOKIES:', error.message);
+            }
+        }
+        
+        return baseCookies;
+    }
 
-        // Add proxy agent if available
+    /**
+     * Create YouTube agent with cookies and proxy support (2025 solution)
+     */
+    createYouTubeAgent(proxy = null) {
+        const cookies = this.getYouTubeCookies();
+        
+        // Create agent with cookies
+        let agent = ytdl.createAgent(cookies, {
+            localAddress: undefined,
+            headers: {
+                'User-Agent': this.getRandomUserAgent(),
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin'
+            }
+        });
+
+        // Add proxy support if available
         if (proxy) {
-            const agent = this.createProxyAgent(proxy);
-            if (agent) {
-                options.requestOptions.agent = agent;
+            const proxyAgent = this.createProxyAgent(proxy);
+            if (proxyAgent) {
+                // Override the agent's request method to use proxy
+                const originalRequest = agent.jar._jar.request;
+                agent.jar._jar.request = function(options, callback) {
+                    options.agent = proxyAgent;
+                    return originalRequest.call(this, options, callback);
+                };
                 console.log(`🌐 Using proxy: ${proxy.url} for YouTube request`);
             }
         }
+
+        return agent;
+    }
+
+    /**
+     * Get ytdl options with cookie-based authentication (2025 solution)
+     */
+    getYtdlOptions(proxy = null) {
+        const agent = this.createYouTubeAgent(proxy);
+        
+        const options = {
+            agent: agent,
+            requestOptions: {
+                timeout: 30000,
+                headers: {
+                    'User-Agent': this.getRandomUserAgent(),
+                    'Referer': 'https://www.youtube.com/',
+                    'Origin': 'https://www.youtube.com'
+                }
+            }
+        };
 
         return options;
     }
