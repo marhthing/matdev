@@ -491,10 +491,12 @@ class GroupPlugin {
             if (targetJid.includes('@lid') && resolvedJid !== targetJid) {
                 console.log(`📱 Resolved LID ${targetJid} to JID ${resolvedJid} using stored mapping`);
             } else if (targetJid.includes('@lid')) {
-                console.log(`⚠️ No mapping found for LID ${targetJid} - tempkick may fail during restoration`);
+                console.log(`⚠️ No mapping found for LID ${targetJid} - tempkick cannot proceed`);
                 // Don't proceed with tempkick if we can't resolve LID to JID
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Cannot temporarily kick this user. No stored phone number mapping available for business account. They need to send a message first for mapping to be captured.`
+                    `❌ Cannot temporarily kick this business account user.\n\n` +
+                    `**Reason:** WhatsApp's privacy system prevents phone number access for existing group members.\n\n` +
+                    `**Solution:** Ask them to send any message to the group first, then tempkick will work.`
                 );
                 return;
             }
@@ -1289,35 +1291,31 @@ class GroupPlugin {
                         let addResult = null;
                         let jidToAdd = tempKickData.resolvedJid || tempKickData.userJid;
                         
-                        // First, try with resolved JID (if we have a phone number)
+                        // CRITICAL: Always use resolvedJid for adding back (JID format required for adding)
                         if (tempKickData.resolvedJid && tempKickData.resolvedJid !== tempKickData.userJid) {
+                            // We have a resolved JID mapping - use this for adding back
                             try {
                                 addResult = await this.bot.sock.groupParticipantsUpdate(
                                     tempKickData.groupJid, 
                                     [tempKickData.resolvedJid], 
                                     'add'
                                 );
-                                console.log(`✅ Successfully added back ${tempKickData.displayName} using resolved JID: ${tempKickData.resolvedJid}`);
+                                jidToAdd = tempKickData.resolvedJid;
+                                console.log(`✅ Successfully restored ${tempKickData.displayName} using resolved JID: ${tempKickData.resolvedJid}`);
                             } catch (resolvedError) {
-                                console.log(`⚠️ Failed to add back using resolved JID ${tempKickData.resolvedJid}, trying original JID`);
-                                // Try with original JID if resolved fails
-                                addResult = await this.bot.sock.groupParticipantsUpdate(
-                                    tempKickData.groupJid, 
-                                    [tempKickData.userJid], 
-                                    'add'
-                                );
-                                jidToAdd = tempKickData.userJid;
-                                console.log(`✅ Successfully added back ${tempKickData.displayName} using original JID: ${tempKickData.userJid}`);
+                                console.log(`❌ Failed to add back using resolved JID ${tempKickData.resolvedJid}: ${resolvedError.message}`);
+                                // Don't try original LID - it will fail. Instead, send manual instruction
+                                throw new Error(`Cannot restore LID user: ${resolvedError.message}`);
                             }
                         } else {
-                            // Use original JID if no resolved JID available
+                            // Use original JID (only works if it was already in JID format)
                             addResult = await this.bot.sock.groupParticipantsUpdate(
                                 tempKickData.groupJid, 
                                 [tempKickData.userJid], 
                                 'add'
                             );
                             jidToAdd = tempKickData.userJid;
-                            console.log(`✅ Successfully added back ${tempKickData.displayName} using original JID: ${tempKickData.userJid}`);
+                            console.log(`✅ Successfully restored ${tempKickData.displayName} using original JID: ${tempKickData.userJid}`);
                         }
                         
                         // Send notification
@@ -1335,10 +1333,21 @@ class GroupPlugin {
                     } catch (error) {
                         console.error(`Error restoring tempkick for ${tempKickData.displayName}:`, error);
                         
+                        // Provide specific guidance based on error type
+                        let helpMessage;
+                        if (tempKickData.userJid.includes('@lid')) {
+                            helpMessage = `❌ Cannot restore @${tempKickData.displayName} automatically (business account privacy).\n\n` +
+                                         `**Manual steps:** Ask them to send any message to the group, then use .add command.`;
+                        } else {
+                            helpMessage = `❌ Failed to restore @${tempKickData.displayName} automatically.\n\n` +
+                                         `**Error:** ${error.message}\n` +
+                                         `**Action:** Please add them back manually using .add command.`;
+                        }
+                        
                         // Notify about the error in the group
                         try {
                             await this.bot.sock.sendMessage(tempKickData.groupJid, {
-                                text: `❌ Failed to add @${tempKickData.displayName} back to the group automatically. Please add them back manually.`
+                                text: helpMessage
                             });
                         } catch (notifyError) {
                             console.error('Error sending restoration failure notification:', notifyError);
