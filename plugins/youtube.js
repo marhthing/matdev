@@ -93,9 +93,7 @@ class YouTubePlugin {
                     '❌ Please provide a valid YouTube URL');
             }
 
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, `🔄 Downloading ${quality} video...`);
-
-                try {
+            try {
                 const info = await ytdl.getInfo(url);
                 
                 // Filter video formats with strict HLS/DASH filtering and hard size constraints
@@ -129,10 +127,8 @@ class YouTubePlugin {
                     });
                 
                 if (!videoFormats.length) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No suitable video format found within size limits (14MB max). Video may be too large.',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ No suitable video format found within size limits (14MB max). Video may be too large.');
                     return;
                 }
                 
@@ -195,34 +191,23 @@ class YouTubePlugin {
 
                         // Clean up temp file immediately
                         await fs.unlink(tempFile).catch(() => {});
-                        
-                        // Delete processing message
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            delete: processingMsg.key
-                        });
 
                     } catch (downloadError) {
                         // Clean up temp file on error
                         await fs.unlink(tempFile).catch(() => {});
                         
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            text: `❌ Failed to download video: ${downloadError.message}`,
-                            edit: processingMsg.key
-                        });
+                        await this.bot.messageHandler.reply(messageInfo, 
+                            `❌ Failed to download video: ${downloadError.message}`);
                     }
                 } else {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No suitable video format found',
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ No suitable video format found');
                 }
 
             } catch (error) {
                 console.error('YouTube download error:', error);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Failed to download ${quality} video: ${error.message}`,
-                    edit: processingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Failed to download ${quality} video: ${error.message}`);
             }
 
         } catch (error) {
