@@ -12,6 +12,12 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const axios = require('axios');
 
+// Ensure debug folder exists
+const DEBUG_FOLDER = path.join('session', 'youtube-debug');
+if (!fs.existsSync(DEBUG_FOLDER)) {
+    fs.mkdirSync(DEBUG_FOLDER, { recursive: true });
+}
+
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
@@ -98,7 +104,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Get ytdl options with proxy support
+     * Get ytdl options with proxy support and debug configuration
      */
     getYtdlOptions(proxy = null) {
         const userAgent = this.getRandomUserAgent();
@@ -112,9 +118,14 @@ class YouTubePlugin {
                     'Accept-Encoding': 'gzip, deflate',
                     'DNT': '1',
                     'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1'
+                    'Upgrade-Insecure-Requests': '1',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
                 }
-            }
+            },
+            // Configure debug file location
+            debug: false, // Disable debug by default to avoid file creation
+            debugFile: path.join(DEBUG_FOLDER, `debug-${Date.now()}.html`)
         };
 
         // Add proxy agent if available
@@ -127,6 +138,50 @@ class YouTubePlugin {
         }
 
         return options;
+    }
+
+    /**
+     * Enhanced YouTube info retrieval with retry logic
+     */
+    async getYouTubeInfoWithRetry(url, maxRetries = 3) {
+        let lastError;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const proxy = attempt > 1 ? this.getNextProxy() : this.getNextProxy(); // Always use proxy
+                const ytdlOptions = this.getYtdlOptions(proxy);
+                
+                // Add delay between retries
+                if (attempt > 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+                
+                console.log(`🔄 YouTube request attempt ${attempt}/${maxRetries}${proxy ? ` via ${proxy.url}` : ''}`);
+                
+                const info = await ytdl.getInfo(url, ytdlOptions);
+                console.log(`✅ Successfully retrieved YouTube info on attempt ${attempt}`);
+                return info;
+                
+            } catch (error) {
+                lastError = error;
+                console.warn(`⚠️ YouTube request attempt ${attempt} failed: ${error.message}`);
+                
+                // If it's an HTML parsing error, try with different options
+                if (error.message.includes('parsing watch.html') && attempt < maxRetries) {
+                    console.log(`🔄 HTML parsing failed, retrying with different configuration...`);
+                    continue;
+                }
+                
+                // If it's a network error, try with different proxy
+                if ((error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') && attempt < maxRetries) {
+                    console.log(`🔄 Network error, trying different proxy...`);
+                    continue;
+                }
+            }
+        }
+        
+        // All retries failed
+        throw new Error(`YouTube info retrieval failed after ${maxRetries} attempts: ${lastError.message}`);
     }
 
     /**
@@ -203,9 +258,7 @@ class YouTubePlugin {
             }
 
             try {
-                const proxy = this.getNextProxy();
-                const ytdlOptions = this.getYtdlOptions(proxy);
-                const info = await ytdl.getInfo(url, ytdlOptions);
+                const info = await this.getYouTubeInfoWithRetry(url, 3);
                 
                 // Filter video formats with strict HLS/DASH filtering and hard size constraints
                 let videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio')
@@ -377,10 +430,8 @@ class YouTubePlugin {
             }
 
             try {
-                // Get video info and audio formats with proxy support
-                const proxy = this.getNextProxy();
-                const ytdlOptions = this.getYtdlOptions(proxy);
-                const info = await ytdl.getInfo(url, ytdlOptions);
+                // Get video info and audio formats with enhanced retry logic
+                const info = await this.getYouTubeInfoWithRetry(url, 3);
                 
                 // Filter audio formats with strict HLS/DASH filtering and hard size constraints
                 let audioFormats = ytdl.filterFormats(info.formats, 'audioonly')
