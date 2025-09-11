@@ -28,7 +28,7 @@ class GeminiPlugin {
 
             // Register the image generation command
             this.bot.messageHandler.registerCommand('img', this.imagineCommand.bind(this), {
-                description: 'Generate an image using Nano Banana (Gemini 2.5 Flash Image)',
+                description: 'Generate an image using free DeepAI API',
                 usage: `${config.PREFIX}img <image description>`,
                 category: 'ai',
                 plugin: 'gemini',
@@ -118,15 +118,15 @@ class GeminiPlugin {
     }
 
     /**
-     * Handle image generation command using Nano Banana
+     * Handle image generation command using free DeepAI API
      */
     async imagineCommand(messageInfo) {
         try {
-            // Check if API key exists
-            const apiKey = process.env.GEMINI_API_KEY;
+            // Check if API key exists - DeepAI gives you a free API key when you sign up
+            const apiKey = process.env.DEEPAI_API_KEY;
             if (!apiKey) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No API found, use .setenv GEMINI_API_KEY=<key>');
+                    '❌ No DeepAI API key found. Get a free one at https://deepai.org/\nThen use: .setenv DEEPAI_API_KEY=<your_key>');
                 return;
             }
 
@@ -139,27 +139,29 @@ class GeminiPlugin {
             }
 
             // Send generating indicator
-            const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with Nano Banana...');
+            const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with free AI...');
 
             try {
-                // Initialize Gemini AI with image generation model
-                const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
+                // Generate image using DeepAI free API (using Node.js built-in fetch)
+                const form = new FormData();
+                form.append('text', prompt);
 
-                // Generate image
-                const result = await model.generateContent([
-                    { text: prompt }
-                ]);
-                
-                const response = await result.response;
-                const candidates = response.candidates;
+                const response = await fetch('https://api.deepai.org/api/text2img', {
+                    method: 'POST',
+                    headers: {
+                        'api-key': apiKey
+                    },
+                    body: form
+                });
 
-                // Check for safety or other blocking
-                if (!candidates || candidates.length === 0) {
-                    let errorMessage = '❌ No image was generated. Please try a different prompt.';
-                    if (response.promptFeedback && response.promptFeedback.blockReason) {
-                        errorMessage = `❌ Content blocked: ${response.promptFeedback.blockReason}. Please try a different prompt.`;
+                if (!response.ok) {
+                    let errorMessage = '❌ Error generating image. Please try again.';
+                    if (response.status === 401) {
+                        errorMessage = '❌ Invalid API key. Check your DEEPAI_API_KEY.';
+                    } else if (response.status === 429) {
+                        errorMessage = '❌ Rate limit exceeded. Please wait a moment and try again.';
                     }
+                    
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: errorMessage,
                         edit: generatingMsg.key
@@ -167,75 +169,55 @@ class GeminiPlugin {
                     return;
                 }
 
-                const candidate = candidates[0];
+                const result = await response.json();
                 
-                // Check finish reason for safety filtering
-                if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-                    let errorMessage = '❌ Image generation was blocked. Please try a different prompt.';
-                    if (candidate.finishReason === 'SAFETY') {
-                        errorMessage = '❌ Content filtered for safety. Please try a more appropriate prompt.';
-                    } else if (candidate.finishReason === 'RECITATION') {
-                        errorMessage = '❌ Content blocked due to recitation. Please try a more original prompt.';
+                // Check for API errors in the response
+                if (result.status === 'error' || result.error) {
+                    const errorMsg = result.error || 'Unknown error occurred';
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: `❌ DeepAI Error: ${errorMsg}`,
+                        edit: generatingMsg.key
+                    });
+                    return;
+                }
+                
+                if (!result.output_url) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '❌ No image was generated. Please try a different prompt.',
+                        edit: generatingMsg.key
+                    });
+                    return;
+                }
+
+                // Download the image from the URL
+                const imageResponse = await fetch(result.output_url);
+                const arrayBuffer = await imageResponse.arrayBuffer();
+                const imageBuffer = Buffer.from(arrayBuffer);
+                
+                // Create temp directory if it doesn't exist
+                const tempDir = path.join(process.cwd(), 'temp');
+                await fs.ensureDir(tempDir);
+                
+                // Save image with unique filename
+                const filename = `deepai_${Date.now()}.jpg`;
+                const imagePath = path.join(tempDir, filename);
+                await fs.writeFile(imagePath, imageBuffer);
+
+                // Send the image
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    image: { url: imagePath },
+                    caption: `🎨 *Generated with Free AI*\n\n📝 Prompt: "${prompt}"\n⚡ Powered by DeepAI (100% Free)`
+                });
+
+                // Clean up temp file after a delay
+                setTimeout(async () => {
+                    try {
+                        await fs.remove(imagePath);
+                        console.log(`🧹 Cleaned up temp image: ${filename}`);
+                    } catch (cleanupError) {
+                        console.log('Note: Could not clean up temp image file:', cleanupError.message);
                     }
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: errorMessage,
-                        edit: generatingMsg.key
-                    });
-                    return;
-                }
-
-                const content = candidate.content;
-                if (!content || !content.parts) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No image content received. Please try again.',
-                        edit: generatingMsg.key
-                    });
-                    return;
-                }
-
-                // Find the image part
-                let imageGenerated = false;
-                for (const part of content.parts) {
-                    if (part.inlineData && part.inlineData.data) {
-                        const imageData = Buffer.from(part.inlineData.data, 'base64');
-                        
-                        // Create temp directory if it doesn't exist
-                        const tempDir = path.join(process.cwd(), 'temp');
-                        await fs.ensureDir(tempDir);
-                        
-                        // Save image with unique filename
-                        const filename = `nano_banana_${Date.now()}.png`;
-                        const imagePath = path.join(tempDir, filename);
-                        await fs.writeFile(imagePath, imageData);
-
-                        // Send the image
-                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                            image: { url: imagePath },
-                            caption: `🎨 *Generated by Nano Banana*\n\n📝 Prompt: "${prompt}"\n⚡ Powered by Gemini 2.5 Flash Image Preview`
-                        });
-
-                        // Clean up temp file after a delay
-                        setTimeout(async () => {
-                            try {
-                                await fs.remove(imagePath);
-                                console.log(`🧹 Cleaned up temp image: ${filename}`);
-                            } catch (cleanupError) {
-                                console.log('Note: Could not clean up temp image file:', cleanupError.message);
-                            }
-                        }, 15000); // 15 seconds delay for better delivery
-
-                        imageGenerated = true;
-                        break;
-                    }
-                }
-
-                if (!imageGenerated) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No image data found in response. Please try again.',
-                        edit: generatingMsg.key
-                    });
-                    return;
-                }
+                }, 15000); // 15 seconds delay for better delivery
 
                 // Delete the generating message since we sent the image
                 try {
@@ -247,28 +229,14 @@ class GeminiPlugin {
                     console.log('Note: Could not delete generating message:', deleteError.message);
                 }
 
-                console.log('✅ Nano Banana image generated and sent');
+                console.log('✅ DeepAI image generated and sent');
 
             } catch (apiError) {
-                console.error('Nano Banana API error:', apiError);
+                console.error('DeepAI API error:', apiError);
                 
-                let errorMessage = '❌ Error generating image with Nano Banana. Please try again.';
-                
-                // Check for specific error codes/status
-                if (apiError.status === 400) {
-                    if (apiError.message.includes('API_KEY_INVALID') || apiError.message.includes('Invalid API key')) {
-                        errorMessage = '❌ Invalid API key. Please check your GEMINI_API_KEY.';
-                    } else if (apiError.message.includes('safety') || apiError.message.includes('SAFETY')) {
-                        errorMessage = '❌ Content filtered for safety. Please try a different prompt.';
-                    } else {
-                        errorMessage = '❌ Invalid request. Please check your prompt and try again.';
-                    }
-                } else if (apiError.status === 429 || apiError.message.includes('quota') || apiError.message.includes('rate limit')) {
-                    errorMessage = '❌ API quota exceeded or rate limited. Please try again later.';
-                } else if (apiError.status === 401) {
-                    errorMessage = '❌ API key authentication failed. Please check your GEMINI_API_KEY.';
-                } else if (apiError.status === 403) {
-                    errorMessage = '❌ API access forbidden. Check your API key permissions.';
+                let errorMessage = '❌ Error generating image. Please try again.';
+                if (apiError.message && apiError.message.includes('fetch')) {
+                    errorMessage = '❌ Network error. Please check your connection and try again.';
                 }
                 
                 // Edit the generating message to show error
