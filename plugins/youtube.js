@@ -34,8 +34,13 @@ class YouTubePlugin {
      * Set up quality selection listener
      */
     setupQualityListener() {
-        // Listen to all messages for quality selection numbers
-        this.bot.sock.ev.on('messages.upsert', async (messageUpdate) => {
+        // Remove existing listener if it exists (for hot reload)
+        if (this.qualityListener) {
+            this.bot.sock.ev.off('messages.upsert', this.qualityListener);
+        }
+
+        // Create bound function for proper removal
+        this.qualityListener = async (messageUpdate) => {
             if (messageUpdate.type !== 'notify') return;
 
             for (const message of messageUpdate.messages) {
@@ -50,18 +55,21 @@ class YouTubePlugin {
                 // Check if this is a quality selection (100, 101, 102)
                 if (['100', '101', '102'].includes(text.trim())) {
                     const cacheKey = `ytv_quality_${chatId}_${userId}`;
-                    const pendingDownload = this.bot.cache.get(cacheKey);
+                    const pendingDownload = this.bot.messageHandler.cache.get(cacheKey);
 
                     if (pendingDownload) {
                         // Clear the cache
-                        this.bot.cache.del(cacheKey);
+                        this.bot.messageHandler.cache.delete(cacheKey);
 
                         // Process the quality selection
                         await this.processQualitySelection(text.trim(), pendingDownload, chatId);
                     }
                 }
             }
-        });
+        };
+
+        // Listen to all messages for quality selection numbers
+        this.bot.sock.ev.on('messages.upsert', this.qualityListener);
     }
 
     /**
@@ -190,7 +198,7 @@ class YouTubePlugin {
 
             // Store pending download info in cache
             const cacheKey = `ytv_quality_${messageInfo.chat_jid}_${messageInfo.from_jid}`;
-            this.bot.cache.set(cacheKey, {
+            this.bot.messageHandler.cache.set(cacheKey, {
                 url: url,
                 chatId: messageInfo.chat_jid,
                 userId: messageInfo.from_jid
