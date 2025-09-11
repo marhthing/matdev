@@ -8,6 +8,7 @@ const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
 const ytsr = require('ytsr');
+const axios = require('axios');
 
 class YouTubePlugin {
     constructor() {
@@ -158,15 +159,57 @@ class YouTubePlugin {
                 }
 
                 if (selectedFormat && selectedFormat.url) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        video: { url: selectedFormat.url },
-                        caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`
-                    });
+                    // Create temporary file path
+                    const tempFile = path.join(__dirname, '..', 'tmp', `youtube_video_${Date.now()}.mp4`);
                     
-                    // Delete processing message
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        delete: processingMsg.key
-                    });
+                    // Ensure tmp directory exists
+                    await fs.ensureDir(path.dirname(tempFile));
+
+                    try {
+                        // Download video to temp file
+                        const axios = require('axios');
+                        const videoResponse = await axios.get(selectedFormat.url, {
+                            responseType: 'stream',
+                            timeout: 90000
+                        });
+
+                        // Write video to temp file
+                        await new Promise((resolve, reject) => {
+                            const writeStream = fs.createWriteStream(tempFile);
+                            videoResponse.data.pipe(writeStream);
+                            
+                            videoResponse.data.on('error', reject);
+                            writeStream.on('error', reject);
+                            writeStream.on('finish', resolve);
+                        });
+
+                        // Read video file as buffer
+                        const videoBuffer = await fs.readFile(tempFile);
+
+                        // Send video
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            video: videoBuffer,
+                            caption: `✅ ${info.videoDetails.title} (${selectedFormat.qualityLabel || quality})`,
+                            mimetype: 'video/mp4'
+                        });
+
+                        // Clean up temp file immediately
+                        await fs.unlink(tempFile).catch(() => {});
+                        
+                        // Delete processing message
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            delete: processingMsg.key
+                        });
+
+                    } catch (downloadError) {
+                        // Clean up temp file on error
+                        await fs.unlink(tempFile).catch(() => {});
+                        
+                        await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                            text: `❌ Failed to download video: ${downloadError.message}`,
+                            edit: processingMsg.key
+                        });
+                    }
                 } else {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ No suitable video format found',
