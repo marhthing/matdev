@@ -1117,11 +1117,19 @@ class GroupPlugin {
             const { key } = message;
             const { remoteJid, participant, fromMe } = key;
 
-            if (fromMe || !remoteJid || !remoteJid.endsWith('@g.us')) return;
+            // Skip bot's own messages
+            if (fromMe) return;
+
+            // Only process group messages
+            if (!remoteJid || !remoteJid.endsWith('@g.us')) return;
+
+            // Debug logging to see what we're receiving
+            console.log(`🔍 Processing message - RemoteJID: ${remoteJid}, Participant: ${participant}, Type: ${participant ? (participant.includes('@s.whatsapp.net') ? 'JID' : participant.includes('@lid') ? 'LID' : 'OTHER') : 'NONE'}`);
 
             // If we have a participant (group message), store the mapping
             if (participant) {
                 const participantMappings = this.bot.database.getData('participantMappings') || {};
+                let mappingAdded = false;
                 
                 // If participant is in JID format, store it
                 if (participant.includes('@s.whatsapp.net')) {
@@ -1131,12 +1139,38 @@ class GroupPlugin {
                     // Store both LID->JID and JID->JID mappings
                     participantMappings[lidFormat] = participant;
                     participantMappings[participant] = participant;
+                    mappingAdded = true;
                     
+                    console.log(`✅ Stored mapping: ${lidFormat} -> ${participant}`);
+                }
+                
+                // If participant is already in LID format, check if we have context
+                else if (participant.includes('@lid')) {
+                    // Try to get JID from message context
+                    const participantPn = message?.message?.extendedTextMessage?.contextInfo?.participantPn;
+                    const senderPn = message?.message?.extendedTextMessage?.contextInfo?.senderPn;
+                    
+                    if (participantPn && participantPn.includes('@s.whatsapp.net')) {
+                        participantMappings[participant] = participantPn;
+                        participantMappings[participantPn] = participantPn;
+                        mappingAdded = true;
+                        console.log(`✅ Stored LID mapping from context: ${participant} -> ${participantPn}`);
+                    } else if (senderPn && senderPn.includes('@s.whatsapp.net')) {
+                        participantMappings[participant] = senderPn;
+                        participantMappings[senderPn] = senderPn;
+                        mappingAdded = true;
+                        console.log(`✅ Stored LID mapping from sender: ${participant} -> ${senderPn}`);
+                    } else {
+                        console.log(`⚠️ Cannot resolve LID ${participant} - no context available`);
+                    }
+                }
+                
+                if (mappingAdded) {
                     this.bot.database.setData('participantMappings', participantMappings);
                 }
             }
         } catch (error) {
-            // Silently handle errors to avoid spam
+            console.error('Error in captureParticipantMapping:', error);
         }
     }
 
