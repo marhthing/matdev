@@ -184,21 +184,51 @@ class FacebookPlugin {
                     return await this.bot.messageHandler.reply(messageInfo, errorMsg);
                 }
 
-                // Process and send each media item
-                for (let i = 0; i < mediaData.media.length; i++) {
-                    const media = mediaData.media[i];
+                // Filter out invalid media and prioritize videos
+                const validMedia = mediaData.media.filter(media => {
+                    if (!media.url) return false;
+                    
+                    // Check if URL is actually valid
+                    try {
+                        new URL(media.url);
+                        return media.url.includes('http') && 
+                               media.url.length > 20 && 
+                               !media.url.includes('placeholder') &&
+                               !media.url.includes('blank');
+                    } catch {
+                        return false;
+                    }
+                });
+
+                // Prioritize videos over images
+                const videos = validMedia.filter(media => media.type === 'video');
+                const images = validMedia.filter(media => media.type === 'image');
+                
+                // Use only videos if available, otherwise use images
+                const finalMedia = videos.length > 0 ? videos : images;
+
+                if (finalMedia.length === 0) {
+                    return await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ No valid media found in this Facebook post. The post may contain only text or the media URLs are invalid.');
+                }
+
+                console.log(`✅ Found ${finalMedia.length} valid media item(s) (${videos.length} videos, ${images.length} images)`);
+
+                // Process and send each valid media item
+                for (let i = 0; i < finalMedia.length; i++) {
+                    const media = finalMedia[i];
                     
                     try {
-                        await this.downloadAndSendMedia(messageInfo, media, mediaData.title, i + 1, mediaData.media.length);
+                        await this.downloadAndSendMedia(messageInfo, media, mediaData.title, i + 1, finalMedia.length);
                         
                         // Add delay between multiple files
-                        if (i < mediaData.media.length - 1) {
+                        if (i < finalMedia.length - 1) {
                             await new Promise(resolve => setTimeout(resolve, 2000));
                         }
                     } catch (mediaError) {
                         console.error(`Error downloading media ${i + 1}:`, mediaError);
                         await this.bot.messageHandler.reply(messageInfo, 
-                            `❌ Failed to download media ${i + 1}/${mediaData.media.length}: ${mediaError.message}`);
+                            `❌ Failed to download media ${i + 1}/${finalMedia.length}: ${mediaError.message}`);
                     }
                 }
 
@@ -528,15 +558,21 @@ class FacebookPlugin {
                             
                             const decodedUrl = decodeURIComponent(videoUrl);
                             
-                            // Validate URL
-                            if (decodedUrl.includes('http') && !foundUrls.has(decodedUrl)) {
+                            // Validate URL more strictly
+                            if (decodedUrl.includes('http') && 
+                                decodedUrl.length > 50 && 
+                                !decodedUrl.includes('placeholder') &&
+                                !decodedUrl.includes('blank') &&
+                                (decodedUrl.includes('.mp4') || decodedUrl.includes('video') || decodedUrl.includes('fbcdn')) &&
+                                !foundUrls.has(decodedUrl)) {
+                                
                                 foundUrls.add(decodedUrl);
                                 media.push({
                                     type: 'video',
                                     url: decodedUrl
                                 });
                                 
-                                if (media.length >= 2) break; // Limit results
+                                if (media.length >= 1) break; // Only get the first valid video
                             }
                         } catch (decodeError) {
                             console.log('URL decode error:', decodeError.message);
@@ -606,8 +642,25 @@ class FacebookPlugin {
             // Read file as buffer
             const mediaBuffer = await fs.readFile(tempFile);
 
-            // Prepare caption
-            const caption = total > 1 ? `📘 Facebook Media ${index}/${total}` : '📘 Facebook Media';
+            // Prepare caption with more details
+            let caption;
+            if (total > 1) {
+                caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'} ${index}/${total}**`;
+                if (title && title !== 'Facebook Media') {
+                    caption += `\n📝 ${title}`;
+                }
+                if (media.quality) {
+                    caption += `\n🎥 Quality: ${media.quality}`;
+                }
+            } else {
+                caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'}**`;
+                if (title && title !== 'Facebook Media') {
+                    caption += `\n📝 ${title}`;
+                }
+                if (media.quality) {
+                    caption += `\n🎥 Quality: ${media.quality}`;
+                }
+            }
 
             // Send appropriate media type
             if (media.type === 'video') {
