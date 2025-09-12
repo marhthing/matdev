@@ -142,11 +142,8 @@ class FacebookPlugin {
             await humanDelay(1000, 2000);
 
             try {
-                // Try only working Facebook download methods
-                let mediaData = null;
-                
-                // Method 1: Try direct Facebook scraping (primary method)
-                mediaData = await this.tryDirectScraping(url);
+                // Use only the working direct Facebook scraping method
+                let mediaData = await this.tryDirectScraping(url);
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     // Provide more helpful error message based on URL type
