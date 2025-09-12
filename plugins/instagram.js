@@ -129,18 +129,25 @@ class InstagramPlugin {
     }
 
     /**
-     * Try RapidAPI Instagram downloader with enhanced headers (2025)
+     * Try RapidAPI Instagram downloader (only if valid key available)
      */
     async tryRapidAPI(url) {
+        const apiKey = process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY;
+        
+        // Skip if no valid API key (avoid 403 errors from demo keys)
+        if (!apiKey || apiKey === 'demo-key') {
+            console.log('⚠️ RapidAPI skipped - no valid API key configured');
+            return null;
+        }
+
         try {
-            // Add delay to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             const response = await axios.get(`https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index`, {
                 params: { url: url },
                 timeout: 20000,
                 headers: {
-                    'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY || 'demo-key',
+                    'X-RapidAPI-Key': apiKey,
                     'X-RapidAPI-Host': 'instagram-downloader-download-instagram-videos-stories.p.rapidapi.com',
                     'User-Agent': this.getRandomUserAgent(),
                     'Accept': 'application/json, text/plain, */*',
@@ -159,10 +166,9 @@ class InstagramPlugin {
             }
 
             const media = [];
-            
             if (Array.isArray(response.data.media)) {
                 for (const item of response.data.media) {
-                    if (item.url) {
+                    if (item.url && this.isValidMediaUrl(item.url)) {
                         media.push({
                             type: item.type || 'image',
                             url: item.url
@@ -179,11 +185,11 @@ class InstagramPlugin {
 
         } catch (error) {
             if (error.response?.status === 429) {
-                console.log('⚠️ RapidAPI rate limited - will retry with different method');
+                console.log('⚠️ RapidAPI rate limited');
             } else if (error.response?.status === 403) {
-                console.log('⚠️ RapidAPI 403 forbidden - Instagram blocked request');
+                console.log('⚠️ RapidAPI 403 forbidden - key may be invalid or rate limited');
             } else {
-                console.log('RapidAPI Instagram failed:', error.message);
+                console.log('⚠️ RapidAPI failed:', error.message);
             }
             return null;
         }
@@ -317,7 +323,7 @@ class InstagramPlugin {
                     url: `https://instagram-api-2025.p.rapidapi.com/v1/post_info`,
                     params: { url: url },
                     headers: {
-                        'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY || 'demo-key',
+                        'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY,
                         'X-RapidAPI-Host': 'instagram-api-2025.p.rapidapi.com'
                     }
                 }
@@ -359,55 +365,130 @@ class InstagramPlugin {
     }
 
     /**
-     * Try Free Instagram API (2025 working solution)
+     * Try Free Instagram API with proper encoding (2025 working solution)
      */
     async tryFreeInstagramAPI(url) {
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Try multiple free API endpoints
-            const freeApis = [
-                `https://api.saveig.app/api/ajaxSearch`,
-                `https://v3.saveig.app/api/ajaxSearch`
-            ];
+            // Try Rapidapi-free downloader first
+            try {
+                const freeApiUrl = 'https://instagram-bulk-profile-scrapper.p.rapidapi.com/clients/api/ig/media';
+                const response = await axios.get(freeApiUrl, {
+                    params: { url: url },
+                    timeout: 15000,
+                    headers: {
+                        'User-Agent': this.getRandomUserAgent(),
+                        'Accept': 'application/json'
+                    }
+                });
 
-            for (const apiUrl of freeApis) {
-                try {
-                    const response = await axios.post(apiUrl, {
-                        q: url,
-                        t: 'media',
-                        lang: 'en'
-                    }, {
-                        timeout: 15000,
+                if (response.data && response.data.items && response.data.items.length > 0) {
+                    const media = response.data.items.map(item => ({
+                        type: item.video_versions ? 'video' : 'image',
+                        url: item.video_versions ? item.video_versions[0].url : item.image_versions2?.candidates?.[0]?.url
+                    })).filter(item => item.url && this.isValidMediaUrl(item.url));
+
+                    if (media.length > 0) {
+                        console.log(`🟢 Free Instagram API success: Found ${media.length} media item(s)`);
+                        return { media: media };
+                    }
+                }
+            } catch (apiError) {
+                console.log('Free API attempt failed:', apiError.message);
+            }
+
+            // Fallback to direct Instagram parsing (limited but sometimes works)
+            try {
+                const shortcode = url.match(/(?:\/p\/|\/reel\/|\/tv\/)([A-Za-z0-9_-]+)/)?.[1];
+                if (shortcode) {
+                    const response = await axios.get(`https://www.instagram.com/graphql/query/`, {
+                        params: {
+                            query_hash: '9f8827793ef34641b2fb195d4d41151c',
+                            variables: JSON.stringify({
+                                shortcode: shortcode,
+                                include_reel: true
+                            })
+                        },
+                        timeout: 10000,
                         headers: {
                             'User-Agent': this.getRandomUserAgent(),
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                            'Accept': 'application/json, text/javascript, */*; q=0.01',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                            'Referer': 'https://saveig.app/',
-                            'Origin': 'https://saveig.app'
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
                         }
                     });
 
-                    if (response.data && response.data.data && response.data.data.length > 0) {
-                        const media = response.data.data.map(item => ({
-                            type: item.type === 'video' ? 'video' : 'image',
-                            url: item.url || item.src
-                        })).filter(item => item.url);
+                    const data = response.data?.data?.shortcode_media;
+                    if (data) {
+                        const media = [];
+                        if (data.is_video && data.video_url) {
+                            media.push({ type: 'video', url: data.video_url });
+                        } else if (data.display_url) {
+                            media.push({ type: 'image', url: data.display_url });
+                        }
 
-                        if (media.length > 0) {
-                            console.log(`🟢 Free Instagram API success: Found ${media.length} media item(s)`);
-                            return { media: media };
+                        // Handle carousel
+                        if (data.edge_sidecar_to_children?.edges) {
+                            data.edge_sidecar_to_children.edges.forEach(edge => {
+                                const node = edge.node;
+                                if (node.is_video && node.video_url) {
+                                    media.push({ type: 'video', url: node.video_url });
+                                } else if (node.display_url) {
+                                    media.push({ type: 'image', url: node.display_url });
+                                }
+                            });
+                        }
+
+                        const validMedia = media.filter(item => this.isValidMediaUrl(item.url));
+                        if (validMedia.length > 0) {
+                            console.log(`🟡 Instagram GraphQL success: Found ${validMedia.length} media item(s)`);
+                            return { media: validMedia };
                         }
                     }
-                } catch (apiError) {
-                    continue; // Try next API
                 }
+            } catch (graphError) {
+                console.log('Instagram GraphQL failed:', graphError.message);
             }
+
             return null;
         } catch (error) {
             console.log('Free Instagram API failed:', error.message);
             return null;
+        }
+    }
+
+    /**
+     * Validate media URL for security (strict host validation)
+     */
+    isValidMediaUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        
+        try {
+            const urlObj = new URL(url);
+            
+            // Reject localhost/internal IPs for security
+            if (urlObj.hostname === 'localhost' || 
+                urlObj.hostname.startsWith('192.168.') || 
+                urlObj.hostname.startsWith('172.16.') || 
+                urlObj.hostname.startsWith('10.') || 
+                urlObj.hostname.startsWith('127.') ||
+                urlObj.hostname.startsWith('169.254.') ||
+                urlObj.hostname.startsWith('::1') ||
+                urlObj.hostname.startsWith('fe80:')) {
+                return false;
+            }
+            
+            // Strict allowlist for Instagram/Facebook CDN domains only
+            const allowedDomainSuffixes = [
+                '.cdninstagram.com',
+                '.fbcdn.net', 
+                '.instagram.com'
+            ];
+            
+            return urlObj.protocol === 'https:' && 
+                   allowedDomainSuffixes.some(suffix => urlObj.hostname.endsWith(suffix));
+        } catch {
+            return false;
         }
     }
 
