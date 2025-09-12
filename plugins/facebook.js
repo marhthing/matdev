@@ -157,6 +157,11 @@ class FacebookPlugin {
                 if (!mediaData) {
                     mediaData = await this.trySnapSaveAPI(url);
                 }
+                
+                // Method 4: Try direct Facebook scraping (last resort)
+                if (!mediaData) {
+                    mediaData = await this.tryDirectScraping(url);
+                }
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     return await this.bot.messageHandler.reply(messageInfo, 
@@ -205,6 +210,9 @@ class FacebookPlugin {
                 url: url
             }, {
                 timeout: 20000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
                 headers: {
                     'User-Agent': getRandomUserAgent(),
                     'Content-Type': 'application/json',
@@ -266,23 +274,32 @@ class FacebookPlugin {
         try {
             await humanDelay(1500, 2500);
             
-            const response = await axios.get(`https://savefrom.net/`, {
-                params: {
-                    url: url,
-                    lang: 'en'
-                },
+            // Try alternative API for Facebook downloads
+            const response = await axios.post('https://co.wuk.sh/api/json', {
+                url: url
+            }, {
                 timeout: 20000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
                 headers: {
                     'User-Agent': getRandomUserAgent(),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Referer': 'https://savefrom.net/'
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
                 }
             });
 
-            // This would require HTML parsing to extract download links
-            // For now, return null as this is a simplified implementation
+            if (response.data?.status === 'success' && response.data?.url) {
+                return {
+                    media: [{
+                        type: 'video',
+                        url: response.data.url
+                    }],
+                    title: 'Facebook Media',
+                    author: 'Unknown'
+                };
+            }
+
             return null;
 
         } catch (error) {
@@ -298,25 +315,112 @@ class FacebookPlugin {
         try {
             await humanDelay(1200, 2200);
             
-            const response = await axios.post('https://snapsave.app/action.php?lang=en', {
-                url: url
-            }, {
+            // Try y2mate API as alternative
+            const response = await axios.post('https://www.y2mate.com/mates/analyzeV2/ajax', 
+                `k_query=${encodeURIComponent(url)}&k_page=home&hl=en&q_auto=0`, {
                 timeout: 20000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
                 headers: {
                     'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                     'Accept': '*/*',
-                    'Referer': 'https://snapsave.app/',
-                    'Origin': 'https://snapsave.app'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Referer': 'https://www.y2mate.com/',
+                    'Origin': 'https://www.y2mate.com'
                 }
             });
 
-            // This would also require HTML parsing
-            // Simplified implementation returns null
+            if (response.data?.status === 'ok' && response.data?.links) {
+                const links = response.data.links;
+                const media = [];
+                
+                // Extract video links
+                if (links.mp4) {
+                    Object.values(links.mp4).forEach(quality => {
+                        if (quality.url) {
+                            media.push({
+                                type: 'video',
+                                url: quality.url,
+                                quality: quality.q || 'Unknown'
+                            });
+                        }
+                    });
+                }
+                
+                if (media.length > 0) {
+                    return {
+                        media: media,
+                        title: response.data.title || 'Facebook Media',
+                        author: 'Unknown'
+                    };
+                }
+            }
+
             return null;
 
         } catch (error) {
             console.log('SnapSave API failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Try direct Facebook scraping
+     */
+    async tryDirectScraping(url) {
+        try {
+            await humanDelay(2000, 3000);
+            
+            // This is a simplified direct approach
+            // In practice, this would require more complex logic
+            const response = await axios.get(url, {
+                timeout: 15000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Referer': 'https://www.facebook.com/'
+                }
+            });
+            
+            // Look for video URLs in the HTML response
+            const html = response.data;
+            const videoRegex = /(?:"playable_url":"([^"]+)")|(?:"browser_native_hd_url":"([^"]+)")|(?:"browser_native_sd_url":"([^"]+)")/g;
+            const matches = [...html.matchAll(videoRegex)];
+            
+            if (matches.length > 0) {
+                const media = [];
+                for (const match of matches.slice(0, 2)) { // Limit to first 2 matches
+                    const videoUrl = match[1] || match[2] || match[3];
+                    if (videoUrl) {
+                        // Decode the URL
+                        const decodedUrl = videoUrl.replace(/\\u0025/g, '%').replace(/\\u0026/g, '&');
+                        media.push({
+                            type: 'video',
+                            url: decodeURIComponent(decodedUrl)
+                        });
+                    }
+                }
+                
+                if (media.length > 0) {
+                    return {
+                        media: media,
+                        title: 'Facebook Video',
+                        author: 'Unknown'
+                    };
+                }
+            }
+            
+            return null;
+
+        } catch (error) {
+            console.log('Direct scraping failed:', error.message);
             return null;
         }
     }
@@ -335,6 +439,9 @@ class FacebookPlugin {
             const response = await axios.get(media.url, {
                 responseType: 'stream',
                 timeout: 60000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
                 headers: {
                     'User-Agent': getRandomUserAgent(),
                     'Referer': 'https://www.facebook.com/',
