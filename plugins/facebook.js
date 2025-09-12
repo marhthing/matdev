@@ -142,31 +142,11 @@ class FacebookPlugin {
             await humanDelay(1000, 2000);
 
             try {
-                // Try multiple Facebook download methods
+                // Try only working Facebook download methods
                 let mediaData = null;
                 
-                // Method 1: Try FBDownloader API
-                mediaData = await this.tryFBDownloaderAPI(url);
-                
-                // Method 2: Try SaveFrom API
-                if (!mediaData) {
-                    mediaData = await this.trySaveFromAPI(url);
-                }
-                
-                // Method 3: Try SnapSave API
-                if (!mediaData) {
-                    mediaData = await this.trySnapSaveAPI(url);
-                }
-                
-                // Method 4: Try alternative download services
-                if (!mediaData) {
-                    mediaData = await this.tryAlternativeServices(url);
-                }
-                
-                // Method 5: Try direct Facebook scraping (last resort)
-                if (!mediaData) {
-                    mediaData = await this.tryDirectScraping(url);
-                }
+                // Method 1: Try direct Facebook scraping (primary method)
+                mediaData = await this.tryDirectScraping(url);
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     // Provide more helpful error message based on URL type
@@ -241,257 +221,7 @@ class FacebookPlugin {
         }
     }
 
-    /**
-     * Try FBDownloader API
-     */
-    async tryFBDownloaderAPI(url) {
-        try {
-            await humanDelay(1000, 2000);
-            
-            const response = await axios.post('https://www.fbdownloader.com/api', {
-                url: url
-            }, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Referer': 'https://www.fbdownloader.com/',
-                    'Origin': 'https://www.fbdownloader.com'
-                }
-            });
-
-            if (!response.data || response.data.error) {
-                return null;
-            }
-
-            const data = response.data;
-            const media = [];
-
-            // Process ONLY the best video (prefer HD, then regular)
-            if (data.hd_video_url) {
-                media.push({
-                    type: 'video',
-                    url: data.hd_video_url,
-                    quality: 'HD'
-                });
-            } else if (data.video_url) {
-                media.push({
-                    type: 'video',
-                    url: data.video_url,
-                    quality: data.quality || 'SD'
-                });
-            } else if (data.image_url) {
-                media.push({
-                    type: 'image',
-                    url: data.image_url
-                });
-            }
-
-            return {
-                media: media,
-                title: data.title || 'Facebook Video',
-                author: data.author || 'Unknown'
-            };
-
-        } catch (error) {
-            console.log('FBDownloader API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try SaveFrom API
-     */
-    async trySaveFromAPI(url) {
-        try {
-            await humanDelay(1500, 2500);
-            
-            // Try multiple alternative APIs
-            const apis = [
-                {
-                    url: 'https://api.savefrom.net/ajax',
-                    method: 'POST',
-                    data: `url=${encodeURIComponent(url)}&format=json`,
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    }
-                },
-                {
-                    url: 'https://fdownloader.net/api',
-                    method: 'POST',
-                    data: { url: url },
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                },
-                {
-                    url: 'https://snapsave.io/action',
-                    method: 'POST',
-                    data: `url=${encodeURIComponent(url)}`,
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    }
-                }
-            ];
-
-            for (const api of apis) {
-                try {
-                    const response = await axios({
-                        method: api.method,
-                        url: api.url,
-                        data: api.data,
-                        timeout: 15000,
-                        httpsAgent: new (require('https').Agent)({ 
-                            rejectUnauthorized: false 
-                        }),
-                        headers: {
-                            'User-Agent': getRandomUserAgent(),
-                            ...api.headers
-                        }
-                    });
-
-                    if (response.data?.url || response.data?.video_url || response.data?.download_url) {
-                        const mediaUrl = response.data.url || response.data.video_url || response.data.download_url;
-                        return {
-                            media: [{
-                                type: 'video',
-                                url: mediaUrl
-                            }],
-                            title: response.data.title || 'Facebook Media',
-                            author: 'Unknown'
-                        };
-                    }
-                } catch (apiError) {
-                    console.log(`API ${api.url} failed:`, apiError.message);
-                    continue;
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.log('SaveFrom API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try SnapSave API
-     */
-    async trySnapSaveAPI(url) {
-        try {
-            await humanDelay(1200, 2200);
-            
-            // Try y2mate API as alternative
-            const response = await axios.post('https://www.y2mate.com/mates/analyzeV2/ajax', 
-                `k_query=${encodeURIComponent(url)}&k_page=home&hl=en&q_auto=0`, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'Accept': '*/*',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Referer': 'https://www.y2mate.com/',
-                    'Origin': 'https://www.y2mate.com'
-                }
-            });
-
-            if (response.data?.status === 'ok' && response.data?.links) {
-                const links = response.data.links;
-                const media = [];
-                
-                // Extract video links
-                if (links.mp4) {
-                    Object.values(links.mp4).forEach(quality => {
-                        if (quality.url) {
-                            media.push({
-                                type: 'video',
-                                url: quality.url,
-                                quality: quality.q || 'Unknown'
-                            });
-                        }
-                    });
-                }
-                
-                if (media.length > 0) {
-                    return {
-                        media: media,
-                        title: response.data.title || 'Facebook Media',
-                        author: 'Unknown'
-                    };
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.log('SnapSave API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try alternative download services
-     */
-    async tryAlternativeServices(url) {
-        try {
-            await humanDelay(1800, 2800);
-            
-            // Try GetInDevice API
-            const response = await axios.post('https://getindevice.com/wp-json/aio-dl/video-data/', {
-                url: url
-            }, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Referer': 'https://getindevice.com/'
-                }
-            });
-
-            if (response.data?.medias && response.data.medias.length > 0) {
-                const media = [];
-                
-                response.data.medias.forEach(item => {
-                    if (item.url) {
-                        media.push({
-                            type: item.extension === 'mp4' ? 'video' : 'image',
-                            url: item.url,
-                            quality: item.quality || 'Unknown'
-                        });
-                    }
-                });
-
-                if (media.length > 0) {
-                    return {
-                        media: media,
-                        title: response.data.title || 'Facebook Media',
-                        author: 'Unknown'
-                    };
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.log('Alternative services failed:', error.message);
-            return null;
-        }
-    }
+    
 
     /**
      * Try direct Facebook scraping
@@ -632,28 +362,15 @@ class FacebookPlugin {
             // Read file as buffer
             const mediaBuffer = await fs.readFile(tempFile);
 
-            // Prepare clean caption for single media
-            let caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'}**`;
-            
-            if (title && title !== 'Facebook Media' && title !== 'Facebook Video') {
-                caption += `\n📝 ${title}`;
-            }
-            
-            if (media.quality && media.type === 'video') {
-                caption += `\n🎥 Quality: ${media.quality}`;
-            }
-
-            // Send appropriate media type
+            // Send appropriate media type without caption
             if (media.type === 'video') {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: mediaBuffer,
-                    mimetype: 'video/mp4',
-                    caption: caption
+                    mimetype: 'video/mp4'
                 });
             } else {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    image: mediaBuffer,
-                    caption: caption
+                    image: mediaBuffer
                 });
             }
 
