@@ -204,32 +204,28 @@ class FacebookPlugin {
                 const videos = validMedia.filter(media => media.type === 'video');
                 const images = validMedia.filter(media => media.type === 'image');
                 
-                // Use only videos if available, otherwise use images
-                const finalMedia = videos.length > 0 ? videos : images;
+                // Get ONLY the first video if available, otherwise first image
+                let finalMedia = [];
+                if (videos.length > 0) {
+                    finalMedia = [videos[0]]; // Only first video
+                } else if (images.length > 0) {
+                    finalMedia = [images[0]]; // Only first image
+                }
 
                 if (finalMedia.length === 0) {
                     return await this.bot.messageHandler.reply(messageInfo, 
                         '❌ No valid media found in this Facebook post. The post may contain only text or the media URLs are invalid.');
                 }
 
-                console.log(`✅ Found ${finalMedia.length} valid media item(s) (${videos.length} videos, ${images.length} images)`);
+                console.log(`✅ Found 1 valid media item (${videos.length > 0 ? 'video' : 'image'})`);
 
-                // Process and send each valid media item
-                for (let i = 0; i < finalMedia.length; i++) {
-                    const media = finalMedia[i];
-                    
-                    try {
-                        await this.downloadAndSendMedia(messageInfo, media, mediaData.title, i + 1, finalMedia.length);
-                        
-                        // Add delay between multiple files
-                        if (i < finalMedia.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                        }
-                    } catch (mediaError) {
-                        console.error(`Error downloading media ${i + 1}:`, mediaError);
-                        await this.bot.messageHandler.reply(messageInfo, 
-                            `❌ Failed to download media ${i + 1}/${finalMedia.length}: ${mediaError.message}`);
-                    }
+                // Process and send ONLY the first media item
+                try {
+                    await this.downloadAndSendMedia(messageInfo, finalMedia[0], mediaData.title, 1, 1);
+                } catch (mediaError) {
+                    console.error(`Error downloading media:`, mediaError);
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Failed to download media: ${mediaError.message}`);
                 }
 
             } catch (error) {
@@ -275,26 +271,20 @@ class FacebookPlugin {
             const data = response.data;
             const media = [];
 
-            // Process videos
-            if (data.video_url) {
-                media.push({
-                    type: 'video',
-                    url: data.video_url,
-                    quality: data.quality || 'HD'
-                });
-            }
-
-            // Process HD video if available
-            if (data.hd_video_url && data.hd_video_url !== data.video_url) {
+            // Process ONLY the best video (prefer HD, then regular)
+            if (data.hd_video_url) {
                 media.push({
                     type: 'video',
                     url: data.hd_video_url,
                     quality: 'HD'
                 });
-            }
-
-            // Process images
-            if (data.image_url) {
+            } else if (data.video_url) {
+                media.push({
+                    type: 'video',
+                    url: data.video_url,
+                    quality: data.quality || 'SD'
+                });
+            } else if (data.image_url) {
                 media.push({
                     type: 'image',
                     url: data.image_url
@@ -303,7 +293,7 @@ class FacebookPlugin {
 
             return {
                 media: media,
-                title: data.title || 'Facebook Media',
+                title: data.title || 'Facebook Video',
                 author: data.author || 'Unknown'
             };
 
@@ -642,24 +632,15 @@ class FacebookPlugin {
             // Read file as buffer
             const mediaBuffer = await fs.readFile(tempFile);
 
-            // Prepare caption with more details
-            let caption;
-            if (total > 1) {
-                caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'} ${index}/${total}**`;
-                if (title && title !== 'Facebook Media') {
-                    caption += `\n📝 ${title}`;
-                }
-                if (media.quality) {
-                    caption += `\n🎥 Quality: ${media.quality}`;
-                }
-            } else {
-                caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'}**`;
-                if (title && title !== 'Facebook Media') {
-                    caption += `\n📝 ${title}`;
-                }
-                if (media.quality) {
-                    caption += `\n🎥 Quality: ${media.quality}`;
-                }
+            // Prepare clean caption for single media
+            let caption = `📘 **Facebook ${media.type === 'video' ? 'Video' : 'Image'}**`;
+            
+            if (title && title !== 'Facebook Media' && title !== 'Facebook Video') {
+                caption += `\n📝 ${title}`;
+            }
+            
+            if (media.quality && media.type === 'video') {
+                caption += `\n🎥 Quality: ${media.quality}`;
             }
 
             // Send appropriate media type
