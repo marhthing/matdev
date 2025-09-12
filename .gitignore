@@ -1,2 +1,5 @@
 session/
 .env
+tmp/
+node_modules/
+*.log
