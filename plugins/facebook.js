@@ -1,13 +1,15 @@
 
 /**
- * MATDEV Facebook Downloader Plugin
- * Download Facebook videos, images, and reels
+ * MATDEV Facebook Downloader Plugin v2.0.0
+ * Modern 2025 Facebook scraper with page source extraction
+ * Bypasses robot detection using mobile URL conversion and session management
  */
 
 const axios = require('axios');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
+const crypto = require('crypto');
 
 // Enhanced anti-detection measures
 const USER_AGENTS = [
@@ -41,10 +43,10 @@ const humanDelay = (min = 1000, max = 3000) => {
 class FacebookPlugin {
     constructor() {
         this.name = 'facebook';
-        this.description = 'Facebook media downloader';
-        this.version = '1.0.0';
+        this.description = 'Advanced Facebook scraper with 2025 page source extraction methods';
+        this.version = '2.0.0';
         
-        // Facebook URL regex patterns
+        // Facebook URL regex patterns (comprehensive)
         this.facebookRegex = /(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/(?:watch\/?\?v=|[\w.-]+\/videos\/|reel\/|[\w.-]+\/posts\/|story\.php\?story_fbid=)?(\d+)(?:\/.*)?/i;
         this.fbWatchRegex = /(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/watch\/?\?v=(\d+)/i;
         this.fbReelRegex = /(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/reel\/(\d+)/i;
@@ -53,16 +55,99 @@ class FacebookPlugin {
         this.maxFileSize = 100 * 1024 * 1024; // 100MB limit
         this.requestTracker = new Map(); // Track requests per user
         this.lastRequest = 0; // Global rate limiting
+        
+        // Session management for 2025 anti-detection
+        this.sessionData = {
+            cookies: null,
+            userAgent: null,
+            deviceId: null
+        };
+        
+        // Modern 2025 video URL patterns (updated from research)
+        this.videoPatterns = [
+            // Primary HD/SD patterns
+            /"playable_url":"([^"]+)"/g,
+            /"browser_native_hd_url":"([^"]+)"/g,
+            /"browser_native_sd_url":"([^"]+)"/g,
+            
+            // Mobile-specific patterns (m.facebook.com)
+            /"src":"([^"]*\.mp4[^"]*)"/g,
+            /data-sigil="inlineVideo"[^>]*data-src="([^"]+)"/g,
+            
+            // Modern 2025 patterns
+            /"playable_url_quality_hd":"([^"]+)"/g,
+            /"video_url":"([^"]+)"/g,
+            /"url":"([^"]*fbcdn[^"]*\.mp4[^"]*)"/g,
+            
+            // Encoded patterns
+            /playable_url%22%3A%22([^%"]+)/g,
+            /"videoData":\[{"uri":"([^"]+)"/g
+        ];
     }
 
     /**
-     * Initialize plugin
+     * Initialize plugin with session management
      */
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ Facebook plugin loaded');
+        await this.initializeSession();
+        console.log('✅ Facebook plugin v2.0.0 loaded with 2025 page source extraction methods');
         return this;
+    }
+
+    /**
+     * Initialize session for anti-detection (2025 method)
+     */
+    async initializeSession() {
+        this.sessionData.deviceId = this.generateDeviceId();
+        this.sessionData.userAgent = this.generateMobileBrowserUA();
+        
+        try {
+            // Initialize session by visiting Facebook mobile homepage
+            const response = await axios.get('https://m.facebook.com/', {
+                headers: {
+                    'User-Agent': this.sessionData.userAgent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            });
+
+            // Store session cookies for subsequent requests
+            if (response.headers['set-cookie']) {
+                this.sessionData.cookies = response.headers['set-cookie']
+                    .map(cookie => cookie.split(';')[0])
+                    .join('; ');
+            }
+
+            console.log('🔐 Facebook session initialized for anti-detection');
+        } catch (error) {
+            console.log('⚠️ Facebook session initialization failed, using anonymous mode');
+        }
+    }
+
+    /**
+     * Generate device ID for session consistency
+     */
+    generateDeviceId() {
+        const seed = crypto.randomBytes(8).toString('hex');
+        return `fb-${seed}`;
+    }
+
+    /**
+     * Generate mobile browser user agent for Facebook compatibility
+     */
+    generateMobileBrowserUA() {
+        const browsers = [
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+            'Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
+            'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+        ];
+        return browsers[Math.floor(Math.random() * browsers.length)];
     }
 
     /**
@@ -142,31 +227,10 @@ class FacebookPlugin {
             await humanDelay(1000, 2000);
 
             try {
-                // Try multiple Facebook download methods
-                let mediaData = null;
+                // Use modern 2025 Facebook extraction methods
+                console.log(`🔄 Extracting Facebook media using 2025 page source extraction method`);
                 
-                // Method 1: Try FBDownloader API
-                mediaData = await this.tryFBDownloaderAPI(url);
-                
-                // Method 2: Try SaveFrom API
-                if (!mediaData) {
-                    mediaData = await this.trySaveFromAPI(url);
-                }
-                
-                // Method 3: Try SnapSave API
-                if (!mediaData) {
-                    mediaData = await this.trySnapSaveAPI(url);
-                }
-                
-                // Method 4: Try alternative download services
-                if (!mediaData) {
-                    mediaData = await this.tryAlternativeServices(url);
-                }
-                
-                // Method 5: Try direct Facebook scraping (last resort)
-                if (!mediaData) {
-                    mediaData = await this.tryDirectScraping(url);
-                }
+                const mediaData = await this.extractFacebookMedia(url);
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     // Provide more helpful error message based on URL type
@@ -242,357 +306,309 @@ class FacebookPlugin {
     }
 
     /**
-     * Try FBDownloader API
+     * Modern Facebook media extraction (2025 page source method)
      */
-    async tryFBDownloaderAPI(url) {
+    async extractFacebookMedia(url) {
+        try {
+            // Convert to mobile URL for better extraction (2025 technique)
+            const mobileUrl = this.convertToMobileUrl(url);
+            console.log(`🔄 Using mobile URL for extraction: ${mobileUrl}`);
+            
+            // Try mobile page source extraction first (most reliable)
+            let result = await this.tryMobilePageSource(mobileUrl);
+            if (result && result.media && result.media.length > 0) {
+                console.log(`✅ Mobile page source success: Found ${result.media.length} media item(s)`);
+                return result;
+            }
+            
+            // Fallback to desktop page source
+            result = await this.tryDesktopPageSource(url);
+            if (result && result.media && result.media.length > 0) {
+                console.log(`✅ Desktop page source success: Found ${result.media.length} media item(s)`);
+                return result;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Facebook media extraction failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Convert Facebook URL to mobile version (2025 technique)
+     */
+    convertToMobileUrl(url) {
+        try {
+            // Ensure URL has protocol
+            if (!url.startsWith('http')) {
+                url = 'https://' + url;
+            }
+            
+            const urlObj = new URL(url);
+            
+            // Convert to mobile Facebook domain
+            if (urlObj.hostname.includes('facebook.com')) {
+                urlObj.hostname = 'm.facebook.com';
+            }
+            
+            return urlObj.toString();
+        } catch (error) {
+            console.log('URL conversion error:', error.message);
+            // Fallback to original URL if parsing fails
+            return url;
+        }
+    }
+
+    /**
+     * Extract from mobile Facebook page source (primary 2025 method)
+     */
+    async tryMobilePageSource(url) {
         try {
             await humanDelay(1000, 2000);
             
-            const response = await axios.post('https://www.fbdownloader.com/api', {
-                url: url
-            }, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Referer': 'https://www.fbdownloader.com/',
-                    'Origin': 'https://www.fbdownloader.com'
-                }
-            });
-
-            if (!response.data || response.data.error) {
-                return null;
-            }
-
-            const data = response.data;
-            const media = [];
-
-            // Process ONLY the best video (prefer HD, then regular)
-            if (data.hd_video_url) {
-                media.push({
-                    type: 'video',
-                    url: data.hd_video_url,
-                    quality: 'HD'
-                });
-            } else if (data.video_url) {
-                media.push({
-                    type: 'video',
-                    url: data.video_url,
-                    quality: data.quality || 'SD'
-                });
-            } else if (data.image_url) {
-                media.push({
-                    type: 'image',
-                    url: data.image_url
-                });
-            }
-
-            return {
-                media: media,
-                title: data.title || 'Facebook Video',
-                author: data.author || 'Unknown'
+            const headers = {
+                'User-Agent': this.sessionData.userAgent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://m.facebook.com/',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             };
 
-        } catch (error) {
-            console.log('FBDownloader API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try SaveFrom API
-     */
-    async trySaveFromAPI(url) {
-        try {
-            await humanDelay(1500, 2500);
-            
-            // Try multiple alternative APIs
-            const apis = [
-                {
-                    url: 'https://api.savefrom.net/ajax',
-                    method: 'POST',
-                    data: `url=${encodeURIComponent(url)}&format=json`,
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    }
-                },
-                {
-                    url: 'https://fdownloader.net/api',
-                    method: 'POST',
-                    data: { url: url },
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                },
-                {
-                    url: 'https://snapsave.io/action',
-                    method: 'POST',
-                    data: `url=${encodeURIComponent(url)}`,
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'Accept': 'application/json'
-                    }
-                }
-            ];
-
-            for (const api of apis) {
-                try {
-                    const response = await axios({
-                        method: api.method,
-                        url: api.url,
-                        data: api.data,
-                        timeout: 15000,
-                        httpsAgent: new (require('https').Agent)({ 
-                            rejectUnauthorized: false 
-                        }),
-                        headers: {
-                            'User-Agent': getRandomUserAgent(),
-                            ...api.headers
-                        }
-                    });
-
-                    if (response.data?.url || response.data?.video_url || response.data?.download_url) {
-                        const mediaUrl = response.data.url || response.data.video_url || response.data.download_url;
-                        return {
-                            media: [{
-                                type: 'video',
-                                url: mediaUrl
-                            }],
-                            title: response.data.title || 'Facebook Media',
-                            author: 'Unknown'
-                        };
-                    }
-                } catch (apiError) {
-                    console.log(`API ${api.url} failed:`, apiError.message);
-                    continue;
-                }
+            // Add session cookies if available
+            if (this.sessionData.cookies) {
+                headers['Cookie'] = this.sessionData.cookies;
             }
 
-            return null;
-
-        } catch (error) {
-            console.log('SaveFrom API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try SnapSave API
-     */
-    async trySnapSaveAPI(url) {
-        try {
-            await humanDelay(1200, 2200);
-            
-            // Try y2mate API as alternative
-            const response = await axios.post('https://www.y2mate.com/mates/analyzeV2/ajax', 
-                `k_query=${encodeURIComponent(url)}&k_page=home&hl=en&q_auto=0`, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'Accept': '*/*',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Referer': 'https://www.y2mate.com/',
-                    'Origin': 'https://www.y2mate.com'
-                }
-            });
-
-            if (response.data?.status === 'ok' && response.data?.links) {
-                const links = response.data.links;
-                const media = [];
-                
-                // Extract video links
-                if (links.mp4) {
-                    Object.values(links.mp4).forEach(quality => {
-                        if (quality.url) {
-                            media.push({
-                                type: 'video',
-                                url: quality.url,
-                                quality: quality.q || 'Unknown'
-                            });
-                        }
-                    });
-                }
-                
-                if (media.length > 0) {
-                    return {
-                        media: media,
-                        title: response.data.title || 'Facebook Media',
-                        author: 'Unknown'
-                    };
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.log('SnapSave API failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try alternative download services
-     */
-    async tryAlternativeServices(url) {
-        try {
-            await humanDelay(1800, 2800);
-            
-            // Try GetInDevice API
-            const response = await axios.post('https://getindevice.com/wp-json/aio-dl/video-data/', {
-                url: url
-            }, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Referer': 'https://getindevice.com/'
-                }
-            });
-
-            if (response.data?.medias && response.data.medias.length > 0) {
-                const media = [];
-                
-                response.data.medias.forEach(item => {
-                    if (item.url) {
-                        media.push({
-                            type: item.extension === 'mp4' ? 'video' : 'image',
-                            url: item.url,
-                            quality: item.quality || 'Unknown'
-                        });
-                    }
-                });
-
-                if (media.length > 0) {
-                    return {
-                        media: media,
-                        title: response.data.title || 'Facebook Media',
-                        author: 'Unknown'
-                    };
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.log('Alternative services failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try direct Facebook scraping
-     */
-    async tryDirectScraping(url) {
-        try {
-            await humanDelay(2000, 3000);
-            
-            // This is a simplified direct approach
-            // In practice, this would require more complex logic
             const response = await axios.get(url, {
-                timeout: 15000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Referer': 'https://www.facebook.com/'
-                }
+                headers,
+                timeout: 20000
             });
-            
-            // Look for video URLs in the HTML response with multiple patterns
+
             const html = response.data;
-            
-            // Multiple regex patterns for different Facebook video formats
-            const videoPatterns = [
-                /"playable_url":"([^"]+)"/g,
-                /"browser_native_hd_url":"([^"]+)"/g,
-                /"browser_native_sd_url":"([^"]+)"/g,
-                /"playable_url_quality_hd":"([^"]+)"/g,
-                /"video_url":"([^"]+)"/g,
-                /playable_url%22%3A%22([^%"]+)/g,
-                /"src":"([^"]*\.mp4[^"]*)"/g
-            ];
-            
             const media = [];
-            const foundUrls = new Set(); // Avoid duplicates
-            
-            for (const pattern of videoPatterns) {
+            const foundUrls = new Set();
+
+            // Extract using modern 2025 patterns
+            for (const pattern of this.videoPatterns) {
                 const matches = [...html.matchAll(pattern)];
                 for (const match of matches) {
                     if (match[1]) {
                         try {
-                            // Decode the URL
-                            let videoUrl = match[1];
-                            videoUrl = videoUrl.replace(/\\u0025/g, '%')
-                                              .replace(/\\u0026/g, '&')
-                                              .replace(/\\u003D/g, '=')
-                                              .replace(/\\u002F/g, '/')
-                                              .replace(/\\\//g, '/');
+                            let videoUrl = this.decodeVideoUrl(match[1]);
                             
-                            const decodedUrl = decodeURIComponent(videoUrl);
-                            
-                            // Validate URL more strictly
-                            if (decodedUrl.includes('http') && 
-                                decodedUrl.length > 50 && 
-                                !decodedUrl.includes('placeholder') &&
-                                !decodedUrl.includes('blank') &&
-                                (decodedUrl.includes('.mp4') || decodedUrl.includes('video') || decodedUrl.includes('fbcdn')) &&
-                                !foundUrls.has(decodedUrl)) {
-                                
-                                foundUrls.add(decodedUrl);
+                            if (this.isValidVideoUrl(videoUrl) && !foundUrls.has(videoUrl)) {
+                                foundUrls.add(videoUrl);
                                 media.push({
                                     type: 'video',
-                                    url: decodedUrl
+                                    url: videoUrl
                                 });
                                 
-                                if (media.length >= 1) break; // Only get the first valid video
+                                // Only get the first valid video for efficiency
+                                if (media.length >= 1) break;
                             }
                         } catch (decodeError) {
                             console.log('URL decode error:', decodeError.message);
                         }
                     }
                 }
-                if (media.length >= 2) break;
+                if (media.length >= 1) break;
             }
-            
+
             if (media.length > 0) {
                 return {
                     media: media,
-                    title: 'Facebook Video',
+                    title: this.extractTitleFromHtml(html) || 'Facebook Video',
                     author: 'Unknown'
                 };
             }
-            
-            return null;
 
+            return null;
         } catch (error) {
-            console.log('Direct scraping failed:', error.message);
+            console.log('Mobile page source extraction failed:', error.message);
             return null;
         }
+    }
+
+    /**
+     * Extract from desktop Facebook page source (fallback)
+     */
+    async tryDesktopPageSource(url) {
+        try {
+            await humanDelay(1000, 2000);
+            
+            const headers = {
+                'User-Agent': getRandomUserAgent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.facebook.com/',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            };
+
+            const response = await axios.get(url, {
+                headers,
+                timeout: 20000
+            });
+
+            const html = response.data;
+            const media = [];
+            const foundUrls = new Set();
+
+            // Extract using desktop video patterns
+            for (const pattern of this.videoPatterns) {
+                const matches = [...html.matchAll(pattern)];
+                for (const match of matches) {
+                    if (match[1]) {
+                        try {
+                            let videoUrl = this.decodeVideoUrl(match[1]);
+                            
+                            if (this.isValidVideoUrl(videoUrl) && !foundUrls.has(videoUrl)) {
+                                foundUrls.add(videoUrl);
+                                media.push({
+                                    type: 'video',
+                                    url: videoUrl
+                                });
+                                
+                                // Only get the first valid video for efficiency
+                                if (media.length >= 1) break;
+                            }
+                        } catch (decodeError) {
+                            console.log('URL decode error:', decodeError.message);
+                        }
+                    }
+                }
+                if (media.length >= 1) break;
+            }
+
+            if (media.length > 0) {
+                return {
+                    media: media,
+                    title: this.extractTitleFromHtml(html) || 'Facebook Video',
+                    author: 'Unknown'
+                };
+            }
+
+            return null;
+        } catch (error) {
+            console.log('Desktop page source extraction failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Decode video URL from Facebook's encoded format
+     */
+    decodeVideoUrl(encodedUrl) {
+        try {
+            // Handle Facebook's URL encoding
+            let decodedUrl = encodedUrl;
+            
+            // Replace Unicode escapes
+            decodedUrl = decodedUrl
+                .replace(/\\u0025/g, '%')
+                .replace(/\\u0026/g, '&')
+                .replace(/\\u003D/g, '=')
+                .replace(/\\u002F/g, '/')
+                .replace(/\\\//g, '/');
+            
+            // URL decode
+            decodedUrl = decodeURIComponent(decodedUrl);
+            
+            return decodedUrl;
+        } catch (error) {
+            console.log('URL decode error:', error.message);
+            return encodedUrl; // Return original if decode fails
+        }
+    }
+
+    /**
+     * Validate if URL is a valid video URL
+     */
+    isValidVideoUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        
+        try {
+            // Basic URL validation
+            new URL(url);
+            
+            // Check URL characteristics
+            return url.includes('http') && 
+                   url.length > 50 && 
+                   !url.includes('placeholder') &&
+                   !url.includes('blank') &&
+                   (url.includes('.mp4') || 
+                    url.includes('video') || 
+                    url.includes('fbcdn') ||
+                    url.includes('facebook.com'));
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Extract title from Facebook HTML
+     */
+    extractTitleFromHtml(html) {
+        try {
+            // Try multiple title extraction patterns
+            const titlePatterns = [
+                /<title[^>]*>([^<]+)<\/title>/i,
+                /"title":"([^"]+)"/i,
+                /"og:title"\s+content="([^"]+)"/i,
+                /<meta\s+property="og:title"\s+content="([^"]+)"/i,
+                /"twitter:title"\s+content="([^"]+)"/i
+            ];
+
+            for (const pattern of titlePatterns) {
+                const match = html.match(pattern);
+                if (match && match[1]) {
+                    let title = match[1].trim();
+                    
+                    // Clean up the title
+                    title = title.replace(/&quot;/g, '"')
+                                 .replace(/&amp;/g, '&')
+                                 .replace(/&lt;/g, '<')
+                                 .replace(/&gt;/g, '>')
+                                 .replace(/&#39;/g, "'")
+                                 .replace(/\s+/g, ' ')
+                                 .trim();
+                    
+                    // Skip generic Facebook titles
+                    if (title && 
+                        !title.includes('Facebook') && 
+                        !title.includes('Log in') &&
+                        title.length > 5) {
+                        return title;
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.log('Title extraction error:', error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Generate unique filename for temporary media files
+     */
+    generateUniqueFilename(mediaType) {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 8);
+        const extension = mediaType === 'video' ? 'mp4' : 'jpg';
+        return `facebook_${timestamp}_${random}.${extension}`;
     }
 
     /**
      * Download and send media
      */
     async downloadAndSendMedia(messageInfo, media, title, index, total) {
-        const tempFile = path.join(__dirname, '..', 'tmp', `facebook_${media.type}_${Date.now()}_${index}.${media.type === 'video' ? 'mp4' : 'jpg'}`);
+        const tempFile = path.join(__dirname, '..', 'tmp', this.generateUniqueFilename(media.type));
         
         try {
             // Ensure tmp directory exists
@@ -602,9 +618,6 @@ class FacebookPlugin {
             const response = await axios.get(media.url, {
                 responseType: 'stream',
                 timeout: 60000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
                 headers: {
                     'User-Agent': getRandomUserAgent(),
                     'Referer': 'https://www.facebook.com/',
