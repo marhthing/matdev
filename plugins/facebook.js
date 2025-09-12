@@ -399,6 +399,8 @@ class FacebookPlugin {
             /facebook\.com\/[\w.-]+\/videos\/\d+/,
             /facebook\.com\/[\w.-]+\/posts\/\d+/,
             /facebook\.com\/story\.php\?story_fbid=\d+/,
+            /facebook\.com\/share\/v\/[\w-]+/,
+            /facebook\.com\/share\/r\/[\w-]+/,
             /fb\.watch\/[\w-]+/
         ];
         
