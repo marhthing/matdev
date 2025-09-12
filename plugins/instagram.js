@@ -309,21 +309,27 @@ class InstagramPlugin {
     }
 
     /**
-     * Try modern Instagram scraper method (2025)
+     * Try modern Instagram scraper method (only if API key available)
      */
     async tryInstagramScraper(url) {
+        const apiKey = process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY;
+        
+        // Skip if no valid API key (avoid 403 errors)
+        if (!apiKey || apiKey === 'demo-key') {
+            console.log('⚠️ Instagram Scraper skipped - no valid API key configured');
+            return null;
+        }
+
         try {
-            // Add delay to avoid detection
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Try third-party Instagram API services
             const services = [
                 {
                     name: 'Instagram-API-python',
                     url: `https://instagram-api-2025.p.rapidapi.com/v1/post_info`,
                     params: { url: url },
                     headers: {
-                        'X-RapidAPI-Key': process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY,
+                        'X-RapidAPI-Key': apiKey,
                         'X-RapidAPI-Host': 'instagram-api-2025.p.rapidapi.com'
                     }
                 }
@@ -343,13 +349,17 @@ class InstagramPlugin {
                     });
 
                     if (response.data && response.data.media_urls && response.data.media_urls.length > 0) {
-                        const media = response.data.media_urls.map(item => ({
-                            type: item.includes('.mp4') ? 'video' : 'image',
-                            url: item
-                        }));
+                        const media = response.data.media_urls
+                            .map(item => ({
+                                type: item.includes('.mp4') ? 'video' : 'image',
+                                url: item
+                            }))
+                            .filter(item => this.isValidMediaUrl(item.url));
                         
-                        console.log(`🟠 ${service.name} success: Found ${media.length} media item(s)`);
-                        return { media: media };
+                        if (media.length > 0) {
+                            console.log(`🟠 ${service.name} success: Found ${media.length} media item(s)`);
+                            return { media: media };
+                        }
                     }
                 } catch (serviceError) {
                     console.log(`⚠️ ${service.name} failed:`, serviceError.message);
