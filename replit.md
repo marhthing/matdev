@@ -47,6 +47,68 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - **Groq AI Integration**: Enhanced TTS (silent generation), STT (clean output), and Vision (direct image caption support, dual image support).
 - **Scheduling Plugin**: Persistent message scheduling with timezone support (Lagos/Nigeria), auto-execution, and schedule management.
 
+# Current Deployment Status
+## Replit Setup (September 12, 2025)
+- **Status**: Successfully imported and running on Replit
+- **Entry Point**: bot.js (main WhatsApp bot application)
+- **Workflow**: "MATDEV Bot" running on Node.js console output
+- **Dependencies**: All required packages installed and working
+- **Environment**: .env created/updated with base variables (e.g., OWNER_NUMBER); optional keys use safe defaults
+- **Connection**: WhatsApp session established and authenticated
+- **Plugins**: All 26 plugins loaded successfully, including:
+  - Anti-delete, Auto-react, Currency conversion
+  - YouTube downloads, TikTok, Instagram
+  - AI integrations (Gemini, Groq), Weather, Media processing
+  - Group management, QR generation, and scheduling features
+
+## Configuration Files
+- **bot.js**: Main application entry point
+- **index.js**: Auto-manager system for deployment automation
+- **config.js**: Environment configuration with intelligent defaults
+- **.env**: Created with base configuration and safe defaults
+- **package.json**: All dependencies properly configured
+
+## Environment Variables
+### Required Variables
+- **OWNER_NUMBER**: Auto-configured from authenticated WhatsApp number
+- **BOT_NAME**: Default "MATDEV" (customizable)
+
+### Optional Variables (with safe defaults)
+- **PREFIX**: Command prefix (default: ".")
+- **PUBLIC_MODE**: Bot accessibility (default: false - private mode)
+- **AUTO_TYPING**, **AUTO_READ**, **AUTO_STATUS_VIEW**: Behavior flags (default: false)
+- **WEATHER_API_KEY**, **REMOVE_BG_API_KEY**: External API keys for enhanced features
+- **LOG_LEVEL**: Logging verbosity (default: "info")
+
+## Operations & Management
+### Workflow Control
+- **Start/Stop**: Use Replit workflow controls or restart via console
+- **Logs**: Available at `/tmp/logs/MATDEV_Bot_[timestamp].log`
+- **Monitoring**: Console output shows connection status and plugin activity
+
+### Authentication & Session Management
+- **Initial Setup**: QR code displayed in console for WhatsApp pairing
+- **Session Recovery**: If logged out, clear `session/auth/` directory and restart
+- **Backup**: Session credentials stored in `session/auth/` (auto-managed)
+
+### File Persistence & Storage
+- **Session Data**: `session/auth/` (WhatsApp credentials)
+- **Media Processing**: `tmp/` (temporary files, auto-cleanup)
+- **Plugin Storage**: `session/storage/` (JSON-based data)
+- **Message Schedules**: Persistent storage with timezone support
+
+## Replit Environment Features
+- Auto-restart on crashes (max 5 attempts)
+- Session persistence across restarts
+- Automatic dependency management
+- Hot reload system for plugin development
+- Console logging for monitoring and debugging
+
+## Security & Secrets
+- **Git Ignore**: Ensure `session/` and `tmp/` directories excluded from VCS
+- **Credential Safety**: WhatsApp session files should never be committed
+- **Session Rotation**: Clear `session/auth/` and re-authenticate if credentials compromised
+
 # External Dependencies
 ## Core Libraries
 - **@whiskeysockets/baileys**: WhatsApp Web API.
@@ -61,7 +123,7 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - **FFmpeg**: For media format conversion and manipulation.
 
 ## Deployment Platforms
-- **Replit**: Primary deployment target for continuous operation.
+- **Replit**: Primary deployment target for continuous operation (currently active).
 - **Heroku**: Alternative deployment target.
 
 ## Optional External APIs
