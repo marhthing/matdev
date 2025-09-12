@@ -359,10 +359,64 @@ class InstagramPlugin {
     }
 
     /**
+     * Try Free Instagram API (2025 working solution)
+     */
+    async tryFreeInstagramAPI(url) {
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try multiple free API endpoints
+            const freeApis = [
+                `https://api.saveig.app/api/ajaxSearch`,
+                `https://v3.saveig.app/api/ajaxSearch`
+            ];
+
+            for (const apiUrl of freeApis) {
+                try {
+                    const response = await axios.post(apiUrl, {
+                        q: url,
+                        t: 'media',
+                        lang: 'en'
+                    }, {
+                        timeout: 15000,
+                        headers: {
+                            'User-Agent': this.getRandomUserAgent(),
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                            'Accept': 'application/json, text/javascript, */*; q=0.01',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Referer': 'https://saveig.app/',
+                            'Origin': 'https://saveig.app'
+                        }
+                    });
+
+                    if (response.data && response.data.data && response.data.data.length > 0) {
+                        const media = response.data.data.map(item => ({
+                            type: item.type === 'video' ? 'video' : 'image',
+                            url: item.url || item.src
+                        })).filter(item => item.url);
+
+                        if (media.length > 0) {
+                            console.log(`🟢 Free Instagram API success: Found ${media.length} media item(s)`);
+                            return { media: media };
+                        }
+                    }
+                } catch (apiError) {
+                    continue; // Try next API
+                }
+            }
+            return null;
+        } catch (error) {
+            console.log('Free Instagram API failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
      * Try with exponential backoff and multiple methods
      */
     async tryWithRetry(url, shortcode, maxRetries = 2) {
         const methods = [
+            { name: 'Free Instagram API', fn: () => this.tryFreeInstagramAPI(url) },
             { name: 'RapidAPI', fn: () => this.tryRapidAPI(url) },
             { name: 'Alternative API', fn: () => this.tryAlternativeAPI(shortcode) },
             { name: 'Instagram Scraper', fn: () => this.tryInstagramScraper(url) }
