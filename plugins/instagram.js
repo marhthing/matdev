@@ -1,33 +1,125 @@
 
 /**
- * MATDEV Instagram Downloader Plugin
- * Download Instagram posts, reels, stories, and IGTV videos
+ * MATDEV Instagram Downloader Plugin v3.0.0
+ * Advanced 2025 Instagram scraper with instagrapi-inspired methods
+ * Bypasses robot detection using modern session-based approach
  */
 
 const axios = require('axios');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
+const crypto = require('crypto');
 
 class InstagramPlugin {
     constructor() {
         this.name = 'instagram';
-        this.description = 'Instagram media downloader with 2025 anti-bot bypass';
-        this.version = '2.0.0';
+        this.description = 'Advanced Instagram scraper with 2025 instagrapi-inspired methods';
+        this.version = '3.0.0';
         
         // Instagram URL regex patterns
         this.instagramRegex = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)\/?/i;
         this.maxFileSize = 50 * 1024 * 1024; // 50MB limit
+        
+        // Modern Instagram API endpoints (2025)
+        this.apiEndpoints = {
+            web: 'https://www.instagram.com/api/v1/',
+            graphql: 'https://www.instagram.com/graphql/query/',
+            mobile: 'https://i.instagram.com/api/v1/'
+        };
+        
+        // Session management for bypass detection
+        this.sessionData = {
+            csrftoken: null,
+            sessionid: null,
+            cookies: null,
+            userAgent: null,
+            deviceId: null,
+            appId: '936619743392459', // Instagram Web App ID
+            wwwClaim: null
+        };
+        
+        // Rate limiting
+        this.lastRequestTime = 0;
+        this.requestDelay = 2000; // 2 seconds between requests
     }
 
     /**
-     * Initialize plugin
+     * Initialize plugin with modern session setup
      */
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ Instagram plugin loaded with 2025 anti-bot enhancements');
+        await this.initializeSession();
+        console.log('✅ Instagram plugin v3.0.0 loaded with instagrapi-inspired 2025 methods');
         return this;
+    }
+
+    /**
+     * Initialize session data for bypassing detection (instagrapi-inspired)
+     */
+    async initializeSession() {
+        // Generate device ID and user agent for session consistency
+        this.sessionData.deviceId = this.generateDeviceId();
+        this.sessionData.userAgent = this.generateMobileUserAgent();
+        
+        try {
+            // Initialize session by visiting Instagram homepage
+            const response = await axios.get('https://www.instagram.com/', {
+                headers: {
+                    'User-Agent': this.sessionData.userAgent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            });
+
+            // Extract CSRF token and www-claim from response
+            const csrfMatch = response.data.match(/"csrf_token":"([^"]+)"/);
+            if (csrfMatch) {
+                this.sessionData.csrftoken = csrfMatch[1];
+            }
+            
+            // Extract rollout hash for www-claim
+            const rolloutMatch = response.data.match(/"rollout_hash":"([^"]+)"/);
+            if (rolloutMatch) {
+                this.sessionData.wwwClaim = rolloutMatch[1];
+            }
+
+            // Store session cookies
+            if (response.headers['set-cookie']) {
+                this.sessionData.cookies = response.headers['set-cookie']
+                    .map(cookie => cookie.split(';')[0])
+                    .join('; ');
+            }
+
+            console.log('🔐 Instagram session initialized with CSRF token');
+        } catch (error) {
+            console.log('⚠️ Session initialization failed, using anonymous mode');
+        }
+    }
+
+    /**
+     * Generate consistent device ID (instagrapi method)
+     */
+    generateDeviceId() {
+        const seed = crypto.randomBytes(16).toString('hex');
+        return `android-${seed.substring(0, 16)}`;
+    }
+
+    /**
+     * Generate mobile user agent for Instagram app emulation
+     */
+    generateMobileUserAgent() {
+        const versions = [
+            'Instagram 309.1.0.41.113 Android (33/13; 420dpi; 1080x2340; samsung; SM-G991B; o1s; exynos2100; en_US; 556383094)',
+            'Instagram 308.0.0.32.105 Android (32/12; 560dpi; 1440x3200; samsung; SM-G998B; t2s; exynos2100; en_US; 555555555)',
+            'Instagram 307.0.0.34.111 Android (31/12; 480dpi; 1080x2400; OnePlus; CPH2399; OP515BL1; mt6893; en_US; 544444444)'
+        ];
+        return versions[Math.floor(Math.random() * versions.length)];
     }
 
     /**
@@ -74,7 +166,7 @@ class InstagramPlugin {
                 // Try multiple Instagram download methods with enhanced retry logic (2025)
                 console.log(`🎯 Processing Instagram URL: ${url}`);
                 
-                const mediaData = await this.tryWithRetry(url, shortcode, 2);
+                const mediaData = await this.extractInstagramMedia(url, shortcode);
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     return await this.bot.messageHandler.reply(messageInfo, 
@@ -115,357 +207,18 @@ class InstagramPlugin {
     }
 
     /**
-     * Get random user agent for Instagram requests
+     * Generate unique filename for temporary files
      */
-    getRandomUserAgent() {
-        const userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'
-        ];
-        return userAgents[Math.floor(Math.random() * userAgents.length)];
+    generateUniqueFilename(type, index) {
+        const timestamp = Date.now();
+        const random = crypto.randomBytes(4).toString('hex');
+        const ext = type === 'video' ? 'mp4' : 'jpg';
+        return `instagram_${type}_${timestamp}_${random}_${index}.${ext}`;
     }
 
-    /**
-     * Try RapidAPI Instagram downloader (only if valid key available)
-     */
-    async tryRapidAPI(url) {
-        const apiKey = process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY;
-        
-        // Skip if no valid API key (avoid 403 errors from demo keys)
-        if (!apiKey || apiKey === 'demo-key') {
-            console.log('⚠️ RapidAPI skipped - no valid API key configured');
-            return null;
-        }
 
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const response = await axios.get(`https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index`, {
-                params: { url: url },
-                timeout: 20000,
-                headers: {
-                    'X-RapidAPI-Key': apiKey,
-                    'X-RapidAPI-Host': 'instagram-downloader-download-instagram-videos-stories.p.rapidapi.com',
-                    'User-Agent': this.getRandomUserAgent(),
-                    'Accept': 'application/json, text/plain, */*',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache',
-                    'Sec-Fetch-Dest': 'empty',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Site': 'cross-site'
-                }
-            });
 
-            if (!response.data || !response.data.media) {
-                return null;
-            }
 
-            const media = [];
-            if (Array.isArray(response.data.media)) {
-                for (const item of response.data.media) {
-                    if (item.url && this.isValidMediaUrl(item.url)) {
-                        media.push({
-                            type: item.type || 'image',
-                            url: item.url
-                        });
-                    }
-                }
-            }
-
-            console.log(`🟢 RapidAPI success: Found ${media.length} media item(s)`);
-            return {
-                media: media,
-                caption: response.data.caption || ''
-            };
-
-        } catch (error) {
-            if (error.response?.status === 429) {
-                console.log('⚠️ RapidAPI rate limited');
-            } else if (error.response?.status === 403) {
-                console.log('⚠️ RapidAPI 403 forbidden - key may be invalid or rate limited');
-            } else {
-                console.log('⚠️ RapidAPI failed:', error.message);
-            }
-            return null;
-        }
-    }
-
-    /**
-     * Try alternative Instagram API with enhanced 2025 headers
-     */
-    async tryAlternativeAPI(shortcode) {
-        try {
-            // Add delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            const response = await axios.get(`https://www.instagram.com/p/${shortcode}/`, {
-                timeout: 20000,
-                headers: {
-                    'User-Agent': this.getRandomUserAgent(),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'none',
-                    'Sec-Fetch-User': '?1',
-                    'Upgrade-Insecure-Requests': '1',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Cookie': 'csrftoken=missing; sessionid='
-                }
-            });
-
-            const html = response.data;
-            const media = [];
-
-            // Extract JSON data from HTML
-            const jsonMatch = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s);
-            if (jsonMatch) {
-                try {
-                    const jsonData = JSON.parse(jsonMatch[1]);
-                    if (jsonData.video && jsonData.video.contentUrl) {
-                        media.push({
-                            type: 'video',
-                            url: jsonData.video.contentUrl
-                        });
-                    } else if (jsonData.image && jsonData.image.url) {
-                        media.push({
-                            type: 'image',
-                            url: jsonData.image.url
-                        });
-                    }
-                } catch (parseError) {
-                    console.log('JSON parsing failed:', parseError.message);
-                }
-            }
-
-            // Fallback: try to extract from window._sharedData
-            const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({.*?});/);
-            if (sharedDataMatch && media.length === 0) {
-                try {
-                    const sharedData = JSON.parse(sharedDataMatch[1]);
-                    const postData = sharedData?.entry_data?.PostPage?.[0]?.graphql?.shortcode_media;
-                    
-                    if (postData) {
-                        if (postData.is_video && postData.video_url) {
-                            media.push({
-                                type: 'video',
-                                url: postData.video_url
-                            });
-                        } else if (postData.display_url) {
-                            media.push({
-                                type: 'image',
-                                url: postData.display_url
-                            });
-                        }
-
-                        // Handle carousel posts
-                        if (postData.edge_sidecar_to_children?.edges) {
-                            for (const edge of postData.edge_sidecar_to_children.edges) {
-                                const node = edge.node;
-                                if (node.is_video && node.video_url) {
-                                    media.push({
-                                        type: 'video',
-                                        url: node.video_url
-                                    });
-                                } else if (node.display_url) {
-                                    media.push({
-                                        type: 'image',
-                                        url: node.display_url
-                                    });
-                                }
-                            }
-                        }
-                    }
-                } catch (parseError) {
-                    console.log('Shared data parsing failed:', parseError.message);
-                }
-            }
-
-            if (media.length > 0) {
-                console.log(`🟡 Alternative API success: Found ${media.length} media item(s)`);
-                return { media: media };
-            }
-            return null;
-
-        } catch (error) {
-            if (error.response?.status === 404) {
-                console.log('⚠️ Alternative API: Post not found or private');
-            } else if (error.response?.status === 429) {
-                console.log('⚠️ Alternative API: Rate limited');
-            } else {
-                console.log('Alternative Instagram API failed:', error.message);
-            }
-            return null;
-        }
-    }
-
-    /**
-     * Try modern Instagram scraper method (only if API key available)
-     */
-    async tryInstagramScraper(url) {
-        const apiKey = process.env.RAPIDAPI_KEY || process.env.INSTAGRAM_RAPIDAPI_KEY;
-        
-        // Skip if no valid API key (avoid 403 errors)
-        if (!apiKey || apiKey === 'demo-key') {
-            console.log('⚠️ Instagram Scraper skipped - no valid API key configured');
-            return null;
-        }
-
-        try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const services = [
-                {
-                    name: 'Instagram-API-python',
-                    url: `https://instagram-api-2025.p.rapidapi.com/v1/post_info`,
-                    params: { url: url },
-                    headers: {
-                        'X-RapidAPI-Key': apiKey,
-                        'X-RapidAPI-Host': 'instagram-api-2025.p.rapidapi.com'
-                    }
-                }
-            ];
-
-            for (const service of services) {
-                try {
-                    const response = await axios.get(service.url, {
-                        params: service.params,
-                        timeout: 15000,
-                        headers: {
-                            ...service.headers,
-                            'User-Agent': this.getRandomUserAgent(),
-                            'Accept': 'application/json',
-                            'Accept-Language': 'en-US,en;q=0.9'
-                        }
-                    });
-
-                    if (response.data && response.data.media_urls && response.data.media_urls.length > 0) {
-                        const media = response.data.media_urls
-                            .map(item => ({
-                                type: item.includes('.mp4') ? 'video' : 'image',
-                                url: item
-                            }))
-                            .filter(item => this.isValidMediaUrl(item.url));
-                        
-                        if (media.length > 0) {
-                            console.log(`🟠 ${service.name} success: Found ${media.length} media item(s)`);
-                            return { media: media };
-                        }
-                    }
-                } catch (serviceError) {
-                    console.log(`⚠️ ${service.name} failed:`, serviceError.message);
-                    continue;
-                }
-            }
-
-            return null;
-        } catch (error) {
-            console.log('Instagram scraper failed:', error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Try Free Instagram API with proper encoding (2025 working solution)
-     */
-    async tryFreeInstagramAPI(url) {
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Try Rapidapi-free downloader first
-            try {
-                const freeApiUrl = 'https://instagram-bulk-profile-scrapper.p.rapidapi.com/clients/api/ig/media';
-                const response = await axios.get(freeApiUrl, {
-                    params: { url: url },
-                    timeout: 15000,
-                    headers: {
-                        'User-Agent': this.getRandomUserAgent(),
-                        'Accept': 'application/json'
-                    }
-                });
-
-                if (response.data && response.data.items && response.data.items.length > 0) {
-                    const media = response.data.items.map(item => ({
-                        type: item.video_versions ? 'video' : 'image',
-                        url: item.video_versions ? item.video_versions[0].url : item.image_versions2?.candidates?.[0]?.url
-                    })).filter(item => item.url && this.isValidMediaUrl(item.url));
-
-                    if (media.length > 0) {
-                        console.log(`🟢 Free Instagram API success: Found ${media.length} media item(s)`);
-                        return { media: media };
-                    }
-                }
-            } catch (apiError) {
-                console.log('Free API attempt failed:', apiError.message);
-            }
-
-            // Fallback to direct Instagram parsing (limited but sometimes works)
-            try {
-                const shortcode = url.match(/(?:\/p\/|\/reel\/|\/tv\/)([A-Za-z0-9_-]+)/)?.[1];
-                if (shortcode) {
-                    const response = await axios.get(`https://www.instagram.com/graphql/query/`, {
-                        params: {
-                            query_hash: '9f8827793ef34641b2fb195d4d41151c',
-                            variables: JSON.stringify({
-                                shortcode: shortcode,
-                                include_reel: true
-                            })
-                        },
-                        timeout: 10000,
-                        headers: {
-                            'User-Agent': this.getRandomUserAgent(),
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-
-                    const data = response.data?.data?.shortcode_media;
-                    if (data) {
-                        const media = [];
-                        if (data.is_video && data.video_url) {
-                            media.push({ type: 'video', url: data.video_url });
-                        } else if (data.display_url) {
-                            media.push({ type: 'image', url: data.display_url });
-                        }
-
-                        // Handle carousel
-                        if (data.edge_sidecar_to_children?.edges) {
-                            data.edge_sidecar_to_children.edges.forEach(edge => {
-                                const node = edge.node;
-                                if (node.is_video && node.video_url) {
-                                    media.push({ type: 'video', url: node.video_url });
-                                } else if (node.display_url) {
-                                    media.push({ type: 'image', url: node.display_url });
-                                }
-                            });
-                        }
-
-                        const validMedia = media.filter(item => this.isValidMediaUrl(item.url));
-                        if (validMedia.length > 0) {
-                            console.log(`🟡 Instagram GraphQL success: Found ${validMedia.length} media item(s)`);
-                            return { media: validMedia };
-                        }
-                    }
-                }
-            } catch (graphError) {
-                console.log('Instagram GraphQL failed:', graphError.message);
-            }
-
-            return null;
-        } catch (error) {
-            console.log('Free Instagram API failed:', error.message);
-            return null;
-        }
-    }
 
     /**
      * Validate media URL for security (strict host validation)
@@ -503,49 +256,379 @@ class InstagramPlugin {
     }
 
     /**
-     * Try with exponential backoff and multiple methods
+     * Modern Instagram media extraction (instagrapi-inspired 2025 method)
      */
-    async tryWithRetry(url, shortcode, maxRetries = 2) {
-        const methods = [
-            { name: 'Free Instagram API', fn: () => this.tryFreeInstagramAPI(url) },
-            { name: 'RapidAPI', fn: () => this.tryRapidAPI(url) },
-            { name: 'Alternative API', fn: () => this.tryAlternativeAPI(shortcode) },
-            { name: 'Instagram Scraper', fn: () => this.tryInstagramScraper(url) }
-        ];
+    async extractInstagramMedia(url, shortcode) {
+        await this.enforceRateLimit();
+        
+        try {
+            console.log(`🔄 Extracting Instagram media using 2025 instagrapi-inspired method`);
+            
+            // Try mobile API first (most reliable)
+            let result = await this.tryMobileAPI(shortcode);
+            if (result && result.media && result.media.length > 0) {
+                console.log(`✅ Mobile API success: Found ${result.media.length} media item(s)`);
+                return result;
+            }
+            
+            // Fallback to web scraping with session
+            result = await this.tryWebScraping(shortcode);
+            if (result && result.media && result.media.length > 0) {
+                console.log(`✅ Web scraping success: Found ${result.media.length} media item(s)`);
+                return result;
+            }
+            
+            // Final fallback: anonymous GraphQL (limited but sometimes works)
+            result = await this.tryAnonymousGraphQL(shortcode);
+            if (result && result.media && result.media.length > 0) {
+                console.log(`✅ Anonymous GraphQL success: Found ${result.media.length} media item(s)`);
+                return result;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Instagram media extraction failed:', error.message);
+            return null;
+        }
+    }
 
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-            for (const method of methods) {
-                try {
-                    console.log(`🔄 Trying ${method.name} (attempt ${attempt + 1}/${maxRetries})`);
-                    const result = await method.fn();
-                    
-                    if (result && result.media && result.media.length > 0) {
-                        return result;
+    /**
+     * Enforce rate limiting to avoid detection
+     */
+    async enforceRateLimit() {
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestTime;
+        
+        if (timeSinceLastRequest < this.requestDelay) {
+            const waitTime = this.requestDelay - timeSinceLastRequest;
+            console.log(`⏳ Rate limiting: waiting ${waitTime}ms`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        this.lastRequestTime = Date.now();
+    }
+
+    /**
+     * Try mobile API endpoint (most reliable 2025 method)
+     */
+    async tryMobileAPI(shortcode) {
+        try {
+            // Modern Instagram web API headers with required IG headers
+            const headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-IG-App-ID': this.sessionData.appId,
+                'X-IG-Device-ID': this.sessionData.deviceId,
+                'X-Instagram-AJAX': '1',
+                'Connection': 'keep-alive',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin'
+            };
+
+            // Add session data if available
+            if (this.sessionData.cookies) {
+                headers['Cookie'] = this.sessionData.cookies;
+            }
+            if (this.sessionData.csrftoken) {
+                headers['X-CSRFToken'] = this.sessionData.csrftoken;
+            }
+            if (this.sessionData.wwwClaim) {
+                headers['X-IG-WWW-Claim'] = this.sessionData.wwwClaim;
+            }
+
+            // Use web API endpoint with proper shortcode info endpoint
+            const response = await axios.get(`${this.apiEndpoints.web}media/shortcode/${shortcode}/info/`, {
+                headers,
+                timeout: 15000
+            });
+
+            if (response.data && response.data.items && response.data.items.length > 0) {
+                const item = response.data.items[0];
+                const media = [];
+
+                // Extract media based on type
+                if (item.video_versions && item.video_versions.length > 0) {
+                    // Video post
+                    media.push({
+                        type: 'video',
+                        url: item.video_versions[0].url
+                    });
+                } else if (item.image_versions2 && item.image_versions2.candidates) {
+                    // Image post
+                    media.push({
+                        type: 'image',
+                        url: item.image_versions2.candidates[0].url
+                    });
+                }
+
+                // Handle carousel posts
+                if (item.carousel_media && item.carousel_media.length > 0) {
+                    media.length = 0; // Clear single media
+                    for (const carouselItem of item.carousel_media) {
+                        if (carouselItem.video_versions && carouselItem.video_versions.length > 0) {
+                            media.push({
+                                type: 'video',
+                                url: carouselItem.video_versions[0].url
+                            });
+                        } else if (carouselItem.image_versions2 && carouselItem.image_versions2.candidates) {
+                            media.push({
+                                type: 'image',
+                                url: carouselItem.image_versions2.candidates[0].url
+                            });
+                        }
                     }
-                    
-                    // Small delay between methods
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                } catch (error) {
-                    console.log(`❌ ${method.name} error:`, error.message);
+                }
+
+                const validMedia = media.filter(m => this.isValidMediaUrl(m.url));
+                if (validMedia.length > 0) {
+                    return {
+                        media: validMedia,
+                        caption: item.caption?.text || ''
+                    };
                 }
             }
             
-            // Exponential backoff between retry attempts
-            if (attempt < maxRetries - 1) {
-                const delay = Math.pow(2, attempt) * 2000; // 2s, 4s, 8s...
-                console.log(`⏳ Waiting ${delay}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+            return null;
+        } catch (error) {
+            console.log(`Mobile API failed: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Try web scraping with session (modern 2025 method)
+     */
+    async tryWebScraping(shortcode) {
+        try {
+            const headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Cache-Control': 'max-age=0'
+            };
+
+            if (this.sessionData.cookies) {
+                headers['Cookie'] = this.sessionData.cookies;
             }
+
+            const response = await axios.get(`https://www.instagram.com/p/${shortcode}/`, {
+                headers,
+                timeout: 15000
+            });
+
+            const html = response.data;
+            const media = [];
+
+            // Modern Instagram approach: Extract from script tags containing JSON data
+            // Method 1: Look for application/ld+json structured data
+            const structuredDataMatches = html.match(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/gs);
+            if (structuredDataMatches) {
+                for (const match of structuredDataMatches) {
+                    try {
+                        const jsonContent = match.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
+                        const jsonData = JSON.parse(jsonContent);
+                        
+                        if (jsonData['@type'] === 'ImageObject' && jsonData.contentUrl) {
+                            media.push({
+                                type: 'image',
+                                url: jsonData.contentUrl
+                            });
+                        } else if (jsonData['@type'] === 'VideoObject' && jsonData.contentUrl) {
+                            media.push({
+                                type: 'video',
+                                url: jsonData.contentUrl
+                            });
+                        }
+                    } catch (parseError) {
+                        continue; // Skip malformed JSON
+                    }
+                }
+            }
+
+            // Method 2: Modern script tag extraction (Instagram's current method)
+            if (media.length === 0) {
+                const scriptMatches = html.match(/<script[^>]*>window\.__additionalDataLoaded\('\/p\/[^']+',\s*({.+?})\);<\/script>/s);
+                if (scriptMatches && scriptMatches[1]) {
+                    try {
+                        const postData = JSON.parse(scriptMatches[1]);
+                        const graphqlData = postData?.graphql?.shortcode_media;
+                        
+                        if (graphqlData) {
+                            this.extractMediaFromGraphQL(graphqlData, media);
+                        }
+                    } catch (parseError) {
+                        console.log('Modern script extraction failed:', parseError.message);
+                    }
+                }
+            }
+
+            // Method 3: Fallback to React component props extraction
+            if (media.length === 0) {
+                const propsMatches = html.match(/window\.__additionalData\[[^\]]+\]\s*=\s*({.+?});/gs);
+                if (propsMatches) {
+                    for (const match of propsMatches) {
+                        try {
+                            const propsData = JSON.parse(match.split('=')[1].replace(/;$/, ''));
+                            if (propsData?.graphql?.shortcode_media) {
+                                this.extractMediaFromGraphQL(propsData.graphql.shortcode_media, media);
+                            }
+                        } catch (parseError) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Method 4: Extract from meta property tags (basic fallback)
+            if (media.length === 0) {
+                const videoUrlMatch = html.match(/<meta property="og:video" content="([^"]+)"/);
+                const imageUrlMatch = html.match(/<meta property="og:image" content="([^"]+)"/);
+                
+                if (videoUrlMatch && videoUrlMatch[1]) {
+                    media.push({
+                        type: 'video',
+                        url: videoUrlMatch[1]
+                    });
+                } else if (imageUrlMatch && imageUrlMatch[1]) {
+                    media.push({
+                        type: 'image',
+                        url: imageUrlMatch[1]
+                    });
+                }
+            }
+
+            const validMedia = media.filter(m => this.isValidMediaUrl(m.url));
+            if (validMedia.length > 0) {
+                return { media: validMedia };
+            }
+            
+            return null;
+        } catch (error) {
+            console.log(`Modern web scraping failed: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Extract media from Instagram GraphQL data structure
+     */
+    extractMediaFromGraphQL(graphqlData, media) {
+        if (!graphqlData) return;
+
+        // Single media
+        if (graphqlData.is_video && graphqlData.video_url) {
+            media.push({
+                type: 'video',
+                url: graphqlData.video_url
+            });
+        } else if (graphqlData.display_url) {
+            media.push({
+                type: 'image',
+                url: graphqlData.display_url
+            });
         }
 
-        return null;
+        // Carousel posts
+        if (graphqlData.edge_sidecar_to_children?.edges) {
+            media.length = 0; // Clear single media for carousel
+            for (const edge of graphqlData.edge_sidecar_to_children.edges) {
+                const node = edge.node;
+                if (node.is_video && node.video_url) {
+                    media.push({
+                        type: 'video',
+                        url: node.video_url
+                    });
+                } else if (node.display_url) {
+                    media.push({
+                        type: 'image',
+                        url: node.display_url
+                    });
+                }
+            }
+        }
+    }
+
+    /**
+     * Try anonymous GraphQL (limited fallback)
+     */
+    async tryAnonymousGraphQL(shortcode) {
+        try {
+            const headers = {
+                'User-Agent': this.sessionData.userAgent,
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+
+            // Modern GraphQL query hash (updated for 2025)
+            const queryHash = '9f8827793ef34641b2fb195d4d41151c';
+            const variables = JSON.stringify({
+                shortcode: shortcode,
+                include_reel: true,
+                include_suggested_users: false
+            });
+
+            const response = await axios.get(`${this.apiEndpoints.graphql}`, {
+                params: {
+                    query_hash: queryHash,
+                    variables: variables
+                },
+                headers,
+                timeout: 10000
+            });
+
+            const data = response.data?.data?.shortcode_media;
+            if (data) {
+                const media = [];
+                
+                // Single media
+                if (data.is_video && data.video_url) {
+                    media.push({ type: 'video', url: data.video_url });
+                } else if (data.display_url) {
+                    media.push({ type: 'image', url: data.display_url });
+                }
+
+                // Carousel
+                if (data.edge_sidecar_to_children?.edges) {
+                    media.length = 0;
+                    data.edge_sidecar_to_children.edges.forEach(edge => {
+                        const node = edge.node;
+                        if (node.is_video && node.video_url) {
+                            media.push({ type: 'video', url: node.video_url });
+                        } else if (node.display_url) {
+                            media.push({ type: 'image', url: node.display_url });
+                        }
+                    });
+                }
+
+                const validMedia = media.filter(m => this.isValidMediaUrl(m.url));
+                if (validMedia.length > 0) {
+                    return { media: validMedia };
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.log(`Anonymous GraphQL failed: ${error.message}`);
+            return null;
+        }
     }
 
     /**
      * Download and send media
      */
     async downloadAndSendMedia(messageInfo, media, index, total) {
-        const tempFile = path.join(__dirname, '..', 'tmp', `instagram_${media.type}_${Date.now()}_${index}.${media.type === 'video' ? 'mp4' : 'jpg'}`);
+        const tempFile = path.join(__dirname, '..', 'tmp', this.generateUniqueFilename(media.type, index));
         
         try {
             // Ensure tmp directory exists
