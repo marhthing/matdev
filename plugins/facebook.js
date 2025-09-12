@@ -158,14 +158,30 @@ class FacebookPlugin {
                     mediaData = await this.trySnapSaveAPI(url);
                 }
                 
-                // Method 4: Try direct Facebook scraping (last resort)
+                // Method 4: Try alternative download services
+                if (!mediaData) {
+                    mediaData = await this.tryAlternativeServices(url);
+                }
+                
+                // Method 5: Try direct Facebook scraping (last resort)
                 if (!mediaData) {
                     mediaData = await this.tryDirectScraping(url);
                 }
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
-                    return await this.bot.messageHandler.reply(messageInfo, 
-                        '❌ No media found in this Facebook post or media extraction failed. The post may be private, contain only text, or be unavailable.');
+                    // Provide more helpful error message based on URL type
+                    let errorMsg = '❌ Unable to extract media from this Facebook post.\n\n';
+                    errorMsg += '**Possible reasons:**\n';
+                    errorMsg += '• Post is private or restricted\n';
+                    errorMsg += '• Post contains only text/images without video\n';
+                    errorMsg += '• Facebook has blocked automated access\n';
+                    errorMsg += '• Post has been deleted or is unavailable\n\n';
+                    errorMsg += '**Tips:**\n';
+                    errorMsg += '• Try using a direct video URL if available\n';
+                    errorMsg += '• Ensure the post is public\n';
+                    errorMsg += '• Share the post and try the new URL';
+                    
+                    return await this.bot.messageHandler.reply(messageInfo, errorMsg);
                 }
 
                 // Process and send each media item
@@ -274,30 +290,68 @@ class FacebookPlugin {
         try {
             await humanDelay(1500, 2500);
             
-            // Try alternative API for Facebook downloads
-            const response = await axios.post('https://co.wuk.sh/api/json', {
-                url: url
-            }, {
-                timeout: 20000,
-                httpsAgent: new (require('https').Agent)({ 
-                    rejectUnauthorized: false 
-                }),
-                headers: {
-                    'User-Agent': getRandomUserAgent(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+            // Try multiple alternative APIs
+            const apis = [
+                {
+                    url: 'https://api.savefrom.net/ajax',
+                    method: 'POST',
+                    data: `url=${encodeURIComponent(url)}&format=json`,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    }
+                },
+                {
+                    url: 'https://fdownloader.net/api',
+                    method: 'POST',
+                    data: { url: url },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                },
+                {
+                    url: 'https://snapsave.io/action',
+                    method: 'POST',
+                    data: `url=${encodeURIComponent(url)}`,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
+                    }
                 }
-            });
+            ];
 
-            if (response.data?.status === 'success' && response.data?.url) {
-                return {
-                    media: [{
-                        type: 'video',
-                        url: response.data.url
-                    }],
-                    title: 'Facebook Media',
-                    author: 'Unknown'
-                };
+            for (const api of apis) {
+                try {
+                    const response = await axios({
+                        method: api.method,
+                        url: api.url,
+                        data: api.data,
+                        timeout: 15000,
+                        httpsAgent: new (require('https').Agent)({ 
+                            rejectUnauthorized: false 
+                        }),
+                        headers: {
+                            'User-Agent': getRandomUserAgent(),
+                            ...api.headers
+                        }
+                    });
+
+                    if (response.data?.url || response.data?.video_url || response.data?.download_url) {
+                        const mediaUrl = response.data.url || response.data.video_url || response.data.download_url;
+                        return {
+                            media: [{
+                                type: 'video',
+                                url: mediaUrl
+                            }],
+                            title: response.data.title || 'Facebook Media',
+                            author: 'Unknown'
+                        };
+                    }
+                } catch (apiError) {
+                    console.log(`API ${api.url} failed:`, apiError.message);
+                    continue;
+                }
             }
 
             return null;
@@ -367,6 +421,59 @@ class FacebookPlugin {
     }
 
     /**
+     * Try alternative download services
+     */
+    async tryAlternativeServices(url) {
+        try {
+            await humanDelay(1800, 2800);
+            
+            // Try GetInDevice API
+            const response = await axios.post('https://getindevice.com/wp-json/aio-dl/video-data/', {
+                url: url
+            }, {
+                timeout: 20000,
+                httpsAgent: new (require('https').Agent)({ 
+                    rejectUnauthorized: false 
+                }),
+                headers: {
+                    'User-Agent': getRandomUserAgent(),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Referer': 'https://getindevice.com/'
+                }
+            });
+
+            if (response.data?.medias && response.data.medias.length > 0) {
+                const media = [];
+                
+                response.data.medias.forEach(item => {
+                    if (item.url) {
+                        media.push({
+                            type: item.extension === 'mp4' ? 'video' : 'image',
+                            url: item.url,
+                            quality: item.quality || 'Unknown'
+                        });
+                    }
+                });
+
+                if (media.length > 0) {
+                    return {
+                        media: media,
+                        title: response.data.title || 'Facebook Media',
+                        author: 'Unknown'
+                    };
+                }
+            }
+
+            return null;
+
+        } catch (error) {
+            console.log('Alternative services failed:', error.message);
+            return null;
+        }
+    }
+
+    /**
      * Try direct Facebook scraping
      */
     async tryDirectScraping(url) {
@@ -389,32 +496,62 @@ class FacebookPlugin {
                 }
             });
             
-            // Look for video URLs in the HTML response
+            // Look for video URLs in the HTML response with multiple patterns
             const html = response.data;
-            const videoRegex = /(?:"playable_url":"([^"]+)")|(?:"browser_native_hd_url":"([^"]+)")|(?:"browser_native_sd_url":"([^"]+)")/g;
-            const matches = [...html.matchAll(videoRegex)];
             
-            if (matches.length > 0) {
-                const media = [];
-                for (const match of matches.slice(0, 2)) { // Limit to first 2 matches
-                    const videoUrl = match[1] || match[2] || match[3];
-                    if (videoUrl) {
-                        // Decode the URL
-                        const decodedUrl = videoUrl.replace(/\\u0025/g, '%').replace(/\\u0026/g, '&');
-                        media.push({
-                            type: 'video',
-                            url: decodeURIComponent(decodedUrl)
-                        });
+            // Multiple regex patterns for different Facebook video formats
+            const videoPatterns = [
+                /"playable_url":"([^"]+)"/g,
+                /"browser_native_hd_url":"([^"]+)"/g,
+                /"browser_native_sd_url":"([^"]+)"/g,
+                /"playable_url_quality_hd":"([^"]+)"/g,
+                /"video_url":"([^"]+)"/g,
+                /playable_url%22%3A%22([^%"]+)/g,
+                /"src":"([^"]*\.mp4[^"]*)"/g
+            ];
+            
+            const media = [];
+            const foundUrls = new Set(); // Avoid duplicates
+            
+            for (const pattern of videoPatterns) {
+                const matches = [...html.matchAll(pattern)];
+                for (const match of matches) {
+                    if (match[1]) {
+                        try {
+                            // Decode the URL
+                            let videoUrl = match[1];
+                            videoUrl = videoUrl.replace(/\\u0025/g, '%')
+                                              .replace(/\\u0026/g, '&')
+                                              .replace(/\\u003D/g, '=')
+                                              .replace(/\\u002F/g, '/')
+                                              .replace(/\\\//g, '/');
+                            
+                            const decodedUrl = decodeURIComponent(videoUrl);
+                            
+                            // Validate URL
+                            if (decodedUrl.includes('http') && !foundUrls.has(decodedUrl)) {
+                                foundUrls.add(decodedUrl);
+                                media.push({
+                                    type: 'video',
+                                    url: decodedUrl
+                                });
+                                
+                                if (media.length >= 2) break; // Limit results
+                            }
+                        } catch (decodeError) {
+                            console.log('URL decode error:', decodeError.message);
+                        }
                     }
                 }
-                
-                if (media.length > 0) {
-                    return {
-                        media: media,
-                        title: 'Facebook Video',
-                        author: 'Unknown'
-                    };
-                }
+                if (media.length >= 2) break;
+            }
+            
+            if (media.length > 0) {
+                return {
+                    media: media,
+                    title: 'Facebook Video',
+                    author: 'Unknown'
+                };
             }
             
             return null;
