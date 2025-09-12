@@ -142,8 +142,16 @@ class FacebookPlugin {
             await humanDelay(1000, 2000);
 
             try {
-                // Use only the working direct Facebook scraping method
-                let mediaData = await this.tryDirectScraping(url);
+                // Try multiple Facebook download methods
+                let mediaData = null;
+                
+                // Method 1: Try working external API
+                mediaData = await this.tryWorkingAPI(url);
+                
+                // Method 2: Try direct Facebook scraping if API fails
+                if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
+                    mediaData = await this.tryDirectScraping(url);
+                }
 
                 if (!mediaData || !mediaData.media || mediaData.media.length === 0) {
                     // Provide more helpful error message based on URL type
@@ -219,6 +227,66 @@ class FacebookPlugin {
     }
 
     
+
+    /**
+     * Try working external API
+     */
+    async tryWorkingAPI(url) {
+        try {
+            // Try a reliable Facebook download API
+            const response = await axios.post('https://facebook-video-downloader.p.rapidapi.com/fvideo/getvideo', {
+                url: url
+            }, {
+                timeout: 15000,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': getRandomUserAgent(),
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.data && response.data.video_url) {
+                return {
+                    media: [{
+                        type: 'video',
+                        url: response.data.video_url
+                    }],
+                    title: response.data.title || 'Facebook Video',
+                    author: response.data.author || 'Unknown'
+                };
+            }
+
+            return null;
+        } catch (error) {
+            console.log('External API failed:', error.message);
+            
+            // Try alternative working API
+            try {
+                const altResponse = await axios.get(`https://api.facebookdownloader.com/download?url=${encodeURIComponent(url)}`, {
+                    timeout: 15000,
+                    headers: {
+                        'User-Agent': getRandomUserAgent(),
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (altResponse.data && altResponse.data.download_url) {
+                    return {
+                        media: [{
+                            type: 'video',
+                            url: altResponse.data.download_url
+                        }],
+                        title: 'Facebook Video',
+                        author: 'Unknown'
+                    };
+                }
+            } catch (altError) {
+                console.log('Alternative API also failed:', altError.message);
+            }
+
+            return null;
+        }
+    }
 
     /**
      * Try direct Facebook scraping
