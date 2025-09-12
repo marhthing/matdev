@@ -1,109 +1,30 @@
 /**
  * MATDEV YouTube Downloader Plugin
- * Download YouTube videos and audio using yt-dlp (2025 reliable method)
+ * Download YouTube videos and audio using MATDEV API (2025 reliable method)
  */
 
-const { spawn } = require('child_process');
+const axios = require('axios');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
-const ytsr = require('ytsr');
-const crypto = require('crypto');
-const { URL } = require('url');
-
-// Ensure debug folder exists
-const DEBUG_FOLDER = path.join('session', 'youtube-debug');
-if (!fs.existsSync(DEBUG_FOLDER)) {
-    fs.mkdirSync(DEBUG_FOLDER, { recursive: true });
-}
 
 class YouTubePlugin {
     constructor() {
         this.name = 'youtube';
-        this.description = 'YouTube video and audio downloader using yt-dlp (2025 reliable method)';
-        this.version = '6.0.0';
+        this.description = 'YouTube video and audio downloader using MATDEV API (2025 reliable method)';
+        this.version = '7.0.0';
+        
+        // API Configuration
+        this.apiBase = 'https://matdev-api-xdry.vercel.app';
+        this.apiTimeout = 30000; // 30 seconds
         
         // YouTube URL regex - more strict validation
         this.ytIdRegex = /^https?:\/\/(?:(?:www\.|m\.|music\.)?youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})(?:\S+)?$/;
         this.ytIdExtractRegex = /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
         
-        // Proxy configuration
-        this.proxyList = this.loadProxies();
-        this.currentProxyIndex = 0;
-        this.userAgents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:122.0) Gecko/20100101 Firefox/122.0'
-        ];
-    }
-
-    /**
-     * Load proxy configuration from environment variables
-     */
-    loadProxies() {
-        const proxies = [];
-        
-        // Load HTTP/HTTPS proxies
-        const httpProxies = process.env.YOUTUBE_HTTP_PROXIES || process.env.HTTP_PROXIES || '';
-        if (httpProxies) {
-            const httpProxyList = httpProxies.split(',').map(p => p.trim()).filter(Boolean);
-            proxies.push(...httpProxyList.map(proxy => ({ type: 'http', url: proxy })));
-        }
-        
-        // Load SOCKS proxies
-        const socksProxies = process.env.YOUTUBE_SOCKS_PROXIES || process.env.SOCKS_PROXIES || '';
-        if (socksProxies) {
-            const socksProxyList = socksProxies.split(',').map(p => p.trim()).filter(Boolean);
-            proxies.push(...socksProxyList.map(proxy => ({ type: 'socks', url: proxy })));
-        }
-
-        if (proxies.length > 0) {
-            console.log(`🔄 YouTube plugin: Loaded ${proxies.length} proxy server(s) for IP masking`);
-        }
-        
-        return proxies;
-    }
-
-    /**
-     * Get next proxy from the list (round-robin)
-     */
-    getNextProxy() {
-        if (this.proxyList.length === 0) return null;
-        
-        const proxy = this.proxyList[this.currentProxyIndex];
-        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.proxyList.length;
-        return proxy;
-    }
-
-    /**
-     * Validate and sanitize proxy URL to prevent injection
-     */
-    validateProxy(proxyUrl) {
-        if (!proxyUrl || typeof proxyUrl !== 'string') return null;
-        
-        try {
-            const url = new URL(proxyUrl);
-            // Only allow http, https, socks4, socks5 protocols
-            if (!['http:', 'https:', 'socks4:', 'socks5:'].includes(url.protocol)) {
-                return null;
-            }
-            // Ensure hostname is not empty and doesn't contain dangerous chars
-            if (!url.hostname || /[;&|`$(){}\[\]"'\\]/.test(url.hostname)) {
-                return null;
-            }
-            return proxyUrl;
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Get random user agent
-     */
-    getRandomUserAgent() {
-        return this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
+        // File size limits
+        this.videoSizeLimit = 14 * 1024 * 1024; // 14MB
+        this.audioSizeLimit = 12 * 1024 * 1024; // 12MB
     }
 
     /**
@@ -111,9 +32,74 @@ class YouTubePlugin {
      */
     generateUniqueFilename(prefix = 'yt', extension = '') {
         const timestamp = Date.now();
-        const random = crypto.randomBytes(4).toString('hex');
+        const random = Math.random().toString(36).substring(2, 8);
         const ext = extension.startsWith('.') ? extension : (extension ? `.${extension}` : '');
         return `${prefix}_${timestamp}_${random}${ext}`;
+    }
+
+    /**
+     * Call MATDEV API to download media
+     */
+    async callDownloadAPI(url, quality = 'medium') {
+        try {
+            const response = await axios.post(`${this.apiBase}/api/download`, {
+                url: url,
+                type: 'youtube',
+                quality: quality
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'MATDEV-Bot/7.0'
+                },
+                timeout: this.apiTimeout
+            });
+
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'API download failed');
+            }
+
+            return response.data.data;
+        } catch (error) {
+            if (error.response) {
+                const errorMsg = error.response.data?.message || `API error: ${error.response.status}`;
+                throw new Error(errorMsg);
+            } else if (error.code === 'ECONNABORTED') {
+                throw new Error('Download timeout - video may be too large or slow to process');
+            } else {
+                throw new Error(`Network error: ${error.message}`);
+            }
+        }
+    }
+
+    /**
+     * Call MATDEV API to search YouTube
+     */
+    async callSearchAPI(query, limit = 5) {
+        try {
+            const response = await axios.post(`${this.apiBase}/api/search`, {
+                query: query,
+                limit: limit
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'MATDEV-Bot/7.0'
+                },
+                timeout: 15000 // 15 seconds for search
+            });
+
+            if (!response.data.success) {
+                throw new Error(response.data.message || 'Search failed');
+            }
+
+            return response.data.results;
+        } catch (error) {
+            if (error.response) {
+                const errorMsg = error.response.data?.message || `Search API error: ${error.response.status}`;
+                throw new Error(errorMsg);
+            } else {
+                throw new Error(`Search failed: ${error.message}`);
+            }
+        }
     }
 
     /**
@@ -147,135 +133,64 @@ class YouTubePlugin {
     }
 
     /**
-     * SECURITY FIXED: Safe yt-dlp execution using spawn instead of execAsync
+     * Download media file from URL and save temporarily
      */
-    async executeYtDlpSafely(args, options = {}) {
-        return new Promise((resolve, reject) => {
-            const process = spawn('yt-dlp', args, {
-                stdio: ['ignore', 'pipe', 'pipe'],
-                ...options
-            });
-            
-            let stdout = '';
-            let stderr = '';
-            
-            process.stdout.on('data', (data) => {
-                stdout += data.toString();
-            });
-            
-            process.stderr.on('data', (data) => {
-                stderr += data.toString();
-            });
-            
-            const timeout = setTimeout(() => {
-                process.kill('SIGKILL');
-                reject(new Error('Process timeout'));
-            }, options.timeout || 30000);
-            
-            process.on('close', (code) => {
-                clearTimeout(timeout);
-                if (code === 0) {
-                    resolve({ stdout, stderr });
-                } else {
-                    reject(new Error(`yt-dlp exited with code ${code}: ${stderr}`));
-                }
-            });
-            
-            process.on('error', (error) => {
-                clearTimeout(timeout);
-                reject(error);
-            });
-        });
-    }
-
-    // NOTE: Removed broken ytdl methods that were causing security issues
-
-    /**
-     * SECURITY FIXED: Enhanced YouTube info retrieval using yt-dlp with spawn
-     */
-    async getYouTubeInfoWithRetry(url, maxRetries = 3) {
-        const validatedUrl = this.validateYouTubeUrl(url);
-        if (!validatedUrl) {
-            throw new Error('Invalid YouTube URL');
-        }
+    async downloadMediaFile(mediaUrl, filename) {
+        const tempDir = path.join(__dirname, '..', 'tmp');
+        await fs.ensureDir(tempDir);
         
-        let lastError;
+        const tempFile = path.join(tempDir, filename);
         
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                const proxy = this.getNextProxy();
-                
-                // Add delay between retries
-                if (attempt > 1) {
-                    await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+        try {
+            const response = await axios.get(mediaUrl, {
+                responseType: 'stream',
+                timeout: 60000, // 1 minute timeout
+                headers: {
+                    'User-Agent': 'MATDEV-Bot/7.0'
                 }
-                
-                console.log(`🔄 yt-dlp info attempt ${attempt}/${maxRetries}${proxy ? ` via proxy` : ''}`);
-                
-                // Build secure argument array
-                const args = [
-                    '--no-playlist',
-                    '--dump-json',
-                    '--sleep-interval', '2',
-                    '--max-sleep-interval', '5'
-                ];
-                
-                // Add proxy if available and validated
-                if (proxy) {
-                    const validProxy = this.validateProxy(proxy.url);
-                    if (validProxy) {
-                        args.push('--proxy', validProxy);
-                    }
-                }
-                
-                // Add user agent rotation
-                const userAgent = this.getRandomUserAgent();
-                args.push('--user-agent', userAgent);
-                
-                // Add validated URL
-                args.push(validatedUrl.url);
-                
-                const { stdout } = await this.executeYtDlpSafely(args, { timeout: 30000 });
-                const info = JSON.parse(stdout.trim());
-                
-                console.log(`✅ Successfully retrieved YouTube info via yt-dlp on attempt ${attempt}`);
-                return this.normalizeVideoInfo(info);
-                
-            } catch (error) {
-                lastError = error;
-                console.warn(`⚠️ yt-dlp info attempt ${attempt} failed: ${error.message}`);
-                
-                // If it's a timeout or network error, try with different proxy
-                if ((error.code === 'ENOTFOUND' || error.message.includes('timeout') || 
-                     error.message.includes('network')) && attempt < maxRetries) {
-                    console.log(`🔄 Network error, trying different proxy...`);
-                    continue;
-                }
+            });
+
+            // Check content length
+            const contentLength = parseInt(response.headers['content-length'] || '0');
+            if (contentLength > this.videoSizeLimit) {
+                throw new Error('File too large for WhatsApp');
             }
+
+            // Write to temp file
+            await new Promise((resolve, reject) => {
+                const writeStream = fs.createWriteStream(tempFile);
+                response.data.pipe(writeStream);
+                
+                response.data.on('error', reject);
+                writeStream.on('error', reject);
+                writeStream.on('finish', resolve);
+            });
+
+            // Verify file size after download
+            const stats = await fs.stat(tempFile);
+            return {
+                path: tempFile,
+                size: stats.size
+            };
+
+        } catch (error) {
+            // Clean up on error
+            await fs.unlink(tempFile).catch(() => {});
+            throw error;
         }
-        
-        throw new Error(`Failed to get YouTube info after ${maxRetries} attempts: ${lastError?.message}`);
     }
 
     /**
-     * Normalize yt-dlp JSON output to match ytdl-core format
+     * Format file size for display
      */
-    normalizeVideoInfo(ytdlpInfo) {
-        return {
-            videoDetails: {
-                videoId: ytdlpInfo.id,
-                title: ytdlpInfo.title || 'Unknown Title',
-                lengthSeconds: ytdlpInfo.duration || 0,
-                viewCount: ytdlpInfo.view_count || 0,
-                author: {
-                    name: ytdlpInfo.uploader || 'Unknown'
-                },
-                uploadDate: ytdlpInfo.upload_date || '',
-                description: ytdlpInfo.description || ''
-            },
-            formats: ytdlpInfo.formats || [],
-            _ytdlp_raw: ytdlpInfo // Keep original for debugging
-        };
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const unitIndex = Math.floor(Math.log(bytes) / Math.log(1024));
+        const size = bytes / Math.pow(1024, unitIndex);
+        
+        return `${size.toFixed(1)} ${units[unitIndex]}`;
     }
 
     /**
@@ -284,7 +199,7 @@ class YouTubePlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ YouTube plugin loaded with yt-dlp (2025 reliable method) and proxy support');
+        console.log('✅ YouTube plugin loaded with MATDEV API (2025 reliable method) and proxy support');
         return this;
     }
 
@@ -321,7 +236,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Download YouTube video using yt-dlp (2025 reliable method)
+     * Download YouTube video using MATDEV API
      */
     async downloadVideo(messageInfo) {
         try {
@@ -338,11 +253,11 @@ class YouTubePlugin {
             }
 
             // Handle quality selection from URL parameters
-            let quality = '720p'; // Default quality
+            let quality = 'medium'; // Default quality for API
             if (url.includes('quality:')) {
                 const [realUrl, customQuality] = url.split(' quality:');
                 url = realUrl.trim();
-                quality = customQuality.trim();
+                quality = customQuality.trim().toLowerCase();
             }
             
             // Validate YouTube URL
@@ -358,7 +273,7 @@ class YouTubePlugin {
                 '⏳ Processing YouTube video download...');
 
             try {
-                await this.downloadVideoWithYtDlp(url, quality, messageInfo, processingMsg);
+                await this.downloadVideoWithAPI(url, quality, messageInfo, processingMsg);
             } catch (error) {
                 console.error('YouTube video download failed:', error);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -375,73 +290,44 @@ class YouTubePlugin {
     }
 
     /**
-     * SECURITY FIXED: Download video using yt-dlp with spawn instead of execAsync
+     * Download video using MATDEV API
      */
-    async downloadVideoWithYtDlp(url, quality, messageInfo, processingMsg) {
-        const proxy = this.getNextProxy();
-        const userAgent = this.getRandomUserAgent();
-        
-        // Create temp directory
-        const tempDir = path.join(__dirname, '..', 'tmp');
-        await fs.ensureDir(tempDir);
-        
-        // Map quality to yt-dlp format selector with size limits
-        const qualityMap = {
-            '1080p': 'best[height<=1080][filesize<14M]',
-            '720p': 'best[height<=720][filesize<14M]', 
-            '480p': 'best[height<=480][filesize<14M]',
-            '360p': 'best[height<=360][filesize<14M]',
-            '240p': 'best[height<=240][filesize<14M]',
-            '144p': 'worst[filesize<14M]'
-        };
-        
-        const formatSelector = qualityMap[quality] || 'best[height<=720][filesize<14M]';
-        const uniqueFilename = this.generateUniqueFilename('yt', 'mp4');
-        const outputTemplate = path.join(tempDir, uniqueFilename);
-        
-        // Build secure argument array
-        const args = [
-            '--no-playlist',
-            '--sleep-interval', '3',
-            '--max-sleep-interval', '6', 
-            '-f', `${formatSelector}/best[filesize<14M]/best`,
-            '-o', outputTemplate,
-            '--merge-output-format', 'mp4'
-        ];
-        
-        // Add proxy if available and validated
-        if (proxy) {
-            const validProxy = this.validateProxy(proxy.url);
-            if (validProxy) {
-                args.push('--proxy', validProxy);
-            }
-        }
-        
-        // Add user agent rotation
-        args.push('--user-agent', userAgent);
-        
-        // Add validated URL
-        args.push(url);
-        
+    async downloadVideoWithAPI(url, quality, messageInfo, processingMsg) {
         try {
-            console.log(`🔄 Downloading video via yt-dlp${proxy ? ` via proxy` : ''}`);
-            
-            // Execute yt-dlp download safely
-            const { stdout, stderr } = await this.executeYtDlpSafely(args, { 
-                timeout: 120000, // 2 minutes timeout
-                cwd: tempDir
+            // Update processing message
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                text: '🔄 Fetching video from API...',
+                edit: processingMsg.key
             });
+
+            // Call API to get download data
+            const apiData = await this.callDownloadAPI(url, quality);
             
-            // Check if file exists
-            if (!await fs.pathExists(outputTemplate)) {
-                throw new Error('Downloaded video file not found');
+            if (!apiData.media || apiData.media.length === 0) {
+                throw new Error('No video found or video is unavailable');
             }
+
+            const videoMedia = apiData.media.find(m => m.type === 'video') || apiData.media[0];
             
-            const stats = await fs.stat(outputTemplate);
+            if (!videoMedia || !videoMedia.url) {
+                throw new Error('No video download URL found');
+            }
+
+            // Update processing message
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                text: '📥 Downloading video file...',
+                edit: processingMsg.key
+            });
+
+            // Generate unique filename
+            const uniqueFilename = this.generateUniqueFilename('yt_video', 'mp4');
+            
+            // Download the video file
+            const downloadedFile = await this.downloadMediaFile(videoMedia.url, uniqueFilename);
             
             // Check file size (14MB limit)
-            if (stats.size > 14 * 1024 * 1024) {
-                await fs.remove(outputTemplate);
+            if (downloadedFile.size > this.videoSizeLimit) {
+                await fs.unlink(downloadedFile.path).catch(() => {});
                 throw new Error('Video too large (14MB max). Try a lower quality.');
             }
             
@@ -453,28 +339,28 @@ class YouTubePlugin {
             
             // Send video file
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                video: { url: outputTemplate },
-                caption: `✅ YouTube Video Downloaded\n📱 Quality: ${quality}\n📄 Size: ${(stats.size / 1024 / 1024).toFixed(1)}MB`,
+                video: { url: downloadedFile.path },
+                caption: `✅ YouTube Video Downloaded\n🎬 ${apiData.title || 'Video'}\n👤 ${apiData.author || 'Unknown'}\n📄 Size: ${this.formatFileSize(downloadedFile.size)}`,
                 fileName: uniqueFilename
             });
             
             // Clean up
-            await fs.remove(outputTemplate);
+            await fs.unlink(downloadedFile.path).catch(() => {});
             
             // Update final message
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                text: '✅ Video sent successfully!',
+                text: '✅ ytv completed',
                 edit: processingMsg.key
             });
             
         } catch (error) {
-            console.error('yt-dlp download error:', error);
-            throw new Error(`Download failed: ${error.message.includes('youtube') ? 'Video unavailable or blocked' : error.message}`);
+            console.error('API video download error:', error);
+            throw new Error(`${error.message}`);
         }
     }
 
     /**
-     * SECURITY FIXED: Download YouTube audio using yt-dlp with spawn
+     * Download YouTube audio using MATDEV API
      */
     async downloadAudio(messageInfo) {
         try {
@@ -498,12 +384,15 @@ class YouTubePlugin {
             // Check if it's a URL or search term
             const validatedUrl = this.validateYouTubeUrl(input);
             if (!validatedUrl) {
-                // Search for the video
+                // Search for the video using our API
                 try {
-                    const searchResults = await ytsr(input, { limit: 5 });
-                    // Filter to videos only
-                    const videoResults = searchResults.items.filter(item => item.type === 'video');
-                    if (!videoResults.length) {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        text: '🔍 Searching for video...',
+                        edit: processingMsg.key
+                    });
+
+                    const searchResults = await this.callSearchAPI(input, 1);
+                    if (!searchResults || searchResults.length === 0) {
                         await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                             text: '❌ No videos found for your search',
                             edit: processingMsg.key
@@ -511,7 +400,7 @@ class YouTubePlugin {
                         return;
                     }
 
-                    const firstResult = videoResults[0];
+                    const firstResult = searchResults[0];
                     url = firstResult.url;
                 } catch (searchError) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -525,62 +414,41 @@ class YouTubePlugin {
             }
 
             try {
-                // Download audio using yt-dlp directly
-                const proxy = this.getNextProxy();
-                const userAgent = this.getRandomUserAgent();
-                
-                // Create temp directory
-                const tempDir = path.join(__dirname, '..', 'tmp');
-                await fs.ensureDir(tempDir);
-                
-                // Generate unique filename
-                const uniqueFilename = this.generateUniqueFilename('yt_audio', 'm4a');
-                const outputTemplate = path.join(tempDir, uniqueFilename);
-                
-                // Build secure argument array for audio download
-                const args = [
-                    '--no-playlist',
-                    '--extract-audio',
-                    '--audio-format', 'm4a',
-                    '--audio-quality', '128K',
-                    '--sleep-interval', '2',
-                    '--max-sleep-interval', '4',
-                    '-o', outputTemplate,
-                    '--max-filesize', '12M'
-                ];
-                
-                // Add proxy if available and validated
-                if (proxy) {
-                    const validProxy = this.validateProxy(proxy.url);
-                    if (validProxy) {
-                        args.push('--proxy', validProxy);
-                    }
-                }
-                
-                // Add user agent rotation
-                args.push('--user-agent', userAgent);
-                
-                // Add validated URL
-                args.push(url);
-                
-                console.log(`🔄 Downloading audio via yt-dlp${proxy ? ` via proxy` : ''}`);
-                
-                // Execute yt-dlp audio download safely
-                const { stdout, stderr } = await this.executeYtDlpSafely(args, { 
-                    timeout: 90000, // 1.5 minutes timeout
-                    cwd: tempDir
+                // Update processing message
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '🔄 Fetching audio from API...',
+                    edit: processingMsg.key
                 });
+
+                // Call API to get download data with low quality for audio
+                const apiData = await this.callDownloadAPI(url, 'low');
                 
-                // Check if file exists
-                if (!await fs.pathExists(outputTemplate)) {
-                    throw new Error('Downloaded audio file not found');
+                if (!apiData.media || apiData.media.length === 0) {
+                    throw new Error('No audio found or video is unavailable');
                 }
+
+                // Look for video media (we'll extract audio from it)
+                const videoMedia = apiData.media.find(m => m.type === 'video') || apiData.media[0];
                 
-                const stats = await fs.stat(outputTemplate);
+                if (!videoMedia || !videoMedia.url) {
+                    throw new Error('No download URL found');
+                }
+
+                // Update processing message
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: '📥 Downloading audio file...',
+                    edit: processingMsg.key
+                });
+
+                // Generate unique filename
+                const uniqueFilename = this.generateUniqueFilename('yt_audio', 'mp4');
                 
-                // Check file size (12MB limit)
-                if (stats.size > 12 * 1024 * 1024) {
-                    await fs.remove(outputTemplate);
+                // Download the video file (we'll send it as audio)
+                const downloadedFile = await this.downloadMediaFile(videoMedia.url, uniqueFilename);
+                
+                // Check file size (12MB limit for audio)
+                if (downloadedFile.size > this.audioSizeLimit) {
+                    await fs.unlink(downloadedFile.path).catch(() => {});
                     throw new Error('Audio too large (12MB max). Try a shorter video.');
                 }
                 
@@ -590,15 +458,15 @@ class YouTubePlugin {
                     edit: processingMsg.key
                 });
                 
-                // Send audio file
+                // Send as audio file
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: { url: outputTemplate },
+                    audio: { url: downloadedFile.path },
                     mimetype: 'audio/mp4',
-                    fileName: uniqueFilename
+                    fileName: uniqueFilename.replace('.mp4', '.m4a')
                 });
                 
                 // Clean up
-                await fs.remove(outputTemplate);
+                await fs.unlink(downloadedFile.path).catch(() => {});
                 
                 // Update final message
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -624,7 +492,7 @@ class YouTubePlugin {
     }
 
     /**
-     * Search YouTube videos
+     * Search YouTube videos using MATDEV API
      */
     async searchYouTube(messageInfo) {
         try {
@@ -639,12 +507,9 @@ class YouTubePlugin {
             const processingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching...');
 
             try {
-                const searchResults = await ytsr(query, { limit: 15 });
+                const searchResults = await this.callSearchAPI(query, 5);
                 
-                // Filter to videos only, exclude channels, playlists, etc.
-                const videoResults = searchResults.items.filter(item => item.type === 'video' && item.url);
-                
-                if (!videoResults.length) {
+                if (!searchResults || searchResults.length === 0) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: '❌ No videos found for your search',
                         edit: processingMsg.key
@@ -654,12 +519,12 @@ class YouTubePlugin {
 
                 let resultText = `🔍 *Search Results for "${query}":*\n\n`;
                 
-                videoResults.slice(0, 5).forEach((item, index) => {
-                    const duration = item.duration || 'Live';
-                    const views = item.views ? `${item.views} views` : 'No view count';
+                searchResults.forEach((item, index) => {
+                    const duration = item.duration || 'Unknown';
+                    const views = item.views || 'No view count';
                     
                     resultText += `*${index + 1}.* ${item.title}\n`;
-                    resultText += `👤 ${item.author?.name || 'Unknown'}\n`;
+                    resultText += `👤 ${item.author || 'Unknown'}\n`;
                     resultText += `⏱️ ${duration} | 👁️ ${views}\n`;
                     resultText += `🔗 ${item.url}\n\n`;
                 });
