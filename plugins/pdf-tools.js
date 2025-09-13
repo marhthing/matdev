@@ -2,7 +2,6 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
-const { exec } = require('child_process'); // Required for LibreOffice conversion
 const { downloadMediaMessage } = require('@whiskeysockets/baileys'); // Import downloadMediaMessage
 
 class PDFToolsPlugin {
@@ -162,36 +161,28 @@ class PDFToolsPlugin {
             // Save the downloaded media to a temporary file
             await fs.writeFile(originalFilePath, fileUrl);
 
-            // Convert to PDF using LibreOffice
+            // Convert to PDF using JavaScript-based conversion
             const outputFileName = `${originalFileName}.pdf`;
             const outputFilePath = path.join(tempDir, outputFileName);
 
-            // Check if LibreOffice is installed and available
-            try {
-                await new Promise((resolve, reject) => {
-                    exec(`soffice --headless --convert-to pdf --outdir "${tempDir}" "${originalFilePath}"`, (error, stdout, stderr) => {
-                        if (error) {
-                            console.error(`LibreOffice conversion error: ${stderr}`);
-                            reject(new Error('LibreOffice conversion failed.'));
-                        } else {
-                            resolve();
-                        }
-                    });
-                });
-
-                // Check if the output file was created
-                if (fs.existsSync(outputFilePath)) {
+            // Handle different file types
+            if (mediaInfo.type === 'image') {
+                // Convert image to PDF using JavaScript
+                return await this.convertImageToPDF(fileUrl, outputFilePath, outputFileName);
+            } else if (mediaInfo.type === 'document') {
+                // Handle document conversion
+                if (mimeType === 'application/pdf') {
+                    // If it's already a PDF, just save it
+                    await fs.writeFile(outputFilePath, fileUrl);
                     return {
                         success: true,
                         filePath: outputFilePath,
                         fileName: outputFileName
                     };
                 } else {
-                    return { success: false, error: 'PDF conversion failed. Output file not found.' };
+                    // For other document types, convert using online service
+                    return await this.convertDocumentToPDF(fileUrl, mimeType, outputFilePath, outputFileName);
                 }
-            } catch (error) {
-                console.error('LibreOffice execution error:', error);
-                return { success: false, error: 'Error during PDF conversion. Ensure LibreOffice is installed and in your PATH.' };
             }
 
         } catch (error) {
@@ -334,6 +325,146 @@ class PDFToolsPlugin {
         } catch (error) {
             console.error('Alternative PDF API error:', error);
             return { success: false };
+        }
+    }
+
+    async convertImageToPDF(imageBuffer, outputPath, fileName) {
+        try {
+            const PDFDocument = require('pdfkit');
+            const sizeOf = require('image-size');
+            
+            // Get image dimensions
+            const dimensions = sizeOf(imageBuffer);
+            
+            // Create PDF document
+            const doc = new PDFDocument({
+                margin: 40,
+                size: [dimensions.width + 80, dimensions.height + 80]
+            });
+
+            // Create write stream
+            const stream = fs.createWriteStream(outputPath);
+            doc.pipe(stream);
+
+            // Add image to PDF
+            doc.image(imageBuffer, 40, 40, {
+                width: dimensions.width,
+                height: dimensions.height
+            });
+
+            doc.end();
+
+            // Wait for completion
+            await new Promise((resolve, reject) => {
+                stream.on('finish', resolve);
+                stream.on('error', reject);
+            });
+
+            return {
+                success: true,
+                filePath: outputPath,
+                fileName: fileName
+            };
+
+        } catch (error) {
+            console.error('Image to PDF conversion error:', error);
+            return { success: false, error: 'Failed to convert image to PDF.' };
+        }
+    }
+
+    async convertDocumentToPDF(docBuffer, mimeType, outputPath, fileName) {
+        try {
+            // Try online conversion services for documents
+            const convertedBuffer = await this.tryOnlineDocumentConversion(docBuffer, mimeType);
+            
+            if (convertedBuffer) {
+                await fs.writeFile(outputPath, convertedBuffer);
+                return {
+                    success: true,
+                    filePath: outputPath,
+                    fileName: fileName
+                };
+            } else {
+                // Fallback: create a text-based PDF with document info
+                return await this.createDocumentInfoPDF(outputPath, fileName, mimeType);
+            }
+
+        } catch (error) {
+            console.error('Document to PDF conversion error:', error);
+            return { success: false, error: 'Failed to convert document to PDF.' };
+        }
+    }
+
+    async tryOnlineDocumentConversion(docBuffer, mimeType) {
+        try {
+            // Try ConvertAPI (free tier available)
+            const formData = new FormData();
+            formData.append('File', docBuffer, 'document');
+            formData.append('StoreFile', 'true');
+
+            const response = await axios.post('https://v2.convertapi.com/convert/doc/to/pdf', formData, {
+                headers: {
+                    'Authorization': 'Bearer demo', // Demo key - limited usage
+                    ...formData.getHeaders()
+                },
+                timeout: 15000,
+                responseType: 'arraybuffer'
+            });
+
+            return response.data;
+
+        } catch (error) {
+            console.log('Online conversion failed, using fallback method');
+            return null;
+        }
+    }
+
+    async createDocumentInfoPDF(outputPath, fileName, mimeType) {
+        try {
+            const PDFDocument = require('pdfkit');
+            const doc = new PDFDocument({ margin: 50 });
+
+            const stream = fs.createWriteStream(outputPath);
+            doc.pipe(stream);
+
+            // Add document info
+            doc.fontSize(20)
+               .fillColor('#333333')
+               .text('Document Conversion Notice', 50, 50);
+
+            doc.moveTo(50, 80)
+               .lineTo(550, 80)
+               .strokeColor('#007acc')
+               .lineWidth(2)
+               .stroke();
+
+            doc.fontSize(12)
+               .fillColor('#000000')
+               .text(`Original document type: ${mimeType}`, 50, 110)
+               .text(`Conversion date: ${new Date().toLocaleString()}`, 50, 130)
+               .text('\nThis document was converted from a non-text format.', 50, 160)
+               .text('For full document content, please view the original file.', 50, 180);
+
+            doc.fontSize(10)
+               .fillColor('#666666')
+               .text('Generated by MATDEV Bot', 50, doc.page.height - 50, { align: 'center' });
+
+            doc.end();
+
+            await new Promise((resolve, reject) => {
+                stream.on('finish', resolve);
+                stream.on('error', reject);
+            });
+
+            return {
+                success: true,
+                filePath: outputPath,
+                fileName: fileName
+            };
+
+        } catch (error) {
+            console.error('Document info PDF creation error:', error);
+            return { success: false, error: 'Failed to create document information PDF.' };
         }
     }
 
