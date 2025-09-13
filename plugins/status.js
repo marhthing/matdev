@@ -122,7 +122,7 @@ class StatusPlugin {
     saveStatusSettings() {
         try {
             fs.writeJsonSync(this.statusSettingsFile, this.statusSettings, { spaces: 2 });
-            console.log('💾 Status settings saved');
+            // console.log('💾 Status settings saved');
             
             // Update environment variable to keep it in sync
             this.updateEnvVar('AUTO_STATUS_VIEW', this.statusSettings.enabled.toString());
@@ -454,7 +454,7 @@ class StatusPlugin {
         try {
             // Update the config object immediately
             config[key] = value === 'true';
-            console.log(`🔧 Updated ${key} = ${value}`);
+            // console.log(`🔧 Updated ${key} = ${value}`);
             
             // If system plugin is available, use it to update .env file
             if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
