@@ -14,7 +14,7 @@ class URLShortenerPlugin {
         try {
             this.bot.messageHandler.registerCommand('shorten', this.shortenCommand.bind(this), {
                 description: 'Shorten a long URL',
-                usage: `${config.PREFIX}shorten <url>`,
+                usage: `${config.PREFIX}shorten <url> OR reply to message with URL`,
                 category: 'utility',
                 plugin: 'url-shortener',
                 source: 'url-shortener.js'
@@ -22,7 +22,7 @@ class URLShortenerPlugin {
 
             this.bot.messageHandler.registerCommand('expand', this.expandCommand.bind(this), {
                 description: 'Expand a shortened URL',
-                usage: `${config.PREFIX}expand <short_url>`,
+                usage: `${config.PREFIX}expand <short_url> OR reply to message with URL`,
                 category: 'utility',
                 plugin: 'url-shortener',
                 source: 'url-shortener.js'
@@ -38,12 +38,21 @@ class URLShortenerPlugin {
 
     async shortenCommand(messageInfo) {
         try {
-            const url = messageInfo.args.join(' ').trim();
+            let url = messageInfo.args.join(' ').trim();
+            
+            // If no URL provided, try to extract from quoted message
             if (!url) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '🔗 Usage: .shorten <url>\n\n' +
-                    'Example:\n• .shorten https://www.example.com/very/long/url/path');
-                return;
+                url = await this.extractURLFromQuotedMessage(messageInfo);
+                if (!url) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '🔗 **URL Shortener**\n\n' +
+                        '**Usage:**\n' +
+                        `• ${config.PREFIX}shorten <url>\n` +
+                        `• Reply to message with URL and type ${config.PREFIX}shorten\n\n` +
+                        '**Example:**\n' +
+                        `• ${config.PREFIX}shorten https://www.example.com/very/long/url/path`);
+                    return;
+                }
             }
 
             // Validate URL format
@@ -54,8 +63,7 @@ class URLShortenerPlugin {
 
             const shortUrl = await this.shortenWithTinyURL(url);
             if (shortUrl) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `🔗 **URL Shortened**\n${shortUrl}`);
+                await this.bot.messageHandler.reply(messageInfo, shortUrl);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to shorten URL. Please try again later.');
             }
@@ -68,12 +76,21 @@ class URLShortenerPlugin {
 
     async expandCommand(messageInfo) {
         try {
-            const shortUrl = messageInfo.args.join(' ').trim();
+            let shortUrl = messageInfo.args.join(' ').trim();
+            
+            // If no URL provided, try to extract from quoted message
             if (!shortUrl) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '🔍 Usage: .expand <short_url>\n\n' +
-                    'Example:\n• .expand https://tinyurl.com/abc123');
-                return;
+                shortUrl = await this.extractURLFromQuotedMessage(messageInfo);
+                if (!shortUrl) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '🔍 **URL Expander**\n\n' +
+                        '**Usage:**\n' +
+                        `• ${config.PREFIX}expand <short_url>\n` +
+                        `• Reply to message with URL and type ${config.PREFIX}expand\n\n` +
+                        '**Example:**\n' +
+                        `• ${config.PREFIX}expand https://tinyurl.com/abc123`);
+                    return;
+                }
             }
 
             if (!this.isValidURL(shortUrl)) {
@@ -82,11 +99,8 @@ class URLShortenerPlugin {
             }
 
             const expandedUrl = await this.expandURL(shortUrl);
-            if (expandedUrl) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `🔍 **URL Expanded**\n\n` +
-                    `**Short URL:** ${shortUrl}\n` +
-                    `**Full URL:** ${expandedUrl.length > 100 ? expandedUrl.substring(0, 100) + '...' : expandedUrl}`);
+            if (expandedUrl && expandedUrl !== shortUrl) {
+                await this.bot.messageHandler.reply(messageInfo, expandedUrl);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to expand URL or URL is already full length.');
             }
@@ -127,6 +141,54 @@ class URLShortenerPlugin {
                 return error.response.headers.location;
             }
             console.error('URL expansion error:', error.message);
+            return null;
+        }
+    }
+
+    async extractURLFromQuotedMessage(messageInfo) {
+        try {
+            // Check for quoted message
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            if (!quotedMessage) {
+                return null;
+            }
+
+            // Extract text from various message types
+            let text = '';
+            if (quotedMessage.conversation) {
+                text = quotedMessage.conversation;
+            } else if (quotedMessage.extendedTextMessage?.text) {
+                text = quotedMessage.extendedTextMessage.text;
+            } else if (quotedMessage.imageMessage?.caption) {
+                text = quotedMessage.imageMessage.caption;
+            } else if (quotedMessage.videoMessage?.caption) {
+                text = quotedMessage.videoMessage.caption;
+            } else if (quotedMessage.documentMessage?.caption) {
+                text = quotedMessage.documentMessage.caption;
+            }
+
+            if (!text) {
+                return null;
+            }
+
+            // Extract URLs using regex
+            const urlRegex = /(https?:\/\/[^\s]+)/gi;
+            const urls = text.match(urlRegex);
+
+            if (urls && urls.length > 0) {
+                // Return the first valid URL found
+                for (const url of urls) {
+                    if (this.isValidURL(url)) {
+                        return url.trim();
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error extracting URL from quoted message:', error);
             return null;
         }
     }
