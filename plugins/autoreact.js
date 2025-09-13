@@ -18,14 +18,6 @@ class AutoReactPlugin {
         this.isEnabled = false;
         this.reactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
         
-        // Status auto react settings
-        this.statusReactEnabled = false;
-        this.statusReactionDelay = { min: 30000, max: 180000 }; // 30s to 3min delay
-        this.statusReactDelayMode = 'nodelay'; // 'delay' or 'nodelay'
-        
-        // Keep track of reacted statuses to avoid duplicates
-        this.reactedStatuses = new Set();
-        
         // Simple 5-reaction system with smart analysis
         this.basicReactions = {
             love: '❤️',      // Love, appreciation, positive emotions
@@ -34,12 +26,6 @@ class AutoReactPlugin {
             laugh: '😂',     // Humor, funny content, jokes
             neutral: '👍'    // General approval, neutral positive
         };
-        
-        // Fixed status reactions (non-configurable) - properly split emojis
-        this.statusReactions = ['❤️', '💙', '💚'];
-        
-        // Cleanup interval for reacted statuses
-        this.cleanupInterval = null;
     }
 
     /**
@@ -49,8 +35,6 @@ class AutoReactPlugin {
         this.bot = bot;
         this.registerCommands();
         this.setupMessageListener();
-        // Status reactions now handled as extension of status.js auto-view
-        this.startCleanupTimer();
 
         // Force reload environment variables
         require('dotenv').config();
@@ -68,21 +52,8 @@ class AutoReactPlugin {
             // console.log('🔥 Auto react enabled from environment');
         }
         
-        if (config.STATUS_AUTO_REACT || process.env.STATUS_AUTO_REACT === 'true') {
-            this.statusReactEnabled = true;
-            // console.log('🔥 Auto status react enabled from environment');
-        }
-        
-        // Debug status reaction configuration
-        // console.log('📊 Status Reaction Config:', {
-        //     enabled: this.statusReactEnabled,
-        //     reactions: this.statusReactions,
-        //     delayMode: this.statusReactDelayMode
-        // });
-        
         // Initialize delay settings from config
         this.reactDelayMode = config.REACT_DELAY;
-        this.statusReactDelayMode = config.STATUS_REACT_DELAY;
 
         console.log('✅ Auto React plugin loaded');
         return this;
@@ -102,15 +73,6 @@ class AutoReactPlugin {
             ownerOnly: true
         });
 
-        // Status auto react toggle
-        this.bot.messageHandler.registerCommand('sautoreact', this.toggleStatusReactCommand.bind(this), {
-            description: 'Toggle automatic status reactions on/off or show status',
-            usage: `${config.PREFIX}sautoreact [on/off]`,
-            category: 'automation',
-            plugin: 'autoreact',
-            source: 'autoreact.js',
-            ownerOnly: true
-        });
     }
 
     /**
@@ -129,88 +91,8 @@ class AutoReactPlugin {
         }
     }
 
-    /**
-     * React to a status that has been viewed by status.js plugin
-     * This method is called from status.js after a status is auto-viewed
-     */
-    async reactToViewedStatus(message) {
-        try {
-            // Check if status auto-react is enabled
-            const isEnabled = this.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true';
-            if (!isEnabled) {
-                return;
-            }
-            
-            // Skip our own status
-            if (message.key.fromMe) {
-                return;
-            }
-            
-            // Create unique identifier for this status
-            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
-            
-            // Skip if we already reacted to this status
-            if (this.reactedStatuses.has(statusId)) {
-                return;
-            }
-            
-            // Mark as processed IMMEDIATELY to prevent duplicates
-            this.reactedStatuses.add(statusId);
-            
-            // Get random status reaction
-            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
-            if (!reaction) {
-                return;
-            }
-            
-            // Calculate delay based on delay mode
-            const delay = this.statusReactDelayMode === 'delay' ? 
-                         (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
-            
-            // Schedule the reaction
-            setTimeout(async () => {
-                try {
-                    await this.sendStatusReaction(message, reaction);
-                    // Status reacted successfully as extension of auto-view
-                } catch (error) {
-                    console.error('❌ Status reaction failed:', error.message);
-                    // Remove from cache since reaction failed
-                    this.reactedStatuses.delete(statusId);
-                }
-            }, delay);
-            
-        } catch (error) {
-            console.error('❌ Error in reactToViewedStatus:', error);
-        }
-    }
 
-    /**
-     * Check if message is a status message using multiple methods
-     */
-    isStatusMessage(message) {
-        if (!message || !message.key) return false;
-        
-        const jid = message.key.remoteJid;
-        
-        // Multiple checks for status messages
-        return (
-            jid === 'status@broadcast' ||           // Traditional method
-            jid?.endsWith('@broadcast') ||          // Updated method
-            jid?.includes('status') ||              // Alternative check
-            message.key.id?.startsWith('status_')   // ID-based check
-        );
-    }
 
-    /**
-     * Start cleanup timer for old reacted statuses
-     */
-    startCleanupTimer() {
-        // Clean up every 6 hours
-        this.cleanupInterval = setInterval(() => {
-            console.log(`🧹 Cleaning up reacted status cache (${this.reactedStatuses.size} entries)`);
-            this.reactedStatuses.clear();
-        }, 6 * 60 * 60 * 1000);
-    }
 
     /**
      * Update .env file with new setting
@@ -300,155 +182,8 @@ class AutoReactPlugin {
         }
     }
 
-    /**
-     * Process status message for potential reaction
-     */
-    async processStatusForReaction(message) {
-        try {
-            // Skip if auto status react is disabled - double check both ways
-            const isEnabled = this.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true';
-            if (!isEnabled) {
-                // console.log('⏭️ Status auto-react disabled, skipping...', {
-                //     statusReactEnabled: this.statusReactEnabled,
-                //     envVar: process.env.STATUS_AUTO_REACT
-                // });
-                return;
-            }
-            
-            // Skip our own status
-            if (message.key.fromMe) {
-                console.log('⏭️ Skipping own status message');
-                return;
-            }
-            
-            // Create unique identifier for this status
-            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
-            
-            // Skip if we already reacted to this status
-            if (this.reactedStatuses.has(statusId)) {
-                console.log('⏭️ Already reacted to this status, skipping...');
-                return;
-            }
-            
-            // Mark as processed IMMEDIATELY to prevent duplicates
-            this.reactedStatuses.add(statusId);
-            
-            // console.log('📟 Processing status for reaction:', {
-            //     jid: message.key.remoteJid,
-            //     id: message.key.id,
-            //     participant: message.key.participant,
-            //     fromMe: message.key.fromMe
-            // });
-            
-            // Status reaction is working properly
-            
-            // Get random status reaction
-            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
-            if (!reaction) {
-                console.log('❌ No reaction emoji available');
-                return;
-            }
-            
-            // Already marked as processed above to prevent race conditions
-            
-            // Calculate delay based on delay mode
-            const delay = this.statusReactDelayMode === 'delay' ? 
-                         (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
-            
-            // console.log(`⏰ Scheduling status reaction with ${reaction} (delay: ${delay}ms)`);
-            
-            // Schedule the reaction
-            setTimeout(async () => {
-                try {
-                    // Try multiple reaction methods
-                    await this.sendStatusReaction(message, reaction);
-                    // console.log(`💝 Successfully reacted to status with ${reaction}`);
-                } catch (error) {
-                    console.error('❌ All status reaction methods failed:', error.message);
-                    // Remove from cache since all methods failed
-                    this.reactedStatuses.delete(statusId);
-                }
-            }, delay);
-            
-        } catch (error) {
-            console.error('❌ Error in processStatusForReaction:', error);
-        }
-    }
 
-    /**
-     * Send status reaction using the working method
-     */
-    async sendStatusReaction(message, reaction) {
-        // Use the proven working method: React using participant JID with status key structure
-        return await this.bot.sock.sendMessage(message.key.participant, {
-            react: {
-                text: reaction,
-                key: {
-                    remoteJid: 'status@broadcast',
-                    id: message.key.id,
-                    participant: message.key.participant,
-                    fromMe: false
-                }
-            }
-        });
-    }
 
-    /**
-     * Send status reaction using alternative method
-     */
-    async sendAlternativeStatusReaction(message, reaction) {
-        console.log('🔍 Trying alternative methods for status reaction...');
-        
-        // Method 1: React to participant directly
-        if (message.key.participant) {
-            console.log('📱 Method 1: Reacting to participant JID');
-            try {
-                return await this.bot.sock.sendMessage(message.key.participant, {
-                    react: {
-                        text: reaction,
-                        key: {
-                            remoteJid: message.key.participant,
-                            id: message.key.id,
-                            fromMe: false
-                        }
-                    }
-                });
-            } catch (error) {
-                console.log('❌ Method 1 failed:', error.message);
-            }
-        }
-        
-        // Method 2: Use status@broadcast with participant info
-        console.log('📱 Method 2: Modified key structure');
-        try {
-            return await this.bot.sock.sendMessage('status@broadcast', {
-                react: {
-                    text: reaction,
-                    key: {
-                        remoteJid: 'status@broadcast',
-                        id: message.key.id,
-                        participant: message.key.participant,
-                        fromMe: false
-                    }
-                }
-            });
-        } catch (error) {
-            console.log('❌ Method 2 failed:', error.message);
-        }
-        
-        // Method 3: Direct status reaction attempt
-        console.log('📱 Method 3: Direct status reaction');
-        return await this.bot.sock.sendMessage(message.key.remoteJid, {
-            react: {
-                text: reaction,
-                key: {
-                    remoteJid: message.key.remoteJid,
-                    id: message.key.id,
-                    participant: message.key.participant
-                }
-            }
-        });
-    }
 
     /**
      * Extract text from message
@@ -650,50 +385,6 @@ class AutoReactPlugin {
         }
     }
 
-    /**
-     * Toggle status react command
-     */
-    async toggleStatusReactCommand(messageInfo) {
-        try {
-            const action = messageInfo.args[0]?.toLowerCase();
-            
-            if (action === 'on' || action === 'enable') {
-                this.statusReactEnabled = true;
-                this.updateEnvFile('STATUS_AUTO_REACT', 'true');
-                await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*`);
-            } else if (action === 'off' || action === 'disable') {
-                this.statusReactEnabled = false;
-                this.updateEnvFile('STATUS_AUTO_REACT', 'false');
-                await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*');
-            } else if (action === 'delay') {
-                this.statusReactDelayMode = 'delay';
-                this.updateEnvFile('STATUS_REACT_DELAY', 'delay');
-                await this.bot.messageHandler.reply(messageInfo, '⏰ *STATUS REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 30s-5min before reacting to status updates.');
-            } else if (action === 'nodelay') {
-                this.statusReactDelayMode = 'nodelay';
-                this.updateEnvFile('STATUS_REACT_DELAY', 'nodelay');
-                await this.bot.messageHandler.reply(messageInfo, '⚡ *STATUS REACTION DELAY DISABLED*\n\n💨 Bot will now react to status updates instantly.');
-            } else {
-                // Show status
-                const delayStatus = this.statusReactDelayMode === 'delay' ? 
-                    `⏰ Delayed (${this.statusReactionDelay.min/1000}s-${this.statusReactionDelay.max/60000}min)` : 
-                    '⚡ Instant';
-                
-                const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
-                    `*Status:* ${this.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
-                    `*Timing:* ${delayStatus}\n` +
-                    `*Reactions:* ${this.statusReactions.join('')}\n` +
-                    `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
-                    `*Commands:*\n` +
-                    `${config.PREFIX}sautoreact on/off/delay/nodelay`;
-                
-                await this.bot.messageHandler.reply(messageInfo, response);
-            }
-        } catch (error) {
-            console.error('Error in toggleStatusReactCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling status reactions: ' + error.message);
-        }
-    }
 }
 
 // Export function for plugin initialization
