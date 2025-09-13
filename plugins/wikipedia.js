@@ -53,13 +53,32 @@ class WikipediaPlugin {
                     return;
                 }
 
-                const summary = await this.getWikipediaSummary(title);
+                // First try to get summary directly
+                let summary = await this.getWikipediaSummary(title);
+                
+                // If direct lookup fails, try to search for the best match first
+                if (!summary.success) {
+                    const searchResults = await this.searchWikipedia(title);
+                    if (searchResults.success && searchResults.results.length > 0) {
+                        const bestMatch = searchResults.results[0].title;
+                        summary = await this.getWikipediaSummary(bestMatch);
+                        if (summary.success) {
+                            summary.searchUsed = true;
+                            summary.searchedTitle = title;
+                        }
+                    }
+                }
+                
                 if (summary.success) {
-                    await this.bot.messageHandler.reply(messageInfo,
-                        `📚 **Wikipedia Summary**\n\n` +
-                        `**Title:** ${summary.title}\n\n` +
-                        `${summary.extract}\n\n` +
-                        `🔗 **Full article:** ${summary.url}`);
+                    let message = `📚 **Wikipedia Summary**\n\n`;
+                    if (summary.searchUsed) {
+                        message += `🔍 *Found closest match for "${summary.searchedTitle}":*\n\n`;
+                    }
+                    message += `**Title:** ${summary.title}\n\n`;
+                    message += `${summary.extract}\n\n`;
+                    message += `🔗 **Full article:** ${summary.url}`;
+                    
+                    await this.bot.messageHandler.reply(messageInfo, message);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, `❌ ${summary.error}`);
                 }
