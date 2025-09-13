@@ -12,6 +12,7 @@ class ReminderSystemPlugin {
         this.remindersFile = path.join(__dirname, '..', 'session', 'storage', 'reminders.json');
         this.reminders = new Map();
         this.intervals = new Map();
+        this.nextId = 1; // Simple counter for IDs
     }
 
     async init(bot) {
@@ -272,8 +273,16 @@ class ReminderSystemPlugin {
             await fs.ensureDir(path.dirname(this.remindersFile));
             if (await fs.pathExists(this.remindersFile)) {
                 const data = await fs.readJson(this.remindersFile);
-                Object.entries(data).forEach(([id, reminder]) => {
+                
+                let maxId = 0;
+                Object.entries(data.reminders || {}).forEach(([id, reminder]) => {
                     this.reminders.set(id, reminder);
+                    
+                    // Track highest ID for next counter
+                    const idNum = parseInt(id);
+                    if (!isNaN(idNum) && idNum > maxId) {
+                        maxId = idNum;
+                    }
                     
                     // Set timeout if reminder is in future
                     const delay = reminder.datetime - Date.now();
@@ -284,6 +293,14 @@ class ReminderSystemPlugin {
                         this.intervals.set(id, timeout);
                     }
                 });
+                
+                // Set next ID to be one higher than the highest found
+                this.nextId = maxId + 1;
+                
+                // Load nextId from saved data if it exists
+                if (data.nextId && data.nextId > this.nextId) {
+                    this.nextId = data.nextId;
+                }
             }
         } catch (error) {
             console.error('Error loading reminders:', error);
@@ -293,7 +310,10 @@ class ReminderSystemPlugin {
     async saveReminders() {
         try {
             await fs.ensureDir(path.dirname(this.remindersFile));
-            const data = Object.fromEntries(this.reminders);
+            const data = {
+                nextId: this.nextId,
+                reminders: Object.fromEntries(this.reminders)
+            };
             await fs.writeJson(this.remindersFile, data, { spaces: 2 });
         } catch (error) {
             console.error('Error saving reminders:', error);
@@ -301,7 +321,9 @@ class ReminderSystemPlugin {
     }
 
     generateId() {
-        return Math.random().toString(36).substr(2, 6).toUpperCase();
+        const id = this.nextId.toString();
+        this.nextId++;
+        return id;
     }
 
     formatDateTime(timestamp) {
