@@ -44,24 +44,40 @@ class StatusPlugin {
             const storageDir = path.dirname(this.statusSettingsFile);
             fs.ensureDirSync(storageDir);
 
+            let settings = {};
+            
             if (fs.existsSync(this.statusSettingsFile)) {
-                const settings = fs.readJsonSync(this.statusSettingsFile);
-                return {
-                    enabled: settings.enabled || false,
-                    autoDownload: settings.autoDownload !== false, // default true
-                    viewMode: settings.viewMode || 'all', // 'all', 'except', 'only'
-                    filterJids: settings.filterJids || [],
-                    forwardDestination: settings.forwardDestination || `${config.OWNER_NUMBER}@s.whatsapp.net`,
-                    ...settings
-                };
+                settings = fs.readJsonSync(this.statusSettingsFile);
             }
+
+            // Environment variable takes precedence over JSON settings
+            const envStatusEnabled = config.AUTO_STATUS_VIEW;
+            
+            const finalSettings = {
+                enabled: envStatusEnabled !== undefined ? envStatusEnabled : (settings.enabled || false),
+                autoDownload: settings.autoDownload !== false, // default true
+                viewMode: settings.viewMode || 'all', // 'all', 'except', 'only'
+                filterJids: settings.filterJids || [],
+                forwardDestination: settings.forwardDestination || `${config.OWNER_NUMBER}@s.whatsapp.net`,
+                ...settings
+            };
+
+            // If environment variable is different from JSON, update JSON to match
+            if (envStatusEnabled !== undefined && settings.enabled !== envStatusEnabled) {
+                finalSettings.enabled = envStatusEnabled;
+                console.log(`🔄 Syncing status settings with AUTO_STATUS_VIEW: ${envStatusEnabled}`);
+                // Save the updated settings to keep them in sync
+                fs.writeJsonSync(this.statusSettingsFile, finalSettings, { spaces: 2 });
+            }
+
+            return finalSettings;
         } catch (error) {
             console.error('Error loading status settings:', error);
         }
 
-        // Default settings
+        // Default settings - check environment variable first
         return {
-            enabled: false,
+            enabled: config.AUTO_STATUS_VIEW || false,
             autoDownload: true,
             viewMode: 'all',
             filterJids: [],
@@ -76,6 +92,9 @@ class StatusPlugin {
         try {
             fs.writeJsonSync(this.statusSettingsFile, this.statusSettings, { spaces: 2 });
             console.log('💾 Status settings saved');
+            
+            // Update environment variable to keep it in sync
+            this.updateEnvVar('AUTO_STATUS_VIEW', this.statusSettings.enabled.toString());
         } catch (error) {
             console.error('Error saving status settings:', error);
         }
@@ -394,10 +413,14 @@ class StatusPlugin {
      */
     updateEnvVar(key, value) {
         try {
-            // This would be handled by system plugin in production
-            // For now just update the config object
+            // Update the config object immediately
             config[key] = value === 'true';
             console.log(`🔧 Updated ${key} = ${value}`);
+            
+            // If system plugin is available, use it to update .env file
+            if (this.bot.plugins && this.bot.plugins.system && this.bot.plugins.system.setEnvValue) {
+                this.bot.plugins.system.setEnvValue(key, value);
+            }
         } catch (error) {
             console.error(`Error updating ${key}:`, error);
         }
