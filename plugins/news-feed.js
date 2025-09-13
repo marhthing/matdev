@@ -19,8 +19,8 @@ class NewsFeedPlugin {
         this.newsSettings = new Map();
         this.newsCheckInterval = null;
         
-        // Schedule times (7am and 7pm)
-        this.scheduleTimes = ['07:00', '19:00'];
+        // Schedule times (every 2 hours)
+        this.scheduleTimes = ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
     }
 
     async init(bot) {
@@ -101,7 +101,7 @@ class NewsFeedPlugin {
                 `**Get News:**\n` +
                 `• \`.news\` - General news\n` +
                 `• \`.news <category>\` - Category news\n\n` +
-                `**Notifications (7am & 7pm daily):**\n` +
+                `**Notifications (every 2 hours):**\n` +
                 `• \`.news on/off\` - All categories\n` +
                 `• \`.news <category> on/off\` - Specific category\n` +
                 `• \`.news <jid>\` - Set destination for scheduled news\n` +
@@ -374,7 +374,7 @@ class NewsFeedPlugin {
         await this.bot.messageHandler.reply(messageInfo,
             `${emoji} **News notifications ${status}**\n\n` +
             `All categories (general, sports, health, business, technology, entertainment) are now ${status}.\n\n` +
-            `📅 You'll receive news at **7:00 AM** and **7:00 PM** daily (Lagos time)`);
+            `📅 You'll receive news **every 2 hours** (Lagos time)`);
     }
 
     // Toggle specific category notification
@@ -392,7 +392,7 @@ class NewsFeedPlugin {
         
         await this.bot.messageHandler.reply(messageInfo,
             `${emoji} **${category.toUpperCase()} news notifications ${status}**\n\n` +
-            `📅 You'll receive ${category} news at **7:00 AM** and **7:00 PM** daily (Lagos time)`);
+            `📅 You'll receive ${category} news **every 2 hours** (Lagos time)`);
     }
 
     // Set news destination JID
@@ -411,7 +411,7 @@ class NewsFeedPlugin {
         await this.bot.messageHandler.reply(messageInfo,
             `✅ **News destination updated!**\n\n` +
             `📍 **Target:** ${newDefaultJid}\n\n` +
-            `📅 Scheduled news (7am & 7pm) will now be sent to this destination.\n\n` +
+            `📅 Scheduled news (every 2 hours) will now be sent to this destination.\n\n` +
             `💡 Use \`.news status\` to view your current settings.`);
     }
 
@@ -429,7 +429,7 @@ class NewsFeedPlugin {
             message += `• ${category}: ${emoji}\n`;
         });
 
-        message += `\n📅 **Schedule:** 7:00 AM & 7:00 PM daily (Lagos time)\n`;
+        message += `\n📅 **Schedule:** Every 2 hours (Lagos time)\n`;
         message += `📍 **Destination:** ${newsDestination}`;
         
         await this.bot.messageHandler.reply(messageInfo, message);
