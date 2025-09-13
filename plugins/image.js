@@ -641,14 +641,16 @@ class ImagePlugin {
      */
     async generateMusic(prompt) {
         try {
+            // Use the correct Pollinations.ai music/audio API
             const encodedPrompt = encodeURIComponent(prompt);
-            const musicUrl = `https://audio.pollinations.ai/prompt/${encodedPrompt}`;
+            const musicUrl = `https://audio.pollinations.ai/${encodedPrompt}`;
             
             const response = await axios.get(musicUrl, {
                 responseType: 'arraybuffer',
-                timeout: 90000, // 90 seconds for audio generation
+                timeout: 120000, // 2 minutes for audio generation
                 headers: {
-                    'User-Agent': 'MATDEV-Bot/2.0'
+                    'User-Agent': 'MATDEV-Bot/2.0',
+                    'Accept': 'audio/mpeg, audio/wav, audio/*'
                 }
             });
 
