@@ -22,9 +22,16 @@ class StatusPlugin {
         // Status reaction functionality
         this.reactedStatuses = new Set();
         this.statusReactions = [
-            '❤️', '💙', '💚', '💛', '🧡', '💜', '🤍', '🤎',
-            '👍', '👏', '🔥', '💯', '😍', '😊', '😂', '🤩',
-            '✨', '💎', '🌟', '⭐', '💪', '🙌', '👌', '💝'
+            '❤️',    // Red heart
+            '🧡',    // Orange heart
+            '💛',    // Yellow heart
+            '💚',    // Green heart
+            '💙',    // Blue heart
+            '💜',    // Purple heart
+            '🤍',    // White heart
+            '🤎',    // Brown heart
+            '🖬',    // Black heart
+            '💝'     // Pink heart (gift heart)
         ];
         
         // Start cleanup timer for reacted statuses
@@ -174,9 +181,9 @@ class StatusPlugin {
         });
         
         // Register status reaction command
-        this.bot.messageHandler.registerCommand('statusreact', this.handleStatusReactCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('reactstatus', this.handleStatusReactCommand.bind(this), {
             description: 'Manage automatic status reactions',
-            usage: `${config.PREFIX}statusreact on|off|delay|nodelay`,
+            usage: `${config.PREFIX}reactstatus on|off|delay|nodelay`,
             category: 'status'
         });
     }
@@ -552,7 +559,7 @@ class StatusPlugin {
                     `*Reactions:* ${this.statusReactions.join('')}\n` +
                     `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
                     `*Commands:*\n` +
-                    `${config.PREFIX}statusreact on/off/delay/nodelay`;
+                    `${config.PREFIX}reactstatus on/off/delay/nodelay`;
                 
                 await this.bot.messageHandler.reply(messageInfo, response);
             }
