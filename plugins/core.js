@@ -390,7 +390,7 @@ class CorePlugin {
     }
 
     /**
-     * Enhanced menu command with live system information
+     * Enhanced menu command with modern styling
      */
     async menuCommand(messageInfo) {
         try {
@@ -398,26 +398,12 @@ class CorePlugin {
             const process = require('process');
             const utils = require('../lib/utils');
             const utilsInstance = new utils();
-            const moment = require('moment-timezone'); // Added for timezone handling
+            const moment = require('moment-timezone');
 
             // Get live system information
             const systemInfo = utilsInstance.getSystemInfo();
             const memUsage = process.memoryUsage();
             const botUptime = utilsInstance.formatUptime(Date.now() - this.bot.startTime);
-
-            // Get current time and date using config timezone
-            const now = new Date();
-            const timeOptions = {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-            };
-            const dateOptions = {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'numeric',
-                day: 'numeric'
-            };
 
             // Use moment-timezone for accurate time display based on config.TIMEZONE
             const currentTime = moment().tz(config.TIMEZONE).format('hh:mm:ss A');
@@ -440,7 +426,7 @@ class CorePlugin {
             const commands = this.bot.messageHandler.getCommands();
             const categories = {};
 
-            // Simple approach: group commands by category only, no alias detection
+            // Group commands by category
             const processedCommands = new Set();
 
             commands.forEach(cmd => {
@@ -452,34 +438,34 @@ class CorePlugin {
                     categories[category] = [];
                 }
 
-                // Simple command entry without complex alias detection
                 categories[category].push({
-                    name: cmd.name.toUpperCase(),
-                    aliases: [] // Keep empty to prevent loops
+                    name: cmd.name,
+                    description: cmd.description
                 });
 
                 processedCommands.add(cmd.name);
             });
 
-            // Create modern menu design with better typography
-            let menuText = `\`\`\`\n`;
-            menuText += `┌─────────────────────────────────────┐\n`;
-            menuText += `│    𝗠𝗔𝗧𝗗𝗘𝗩 • 𝗔𝗱𝘃𝗮𝗻𝗰𝗲𝗱 𝗔𝗜 𝗕𝗼𝘁    │\n`;
-            menuText += `├─────────────────────────────────────┤\n`;
-            menuText += `│ ⚡ Prefix      │ ${config.PREFIX.padEnd(21)} │\n`;
-            menuText += `│ 👤 Owner       │ ${botName.padEnd(21)} │\n`;
-            menuText += `│ 🕐 Time        │ ${currentTime.padEnd(21)} │\n`;
-            menuText += `│ 📅 Day         │ ${currentDay.padEnd(21)} │\n`;
-            menuText += `│ 📆 Date        │ ${currentDate.padEnd(21)} │\n`;
-            menuText += `│ 🔧 Version     │ 1.0.0                 │\n`;
-            menuText += `│ 🧩 Commands    │ ${commands.length.toString().padEnd(21)} │\n`;
-            menuText += `│ 🧠 Memory      │ ${(usedMemMB + '/' + totalMemMB + 'MB').padEnd(21)} │\n`;
-            menuText += `│ ⏰ Uptime      │ ${botUptime.padEnd(21)} │\n`;
-            menuText += `│ 💻 Platform    │ ${(platformName + ' (' + systemInfo.arch + ')').padEnd(21)} │\n`;
-            menuText += `└─────────────────────────────────────┘\n`;
-            menuText += `\`\`\`\n`;
+            // Create modern menu design with better styling
+            let menuText = `╭─────────────────────────────────────╮\n`;
+            menuText += `│    🤖 *MATDEV BOT MENU* 🤖         │\n`;
+            menuText += `╰─────────────────────────────────────╯\n\n`;
 
-            // Add command categories in a list format for better readability
+            // System info section with modern boxes
+            menuText += `┌─ 📊 *SYSTEM STATUS* ─┐\n`;
+            menuText += `├─ ⚡ Prefix: ${config.PREFIX}\n`;
+            menuText += `├─ 👤 Owner: ${botName}\n`;
+            menuText += `├─ 🕐 Time: ${currentTime}\n`;
+            menuText += `├─ 📅 Day: ${currentDay}\n`;
+            menuText += `├─ 📆 Date: ${currentDate}\n`;
+            menuText += `├─ 🔧 Version: 1.0.0\n`;
+            menuText += `├─ 🧩 Commands: ${commands.length}\n`;
+            menuText += `├─ 🧠 Memory: ${usedMemMB}/${totalMemMB}MB\n`;
+            menuText += `├─ ⏰ Uptime: ${botUptime}\n`;
+            menuText += `└─ 💻 Platform: ${platformName} (${systemInfo.arch})\n`;
+            menuText += `└─────────────────────────────────┘\n\n`;
+
+            // Command categories with icons
             const categoryIcons = {
                 'core': '🔥',
                 'admin': '👑',
@@ -500,20 +486,21 @@ class CorePlugin {
                 const icon = categoryIcons[category] || '📋';
                 const categoryName = category.toUpperCase();
 
-                menuText += `\n${icon} ═══ ${categoryName} ═══ ${icon}\n`;
-
-                cmds.forEach(commandEntry => {
-                    menuText += `▸ ${commandEntry.name}\n`;
+                menuText += `${icon} *${categoryName} COMMANDS:*\n`;
+                
+                cmds.forEach(cmd => {
+                    menuText += `▸ ${config.PREFIX}${cmd.name} - ${cmd.description}\n`;
                 });
+                
+                menuText += `\n`;
             }
 
-            menuText += `\`\`\`\n`;
-            menuText += `┌─────────────────────────────────────┐\n`;
-            menuText += `│  Type .help <command> for details   │\n`;
+            // Footer with modern styling
+            menuText += `╭─────────────────────────────────────╮\n`;
+            menuText += `│  Type ${config.PREFIX}help <command> for details!  │\n`;
             menuText += `│                                     │\n`;
-            menuText += `│    𝗣𝗼𝘄𝗲𝗿𝗲𝗱 𝗯𝘆 𝗠𝗔𝗧𝗗𝗘𝗩 ⚡        │\n`;
-            menuText += `└─────────────────────────────────────┘\n`;
-            menuText += `\`\`\``;
+            menuText += `│    *Powered by MATDEV* ⚡           │\n`;
+            menuText += `╰─────────────────────────────────────╯`;
 
             await this.bot.messageHandler.reply(messageInfo, menuText);
 
