@@ -49,7 +49,7 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - **New Utility Plugin Suite (September 13, 2025)**: Added 11 standalone utility plugins with comprehensive functionality:
   - **Unit Converter**: Multi-category conversion (length, weight, temperature, volume) with support for 25+ units
   - **URL Shortener**: TinyURL integration with expansion capabilities and size reduction metrics
-  - **Base64 Encoder/Decoder**: Tag-based encoding system - stores encoded data locally, returns simple tag names for decoding. Clean media output without captions.
+  - **Base64 Encoder/Decoder**: Multi-user tag-based encoding system using PostgreSQL database with JSON fallback. Allows cross-user access where anyone can decode tags created by others. Clean media output without captions.
   - **Hash Generator**: Multi-algorithm support (MD5, SHA1, SHA256, SHA512) for text and files
   - **Translation**: Multi-language translation using free APIs with 30+ language support
   - **Wikipedia**: Article search and summary extraction with formatted output
