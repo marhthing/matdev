@@ -49,12 +49,12 @@ class AudioEffectsPlugin {
                 category: 'voice'
             },
             demon: {
-                filter: 'asetrate=r=44100*0.5,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=1500,overdrive=10:0.3,volume=1.6',
+                filter: 'asetrate=r=44100*0.5,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=1500,acrusher=bits=8:mode=log:aa=1,volume=1.6',
                 description: 'Terrifying demonic voice with distortion',
                 category: 'voice'
             },
             alien: {
-                filter: 'asetrate=44100*0.85,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=3:d=0.3,phaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4',
+                filter: 'asetrate=44100*0.85,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=3:d=0.3,aphaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4',
                 description: 'Advanced alien voice with phaser and modulation',
                 category: 'voice'
             },
@@ -90,7 +90,7 @@ class AudioEffectsPlugin {
             
             // FX effects - advanced processing chains
             distortion: {
-                filter: 'overdrive=20:0.4,dynaudnorm=p=0.8:s=7,anequalizer=f=1000:width_type=h:width=800:g=3,volume=0.8',
+                filter: 'acrusher=bits=6:mode=log:aa=1,dynaudnorm=p=0.8:s=7,anequalizer=f=1000:width_type=h:width=800:g=3,volume=0.8',
                 description: 'Heavy distortion with frequency shaping',
                 category: 'fx'
             },
@@ -105,7 +105,7 @@ class AudioEffectsPlugin {
                 category: 'fx'
             },
             psychedelic: {
-                filter: 'phaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=4:d=0.5',
+                filter: 'aphaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=4:d=0.5',
                 description: 'Trippy psychedelic effect with multiple modulations',
                 category: 'fx'
             },
@@ -190,7 +190,7 @@ class AudioEffectsPlugin {
             outputPath = path.join(process.cwd(), 'tmp', `effect_${effectName}_${timestamp}.ogg`);
 
             // Write input file
-            await fs.writeFile(inputPath, buffer.buffer);
+            await fs.writeFile(inputPath, buffer);
 
             // Apply audio effect using FFmpeg with better error handling
             const effect = this.effects[effectName];
@@ -211,7 +211,7 @@ class AudioEffectsPlugin {
             } catch (opusError) {
                 console.log('⚠️ Opus encoding failed, trying MP3 fallback...');
                 const mp3OutputPath = outputPath.replace('.ogg', '.mp3');
-                command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a mp3 -b:a 64k "${mp3OutputPath}"`;
+                command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libmp3lame -b:a 64k "${mp3OutputPath}"`;
                 
                 await new Promise((resolve, reject) => {
                     exec(command, (error, stdout, stderr) => {
