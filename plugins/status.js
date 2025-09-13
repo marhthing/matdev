@@ -261,23 +261,8 @@ class StatusPlugin {
      */
     async showStatusInfo(messageInfo) {
         try {
-            let info = `📊 *Status Configuration*\n\n`;
-            info += `🔘 Status: ${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n`;
-            info += `📱 Auto-download: ${this.statusSettings.autoDownload ? '✅ Yes' : '❌ No'}\n`;
-            info += `👁️ View mode: ${this.statusSettings.viewMode.toUpperCase()}\n`;
-            
-            if (this.statusSettings.filterJids.length > 0) {
-                info += `📝 Filter JIDs: ${this.statusSettings.filterJids.length} configured\n`;
-            }
-            
-            info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n\n`;
-            
-            info += `💡 Usage:\n`;
-            info += `${config.PREFIX}status on - Enable all features\n`;
-            info += `${config.PREFIX}status on no-dl - Enable view only\n`;
-            info += `${config.PREFIX}status on except-view <jids> - Exclude specific JIDs\n`;
-            info += `${config.PREFIX}status on only-view <jids> - Only view specific JIDs\n`;
-            info += `${config.PREFIX}status off - Disable all features`;
+            let info = `${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n\n`;
+            info += `Usage: ${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
 
             return await this.bot.messageHandler.reply(messageInfo, info);
         } catch (error) {
