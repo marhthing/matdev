@@ -50,20 +50,23 @@ class PDFToolsPlugin {
             let mediaToProcess = null;
 
             if (quotedMessage) {
-                // Check for media in quoted message
+                // Check for media in quoted message first
                 if (quotedMessage.imageMessage) {
                     mediaToProcess = { type: 'image', data: quotedMessage.imageMessage, isQuoted: true };
+                    title = `Image from ${new Date().toLocaleDateString()}`;
                 } else if (quotedMessage.documentMessage) {
                     mediaToProcess = { type: 'document', data: quotedMessage.documentMessage, isQuoted: true };
+                    title = `Document from ${new Date().toLocaleDateString()}`;
                 } else if (quotedMessage.conversation) {
                     textContent = quotedMessage.conversation;
+                    title = `Message from ${new Date().toLocaleString()}`;
                 } else if (quotedMessage.extendedTextMessage?.text) {
                     textContent = quotedMessage.extendedTextMessage.text;
+                    title = `Message from ${new Date().toLocaleString()}`;
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text, image, or document.');
                     return;
                 }
-                title = mediaToProcess ? `Media from ${new Date().toLocaleDateString()}` : `Message from ${new Date().toLocaleString()}`;
             } else if (currentMedia) {
                 // Use current media
                 mediaToProcess = currentMedia;
@@ -128,12 +131,26 @@ class PDFToolsPlugin {
             let mimeType = '';
 
             if (mediaInfo.type === 'image') {
-                // Get image URL from message data
-                fileUrl = await this.bot.sock.downloadMediaMessage(mediaInfo.data, 'buffer');
+                // Create proper message structure for download
+                if (mediaInfo.isQuoted) {
+                    const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                        messageInfo.message?.quotedMessage;
+                    const messageToDownload = { message: quotedMessage };
+                    fileUrl = await this.bot.sock.downloadMediaMessage(messageToDownload, 'buffer', {});
+                } else {
+                    fileUrl = await this.bot.sock.downloadMediaMessage(messageInfo, 'buffer', {});
+                }
                 mimeType = mediaInfo.data.mimetype;
             } else if (mediaInfo.type === 'document') {
-                // Get document URL from message data
-                fileUrl = await this.bot.sock.downloadMediaMessage(mediaInfo.data, 'buffer');
+                // Create proper message structure for download
+                if (mediaInfo.isQuoted) {
+                    const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                        messageInfo.message?.quotedMessage;
+                    const messageToDownload = { message: quotedMessage };
+                    fileUrl = await this.bot.sock.downloadMediaMessage(messageToDownload, 'buffer', {});
+                } else {
+                    fileUrl = await this.bot.sock.downloadMediaMessage(messageInfo, 'buffer', {});
+                }
                 mimeType = mediaInfo.data.mimetype;
             }
 
