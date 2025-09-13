@@ -3,7 +3,6 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
-const Jimp = require('jimp');
 const { createWorker } = require('tesseract.js');
 
 class ImageToTextPlugin {
@@ -35,23 +34,47 @@ class ImageToTextPlugin {
 
     async imgTxtCommand(messageInfo) {
         try {
-            // Check for quoted message with image
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+            // Check for quoted/tagged message with image
+            let quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                               messageInfo.message?.quotedMessage;
 
-            if (!quotedMessage || !quotedMessage.imageMessage) {
+            // Also check if the message itself is an image with caption
+            let currentImage = null;
+            if (messageInfo.message?.imageMessage) {
+                currentImage = messageInfo.message.imageMessage;
+            }
+
+            // Prioritize quoted/tagged image over current image
+            if (!quotedMessage && !currentImage) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '🔍 Usage: Reply to an image with .imgtxt\n\n' +
+                    '🔍 Usage: Reply to an image with .imgtxt or send .imgtxt as image caption\n\n' +
                     '📸 Supported formats: JPG, PNG, WebP\n' +
                     '💡 Works best with clear, high-contrast text');
+                return;
+            }
+
+            // Set up the image to process
+            let imageToProcess = quotedMessage?.imageMessage || currentImage;
+            
+            if (!imageToProcess) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ No image found. Please reply to an image or send the command as an image caption.');
                 return;
             }
 
             try {
                 // Download the image
                 const { downloadMediaMessage } = require('baileys');
+                let messageToDownload;
+                
+                if (quotedMessage) {
+                    messageToDownload = { message: quotedMessage };
+                } else {
+                    messageToDownload = messageInfo;
+                }
+                
                 const imageBuffer = await downloadMediaMessage(
-                    { message: quotedMessage },
+                    messageToDownload,
                     'buffer',
                     {},
                     {
@@ -150,53 +173,16 @@ class ImageToTextPlugin {
     async preprocessImageForOCR(imageBuffer) {
         try {
             const processedImages = [];
-            const image = await Jimp.read(imageBuffer);
             
-            // Method 1: Enhanced for blurred images
-            const enhanced = image.clone()
-                .scale(1.5) // Upscale for better OCR
-                .contrast(0.3) // Increase contrast
-                .brightness(0.1) // Slight brightness boost
-                .blur(1) // Slight blur to reduce noise
-                .blur(-1); // Then sharpen
-            
-            processedImages.push(['enhanced', await enhanced.getBufferAsync(Jimp.MIME_PNG)]);
-            
-            // Method 2: High contrast for faded text
-            const highContrast = image.clone()
-                .scale(2) // Scale up significantly
-                .contrast(0.5) // High contrast
-                .normalize() // Normalize colors
-                .greyscale(); // Convert to grayscale
-            
-            processedImages.push(['high_contrast', await highContrast.getBufferAsync(Jimp.MIME_PNG)]);
-            
-            // Method 3: Sharpened for slightly blurred text
-            const sharpened = image.clone()
-                .scale(1.5)
-                .contrast(0.2)
-                .convolute([
-                    [0, -1, 0],
-                    [-1, 5, -1],
-                    [0, -1, 0]
-                ]); // Sharpening kernel
-            
-            processedImages.push(['sharpened', await sharpened.getBufferAsync(Jimp.MIME_PNG)]);
-            
-            // Method 4: Denoised for noisy images
-            const denoised = image.clone()
-                .scale(1.8)
-                .blur(0.5) // Light blur to reduce noise
-                .contrast(0.3)
-                .normalize();
-            
-            processedImages.push(['denoised', await denoised.getBufferAsync(Jimp.MIME_PNG)]);
+            // For now, just return the original image as we removed Jimp
+            // You can add Sharp or other image processing libraries later if needed
+            processedImages.push(['original', imageBuffer]);
 
             return processedImages;
 
         } catch (error) {
             console.error('Image preprocessing error:', error);
-            return [];
+            return [['original', imageBuffer]];
         }
     }
 
