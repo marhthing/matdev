@@ -41,7 +41,7 @@ class MediaPlugin {
         // Main media command with subcommands
         this.bot.messageHandler.registerCommand('media', this.mediaCommand.bind(this), {
             description: 'Media processing and manipulation',
-            usage: `${config.PREFIX}media [subcommand] - Available: info, convert <format>, compress, toaudio, mp3, video, image`,
+            usage: `${config.PREFIX}media [subcommand] - Available: info, convert <format>, compress, mp3, video, image`,
             category: 'media'
         });
     }
@@ -65,9 +65,6 @@ class MediaPlugin {
                 case 'compress':
                     await this.handleCompressCommand(messageInfo);
                     break;
-                case 'toaudio':
-                    await this.handleToAudioCommand(messageInfo);
-                    break;
                 case 'mp3':
                     await this.handleToMp3Command(messageInfo);
                     break;
@@ -85,7 +82,6 @@ class MediaPlugin {
                         `• \`info\` - Get media information\n` +
                         `• \`convert <format>\` - Convert to different format\n` +
                         `• \`compress\` - Compress media file\n` +
-                        `• \`toaudio\` - Convert video to audio\n` +
                         `• \`mp3\` - Convert to MP3 format\n` +
                         `• \`video\` - Convert to video format\n` +
                         `• \`image\` - Convert to image format\n\n` +
@@ -281,46 +277,6 @@ class MediaPlugin {
         }
     }
 
-    /**
-     * Handle toaudio subcommand
-     */
-    async handleToAudioCommand(messageInfo) {
-        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
-        if (error) {
-            await this.bot.messageHandler.reply(messageInfo, error);
-            return;
-        }
-        
-        await this.handleToAudio(messageInfo, quoted, mediaType);
-    }
-
-    /**
-     * Handle toaudio processing
-     */
-    async handleToAudio(messageInfo, quoted, mediaType) {
-        try {
-            if (mediaType !== 'videoMessage') {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
-                return;
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, '🎵 Extracting audio... Please wait.');
-
-            // Download media using updated method
-            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
-
-            // Send as audio (simplified - in production use FFmpeg for proper conversion)
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                audio: buffer,
-                mimetype: 'audio/mpeg',
-                ptt: false
-            });
-
-        } catch (error) {
-            console.error('ToAudio error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error extracting audio.');
-        }
-    }
 
     /**
      * Handle mp3 subcommand
