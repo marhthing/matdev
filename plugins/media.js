@@ -45,10 +45,10 @@ class MediaPlugin {
             category: 'media'
         });
 
-        // Convert media command (original command name)
-        this.bot.messageHandler.registerCommand('convert', this.convertCommand.bind(this), {
+        // Convert media command (renamed to avoid conflict with unit converter)
+        this.bot.messageHandler.registerCommand('mediaconvert', this.convertCommand.bind(this), {
             description: 'Convert media to different format',
-            usage: `${config.PREFIX}convert <format> (reply to media)`,
+            usage: `${config.PREFIX}mediaconvert <format> (reply to media)`,
             category: 'media'
         });
 
