@@ -68,9 +68,6 @@ class PDFToolsPlugin {
                 return;
             }
 
-            // Show processing message
-            await this.bot.messageHandler.reply(messageInfo, '📄 Creating PDF...');
-
             const pdfResult = await this.createPDF(title, textContent);
 
             if (pdfResult.success) {
@@ -78,8 +75,7 @@ class PDFToolsPlugin {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     document: { url: pdfResult.filePath },
                     fileName: pdfResult.fileName,
-                    mimetype: 'application/pdf',
-                    caption: `📄 **PDF Created**\n\n📝 ${textContent.length} characters\n📅 ${new Date().toLocaleString()}`
+                    mimetype: 'application/pdf'
                 });
 
                 // Clean up temp file
@@ -278,12 +274,9 @@ class PDFToolsPlugin {
                     };
                 }
             } catch (e) {
-                console.log('PDF API fallback failed, creating document...');
-            }
+                }
 
             // Ultimate fallback: Create a real PDF using PDFKit
-            console.log('📄 Creating PDF using PDFKit fallback...');
-            
             const PDFDocument = require('pdfkit');
             const doc = new PDFDocument({
                 margin: 50,
@@ -331,8 +324,6 @@ class PDFToolsPlugin {
                 stream.on('finish', resolve);
                 stream.on('error', reject);
             });
-            
-            console.log('📄 PDF created successfully with PDFKit');
             
             return {
                 success: true,
