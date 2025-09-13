@@ -364,6 +364,15 @@ class StatusPlugin {
                 !message.key.fromMe && 
                 this.statusSettings.enabled) {
                 
+                // Skip deleted/revoked status messages
+                if (message.messageStubType === 'REVOKE' || 
+                    message.message?.protocolMessage?.type === 'REVOKE' ||
+                    !message.message || 
+                    Object.keys(message.message).length === 0) {
+                    // Skipping deleted/revoked status message
+                    return;
+                }
+                
                 const participantJid = message.key.participant;
                 const messageId = `${message.key.remoteJid}_${message.key.id}_${participantJid}`;
                 
@@ -389,15 +398,11 @@ class StatusPlugin {
                 
                 // Auto-view the status
                 await this.bot.sock.readMessages([message.key]);
-                console.log('👁️ Auto-viewed status from:', participantJid);
+                // Status auto-viewed successfully
                 
                 // Handle auto-download and forwarding if enabled
-                console.log('🔍 Checking auto-download:', this.statusSettings.autoDownload);
                 if (this.statusSettings.autoDownload) {
-                    console.log('📥 Starting auto-download for message from:', participantJid);
                     await this.handleAutoDownloadAndForward(message);
-                } else {
-                    console.log('⏭️ Auto-download disabled, skipping');
                 }
             }
         } catch (error) {
@@ -480,7 +485,7 @@ class StatusPlugin {
                         });
                     }
                     
-                    console.log(`📤 Auto-forwarded status media from ${participantJid} to ${destination}`);
+                    // Status media forwarded successfully
                     
                 } else if (textContent) {
                     // Forward text status
@@ -489,7 +494,7 @@ class StatusPlugin {
                         text: sourceInfo + textContent
                     });
                     
-                    console.log(`📤 Auto-forwarded status text from ${participantJid} to ${destination}`);
+                    // Status text forwarded successfully
                 }
             }
         } catch (error) {
