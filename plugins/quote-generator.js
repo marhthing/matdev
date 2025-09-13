@@ -10,16 +10,23 @@ class QuoteGeneratorPlugin {
         
         // Fallback quotes in case APIs are down
         this.fallbackQuotes = [
-            { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
-            { text: "Life is what happens to you while you're busy making other plans.", author: "John Lennon" },
-            { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
-            { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
-            { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
-            { text: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
-            { text: "You learn more from failure than from success.", author: "Unknown" },
-            { text: "If you are working on something that you really care about, you don't have to be pushed.", author: "Steve Jobs" },
-            { text: "Experience is the teacher of all things.", author: "Julius Caesar" },
-            { text: "What we think, we become.", author: "Buddha" }
+            { text: "The only way to do great work is to love what you do.", author: "Steve Jobs", categories: ["motivational", "success", "life"] },
+            { text: "Life is what happens to you while you're busy making other plans.", author: "John Lennon", categories: ["life", "inspirational"] },
+            { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt", categories: ["inspirational", "motivational", "success"] },
+            { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle", categories: ["inspirational", "motivational"] },
+            { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney", categories: ["motivational", "success"] },
+            { text: "Don't let yesterday take up too much of today.", author: "Will Rogers", categories: ["life", "motivational"] },
+            { text: "You learn more from failure than from success.", author: "Unknown", categories: ["motivational", "life"] },
+            { text: "If you are working on something that you really care about, you don't have to be pushed.", author: "Steve Jobs", categories: ["motivational", "success"] },
+            { text: "Experience is the teacher of all things.", author: "Julius Caesar", categories: ["life", "inspirational"] },
+            { text: "What we think, we become.", author: "Buddha", categories: ["inspirational", "life"] },
+            { text: "Being deeply loved by someone gives you strength, while loving someone deeply gives you courage.", author: "Lao Tzu", categories: ["love"] },
+            { text: "The best thing to hold onto in life is each other.", author: "Audrey Hepburn", categories: ["love", "life"] },
+            { text: "Love is not about how many days, weeks or months you've been together, it's all about how much you love each other every day.", author: "Unknown", categories: ["love"] },
+            { text: "A successful marriage requires falling in love many times, always with the same person.", author: "Mignon McLaughlin", categories: ["love"] },
+            { text: "Life is better when you're laughing.", author: "Unknown", categories: ["funny", "life"] },
+            { text: "I'm not lazy, I'm on energy saving mode.", author: "Unknown", categories: ["funny"] },
+            { text: "The early bird might get the worm, but the second mouse gets the cheese.", author: "Unknown", categories: ["funny", "life"] }
         ];
         
         this.categories = ['inspirational', 'motivational', 'funny', 'love', 'life', 'success'];
@@ -81,12 +88,13 @@ class QuoteGeneratorPlugin {
                     `— _${quote.author}_\n\n` +
                     `📂 Category: ${quote.category || 'General'}`);
             } else {
-                // Use fallback quote
-                const fallback = this.fallbackQuotes[Math.floor(Math.random() * this.fallbackQuotes.length)];
+                // Use category-aware fallback quote
+                const fallback = this.getCategoryFallbackQuote(category);
                 await this.bot.messageHandler.reply(messageInfo,
-                    `💬 **Quote of the Moment**\n\n` +
+                    `💬 **Quote of the Moment** _(offline mode)_\n\n` +
                     `"${fallback.text}"\n\n` +
-                    `— _${fallback.author}_`);
+                    `— _${fallback.author}_\n\n` +
+                    `📂 Category: ${category === 'random' ? 'General' : category.charAt(0).toUpperCase() + category.slice(1)}`);
             }
 
         } catch (error) {
@@ -251,6 +259,25 @@ class QuoteGeneratorPlugin {
             console.error('Author quote API error:', error.message);
             return { success: false };
         }
+    }
+
+    getCategoryFallbackQuote(category) {
+        // Filter quotes by category
+        let filteredQuotes = this.fallbackQuotes;
+        
+        if (category && category !== 'random') {
+            filteredQuotes = this.fallbackQuotes.filter(quote => 
+                quote.categories && quote.categories.includes(category.toLowerCase())
+            );
+        }
+        
+        // If no quotes found for the category, use all quotes
+        if (filteredQuotes.length === 0) {
+            filteredQuotes = this.fallbackQuotes;
+        }
+        
+        // Return random quote from filtered results
+        return filteredQuotes[Math.floor(Math.random() * filteredQuotes.length)];
     }
 
     async showQuoteHelp(messageInfo) {
