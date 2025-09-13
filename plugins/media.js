@@ -92,9 +92,20 @@ class MediaPlugin {
                     await this.handleToImage(messageInfo, quoted, mediaType);
                     break;
                 default:
-                    // No subcommand - show media type
-                    const typeDisplay = mediaType.replace('Message', '').toUpperCase();
-                    await this.bot.messageHandler.reply(messageInfo, `📱 *Media Type:* ${typeDisplay}`);
+                    // No subcommand - show available subcommands
+                    const helpText = `*📱 MEDIA COMMANDS*\n\n` +
+                        `*Usage:* ${config.PREFIX}media <subcommand>\n\n` +
+                        `*Available subcommands:*\n` +
+                        `• \`info\` - Get media information\n` +
+                        `• \`convert <format>\` - Convert to different format\n` +
+                        `• \`compress\` - Compress media file\n` +
+                        `• \`toaudio\` - Convert video to audio\n` +
+                        `• \`mp3\` - Convert to MP3 format\n` +
+                        `• \`video\` - Convert to video format\n` +
+                        `• \`image\` - Convert to image format\n\n` +
+                        `*Example:* ${config.PREFIX}media info (reply to media)`;
+                    
+                    await this.bot.messageHandler.reply(messageInfo, helpText);
                     break;
             }
 
