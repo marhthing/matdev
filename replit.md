@@ -46,6 +46,18 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - **Delay Controls**: Added delay/nodelay options to autoreact systems with configurable delays.
 - **Groq AI Integration**: Enhanced TTS (silent generation), STT (clean output), and Vision (direct image caption support, dual image support).
 - **Scheduling Plugin**: Persistent message scheduling with timezone support (Lagos/Nigeria), auto-execution, and schedule management.
+- **New Utility Plugin Suite (September 13, 2025)**: Added 11 standalone utility plugins with comprehensive functionality:
+  - **Unit Converter**: Multi-category conversion (length, weight, temperature, volume) with support for 25+ units
+  - **URL Shortener**: TinyURL integration with expansion capabilities and size reduction metrics
+  - **Base64 Encoder/Decoder**: Full encode/decode with binary data detection and validation
+  - **Hash Generator**: Multi-algorithm support (MD5, SHA1, SHA256, SHA512) for text and files
+  - **Translation**: Multi-language translation using free APIs with 30+ language support
+  - **Wikipedia**: Article search and summary extraction with formatted output
+  - **News Feed**: Category-based news with RSS fallback and multiple source support
+  - **Reminder System**: Persistent scheduling with JSON storage, timezone handling, and auto-execution
+  - **Quote Generator**: Daily quotes, category filters, and author search with fallback database
+  - **Screenshot Text (OCR)**: Image text extraction with multiple OCR service fallbacks
+  - **PDF Tools**: Document generation from text with HTML formatting and metadata
 
 # Current Deployment Status
 ## Replit Setup (September 13, 2025) - Import Completed Successfully
@@ -56,11 +68,12 @@ Features multi-tier caching for various data types, concurrent processing, smart
 - **Environment**: Auto-configured with intelligent defaults via config.js
 - **Connection**: ✅ WhatsApp session established and authenticated (Bot Number: 2347018091555)
 - **Owner Number**: Auto-configured to 2347018091555 from authenticated connection
-- **Plugins**: All 26 plugins loaded successfully, including:
+- **Plugins**: All 37 plugins loaded successfully, including:
   - Anti-delete, Anti-view once, Auto-react, Currency conversion
   - Download, YouTube, TikTok, Twitter, Instagram
   - AI integrations (Gemini, Groq), Weather, Media processing
   - Group management, QR generation, scheduling, and upscaling features
+  - **New Utility Plugins (11 total)**: Unit Converter, URL Shortener, Base64 Encoder/Decoder, Hash Generator, Translation, Wikipedia, News Feed, Reminder System, Quote Generator, Screenshot Text (OCR), PDF Tools
 - **AI Generator Plugin**: ✅ **Fixed September 13, 2025** - Only working commands are available:
   - `.image` - AI image generation (Pollinations.ai) ✅ Working
   - `.write` - Text generation (Pollinations.ai) ✅ Working  
