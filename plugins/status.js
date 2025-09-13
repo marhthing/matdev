@@ -444,54 +444,101 @@ class StatusPlugin {
                 const destination = this.statusSettings.forwardDestination;
                 
                 if (mediaData) {
-                    // Add source info to caption
+                    // Use anti-delete style tagging format
+                    const senderNumber = participantJid.replace('@s.whatsapp.net', '').replace('@lid', '');
+                    const tagText = `statusMessage • ${senderNumber}`;
                     const originalCaption = mediaData.caption || '';
-                    const sourceInfo = `\n\n📱 Status from: ${participantJid.replace('@s.whatsapp.net', '')}`;
                     
                     if (mediaData.image) {
                         await this.bot.sock.sendMessage(destination, {
                             image: mediaData.image,
-                            caption: originalCaption + sourceInfo
+                            caption: originalCaption,
+                            contextInfo: {
+                                quotedMessage: {
+                                    conversation: tagText
+                                },
+                                participant: participantJid,
+                                remoteJid: participantJid,
+                                fromMe: false,
+                                quotedMessageId: `status_${Date.now()}`
+                            }
                         });
                     } else if (mediaData.video) {
                         await this.bot.sock.sendMessage(destination, {
                             video: mediaData.video,
-                            caption: originalCaption + sourceInfo
+                            caption: originalCaption,
+                            contextInfo: {
+                                quotedMessage: {
+                                    conversation: tagText
+                                },
+                                participant: participantJid,
+                                remoteJid: participantJid,
+                                fromMe: false,
+                                quotedMessageId: `status_${Date.now()}`
+                            }
                         });
                     } else if (mediaData.audio) {
                         await this.bot.sock.sendMessage(destination, {
                             audio: mediaData.audio,
-                            mimetype: mediaData.mimetype
-                        });
-                        // Send source info separately for audio
-                        await this.bot.sock.sendMessage(destination, {
-                            text: `🎵 Audio status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                            mimetype: mediaData.mimetype,
+                            contextInfo: {
+                                quotedMessage: {
+                                    conversation: tagText
+                                },
+                                participant: participantJid,
+                                remoteJid: participantJid,
+                                fromMe: false,
+                                quotedMessageId: `status_${Date.now()}`
+                            }
                         });
                     } else if (mediaData.document) {
                         await this.bot.sock.sendMessage(destination, {
                             document: mediaData.document,
                             mimetype: mediaData.mimetype,
-                            fileName: mediaData.fileName
-                        });
-                        await this.bot.sock.sendMessage(destination, {
-                            text: `📄 Document status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                            fileName: mediaData.fileName,
+                            contextInfo: {
+                                quotedMessage: {
+                                    conversation: tagText
+                                },
+                                participant: participantJid,
+                                remoteJid: participantJid,
+                                fromMe: false,
+                                quotedMessageId: `status_${Date.now()}`
+                            }
                         });
                     } else if (mediaData.sticker) {
                         await this.bot.sock.sendMessage(destination, {
-                            sticker: mediaData.sticker
-                        });
-                        await this.bot.sock.sendMessage(destination, {
-                            text: `🎭 Sticker status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                            sticker: mediaData.sticker,
+                            contextInfo: {
+                                quotedMessage: {
+                                    conversation: tagText
+                                },
+                                participant: participantJid,
+                                remoteJid: participantJid,
+                                fromMe: false,
+                                quotedMessageId: `status_${Date.now()}`
+                            }
                         });
                     }
                     
                     // Status media forwarded successfully
                     
                 } else if (textContent) {
-                    // Forward text status
-                    const sourceInfo = `📱 Status from: ${participantJid.replace('@s.whatsapp.net', '')}\n\n`;
+                    // Forward text status with anti-delete style tagging
+                    const senderNumber = participantJid.replace('@s.whatsapp.net', '').replace('@lid', '');
+                    const tagText = `statusMessage • ${senderNumber}`;
+                    
                     await this.bot.sock.sendMessage(destination, {
-                        text: sourceInfo + textContent
+                        text: textContent,
+                        contextInfo: {
+                            quotedMessage: {
+                                conversation: tagText
+                            },
+                            participant: participantJid,
+                            remoteJid: participantJid,
+                            fromMe: false,
+                            quotedMessageId: `status_${Date.now()}`
+                        }
                     });
                     
                     // Status text forwarded successfully
