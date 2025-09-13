@@ -80,13 +80,11 @@ class PinterestPlugin {
      */
     async getPinData(pinId) {
         try {
-            // Use multiple working methods for 2025
+            // Use only free extraction methods for 2025
             const methods = [
-                () => this.methodOEmbed(pinId),        // Official Pinterest oEmbed API
-                () => this.methodSocialBot(pinId),     // Social media bot headers 
-                () => this.methodIframely(pinId),      // Iframely service (reliable)
-                () => this.methodScraperAPI(pinId),    // Professional scraping service
-                () => this.methodAdvancedScraping(pinId) // Advanced scraping techniques
+                () => this.methodOEmbed(pinId),        // Official Pinterest oEmbed API (free)
+                () => this.methodSocialBot(pinId),     // Social media bot headers (free)
+                () => this.methodAdvancedScraping(pinId) // Advanced scraping techniques (free)
             ];
             
             for (const [index, method] of methods.entries()) {
@@ -249,128 +247,7 @@ class PinterestPlugin {
     }
 
     /**
-     * Method 3: Iframely Service (Reliable Third-Party)
-     */
-    async methodIframely(pinId) {
-        try {
-            const pinUrl = `https://www.pinterest.com/pin/${pinId}/`;
-            const iframelyUrl = `https://iframe.ly/api/oembed?url=${encodeURIComponent(pinUrl)}&omit_script=true`;
-            
-            const response = await axios.get(iframelyUrl, {
-                headers: {
-                    'User-Agent': this.userAgent,
-                    'Accept': 'application/json'
-                },
-                timeout: 10000
-            });
-
-            if (response.data && response.data.thumbnail_url) {
-                return {
-                    success: true,
-                    data: {
-                        url: response.data.thumbnail_url,
-                        description: response.data.title || 'Pinterest media',
-                        type: 'image',
-                        title: response.data.title || 'Pinterest Pin'
-                    }
-                };
-            }
-            
-            throw new Error('No thumbnail found in Iframely response');
-            
-        } catch (error) {
-            throw new Error(`Method Iframely failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Method 4: Professional Scraping Service (ScraperOps - 2025)
-     */
-    async methodScraperAPI(pinId) {
-        try {
-            const pinUrl = `https://www.pinterest.com/pin/${pinId}/`;
-            
-            // Try multiple professional services
-            const services = [
-                // ScraperOps - Free tier available
-                {
-                    name: 'ScraperOps',
-                    url: `https://proxy.scrapeops.io/v1/?url=${encodeURIComponent(pinUrl)}&render_js=true&wait=3000`,
-                    headers: { 'User-Agent': this.userAgent }
-                },
-                // ScrapingBee alternative endpoint
-                {
-                    name: 'Generic Proxy',
-                    url: `https://api.allorigins.win/raw?url=${encodeURIComponent(pinUrl)}`,
-                    headers: { 'User-Agent': this.userAgent }
-                }
-            ];
-            
-            for (const service of services) {
-                try {
-                    const response = await axios.get(service.url, {
-                        headers: service.headers,
-                        timeout: 20000
-                    });
-                    
-                    if (response.data && typeof response.data === 'string') {
-                        const html = response.data;
-                        
-                        // Extract using multiple patterns
-                        const patterns = [
-                            /property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
-                            /name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
-                            /"images":\s*{[^}]*"orig":\s*{[^}]*"url":\s*"([^"]+)"/,
-                            /src=["']([^"']*pinimg\.com[^"']*\.jpg[^"']*)["']/i
-                        ];
-                        
-                        let mediaUrl = null;
-                        let title = null;
-                        let description = null;
-                        
-                        // Extract metadata
-                        const titleMatch = html.match(/<title[^>]*>([^<]+)</);
-                        const descMatch = html.match(/name=["']description["'][^>]*content=["']([^"']+)["']/);
-                        
-                        if (titleMatch) title = titleMatch[1].replace(' | Pinterest', '').trim();
-                        if (descMatch) description = descMatch[1].trim();
-                        
-                        // Try each pattern
-                        for (const pattern of patterns) {
-                            const match = html.match(pattern);
-                            if (match && match[1] && match[1].startsWith('http')) {
-                                mediaUrl = match[1];
-                                break;
-                            }
-                        }
-                        
-                        if (mediaUrl) {
-                            return {
-                                success: true,
-                                data: {
-                                    url: mediaUrl,
-                                    description: description || title || 'Pinterest media',
-                                    type: 'image',
-                                    title: title || 'Pinterest Pin'
-                                }
-                            };
-                        }
-                    }
-                } catch (serviceError) {
-                    console.log(`${service.name} failed: ${serviceError.message}`);
-                    continue;
-                }
-            }
-            
-            throw new Error('All professional scraping services failed');
-            
-        } catch (error) {
-            throw new Error(`Method ScraperAPI failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Method 5: Advanced Scraping with Stealth Headers (2025 Techniques)
+     * Method 3: Advanced Scraping with Stealth Headers (2025 Techniques)
      */
     async methodAdvancedScraping(pinId) {
         try {
