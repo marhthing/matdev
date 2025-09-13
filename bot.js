@@ -412,11 +412,14 @@ class MATDEV {
      */
     async sendEnhancedWelcomeMessage(chatId) {
         try {
-            // Read the bot image
-            const imagePath = path.join(__dirname, 'attached_assets', 'bot_1757756125990.JPG');
+            // Load welcome configuration
+            const welcomeConfig = require('./lib/welcome-config.js');
             
-            // Generate configuration display
-            const configDisplay = this.generateConfigDisplay();
+            // Get bot image path
+            const imagePath = path.join(__dirname, 'lib', 'img', 'matdev-bot.jpg');
+            
+            // Generate configuration display using config template
+            const configDisplay = this.generateConfigDisplay(welcomeConfig);
             
             // Send image with detailed caption
             await this.sock.sendMessage(chatId, {
@@ -437,48 +440,77 @@ class MATDEV {
     /**
      * Generate configuration display for welcome message
      */
-    generateConfigDisplay() {
+    generateConfigDisplay(welcomeConfig) {
+        const { template, displaySettings, icons, treeChars } = welcomeConfig;
+        
+        // Helper functions
         const getStatusIcon = (value) => {
             if (typeof value === 'boolean') {
-                return value ? '✅' : '❌';
+                return value ? icons.enabled : icons.disabled;
             }
-            return value === 'true' ? '✅' : '❌';
+            return value === 'true' ? icons.enabled : icons.disabled;
         };
         
-        const getModeIcon = (isPublic) => isPublic ? '🌍' : '🔒';
+        const getModeIcon = (isPublic) => isPublic ? icons.public : icons.private;
         
-        return `🎉 *WELCOME TO MATDEV BOT!*\n` +
-               `🚀 Your WhatsApp account has been successfully linked!\n\n` +
-               `📋 *CURRENT CONFIGURATION:*\n` +
-               `├── AUTO_READ = ${config.AUTO_READ} ${getStatusIcon(config.AUTO_READ)}\n` +
-               `├── AUTO_STATUS_VIEW = ${config.AUTO_STATUS_VIEW} ${getStatusIcon(config.AUTO_STATUS_VIEW)}\n` +
-               `├── AUTO_TYPING = ${config.AUTO_TYPING} ${getStatusIcon(config.AUTO_TYPING)}\n` +
-               `├── AUTO_REACT = ${config.AUTO_REACT} ${getStatusIcon(config.AUTO_REACT)}\n` +
-               `├── STATUS_AUTO_REACT = ${config.STATUS_AUTO_REACT} ${getStatusIcon(config.STATUS_AUTO_REACT)}\n` +
-               `├── ANTI_DELETE = ${config.ANTI_DELETE} ${getStatusIcon(config.ANTI_DELETE)}\n` +
-               `├── PUBLIC_MODE = ${config.PUBLIC_MODE} ${getModeIcon(config.PUBLIC_MODE)}\n` +
-               `├── PREFIX = "${config.PREFIX}" \n` +
-               `├── LANGUAGE = "${config.LANGUAGE}" 🌍\n` +
-               `└── TIMEZONE = ${config.TIMEZONE} 🕐\n\n` +
-               `🔧 *SYSTEM SETTINGS:*\n` +
-               `└── Auto-configured from environment\n\n` +
-               `⚡ *QUICK COMMANDS:*\n` +
-               `• ${config.PREFIX}menu - View all available commands\n` +
-               `• ${config.PREFIX}env - Check environment variables\n` +
-               `• ${config.PREFIX}setenv KEY=VALUE - Modify settings\n` +
-               `• ${config.PREFIX}sysinfo - System information\n` +
-               `• ${config.PREFIX}plugins - View loaded plugins\n` +
-               `• ${config.PREFIX}help - Get detailed help\n\n` +
-               `🔒 *SECURITY:*\n` +
-               `• Owner-only commands protected\n` +
-               `• Rate limiting enabled\n` +
-               `• Anti-ban protection active\n` +
-               `• Session encryption enabled\n\n` +
-               `🆘 *NEED HELP?*\n` +
-               `• ${config.PREFIX}help <command> for specific command info\n` +
-               `• ${config.PREFIX}status for bot health check\n` +
-               `• Check logs for troubleshooting\n\n` +
-               `Ready to explore? Start with ${config.PREFIX}menu to see all available features! 🚀`;
+        // Build message sections
+        let message = `${template.title}\n${template.subtitle}\n\n`;
+        
+        // Configuration section
+        message += `${template.sections.configuration.title}\n`;
+        displaySettings.forEach((setting, index) => {
+            const isLast = index === displaySettings.length - 1;
+            const treeChar = isLast ? treeChars.last : treeChars.middle;
+            const configValue = config[setting.key];
+            
+            let displayValue = configValue;
+            let icon = '';
+            
+            if (setting.special === 'mode') {
+                icon = ` ${getModeIcon(configValue)}`;
+            } else if (setting.special === 'text') {
+                displayValue = `"${configValue}"`;
+                icon = setting.icon ? ` ${setting.icon}` : '';
+            } else {
+                icon = ` ${getStatusIcon(configValue)}`;
+            }
+            
+            message += `${treeChar} ${setting.label} = ${displayValue}${icon}\n`;
+        });
+        message += '\n';
+        
+        // System settings section
+        message += `${template.sections.systemSettings.title}\n`;
+        template.sections.systemSettings.items.forEach(item => {
+            message += `${item}\n`;
+        });
+        message += '\n';
+        
+        // Quick commands section
+        message += `${template.sections.quickCommands.title}\n`;
+        template.sections.quickCommands.items.forEach(item => {
+            message += `${icons.bullet} ${config.PREFIX}${item}\n`;
+        });
+        message += '\n';
+        
+        // Security section
+        message += `${template.sections.security.title}\n`;
+        template.sections.security.items.forEach(item => {
+            message += `${icons.bullet} ${item}\n`;
+        });
+        message += '\n';
+        
+        // Help section
+        message += `${template.sections.help.title}\n`;
+        template.sections.help.items.forEach(item => {
+            message += `${icons.bullet} ${config.PREFIX}${item}\n`;
+        });
+        message += '\n';
+        
+        // Footer
+        message += template.footer.replace('{prefix}', config.PREFIX);
+        
+        return message;
     }
 
     /**
