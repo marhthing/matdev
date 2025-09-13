@@ -6,7 +6,7 @@ const config = require('../config');
 class PDFToolsPlugin {
     constructor() {
         this.name = 'pdf-tools';
-        this.description = 'Create PDFs from text and convert documents';
+        this.description = 'Create PDFs from text and messages';
         this.version = '1.0.0';
         this.enabled = true;
     }
@@ -14,25 +14,9 @@ class PDFToolsPlugin {
     async init(bot) {
         this.bot = bot;
         try {
-            this.bot.messageHandler.registerCommand('topdf', this.toPDFCommand.bind(this), {
-                description: 'Convert text to PDF',
-                usage: `${config.PREFIX}topdf <text>`,
-                category: 'utility',
-                plugin: 'pdf-tools',
-                source: 'pdf-tools.js'
-            });
-
-            this.bot.messageHandler.registerCommand('textpdf', this.textPDFCommand.bind(this), {
-                description: 'Create PDF from long text',
-                usage: `${config.PREFIX}textpdf <title> | <content>`,
-                category: 'utility',
-                plugin: 'pdf-tools',
-                source: 'pdf-tools.js'
-            });
-
-            this.bot.messageHandler.registerCommand('msgpdf', this.messagePDFCommand.bind(this), {
-                description: 'Convert message to PDF (reply to message)',
-                usage: `${config.PREFIX}msgpdf (reply to message)`,
+            this.bot.messageHandler.registerCommand('pdf', this.pdfCommand.bind(this), {
+                description: 'Convert text or message to PDF',
+                usage: `${config.PREFIX}pdf <text> OR reply to message with ${config.PREFIX}pdf`,
                 category: 'utility',
                 plugin: 'pdf-tools',
                 source: 'pdf-tools.js'
@@ -46,34 +30,56 @@ class PDFToolsPlugin {
         }
     }
 
-    async toPDFCommand(messageInfo) {
+    async pdfCommand(messageInfo) {
         try {
-            const text = messageInfo.args.join(' ').trim();
-            if (!text) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '📄 Usage: .topdf <text>\n\n' +
-                    'Examples:\n• .topdf Hello World\n• .topdf This is a longer text that will be converted to PDF format\n\n' +
-                    '💡 For longer text with title, use .textpdf');
-                return;
+            // Check for quoted/replied message first
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            let textContent = '';
+            let title = '';
+
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    textContent = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    textContent = quotedMessage.extendedTextMessage.text;
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text.');
+                    return;
+                }
+                title = `Message from ${new Date().toLocaleString()}`;
+            } else {
+                // Get text from command arguments
+                textContent = messageInfo.args.join(' ').trim();
+                if (!textContent) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '📄 Usage: `.pdf <text>` OR reply to a message with `.pdf`\n\n' +
+                        'Examples:\n• `.pdf Hello World`\n• `.pdf This is a longer text that will be converted to PDF`\n• Reply to any message and type `.pdf`');
+                    return;
+                }
+                title = 'Generated Document';
             }
 
-            if (text.length > 2000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 2000 characters. Use .textpdf for longer content.');
+            // Check text length
+            if (textContent.length > 5000) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 5000 characters.');
                 return;
             }
 
             // Show processing message
             await this.bot.messageHandler.reply(messageInfo, '📄 Creating PDF...');
 
-            const pdfResult = await this.createSimplePDF(text, 'Generated Document');
-            
+            const pdfResult = await this.createPDF(title, textContent);
+
             if (pdfResult.success) {
                 // Send the PDF file
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     document: { url: pdfResult.filePath },
                     fileName: pdfResult.fileName,
                     mimetype: 'application/pdf',
-                    caption: `📄 **PDF Created**\n\n📝 ${text.length} characters converted\n📅 ${new Date().toLocaleString()}`
+                    caption: `📄 **PDF Created**\n\n📝 ${textContent.length} characters\n📅 ${new Date().toLocaleString()}`
                 });
 
                 // Clean up temp file
@@ -84,133 +90,25 @@ class PDFToolsPlugin {
             }
 
         } catch (error) {
-            console.error('Error in topdf command:', error);
+            console.error('Error in pdf command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error creating PDF.');
         }
     }
 
-    async textPDFCommand(messageInfo) {
-        try {
-            const input = messageInfo.args.join(' ').trim();
-            if (!input.includes('|')) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '📚 Usage: .textpdf <title> | <content>\n\n' +
-                    'Example:\n.textpdf My Report | This is the content of my report with multiple paragraphs and detailed information.');
-                return;
-            }
-
-            const [title, content] = input.split('|').map(s => s.trim());
-            
-            if (!title || !content) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Both title and content are required.\n\nFormat: .textpdf <title> | <content>');
-                return;
-            }
-
-            if (content.length > 5000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Content too long! Maximum 5000 characters.');
-                return;
-            }
-
-            // Show processing message
-            await this.bot.messageHandler.reply(messageInfo, '📚 Creating formatted PDF...');
-
-            const pdfResult = await this.createFormattedPDF(title, content);
-            
-            if (pdfResult.success) {
-                // Send the PDF file
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    document: { url: pdfResult.filePath },
-                    fileName: pdfResult.fileName,
-                    mimetype: 'application/pdf',
-                    caption: `📚 **PDF Document Created**\n\n📝 Title: ${title}\n📊 Content: ${content.length} characters\n📅 Created: ${new Date().toLocaleString()}`
-                });
-
-                // Clean up temp file
-                await fs.unlink(pdfResult.filePath).catch(() => {});
-
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${pdfResult.error}`);
-            }
-
-        } catch (error) {
-            console.error('Error in textpdf command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating formatted PDF.');
-        }
-    }
-
-    async messagePDFCommand(messageInfo) {
-        try {
-            // Check for quoted message
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '💬 Usage: Reply to a message with .msgpdf\n\n' +
-                    '📄 This will convert the replied message to PDF format');
-                return;
-            }
-
-            // Extract text from quoted message
-            let messageText = '';
-            if (quotedMessage.conversation) {
-                messageText = quotedMessage.conversation;
-            } else if (quotedMessage.extendedTextMessage?.text) {
-                messageText = quotedMessage.extendedTextMessage.text;
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text.');
-                return;
-            }
-
-            if (messageText.length > 3000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Message too long! Maximum 3000 characters.');
-                return;
-            }
-
-            // Show processing message
-            await this.bot.messageHandler.reply(messageInfo, '💬 Converting message to PDF...');
-
-            const timestamp = new Date().toLocaleString();
-            const title = `Message from ${timestamp}`;
-            
-            const pdfResult = await this.createFormattedPDF(title, messageText);
-            
-            if (pdfResult.success) {
-                // Send the PDF file
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    document: { url: pdfResult.filePath },
-                    fileName: pdfResult.fileName,
-                    mimetype: 'application/pdf',
-                    caption: `💬 **Message PDF Created**\n\n📝 ${messageText.length} characters\n📅 ${timestamp}`
-                });
-
-                // Clean up temp file
-                await fs.unlink(pdfResult.filePath).catch(() => {});
-
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${pdfResult.error}`);
-            }
-
-        } catch (error) {
-            console.error('Error in msgpdf command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error converting message to PDF.');
-        }
-    }
-
-    async createSimplePDF(text, title) {
+    async createPDF(title, content) {
         try {
             // Create a simple HTML structure for PDF conversion
-            const html = this.generateHTML(title, text);
-            
-            // Try to use free HTML to PDF service
+            const html = this.generateHTML(title, content);
+
+            // Try to use free HTML to PDF service (placeholder for now)
             const pdfResult = await this.htmlToPDF(html, title);
-            
+
             if (pdfResult.success) {
                 return pdfResult;
             }
 
             // Fallback: Create a simple text-based PDF using basic formatting
-            return await this.createTextPDF(title, text);
+            return await this.createTextPDF(title, content);
 
         } catch (error) {
             console.error('PDF creation error:', error);
@@ -221,37 +119,12 @@ class PDFToolsPlugin {
         }
     }
 
-    async createFormattedPDF(title, content) {
-        try {
-            // Format content with paragraphs
-            const formattedContent = content.split('\n').map(line => 
-                line.trim() ? `<p>${line.trim()}</p>` : '<br>'
-            ).join('');
+    generateHTML(title, content) {
+        // Format content with proper paragraphs
+        const formattedContent = content.split('\n').map(line =>
+            line.trim() ? `<p>${line.trim()}</p>` : '<br>'
+        ).join('');
 
-            const html = this.generateHTML(title, null, formattedContent);
-            
-            // Try to convert HTML to PDF
-            const pdfResult = await this.htmlToPDF(html, title);
-            
-            if (pdfResult.success) {
-                return pdfResult;
-            }
-
-            // Fallback: Create simple text PDF
-            return await this.createTextPDF(title, content);
-
-        } catch (error) {
-            console.error('Formatted PDF creation error:', error);
-            return {
-                success: false,
-                error: 'PDF formatting service temporarily unavailable'
-            };
-        }
-    }
-
-    generateHTML(title, plainText = null, htmlContent = null) {
-        const content = htmlContent || `<p>${plainText?.split('\n').join('</p><p>')}</p>`;
-        
         return `
         <!DOCTYPE html>
         <html>
@@ -267,7 +140,7 @@ class PDFToolsPlugin {
         </head>
         <body>
             <h1>${title}</h1>
-            ${content}
+            ${formattedContent}
             <div class="footer">Generated by MATDEV Bot on ${new Date().toLocaleString()}</div>
         </body>
         </html>`;
@@ -280,7 +153,7 @@ class PDFToolsPlugin {
             // - HTMLCSStoRPDF API
             // - Puppeteer (requires more setup)
             // - wkhtmltopdf (requires system installation)
-            
+
             // For now, return failure to use fallback
             return { success: false };
 
@@ -295,12 +168,12 @@ class PDFToolsPlugin {
             // Create a basic text-based PDF using simple formatting
             // This is a fallback that creates a readable text file with PDF extension
             // In practice, you'd use a proper PDF library
-            
+
             const fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.txt`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
-            
+
             const formattedContent = `
 ${title}
 ${'='.repeat(title.length)}
