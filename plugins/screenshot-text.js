@@ -72,13 +72,7 @@ class ScreenshotTextPlugin {
                 const result = await this.extractTextFromImage(imageBuffer);
                 
                 if (result.success && result.text.trim()) {
-                    await this.bot.messageHandler.reply(messageInfo,
-                        `🔍 **Text Extracted**\n\n` +
-                        `${result.text}\n\n` +
-                        `📊 **Stats:**\n` +
-                        `• Characters: ${result.text.length}\n` +
-                        `• Words: ${result.text.split(/\s+/).length}\n` +
-                        `• Confidence: ${result.confidence || 'N/A'}`);
+                    await this.bot.messageHandler.reply(messageInfo, result.text);
                 } else if (result.success && !result.text.trim()) {
                     await this.bot.messageHandler.reply(messageInfo,
                         '❌ No text found in the image.\n\n' +
