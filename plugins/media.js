@@ -390,9 +390,17 @@ class MediaPlugin {
                 }
             }
 
-            const buffer = await this.downloadMedia(quotedMessage, 'stickerMessage');
+            // Use the same robust download method as .sticker command
+            // Create proper message structure for downloadMedia
+            const messageToProcess = {
+                key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || 
+                     messageInfo.key, // fallback to current message key
+                message: quotedMessage
+            };
+
+            const mediaResult = await this.downloadMedia(messageToProcess, 'stickerMessage');
             
-            if (!buffer) {
+            if (!mediaResult || !mediaResult.buffer) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process sticker. Please try again.');
                 return;
             }
@@ -415,7 +423,7 @@ class MediaPlugin {
             }
 
             // Create sticker with embedded metadata
-            const sticker = new Sticker(buffer.buffer, stickerOptions);
+            const sticker = new Sticker(mediaResult.buffer, stickerOptions);
             const stickerBuffer = await sticker.toBuffer();
 
             if (!stickerBuffer || stickerBuffer.length === 0) {
