@@ -1,10 +1,12 @@
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
 
 class Base64EncoderPlugin {
     constructor() {
         this.name = 'base64-encoder';
-        this.description = 'Encode and decode text using Base64';
-        this.version = '1.0.0';
+        this.description = 'Encode and decode text/media using Base64';
+        this.version = '2.0.0';
         this.enabled = true;
     }
 
@@ -12,15 +14,15 @@ class Base64EncoderPlugin {
         this.bot = bot;
         try {
             this.bot.messageHandler.registerCommand('encode', this.encodeCommand.bind(this), {
-                description: 'Encode text to Base64',
-                usage: `${config.PREFIX}encode <text>`,
+                description: 'Encode text/media to Base64',
+                usage: `${config.PREFIX}encode <text> OR reply to media`,
                 category: 'utility',
                 plugin: 'base64-encoder',
                 source: 'base64-encoder.js'
             });
 
             this.bot.messageHandler.registerCommand('decode', this.decodeCommand.bind(this), {
-                description: 'Decode Base64 to text',
+                description: 'Decode Base64 to text/media',
                 usage: `${config.PREFIX}decode <base64>`,
                 category: 'utility',
                 plugin: 'base64-encoder',
@@ -37,11 +39,29 @@ class Base64EncoderPlugin {
 
     async encodeCommand(messageInfo) {
         try {
+            // Check for quoted message with media
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                messageInfo.message?.quotedMessage;
+
+            // Check for direct media in current message
+            const currentMedia = messageInfo.message?.imageMessage || 
+                               messageInfo.message?.videoMessage || 
+                               messageInfo.message?.audioMessage || 
+                               messageInfo.message?.documentMessage ||
+                               messageInfo.message?.stickerMessage;
+
+            if (quotedMessage || currentMedia) {
+                await this.encodeMediaCommand(messageInfo, quotedMessage, currentMedia);
+                return;
+            }
+
+            // Handle text encoding
             const text = messageInfo.args.join(' ').trim();
             if (!text) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '🔐 Usage: .encode <text>\n\n' +
-                    'Example:\n• .encode Hello World!\n• .encode My secret message');
+                    '🔐 Usage: .encode <text> OR reply to media\n\n' +
+                    '**Text Examples:**\n• .encode Hello World!\n• .encode My secret message\n\n' +
+                    '**Media:** Reply to any image, video, audio, document, or sticker');
                 return;
             }
 
@@ -54,7 +74,7 @@ class Base64EncoderPlugin {
                 const encoded = Buffer.from(text, 'utf8').toString('base64');
                 
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🔐 **Base64 Encoded**\n\n` +
+                    `🔐 **Base64 Encoded (Text)**\n\n` +
                     `**Original:** ${text.length > 50 ? text.substring(0, 50) + '...' : text}\n\n` +
                     `**Encoded:**\n\`\`\`${encoded}\`\`\`\n\n` +
                     `📊 Length: ${text.length} → ${encoded.length} chars`);
@@ -75,12 +95,13 @@ class Base64EncoderPlugin {
             if (!base64) {
                 await this.bot.messageHandler.reply(messageInfo,
                     '🔓 Usage: .decode <base64>\n\n' +
-                    'Example:\n• .decode SGVsbG8gV29ybGQh\n• .decode TWVzc2FnZSB0byBkZWNvZGU=');
+                    '**Text Examples:**\n• .decode SGVsbG8gV29ybGQh\n• .decode TWVzc2FnZSB0byBkZWNvZGU=\n\n' +
+                    '**Media:** Paste base64 from .encode media command');
                 return;
             }
 
-            if (base64.length > 2000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Base64 string too long! Maximum 2000 characters.');
+            if (base64.length > 50000000) { // ~37MB limit for media base64
+                await this.bot.messageHandler.reply(messageInfo, '❌ Base64 string too long! Maximum ~37MB.');
                 return;
             }
 
@@ -91,7 +112,18 @@ class Base64EncoderPlugin {
             }
 
             try {
-                const decoded = Buffer.from(base64, 'base64').toString('utf8');
+                const decodedBuffer = Buffer.from(base64, 'base64');
+                
+                // Check if this is likely media data (check magic bytes)
+                const mediaType = this.detectMediaType(decodedBuffer);
+                
+                if (mediaType) {
+                    await this.decodeMediaCommand(messageInfo, decodedBuffer, mediaType, base64.length);
+                    return;
+                }
+
+                // Handle as text
+                const decoded = decodedBuffer.toString('utf8');
                 
                 // Check if decoded text contains only printable characters
                 if (!this.isPrintableText(decoded)) {
@@ -99,12 +131,12 @@ class Base64EncoderPlugin {
                         `🔓 **Base64 Decoded**\n\n` +
                         `**Decoded:** *(Binary/non-printable data)*\n\n` +
                         `📊 Length: ${base64.length} → ${decoded.length} bytes\n\n` +
-                        `⚠️ The decoded content appears to be binary data.`);
+                        `⚠️ The decoded content appears to be binary data but no media type detected.`);
                     return;
                 }
 
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🔓 **Base64 Decoded**\n\n` +
+                    `🔓 **Base64 Decoded (Text)**\n\n` +
                     `**Original Base64:** ${base64.length > 50 ? base64.substring(0, 50) + '...' : base64}\n\n` +
                     `**Decoded:**\n${decoded}\n\n` +
                     `📊 Length: ${base64.length} → ${decoded.length} chars`);
