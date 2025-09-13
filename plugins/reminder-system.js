@@ -21,24 +21,8 @@ class ReminderSystemPlugin {
             await this.loadReminders();
 
             this.bot.messageHandler.registerCommand('remind', this.remindCommand.bind(this), {
-                description: 'Set a reminder',
-                usage: `${config.PREFIX}remind <time> <message>`,
-                category: 'utility',
-                plugin: 'reminder-system',
-                source: 'reminder-system.js'
-            });
-
-            this.bot.messageHandler.registerCommand('reminders', this.listRemindersCommand.bind(this), {
-                description: 'List all your reminders',
-                usage: `${config.PREFIX}reminders`,
-                category: 'utility',
-                plugin: 'reminder-system',
-                source: 'reminder-system.js'
-            });
-
-            this.bot.messageHandler.registerCommand('cancelremind', this.cancelReminderCommand.bind(this), {
-                description: 'Cancel a reminder',
-                usage: `${config.PREFIX}cancelremind <id>`,
+                description: 'Manage reminders',
+                usage: `${config.PREFIX}remind | ${config.PREFIX}remind <time> <message> | ${config.PREFIX}remind cancel <id>`,
                 category: 'utility',
                 plugin: 'reminder-system',
                 source: 'reminder-system.js'
@@ -57,16 +41,21 @@ class ReminderSystemPlugin {
 
     async remindCommand(messageInfo) {
         try {
-            const args = messageInfo.args.join(' ').trim();
-            if (!args) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '⏰ Usage: .remind <time> <message>\n\n' +
-                    '**Time formats:**\n• 5min, 30min, 1h, 2h\n• tomorrow, today 6pm\n• 2024-12-25 10:30\n\n' +
-                    'Examples:\n• .remind 30min Call mom\n• .remind 1h Meeting with team\n• .remind tomorrow 9am Doctor appointment');
-                return;
+            const args = messageInfo.args;
+            
+            // No arguments - show all reminders
+            if (args.length === 0) {
+                return await this.showReminders(messageInfo);
             }
-
-            const parsed = this.parseReminderInput(args);
+            
+            // Check if first argument is "cancel"
+            if (args[0].toLowerCase() === 'cancel') {
+                return await this.cancelReminder(messageInfo, args[1]);
+            }
+            
+            // Otherwise, create a reminder
+            const fullArgs = args.join(' ').trim();
+            const parsed = this.parseReminderInput(fullArgs);
             if (!parsed.success) {
                 await this.bot.messageHandler.reply(messageInfo, `❌ ${parsed.error}`);
                 return;
@@ -89,18 +78,26 @@ class ReminderSystemPlugin {
 
         } catch (error) {
             console.error('Error in remind command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error setting reminder.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing reminder.');
         }
     }
 
-    async listRemindersCommand(messageInfo) {
+    async showReminders(messageInfo) {
         try {
             const userReminders = Array.from(this.reminders.values())
                 .filter(reminder => reminder.userId === messageInfo.sender_jid && reminder.datetime > Date.now())
                 .sort((a, b) => a.datetime - b.datetime);
 
             if (userReminders.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, '📅 You have no active reminders.');
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '📅 **No Active Reminders**\n\n' +
+                    '**Usage:**\n' +
+                    '• `.remind <time> <message>` - Set reminder\n' +
+                    '• `.remind cancel <id>` - Cancel reminder\n\n' +
+                    '**Examples:**\n' +
+                    '• `.remind 30min Call mom`\n' +
+                    '• `.remind 1h Meeting`\n' +
+                    '• `.remind tomorrow 9am Doctor`');
                 return;
             }
 
@@ -111,21 +108,20 @@ class ReminderSystemPlugin {
                 message += `**${reminder.id}** - ${timeStr}\n${reminder.message}\n\n`;
             });
 
-            message += `Use .cancelremind <id> to cancel a reminder`;
+            message += `Use .remind cancel <id> to cancel a reminder`;
             
             await this.bot.messageHandler.reply(messageInfo, message);
 
         } catch (error) {
-            console.error('Error in reminders command:', error);
+            console.error('Error showing reminders:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error listing reminders.');
         }
     }
 
-    async cancelReminderCommand(messageInfo) {
+    async cancelReminder(messageInfo, reminderId) {
         try {
-            const reminderId = messageInfo.args[0];
             if (!reminderId) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .cancelremind <id>\n\nUse .reminders to see your reminder IDs');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .remind cancel <id>\n\nUse .remind to see your reminder IDs');
                 return;
             }
 
@@ -151,7 +147,7 @@ class ReminderSystemPlugin {
             await this.bot.messageHandler.reply(messageInfo, `✅ Reminder ${reminderId} cancelled.`);
 
         } catch (error) {
-            console.error('Error in cancelremind command:', error);
+            console.error('Error cancelling reminder:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error cancelling reminder.');
         }
     }
