@@ -151,7 +151,7 @@ class ImageEffectsPlugin {
                 category: 'blur'
             },
             radialblur: {
-                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(hypot(X-W/2,Y-H/2)<min(W,H)/4,A,B)\'',
+                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_mode=normal:all_opacity="if(hypot(X-W/2\\,Y-H/2)<min(W\\,H)/4\\,1\\,0)"',
                 description: 'Radial blur focusing on center',
                 category: 'blur'
             },
