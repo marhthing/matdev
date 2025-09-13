@@ -71,23 +71,12 @@ class ReminderSystemPlugin {
             );
 
             const timeStr = this.formatDateTime(parsed.datetime);
-            const confirmMessage = await this.bot.messageHandler.reply(messageInfo,
+            await this.bot.messageHandler.reply(messageInfo,
                 `⏰ **Reminder Set**\n\n` +
                 `**ID:** ${reminderId}\n` +
                 `**Time:** ${timeStr}\n` +
                 `**Message:** ${parsed.message}\n\n` +
                 `🔔 You'll be notified when it's time!`);
-            
-            // Pin the confirmation message
-            if (confirmMessage && confirmMessage.key) {
-                try {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        pin: confirmMessage.key
-                    });
-                } catch (pinError) {
-                    console.log('Could not pin confirmation message:', pinError.message);
-                }
-            }
 
         } catch (error) {
             console.error('Error in remind command:', error);
@@ -280,26 +269,19 @@ class ReminderSystemPlugin {
 
             const reminderText = `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`;
             
+            console.log(`📨 Sending reminder ${reminderId} (3x with delays)`);
+            
             // Send reminder 3 times with delays to avoid WhatsApp blocking
             for (let i = 0; i < 3; i++) {
                 setTimeout(async () => {
                     try {
-                        const message = await this.bot.sock.sendMessage(reminder.chatId, {
+                        console.log(`📤 Sending reminder ${reminderId} - attempt ${i + 1}/3 (delay: ${i * 2}s)`);
+                        await this.bot.sock.sendMessage(reminder.chatId, {
                             text: reminderText
                         });
-
-                        // Pin the first reminder message
-                        if (i === 0 && message && message.key) {
-                            try {
-                                await this.bot.sock.sendMessage(reminder.chatId, {
-                                    pin: message.key
-                                });
-                            } catch (pinError) {
-                                console.log('Could not pin reminder message:', pinError.message);
-                            }
-                        }
+                        console.log(`✅ Reminder ${reminderId} - attempt ${i + 1}/3 sent successfully`);
                     } catch (sendError) {
-                        console.error(`Error sending reminder ${i + 1}/3:`, sendError);
+                        console.error(`❌ Error sending reminder ${reminderId} attempt ${i + 1}/3:`, sendError);
                     }
                 }, i * 2000); // 2 second delay between each send
             }
