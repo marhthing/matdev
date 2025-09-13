@@ -15,6 +15,9 @@ class StatusPlugin {
         // Status settings storage file
         this.statusSettingsFile = path.join(__dirname, '..', 'session', 'storage', 'status_settings.json');
         this.statusSettings = this.loadStatusSettings();
+        
+        // Message deduplication set
+        this.processedMessages = new Set();
     }
 
     /**
@@ -58,7 +61,7 @@ class StatusPlugin {
         
         // Default settings
         return {
-            enabled: config.AUTO_STATUS_VIEW || false,
+            enabled: false,
             autoDownload: true,
             viewMode: 'all',
             filterJids: [],
@@ -144,9 +147,7 @@ class StatusPlugin {
             if (action === 'off') {
                 // Turn off status features
                 this.statusSettings.enabled = false;
-                config.AUTO_STATUS_VIEW = false;
                 this.saveStatusSettings();
-                this.updateEnvVar('AUTO_STATUS_VIEW', 'false');
                 
                 return await this.bot.messageHandler.reply(messageInfo, 
                     '🔴 Status auto-view and auto-download disabled');
@@ -240,9 +241,7 @@ class StatusPlugin {
             }
 
             // Save settings
-            config.AUTO_STATUS_VIEW = true;
             this.saveStatusSettings();
-            this.updateEnvVar('AUTO_STATUS_VIEW', 'true');
 
             if (this.statusSettings.autoDownload) {
                 responseMsg += '\n💾 Auto-download enabled';
@@ -366,13 +365,134 @@ class StatusPlugin {
             // Check if this is a status update and auto-view is enabled
             if (message.key?.remoteJid === 'status@broadcast' && 
                 !message.key.fromMe && 
-                config.AUTO_STATUS_VIEW) {
+                this.statusSettings.enabled) {
                 
+                const participantJid = message.key.participant;
+                const messageId = `${message.key.remoteJid}_${message.key.id}_${participantJid}`;
+                
+                // Check for message deduplication
+                if (this.processedMessages.has(messageId)) {
+                    return;
+                }
+                
+                // Apply JID filtering based on viewMode
+                if (!this.shouldViewStatus(participantJid)) {
+                    this.logger.debug('🚫 Skipped viewing status from:', participantJid, '(filtered)');
+                    return;
+                }
+                
+                // Mark message as processed
+                this.processedMessages.add(messageId);
+                
+                // Clean up old processed messages (keep last 1000)
+                if (this.processedMessages.size > 1000) {
+                    const firstEntry = this.processedMessages.values().next().value;
+                    this.processedMessages.delete(firstEntry);
+                }
+                
+                // Auto-view the status
                 await this.bot.sock.readMessages([message.key]);
-                this.logger.debug('👁️ Auto-viewed status from:', message.key.participant || message.key.remoteJid);
+                this.logger.debug('👁️ Auto-viewed status from:', participantJid);
+                
+                // Handle auto-download and forwarding if enabled
+                if (this.statusSettings.autoDownload) {
+                    await this.handleAutoDownloadAndForward(message);
+                }
             }
         } catch (error) {
             this.logger.error('Error auto-viewing status:', error.message);
+        }
+    }
+
+    /**
+     * Check if a status should be viewed based on filtering settings
+     */
+    shouldViewStatus(participantJid) {
+        if (!participantJid) return false;
+        
+        switch (this.statusSettings.viewMode) {
+            case 'all':
+                return true;
+            case 'except':
+                return !this.statusSettings.filterJids.includes(participantJid);
+            case 'only':
+                return this.statusSettings.filterJids.includes(participantJid);
+            default:
+                return true;
+        }
+    }
+
+    /**
+     * Handle auto-download and forwarding functionality
+     */
+    async handleAutoDownloadAndForward(message) {
+        try {
+            const participantJid = message.key.participant;
+            
+            // Extract and download media if present
+            const mediaData = await this.extractStatusMedia(message);
+            const textContent = this.extractStatusText(message);
+            
+            if (mediaData || textContent) {
+                // Forward to destination
+                const destination = this.statusSettings.forwardDestination;
+                
+                if (mediaData) {
+                    // Add source info to caption
+                    const originalCaption = mediaData.caption || '';
+                    const sourceInfo = `\n\n📱 Status from: ${participantJid.replace('@s.whatsapp.net', '')}`;
+                    
+                    if (mediaData.image) {
+                        await this.bot.sock.sendMessage(destination, {
+                            image: mediaData.image,
+                            caption: originalCaption + sourceInfo
+                        });
+                    } else if (mediaData.video) {
+                        await this.bot.sock.sendMessage(destination, {
+                            video: mediaData.video,
+                            caption: originalCaption + sourceInfo
+                        });
+                    } else if (mediaData.audio) {
+                        await this.bot.sock.sendMessage(destination, {
+                            audio: mediaData.audio,
+                            mimetype: mediaData.mimetype
+                        });
+                        // Send source info separately for audio
+                        await this.bot.sock.sendMessage(destination, {
+                            text: `🎵 Audio status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                        });
+                    } else if (mediaData.document) {
+                        await this.bot.sock.sendMessage(destination, {
+                            document: mediaData.document,
+                            mimetype: mediaData.mimetype,
+                            fileName: mediaData.fileName
+                        });
+                        await this.bot.sock.sendMessage(destination, {
+                            text: `📄 Document status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                        });
+                    } else if (mediaData.sticker) {
+                        await this.bot.sock.sendMessage(destination, {
+                            sticker: mediaData.sticker
+                        });
+                        await this.bot.sock.sendMessage(destination, {
+                            text: `🎭 Sticker status from: ${participantJid.replace('@s.whatsapp.net', '')}`
+                        });
+                    }
+                    
+                    this.logger.debug(`📤 Auto-forwarded status media from ${participantJid} to ${destination}`);
+                    
+                } else if (textContent) {
+                    // Forward text status
+                    const sourceInfo = `📱 Status from: ${participantJid.replace('@s.whatsapp.net', '')}\n\n`;
+                    await this.bot.sock.sendMessage(destination, {
+                        text: sourceInfo + textContent
+                    });
+                    
+                    this.logger.debug(`📤 Auto-forwarded status text from ${participantJid} to ${destination}`);
+                }
+            }
+        } catch (error) {
+            this.logger.error('Error in auto-download and forward:', error.message);
         }
     }
 
@@ -473,14 +593,26 @@ class StatusPlugin {
     /**
      * Extract media from status message
      */
-    async extractStatusMedia(quotedMessage) {
+    async extractStatusMedia(messageOrQuoted) {
         try {
             const { downloadMediaMessage } = require('baileys');
-            const messageContent = quotedMessage.message || quotedMessage;
+            
+            // Handle both direct message and quoted message formats
+            let messageContent, messageKey;
+            
+            if (messageOrQuoted.message) {
+                // Direct message format
+                messageContent = messageOrQuoted.message;
+                messageKey = messageOrQuoted.key;
+            } else {
+                // Quoted message format
+                messageContent = messageOrQuoted.message || messageOrQuoted;
+                messageKey = messageOrQuoted.key || {};
+            }
 
-            // Create a mock message structure for baileys
+            // Create a proper message structure for baileys
             const mockMessage = {
-                key: quotedMessage.key || {},
+                key: messageKey,
                 message: messageContent
             };
 
@@ -535,9 +667,18 @@ class StatusPlugin {
     /**
      * Extract text content from status
      */
-    extractStatusText(quotedMessage) {
+    extractStatusText(messageOrQuoted) {
         try {
-            const messageContent = quotedMessage.message || quotedMessage;
+            // Handle both direct message and quoted message formats
+            let messageContent;
+            
+            if (messageOrQuoted.message) {
+                // Direct message format
+                messageContent = messageOrQuoted.message;
+            } else {
+                // Quoted message format  
+                messageContent = messageOrQuoted.message || messageOrQuoted;
+            }
 
             if (messageContent.conversation) {
                 return messageContent.conversation;
