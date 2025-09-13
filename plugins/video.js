@@ -74,16 +74,19 @@ class VideoPlugin {
                 mediaType = 'stickerMessage';
                 const stickerMsg = quotedMessage.stickerMessage;
                 
-                // Check if it's an animated sticker
-                if (stickerMsg.isAnimated || stickerMsg.seconds > 0) {
+                // Check if it's an animated sticker - be more permissive
+                if (stickerMsg.isAnimated || 
+                    stickerMsg.seconds > 0 || 
+                    stickerMsg.mimetype === 'image/webp' ||
+                    stickerMsg.fileLength > 50000) { // Large files likely animated
                     isValidMedia = true;
-                    console.log('📹 Detected animated sticker for MP4 conversion');
-                } else if (stickerMsg.mimetype === 'image/webp') {
-                    // Static sticker - still allow conversion but warn
-                    isValidMedia = true;
-                    console.log('📹 Detected static sticker for MP4 conversion (will be short video)');
+                    if (stickerMsg.isAnimated || stickerMsg.seconds > 0) {
+                        console.log('📹 Detected confirmed animated sticker for MP4 conversion');
+                    } else {
+                        console.log('📹 Detected sticker for MP4 conversion (checking if animated)');
+                    }
                 } else {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an animated sticker.');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker (preferably animated).');
                     return;
                 }
             }
@@ -144,30 +147,44 @@ class VideoPlugin {
                 throw new Error('Generated video file is empty');
             }
 
+            // Check buffer content type for better debugging
+            const bufferStart = mediaResult.buffer.slice(0, 20).toString('hex');
             console.log(`📹 Video file created: ${tempFileName} (${stats.size} bytes)`);
+            console.log(`📹 Buffer signature: ${bufferStart}`);
 
-            // For animated stickers, the buffer might be WebP format
-            // WhatsApp should handle the conversion when sending as video
+            // For animated stickers, verify the buffer contains valid data
             if (mediaType === 'stickerMessage') {
-                // Rename file to have proper extension based on original format
-                const originalTempPath = tempFilePath;
-                const webpTempPath = tempFilePath.replace('.mp4', '.webp');
+                console.log('📹 Processing animated sticker - buffer type verification');
                 
-                // Try saving as WebP first for animated stickers
-                await fs.rename(originalTempPath, webpTempPath);
+                // Check if buffer starts with WebP signature
+                const isWebP = mediaResult.buffer.slice(0, 4).toString() === 'RIFF' && 
+                              mediaResult.buffer.slice(8, 12).toString() === 'WEBP';
                 
-                // Then rename back to mp4 for sending
-                await fs.rename(webpTempPath, originalTempPath);
-                
-                console.log('📹 Processed animated sticker format');
+                if (isWebP) {
+                    console.log('📹 Confirmed WebP animated sticker format');
+                } else {
+                    console.log('📹 Non-WebP sticker format detected');
+                }
             }
 
-            // Send as MP4 video using the temp file without caption
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                video: { url: tempFilePath },
-                mimetype: 'video/mp4',
-                fileName: `converted_video_${timestamp}.mp4`
-            });
+            // Send converted file - let WhatsApp handle the format
+            if (mediaType === 'stickerMessage') {
+                // For animated stickers, send as document to preserve format
+                await this.bot.sock.sendMessage(messageInfo.sender, {
+                    document: { url: tempFilePath },
+                    mimetype: 'video/mp4',
+                    fileName: `converted_sticker_${timestamp}.mp4`
+                });
+                console.log('📹 Sent animated sticker as MP4 document');
+            } else {
+                // For GIFs and other videos, send as video
+                await this.bot.sock.sendMessage(messageInfo.sender, {
+                    video: { url: tempFilePath },
+                    mimetype: 'video/mp4',
+                    fileName: `converted_video_${timestamp}.mp4`
+                });
+                console.log('📹 Sent as MP4 video');
+            }
 
             console.log('✅ Video');
 
