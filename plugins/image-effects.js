@@ -146,12 +146,12 @@ class ImageEffectsPlugin {
                 category: 'blur'
             },
             tiltshift: {
-                filter: 'split[main][blur];[blur]gblur=sigma=8[blurred];[main][blurred]blend=all_expr=if(between(Y\\,H*0.3\\,H*0.7)\\,A\\,B)',
+                filter: 'split[main][blur];[blur]gblur=sigma=8[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
                 description: 'Tilt-shift miniature effect',
                 category: 'blur'
             },
             radialblur: {
-                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=if(hypot(X-W/2\\,Y-H/2)<min(W\\,H)/4\\,A\\,B)',
+                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(hypot(X-W/2,Y-H/2)<min(W,H)/4,A,B)\'',
                 description: 'Radial blur focusing on center',
                 category: 'blur'
             },
