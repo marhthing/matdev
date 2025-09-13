@@ -201,7 +201,7 @@ class MediaPlugin {
                 return;
             }
 
-            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting media... Please wait.');
+            // await this.bot.messageHandler.reply(messageInfo, '🔄 Converting media... Please wait.');
 
             const targetFormat = args[0].toLowerCase();
 
@@ -251,7 +251,7 @@ class MediaPlugin {
      */
     async handleCompress(messageInfo, quoted, mediaType) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🗜️ Compressing media... Please wait.');
+            // await this.bot.messageHandler.reply(messageInfo, '🗜️ Compressing media... Please wait.');
 
             // Download media using updated method
             const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
@@ -301,7 +301,7 @@ class MediaPlugin {
                 return;
             }
 
-            await this.bot.messageHandler.reply(messageInfo, '🎵 Converting to MP3... Please wait.');
+            // await this.bot.messageHandler.reply(messageInfo, '🎵 Converting to MP3... Please wait.');
 
             // Download media using updated method
             const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
@@ -337,7 +337,7 @@ class MediaPlugin {
      */
     async handleToVideo(messageInfo, quoted, mediaType) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🎬 Converting to video... Please wait.');
+            // await this.bot.messageHandler.reply(messageInfo, '🎬 Converting to video... Please wait.');
 
             // Download media using updated method
             const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
