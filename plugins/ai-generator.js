@@ -292,7 +292,7 @@ class AIGeneratorPlugin {
                 // Clean up temp files
                 await fs.unlink(tempOutputFile).catch(() => {});
 
-                console.log('✅ Style artwork generated and sent');
+                // console.log('✅ Style artwork generated and sent');
 
             } catch (error) {
                 console.error('Style generation error:', error);
