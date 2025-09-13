@@ -111,18 +111,17 @@ class MediaPlugin {
     }
 
     /**
-     * Get media type from message using Baileys getContentType
+     * Get media type from message directly (like other plugins do)
      */
     getMediaType(message) {
-        try {
-            // Create a proper WAMessage structure for getContentType
-            const waMessage = { message: message };
-            return getContentType(waMessage);
-        } catch (error) {
-            // Fallback to manual detection
-            const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
-            return mediaTypes.find(type => message[type]);
-        }
+        // Check for media types directly on the quoted message content
+        if (message.imageMessage) return 'imageMessage';
+        if (message.videoMessage) return 'videoMessage';
+        if (message.audioMessage) return 'audioMessage';
+        if (message.documentMessage) return 'documentMessage';
+        if (message.stickerMessage) return 'stickerMessage';
+        
+        return null; // No media found
     }
 
     /**
