@@ -1,7 +1,7 @@
 
 /**
  * MATDEV Audio Effects Plugin
- * Apply various audio effects like robot, slow, fast, etc.
+ * Apply various voice and audio effects to audio messages
  */
 
 const fs = require('fs-extra');
@@ -13,49 +13,92 @@ const config = require('../config');
 class AudioEffectsPlugin {
     constructor() {
         this.name = 'audio-effects';
-        this.description = 'Apply various audio effects to audio messages';
-        this.version = '1.0.0';
+        this.description = 'Apply various voice and audio effects to audio messages';
+        this.version = '2.0.0';
         
         this.effects = {
+            // Voice effects
             robot: {
-                filter: 'aformat=sample_rates=8000:sample_fmts=s16,volume=1.2,atempo=1.1',
-                description: 'Robotic voice effect'
+                filter: 'aformat=sample_rates=8000:sample_fmts=s16,volume=1.5',
+                description: 'Robotic voice effect',
+                category: 'voice'
             },
-            slow: {
-                filter: 'atempo=0.5',
-                description: 'Slow down audio 2x'
+            chipmunk: {
+                filter: 'asetrate=r=44100*1.5,aresample=44100',
+                description: 'High-pitched chipmunk voice',
+                category: 'voice'
             },
-            fast: {
-                filter: 'atempo=2.0',
-                description: 'Speed up audio 2x'
+            deep: {
+                filter: 'asetrate=r=44100*0.7,aresample=44100',
+                description: 'Deep/low-pitched voice',
+                category: 'voice'
             },
-            nightcore: {
-                filter: 'asetrate=44100*1.25,aresample=44100',
-                description: 'Nightcore effect (higher pitch and speed)'
+            echo: {
+                filter: 'aecho=0.8:0.9:1000:0.3',
+                description: 'Echo voice effect',
+                category: 'voice'
             },
-            bass: {
-                filter: 'bass=g=10,volume=0.8',
-                description: 'Bass boost effect'
+            reverb: {
+                filter: 'aecho=0.8:0.88:60:0.4',
+                description: 'Reverb voice effect',
+                category: 'voice'
             },
-            treble: {
-                filter: 'treble=g=8,volume=0.8',
-                description: 'Treble boost effect'
+            whisper: {
+                filter: 'volume=0.3,highpass=f=300',
+                description: 'Whisper/quiet voice',
+                category: 'voice'
             },
-            distortion: {
-                filter: 'overdrive=20:0.5,volume=0.7',
-                description: 'Audio distortion effect'
-            },
-            underwater: {
-                filter: 'lowpass=f=1000,volume=0.6',
-                description: 'Underwater muffled effect'
-            },
-            telephone: {
-                filter: 'highpass=f=300,lowpass=f=3000,volume=1.2',
-                description: 'Telephone/radio effect'
+            demon: {
+                filter: 'asetrate=r=44100*0.6,aresample=44100,volume=1.3',
+                description: 'Demonic voice effect',
+                category: 'voice'
             },
             alien: {
                 filter: 'asetrate=44100*0.8,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2',
-                description: 'Alien voice effect'
+                description: 'Alien voice effect',
+                category: 'voice'
+            },
+            
+            // Audio effects
+            slow: {
+                filter: 'atempo=0.5',
+                description: 'Slow down audio 2x',
+                category: 'speed'
+            },
+            fast: {
+                filter: 'atempo=2.0',
+                description: 'Speed up audio 2x',
+                category: 'speed'
+            },
+            nightcore: {
+                filter: 'asetrate=44100*1.25,aresample=44100',
+                description: 'Nightcore effect (higher pitch and speed)',
+                category: 'speed'
+            },
+            bass: {
+                filter: 'bass=g=10,volume=0.8',
+                description: 'Bass boost effect',
+                category: 'eq'
+            },
+            treble: {
+                filter: 'treble=g=8,volume=0.8',
+                description: 'Treble boost effect',
+                category: 'eq'
+            },
+            distortion: {
+                filter: 'overdrive=20:0.5,volume=0.7',
+                description: 'Audio distortion effect',
+                category: 'fx'
+            },
+            underwater: {
+                filter: 'lowpass=f=1000,volume=0.6',
+                description: 'Underwater muffled effect',
+                category: 'fx'
+            },
+            telephone: {
+                filter: 'highpass=f=300,lowpass=f=3000,volume=1.2',
+                description: 'Telephone/radio effect',
+                category: 'fx'
             }
         };
     }
@@ -65,62 +108,78 @@ class AudioEffectsPlugin {
         this.registerCommands();
 
         await fs.ensureDir(path.join(process.cwd(), 'tmp'));
-        console.log('✅ Audio Effects plugin loaded');
+        
+        // Check if FFmpeg is available
+        try {
+            const { exec } = require('child_process');
+            await new Promise((resolve, reject) => {
+                exec('ffmpeg -version', (error, stdout, stderr) => {
+                    if (error) {
+                        console.log('⚠️ FFmpeg not found - audio effects may not work');
+                        reject(error);
+                    } else {
+                        console.log('✅ Audio Effects plugin loaded (FFmpeg available)');
+                        resolve();
+                    }
+                });
+            });
+        } catch (error) {
+            console.log('✅ Audio Effects plugin loaded (FFmpeg check failed - will attempt to use anyway)');
+        }
     }
 
     registerCommands() {
-        // Register individual effect commands
+        // Register individual effect commands with "audio" category
         Object.keys(this.effects).forEach(effect => {
             this.bot.messageHandler.registerCommand(effect, 
                 (messageInfo) => this.applyEffect(messageInfo, effect), {
                 description: this.effects[effect].description,
                 usage: `${config.PREFIX}${effect} (reply to audio)`,
-                category: 'media',
+                category: 'audio',
                 plugin: 'audio-effects',
-                source: 'audio-effects.js'
+                source: 'voice-changer.js'
             });
         });
 
-        // Main effects command with list
+        // Main effects list command
         this.bot.messageHandler.registerCommand('effects', this.effectsListCommand.bind(this), {
             description: 'List all available audio effects',
             usage: `${config.PREFIX}effects`,
-            category: 'media',
+            category: 'audio',
             plugin: 'audio-effects',
-            source: 'audio-effects.js'
-        });
-
-        // Apply effect with parameter
-        this.bot.messageHandler.registerCommand('effect', this.effectCommand.bind(this), {
-            description: 'Apply specific audio effect',
-            usage: `${config.PREFIX}effect <name> (reply to audio)`,
-            category: 'media',
-            plugin: 'audio-effects',
-            source: 'audio-effects.js'
+            source: 'voice-changer.js'
         });
     }
 
     async effectsListCommand(messageInfo) {
-        const effectsList = Object.entries(this.effects)
+        const voiceEffects = Object.entries(this.effects)
+            .filter(([name, data]) => data.category === 'voice')
             .map(([name, data]) => `🎵 *${name}* - ${data.description}`)
             .join('\n');
 
-        const message = `🎛️ *AUDIO EFFECTS AVAILABLE*\n\n${effectsList}\n\n📝 Usage: Reply to audio and use ${config.PREFIX}<effect_name>\nOr use: ${config.PREFIX}effect <name>`;
+        const speedEffects = Object.entries(this.effects)
+            .filter(([name, data]) => data.category === 'speed')
+            .map(([name, data]) => `⚡ *${name}* - ${data.description}`)
+            .join('\n');
+
+        const eqEffects = Object.entries(this.effects)
+            .filter(([name, data]) => data.category === 'eq')
+            .map(([name, data]) => `🎛️ *${name}* - ${data.description}`)
+            .join('\n');
+
+        const fxEffects = Object.entries(this.effects)
+            .filter(([name, data]) => data.category === 'fx')
+            .map(([name, data]) => `🔊 *${name}* - ${data.description}`)
+            .join('\n');
+
+        const message = `🎛️ *AUDIO EFFECTS AVAILABLE*\n\n` +
+                       `*🎵 Voice Effects:*\n${voiceEffects}\n\n` +
+                       `*⚡ Speed Effects:*\n${speedEffects}\n\n` +
+                       `*🎛️ EQ Effects:*\n${eqEffects}\n\n` +
+                       `*🔊 FX Effects:*\n${fxEffects}\n\n` +
+                       `📝 *Usage:* Reply to audio and use ${config.PREFIX}<effect_name>`;
         
         await this.bot.messageHandler.reply(messageInfo, message);
-    }
-
-    async effectCommand(messageInfo) {
-        const text = messageInfo.body.split(' ').slice(1).join(' ').toLowerCase();
-        
-        if (!text || !this.effects[text]) {
-            const effectsList = Object.keys(this.effects).join(', ');
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify a valid effect.\n\n🎵 Available effects:\n${effectsList}\n\n📝 Usage: ${config.PREFIX}effect <name> (reply to audio)`);
-            return;
-        }
-
-        await this.applyEffect(messageInfo, text);
     }
 
     async applyEffect(messageInfo, effectName) {
@@ -132,12 +191,12 @@ class AudioEffectsPlugin {
                                 messageInfo.message?.quotedMessage;
             
             if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio message.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio or voice message.');
                 return;
             }
 
             if (!quotedMessage.audioMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio message.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio or voice message.');
                 return;
             }
 
@@ -157,51 +216,100 @@ class AudioEffectsPlugin {
             // Write input file
             await fs.writeFile(inputPath, buffer.buffer);
 
-            // Apply audio effect using FFmpeg
+            // Apply audio effect using FFmpeg with better error handling
             const effect = this.effects[effectName];
-            const command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libopus -b:a 128k "${outputPath}"`;
-
-            await new Promise((resolve, reject) => {
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        console.error('FFmpeg error:', error);
-                        reject(error);
-                    } else {
-                        resolve();
-                    }
+            let command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libopus -b:a 64k "${outputPath}"`;
+            
+            // Fallback to MP3 if opus fails
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(command, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error('FFmpeg opus error:', stderr);
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
                 });
-            });
-
-            // Check if output file exists
-            const stats = await fs.stat(outputPath);
-            if (stats.size === 0) {
-                throw new Error('Output audio is empty');
+            } catch (opusError) {
+                console.log('⚠️ Opus encoding failed, trying MP3 fallback...');
+                const mp3OutputPath = outputPath.replace('.ogg', '.mp3');
+                command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a mp3 -b:a 64k "${mp3OutputPath}"`;
+                
+                await new Promise((resolve, reject) => {
+                    exec(command, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error('FFmpeg MP3 error:', stderr);
+                            reject(new Error(`Audio effect failed: ${stderr}`));
+                        } else {
+                            // Update output path to MP3 version
+                            if (outputPath !== mp3OutputPath) {
+                                try {
+                                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                                } catch (e) {}
+                                outputPath = mp3OutputPath;
+                            }
+                            resolve();
+                        }
+                    });
+                });
             }
 
             // Send processed audio
-            await this.bot.sock.sendMessage(messageInfo.sender, {
+            const isMP3 = outputPath.endsWith('.mp3');
+            const isVoiceEffect = effect.category === 'voice';
+            
+            const audioMessage = {
                 audio: { url: outputPath },
-                mimetype: 'audio/ogg; codecs=opus',
-                ptt: false,
+                mimetype: isMP3 ? 'audio/mpeg' : 'audio/ogg; codecs=opus',
+                ptt: isVoiceEffect, // Voice effects as voice notes, others as audio files
                 contextInfo: {
                     externalAdReply: {
-                        title: `🎛️ Audio Effect: ${effectName.toUpperCase()}`,
+                        title: `🎛️ ${effectName.toUpperCase()} Effect`,
                         body: `${effect.description} | MATDEV`,
                         showAdAttribution: false
                     }
                 }
-            });
+            };
+
+            await this.bot.sock.sendMessage(messageInfo.sender, audioMessage);
 
         } catch (error) {
             console.error(`Audio effect ${effectName} error:`, error);
-            await this.bot.messageHandler.reply(messageInfo, `❌ Error applying ${effectName} effect.`);
+            let errorMessage = `❌ Error applying ${effectName} effect.`;
+            
+            if (error.message.includes('FFmpeg')) {
+                errorMessage += ' FFmpeg may not be installed.';
+            } else if (error.message.includes('format')) {
+                errorMessage += ' Audio format not supported.';
+            }
+            
+            await this.bot.messageHandler.reply(messageInfo, errorMessage);
         } finally {
-            // Cleanup
-            try {
-                if (inputPath) await fs.unlink(inputPath);
-                if (outputPath) await fs.unlink(outputPath);
-            } catch (cleanupError) {
-                console.log('Cleanup error (non-critical):', cleanupError.message);
+            // Enhanced cleanup with multiple attempts
+            const filesToClean = [inputPath, outputPath];
+            
+            for (const filePath of filesToClean) {
+                if (filePath) {
+                    try {
+                        if (await fs.pathExists(filePath)) {
+                            await fs.unlink(filePath);
+                        }
+                    } catch (cleanupError) {
+                        console.log(`Cleanup warning: ${cleanupError.message}`);
+                        // Force cleanup attempt
+                        setTimeout(async () => {
+                            try {
+                                if (await fs.pathExists(filePath)) {
+                                    await fs.unlink(filePath);
+                                }
+                            } catch (e) {
+                                // Silent failure for delayed cleanup
+                            }
+                        }, 5000);
+                    }
+                }
             }
         }
     }
