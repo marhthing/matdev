@@ -17,87 +17,101 @@ class AudioEffectsPlugin {
         this.version = '2.0.0';
         
         this.effects = {
-            // Voice effects
+            // Voice effects - greatly improved with modern techniques
             robot: {
-                filter: 'aformat=sample_rates=8000:sample_fmts=s16,volume=1.5',
-                description: 'Robotic voice effect',
+                filter: 'aformat=sample_rates=8000:sample_fmts=s16,dynaudnorm=p=0.9:s=5,tremolo=f=5:d=0.5,volume=1.8',
+                description: 'Advanced robotic voice with tremolo modulation',
                 category: 'voice'
             },
             chipmunk: {
-                filter: 'asetrate=r=44100*1.5,aresample=44100',
-                description: 'High-pitched chipmunk voice',
+                filter: 'asetrate=r=44100*1.8,aresample=44100,dynaudnorm=p=0.95:s=3,highpass=f=200,volume=1.2',
+                description: 'Enhanced high-pitched chipmunk voice',
                 category: 'voice'
             },
             deep: {
-                filter: 'asetrate=r=44100*0.7,aresample=44100',
-                description: 'Deep/low-pitched voice',
+                filter: 'asetrate=r=44100*0.6,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=2000,volume=1.4',
+                description: 'Deep demonic voice with enhanced bass',
                 category: 'voice'
             },
             echo: {
-                filter: 'aecho=0.8:0.9:1000:0.3',
-                description: 'Echo voice effect',
+                filter: 'aecho=0.8:0.9:1000:0.5,aecho=0.8:0.7:1500:0.3,dynaudnorm=p=0.8:s=7',
+                description: 'Multi-layer echo with dynamic processing',
                 category: 'voice'
             },
             reverb: {
-                filter: 'aecho=0.8:0.88:60:0.4',
-                description: 'Reverb voice effect',
+                filter: 'aecho=0.8:0.88:60:0.4,aecho=0.7:0.82:180:0.3,aecho=0.6:0.75:400:0.2,dynaudnorm=p=0.85:s=6',
+                description: 'Professional cathedral reverb effect',
                 category: 'voice'
             },
             whisper: {
-                filter: 'volume=0.3,highpass=f=300',
-                description: 'Whisper/quiet voice',
+                filter: 'volume=0.4,highpass=f=400,dynaudnorm=p=0.95:s=2,compand=attacks=0:points=-60/-60|-30/-20|-10/-10|0/-5:gain=3',
+                description: 'Enhanced whisper with compression',
                 category: 'voice'
             },
             demon: {
-                filter: 'asetrate=r=44100*0.6,aresample=44100,volume=1.3',
-                description: 'Demonic voice effect',
+                filter: 'asetrate=r=44100*0.5,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=1500,overdrive=10:0.3,volume=1.6',
+                description: 'Terrifying demonic voice with distortion',
                 category: 'voice'
             },
             alien: {
-                filter: 'asetrate=44100*0.8,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2',
-                description: 'Alien voice effect',
+                filter: 'asetrate=44100*0.85,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=3:d=0.3,phaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4',
+                description: 'Advanced alien voice with phaser and modulation',
                 category: 'voice'
             },
             
-            // Audio effects
+            // Speed effects - enhanced with dynamic processing
             slow: {
-                filter: 'atempo=0.5',
-                description: 'Slow down audio 2x',
+                filter: 'atempo=0.5,dynaudnorm=p=0.9:s=10,compand=attacks=0.1:points=-90/-90|-60/-40|-30/-20|-10/-10|0/-5:gain=2',
+                description: 'Slow motion with enhanced clarity',
                 category: 'speed'
             },
             fast: {
-                filter: 'atempo=2.0',
-                description: 'Speed up audio 2x',
+                filter: 'atempo=2.0,dynaudnorm=p=0.95:s=3,highpass=f=100,volume=1.1',
+                description: 'Fast playback with clarity enhancement',
                 category: 'speed'
             },
             nightcore: {
-                filter: 'asetrate=44100*1.25,aresample=44100',
-                description: 'Nightcore effect (higher pitch and speed)',
+                filter: 'asetrate=44100*1.3,aresample=44100,dynaudnorm=p=0.9:s=5,anequalizer=f=2000:width_type=h:width=1000:g=3',
+                description: 'Professional nightcore with vocal enhancement',
                 category: 'speed'
             },
+            
+            // EQ effects - professional grade processing
             bass: {
-                filter: 'bass=g=10,volume=0.8',
-                description: 'Bass boost effect',
+                filter: 'dynaudnorm=p=0.9:s=5,anequalizer=f=60:width_type=h:width=40:g=8,anequalizer=f=120:width_type=h:width=60:g=6,volume=0.9',
+                description: 'Professional bass boost with dynamic processing',
                 category: 'eq'
             },
             treble: {
-                filter: 'treble=g=8,volume=0.8',
-                description: 'Treble boost effect',
+                filter: 'dynaudnorm=p=0.9:s=5,anequalizer=f=3000:width_type=h:width=1500:g=6,anequalizer=f=6000:width_type=h:width=2000:g=4,volume=0.9',
+                description: 'Enhanced treble with presence boost',
                 category: 'eq'
             },
+            
+            // FX effects - advanced processing chains
             distortion: {
-                filter: 'overdrive=20:0.5,volume=0.7',
-                description: 'Audio distortion effect',
+                filter: 'overdrive=20:0.4,dynaudnorm=p=0.8:s=7,anequalizer=f=1000:width_type=h:width=800:g=3,volume=0.8',
+                description: 'Heavy distortion with frequency shaping',
                 category: 'fx'
             },
             underwater: {
-                filter: 'lowpass=f=1000,volume=0.6',
-                description: 'Underwater muffled effect',
+                filter: 'lowpass=f=800,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=2:d=0.4,volume=0.7',
+                description: 'Realistic underwater effect with modulation',
                 category: 'fx'
             },
             telephone: {
-                filter: 'highpass=f=300,lowpass=f=3000,volume=1.2',
-                description: 'Telephone/radio effect',
+                filter: 'highpass=f=400,lowpass=f=2800,dynaudnorm=p=0.9:s=5,compand=attacks=0:points=-60/-60|-40/-30|-20/-15|-10/-10|0/-8:gain=4,volume=1.3',
+                description: 'Authentic telephone/radio effect with compression',
+                category: 'fx'
+            },
+            psychedelic: {
+                filter: 'phaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=4:d=0.5',
+                description: 'Trippy psychedelic effect with multiple modulations',
+                category: 'fx'
+            },
+            vintage: {
+                filter: 'highpass=f=100,lowpass=f=5000,dynaudnorm=p=0.85:s=8,compand=attacks=0.1:points=-90/-90|-50/-40|-30/-25|-15/-15|0/-10:gain=3,volume=1.1',
+                description: 'Vintage analog sound with warmth',
                 category: 'fx'
             }
         };
@@ -141,46 +155,8 @@ class AudioEffectsPlugin {
             });
         });
 
-        // Main effects list command
-        this.bot.messageHandler.registerCommand('effects', this.effectsListCommand.bind(this), {
-            description: 'List all available audio effects',
-            usage: `${config.PREFIX}effects`,
-            category: 'audio',
-            plugin: 'audio-effects',
-            source: 'voice-changer.js'
-        });
     }
 
-    async effectsListCommand(messageInfo) {
-        const voiceEffects = Object.entries(this.effects)
-            .filter(([name, data]) => data.category === 'voice')
-            .map(([name, data]) => `🎵 *${name}* - ${data.description}`)
-            .join('\n');
-
-        const speedEffects = Object.entries(this.effects)
-            .filter(([name, data]) => data.category === 'speed')
-            .map(([name, data]) => `⚡ *${name}* - ${data.description}`)
-            .join('\n');
-
-        const eqEffects = Object.entries(this.effects)
-            .filter(([name, data]) => data.category === 'eq')
-            .map(([name, data]) => `🎛️ *${name}* - ${data.description}`)
-            .join('\n');
-
-        const fxEffects = Object.entries(this.effects)
-            .filter(([name, data]) => data.category === 'fx')
-            .map(([name, data]) => `🔊 *${name}* - ${data.description}`)
-            .join('\n');
-
-        const message = `🎛️ *AUDIO EFFECTS AVAILABLE*\n\n` +
-                       `*🎵 Voice Effects:*\n${voiceEffects}\n\n` +
-                       `*⚡ Speed Effects:*\n${speedEffects}\n\n` +
-                       `*🎛️ EQ Effects:*\n${eqEffects}\n\n` +
-                       `*🔊 FX Effects:*\n${fxEffects}\n\n` +
-                       `📝 *Usage:* Reply to audio and use ${config.PREFIX}<effect_name>`;
-        
-        await this.bot.messageHandler.reply(messageInfo, message);
-    }
 
     async applyEffect(messageInfo, effectName) {
         let inputPath = null;
