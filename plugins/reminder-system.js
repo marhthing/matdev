@@ -13,7 +13,7 @@ class ReminderSystemPlugin {
         this.reminders = new Map();
         this.intervals = new Map();
         this.nextId = 1; // Simple counter for IDs
-        this.triggeredReminders = new Set(); // Track triggered reminders to prevent spam
+        this.triggeredReminders = new Set(); // Track triggered reminders to manage delivery
     }
 
     async init(bot) {
@@ -97,8 +97,24 @@ class ReminderSystemPlugin {
 
     async showReminders(messageInfo) {
         try {
+            // Check if this is bot's private chat
+            const isBotPrivateChat = messageInfo.chat_jid === messageInfo.sender_jid;
+            
             const userReminders = Array.from(this.reminders.values())
-                .filter(reminder => reminder.userId === messageInfo.sender_jid && reminder.datetime > Date.now())
+                .filter(reminder => {
+                    // Must be user's reminder and still active
+                    if (reminder.userId !== messageInfo.sender_jid || reminder.datetime <= Date.now()) {
+                        return false;
+                    }
+                    
+                    // If bot private chat, show ALL user reminders
+                    if (isBotPrivateChat) {
+                        return true;
+                    }
+                    
+                    // Otherwise, only show reminders from this specific chat
+                    return reminder.chatId === messageInfo.chat_jid;
+                })
                 .sort((a, b) => a.datetime - b.datetime);
 
             if (userReminders.length === 0) {
@@ -259,29 +275,42 @@ class ReminderSystemPlugin {
             const reminder = this.reminders.get(reminderId);
             if (!reminder) return;
 
-            // Mark as triggered to prevent spam
+            // Mark as triggered to manage delivery
             this.triggeredReminders.add(reminderId);
 
-            const message = await this.bot.sock.sendMessage(reminder.chatId, {
-                text: `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`
-            });
+            const reminderText = `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`;
+            
+            // Send reminder 3 times with delays to avoid WhatsApp blocking
+            for (let i = 0; i < 3; i++) {
+                setTimeout(async () => {
+                    try {
+                        const message = await this.bot.sock.sendMessage(reminder.chatId, {
+                            text: reminderText
+                        });
 
-            // Pin the reminder message
-            if (message && message.key) {
-                try {
-                    await this.bot.sock.sendMessage(reminder.chatId, {
-                        pin: message.key
-                    });
-                } catch (pinError) {
-                    console.log('Could not pin reminder message:', pinError.message);
-                }
+                        // Pin the first reminder message
+                        if (i === 0 && message && message.key) {
+                            try {
+                                await this.bot.sock.sendMessage(reminder.chatId, {
+                                    pin: message.key
+                                });
+                            } catch (pinError) {
+                                console.log('Could not pin reminder message:', pinError.message);
+                            }
+                        }
+                    } catch (sendError) {
+                        console.error(`Error sending reminder ${i + 1}/3:`, sendError);
+                    }
+                }, i * 2000); // 2 second delay between each send
             }
 
-            // Remove the completed reminder
-            this.reminders.delete(reminderId);
-            this.intervals.delete(reminderId);
-            this.triggeredReminders.delete(reminderId);
-            await this.saveReminders();
+            // Remove the completed reminder after 10 seconds (after all sends)
+            setTimeout(async () => {
+                this.reminders.delete(reminderId);
+                this.intervals.delete(reminderId);
+                this.triggeredReminders.delete(reminderId);
+                await this.saveReminders();
+            }, 10000);
 
         } catch (error) {
             console.error('Error triggering reminder:', error);
