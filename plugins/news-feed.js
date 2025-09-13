@@ -81,6 +81,9 @@ class NewsFeedPlugin {
                 } else if (this.categories.includes(param)) {
                     // .news <category> - get news for category
                     return await this.handleNewsRequest(param, messageInfo);
+                } else if (param.includes('@') || /^\d+$/.test(param)) {
+                    // .news <jid> - set default destination for scheduled news
+                    return await this.setNewsDestination(param, messageInfo);
                 }
             } else if (args.length === 2) {
                 const category = args[0].toLowerCase();
@@ -101,12 +104,14 @@ class NewsFeedPlugin {
                 `**Notifications (7am & 7pm daily):**\n` +
                 `• \`.news on/off\` - All categories\n` +
                 `• \`.news <category> on/off\` - Specific category\n` +
+                `• \`.news <jid>\` - Set destination for scheduled news\n` +
                 `• \`.news status\` - View current settings\n\n` +
                 `**Categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
                 `**Examples:**\n` +
                 `• \`.news sports on\`\n` +
                 `• \`.news health off\`\n` +
-                `• \`.news general on\``);
+                `• \`.news 2347018091555\`\n` +
+                `• \`.news user@g.us\``);
 
         } catch (error) {
             console.error('Error in news command:', error);
@@ -390,9 +395,30 @@ class NewsFeedPlugin {
             `📅 You'll receive ${category} news at **7:00 AM** and **7:00 PM** daily (Lagos time)`);
     }
 
+    // Set news destination JID
+    async setNewsDestination(jid, messageInfo) {
+        let newDefaultJid = jid;
+
+        // Normalize JID format
+        if (!newDefaultJid.includes('@')) {
+            newDefaultJid = `${newDefaultJid}@s.whatsapp.net`;
+        }
+
+        // Save the new default destination
+        this.bot.database.setData('newsDefaultDestination', newDefaultJid);
+        console.log(`✅ Default news destination set to: ${newDefaultJid}`);
+
+        await this.bot.messageHandler.reply(messageInfo,
+            `✅ **News destination updated!**\n\n` +
+            `📍 **Target:** ${newDefaultJid}\n\n` +
+            `📅 Scheduled news (7am & 7pm) will now be sent to this destination.\n\n` +
+            `💡 Use \`.news status\` to view your current settings.`);
+    }
+
     // Show current news status
     async showNewsStatus(userJid, messageInfo) {
         const settings = this.getUserSettings(userJid);
+        const newsDestination = this.bot.database.getData('newsDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net (Bot private chat)`;
         
         let message = `📰 **Your News Notification Settings**\n\n`;
         message += `**Overall Status:** ${settings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n\n`;
@@ -403,7 +429,8 @@ class NewsFeedPlugin {
             message += `• ${category}: ${emoji}\n`;
         });
 
-        message += `\n📅 **Schedule:** 7:00 AM & 7:00 PM daily (Lagos time)`;
+        message += `\n📅 **Schedule:** 7:00 AM & 7:00 PM daily (Lagos time)\n`;
+        message += `📍 **Destination:** ${newsDestination}`;
         
         await this.bot.messageHandler.reply(messageInfo, message);
     }
@@ -448,25 +475,39 @@ class NewsFeedPlugin {
     }
 
     async sendScheduledNews() {
-        for (const [userJid, settings] of this.newsSettings) {
-            if (!settings.enabled) continue;
-            
-            try {
-                // Send news for each enabled category
-                for (const [category, enabled] of Object.entries(settings.categories)) {
+        // Get the target destination for news delivery
+        const newsDestination = this.bot.database.getData('newsDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
+        
+        // Check if anyone has news enabled
+        const enabledUsers = Array.from(this.newsSettings.entries()).filter(([, settings]) => settings.enabled);
+        
+        if (enabledUsers.length === 0) {
+            return; // No one has news enabled
+        }
+
+        try {
+            // Collect all enabled categories from all users
+            const allEnabledCategories = new Set();
+            for (const [userJid, settings] of enabledUsers) {
+                Object.entries(settings.categories).forEach(([category, enabled]) => {
                     if (enabled) {
-                        await this.sendNewsToUser(userJid, category);
-                        // Add small delay between messages
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        allEnabledCategories.add(category);
                     }
-                }
-            } catch (error) {
-                console.error(`❌ Error sending scheduled news to ${userJid}:`, error.message);
+                });
             }
+
+            // Send news for each enabled category to the destination
+            for (const category of allEnabledCategories) {
+                await this.sendNewsToDestination(newsDestination, category);
+                // Add small delay between messages
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        } catch (error) {
+            console.error(`❌ Error sending scheduled news:`, error.message);
         }
     }
 
-    async sendNewsToUser(userJid, category) {
+    async sendNewsToDestination(destinationJid, category) {
         try {
             const news = await this.getNews(category);
             if (news.success && news.articles.length > 0) {
@@ -483,13 +524,13 @@ class NewsFeedPlugin {
                 });
 
                 message += `📅 ${now.format('dddd, MMMM Do YYYY, h:mm A')}\n`;
-                message += `💡 Type \`.news ${category} off\` to stop these updates`;
+                message += `💡 Type \`.news ${category} off\` to manage category settings`;
                 
-                await this.bot.sock.sendMessage(userJid, { text: message });
-                console.log(`📰 Sent ${category} news to ${userJid}`);
+                await this.bot.sock.sendMessage(destinationJid, { text: message });
+                console.log(`📰 Sent ${category} news to ${destinationJid}`);
             }
         } catch (error) {
-            console.error(`❌ Error sending ${category} news to ${userJid}:`, error.message);
+            console.error(`❌ Error sending ${category} news to ${destinationJid}:`, error.message);
         }
     }
 
