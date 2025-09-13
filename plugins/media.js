@@ -5,7 +5,7 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage, getContentType } = require('@whiskeysockets/baileys');
 const config = require('../config');
 const Utils = require('../lib/utils'); // Keep the Utils import as it's used in the original code for formatting
 
@@ -38,82 +38,107 @@ class MediaPlugin {
      * Register media commands
      */
     registerCommands() {
-        // Media info command (original command name)
-        this.bot.messageHandler.registerCommand('mediainfo', this.mediainfoCommand.bind(this), {
-            description: 'Get information about media file',
-            usage: `${config.PREFIX}mediainfo (reply to media)`,
-            category: 'media'
-        });
-
-        // Convert media command (renamed to avoid conflict with unit converter)
-        this.bot.messageHandler.registerCommand('mediaconvert', this.convertCommand.bind(this), {
-            description: 'Convert media to different format',
-            usage: `${config.PREFIX}mediaconvert <format> (reply to media)`,
-            category: 'media'
-        });
-
-
-        // Compress command (original command name)
-        this.bot.messageHandler.registerCommand('compress', this.compressCommand.bind(this), {
-            description: 'Compress media file',
-            usage: `${config.PREFIX}compress (reply to media)`,
-            category: 'media'
-        });
-
-        // Audio commands (original command names)
-        this.bot.messageHandler.registerCommand('toaudio', this.toaudioCommand.bind(this), {
-            description: 'Convert video to audio',
-            usage: `${config.PREFIX}toaudio (reply to video)`,
-            category: 'media'
-        });
-
-        this.bot.messageHandler.registerCommand('tomp3', this.tomp3Command.bind(this), {
-            description: 'Convert audio to MP3',
-            usage: `${config.PREFIX}tomp3 (reply to audio/video)`,
-            category: 'media'
-        });
-
-        // Video commands (original command names)
-        this.bot.messageHandler.registerCommand('tovideo', this.tovideoCommand.bind(this), {
-            description: 'Convert to video format',
-            usage: `${config.PREFIX}tovideo (reply to gif/video)`,
-            category: 'media'
-        });
-
-        // Image commands (original command names)
-        this.bot.messageHandler.registerCommand('toimage', this.toimageCommand.bind(this), {
-            description: 'Convert to image format',
-            usage: `${config.PREFIX}toimage (reply to sticker/document)`,
+        // Main media command with subcommands
+        this.bot.messageHandler.registerCommand('media', this.mediaCommand.bind(this), {
+            description: 'Media processing and manipulation',
+            usage: `${config.PREFIX}media [subcommand] - Available: info, convert <format>, compress, toaudio, mp3, video, image`,
             category: 'media'
         });
     }
 
     /**
-     * Media info command
+     * Main media command dispatcher
      */
-    async mediainfoCommand(messageInfo) {
+    async mediaCommand(messageInfo) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
+            const { args } = messageInfo;
+            const subcommand = args[0]?.toLowerCase();
+
+            // Get quoted message
+            const quoted = this.getQuoted(messageInfo);
+            if (!quoted) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
                 return;
             }
-            const mediaType = Object.keys(quotedMessage)[0];
 
-            if (!this.isMediaMessage(quotedMessage)) {
+            // Validate it's a media message
+            const mediaType = this.getMediaType(quoted);
+            if (!mediaType) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
                 return;
             }
 
-            const mediaContent = quotedMessage[mediaType];
-            const mediaInfo = await this.getMediaInfo(mediaContent, mediaType); // Keep original getMediaInfo method
+            // Handle subcommands
+            switch (subcommand) {
+                case 'info':
+                    await this.handleInfo(messageInfo, quoted, mediaType);
+                    break;
+                case 'convert':
+                    await this.handleConvert(messageInfo, quoted, mediaType, args.slice(1));
+                    break;
+                case 'compress':
+                    await this.handleCompress(messageInfo, quoted, mediaType);
+                    break;
+                case 'toaudio':
+                    await this.handleToAudio(messageInfo, quoted, mediaType);
+                    break;
+                case 'mp3':
+                    await this.handleToMp3(messageInfo, quoted, mediaType);
+                    break;
+                case 'video':
+                    await this.handleToVideo(messageInfo, quoted, mediaType);
+                    break;
+                case 'image':
+                    await this.handleToImage(messageInfo, quoted, mediaType);
+                    break;
+                default:
+                    // No subcommand - show media type
+                    const typeDisplay = mediaType.replace('Message', '').toUpperCase();
+                    await this.bot.messageHandler.reply(messageInfo, `📱 *Media Type:* ${typeDisplay}`);
+                    break;
+            }
+
+        } catch (error) {
+            console.error('Media command error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing media command.');
+        }
+    }
+
+    /**
+     * Get quoted message reliably
+     */
+    getQuoted(messageInfo) {
+        return messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+               messageInfo.message?.quotedMessage ||
+               null;
+    }
+
+    /**
+     * Get media type from message using Baileys getContentType
+     */
+    getMediaType(message) {
+        try {
+            // Create a proper WAMessage structure for getContentType
+            const waMessage = { message: message };
+            return getContentType(waMessage);
+        } catch (error) {
+            // Fallback to manual detection
+            const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
+            return mediaTypes.find(type => message[type]);
+        }
+    }
+
+    /**
+     * Handle info subcommand
+     */
+    async handleInfo(messageInfo, quoted, mediaType) {
+        try {
+            const mediaContent = quoted[mediaType];
+            const mediaInfo = await this.getMediaInfo(mediaContent, mediaType);
 
             const infoText = `*📱 MEDIA INFORMATION*\n\n` +
                 `*Type:* ${mediaType.replace('Message', '').toUpperCase()}\n` +
-                `*Size:* ${mediaInfo.size ? utils.formatFileSize(mediaInfo.size) : 'Unknown'}\n` + // Use utils.formatFileSize
+                `*Size:* ${mediaInfo.size ? utils.formatFileSize(mediaInfo.size) : 'Unknown'}\n` +
                 `*Duration:* ${mediaInfo.duration ? `${mediaInfo.duration}s` : 'N/A'}\n` +
                 `*Dimensions:* ${mediaInfo.width && mediaInfo.height ? `${mediaInfo.width}x${mediaInfo.height}` : 'N/A'}\n` +
                 `*MIME Type:* ${mediaInfo.mimetype || 'Unknown'}\n` +
@@ -124,28 +149,18 @@ class MediaPlugin {
             await this.bot.messageHandler.reply(messageInfo, infoText);
 
         } catch (error) {
+            console.error('Media info error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving media information.');
         }
     }
 
     /**
-     * Convert media command
+     * Handle convert subcommand
      */
-    async convertCommand(messageInfo) {
+    async handleConvert(messageInfo, quoted, mediaType, args) {
         try {
-            const { args } = messageInfo;
-
             if (args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please specify target format (jpg, png, mp3, mp4, etc.).');
-                return;
-            }
-
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
                 return;
             }
 
@@ -153,13 +168,8 @@ class MediaPlugin {
 
             const targetFormat = args[0].toLowerCase();
 
-            if (!this.isMediaMessage(quotedMessage)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
-                return;
-            }
-
-            // Download and convert media (simplified implementation)
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
             const fileName = `converted_${Date.now()}.${targetFormat}`;
             const outputPath = path.join(this.tempDir, fileName);
 
@@ -170,7 +180,7 @@ class MediaPlugin {
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 document: { url: outputPath },
                 fileName: fileName,
-                mimetype: utils.getMimeType(targetFormat), // Use utils.getMimeType
+                mimetype: utils.getMimeType(targetFormat),
                 caption: `✅ Converted to ${targetFormat.toUpperCase()}`
             });
 
@@ -178,6 +188,7 @@ class MediaPlugin {
             await fs.remove(outputPath);
 
         } catch (error) {
+            console.error('Convert error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error converting media.');
         }
     }
@@ -186,33 +197,16 @@ class MediaPlugin {
 
 
     /**
-     * Compress media command
+     * Handle compress subcommand
      */
-    async compressCommand(messageInfo) {
+    async handleCompress(messageInfo, quoted, mediaType) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
-                return;
-            }
-
-            if (!this.isMediaMessage(quotedMessage)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
-                return;
-            }
-
             await this.bot.messageHandler.reply(messageInfo, '🗜️ Compressing media... Please wait.');
 
-            // This is a simplified implementation
-            // In production, you'd use proper compression tools
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {}); // Original downloadMediaMessage usage
-            const mediaType = Object.keys(quotedMessage)[0];
-            const mediaContent = quotedMessage[mediaType];
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
 
-            // Send compressed version (in this case, just resending with lower quality indication)
+            // Send compressed version (simplified - in production use proper compression tools)
             if (mediaType === 'imageMessage') {
                 await this.bot.sock.sendMessage(messageInfo.sender, {
                     image: buffer,
@@ -228,32 +222,25 @@ class MediaPlugin {
             }
 
         } catch (error) {
+            console.error('Compress error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error compressing media.');
         }
     }
 
     /**
-     * Convert video to audio
+     * Handle toaudio subcommand
      */
-    async toaudioCommand(messageInfo) {
+    async handleToAudio(messageInfo, quoted, mediaType) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
-                return;
-            }
-
-            if (!quotedMessage.videoMessage) {
+            if (mediaType !== 'videoMessage') {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
                 return;
             }
 
             await this.bot.messageHandler.reply(messageInfo, '🎵 Extracting audio... Please wait.');
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {}); // Original downloadMediaMessage usage
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
 
             // Send as audio (simplified - in production use FFmpeg for proper conversion)
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -263,25 +250,16 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.error('ToAudio error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error extracting audio.');
         }
     }
 
     /**
-     * Convert to MP3
+     * Handle mp3 subcommand
      */
-    async tomp3Command(messageInfo) {
+    async handleToMp3(messageInfo, quoted, mediaType) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio or video file.');
-                return;
-            }
-            const mediaType = Object.keys(quotedMessage)[0];
-
             if (!['audioMessage', 'videoMessage'].includes(mediaType)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio or video file.');
                 return;
@@ -289,7 +267,8 @@ class MediaPlugin {
 
             await this.bot.messageHandler.reply(messageInfo, '🎵 Converting to MP3... Please wait.');
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {}); // Original downloadMediaMessage usage
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
 
             // Send as MP3
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -299,32 +278,20 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.error('ToMp3 error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error converting to MP3.');
         }
     }
 
     /**
-     * Convert to video
+     * Handle video subcommand
      */
-    async tovideoCommand(messageInfo) {
+    async handleToVideo(messageInfo, quoted, mediaType) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a GIF or video.');
-                return;
-            }
-
-            if (!this.isMediaMessage(quotedMessage)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
-                return;
-            }
-
             await this.bot.messageHandler.reply(messageInfo, '🎬 Converting to video... Please wait.');
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {}); // Original downloadMediaMessage usage
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
 
             // Send as video
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -333,31 +300,23 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.error('ToVideo error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error converting to video.');
         }
     }
 
     /**
-     * Convert to image
+     * Handle image subcommand
      */
-    async toimageCommand(messageInfo) {
+    async handleToImage(messageInfo, quoted, mediaType) {
         try {
-            // Check for quoted message in the proper structure
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-            
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker or document.');
-                return;
-            }
-            const mediaType = Object.keys(quotedMessage)[0];
-
             if (!['stickerMessage', 'documentMessage'].includes(mediaType)) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker or image document.');
                 return;
             }
 
-            const buffer = await downloadMediaMessage(quotedMessage, 'buffer', {}); // Original downloadMediaMessage usage
+            // Download media using updated method
+            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
 
             // Send as image
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -366,63 +325,115 @@ class MediaPlugin {
             });
 
         } catch (error) {
+            console.error('ToImage error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error converting to image.');
         }
     }
 
     /**
-     * Check if message contains media
+     * Robust media download with latest Baileys methods
      */
-    isMediaMessage(message) {
-        const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
-        return mediaTypes.some(type => message[type]);
+    async downloadMediaRobust(messageInfo, quoted, mediaType) {
+        try {
+            // Extract contextInfo for proper quoted message key construction
+            const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
+            
+            if (!ctx || !ctx.stanzaId) {
+                throw new Error('No quoted message context found - unable to download media');
+            }
+
+            // Construct proper key using contextInfo data
+            const quotedKey = {
+                id: ctx.stanzaId,
+                remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                participant: ctx.participant || undefined
+            };
+
+            // Create proper WAMessage structure with correct key
+            const messageToDownload = {
+                key: quotedKey,
+                message: quoted
+            };
+
+            // Try downloading as stream first (memory efficient)
+            const stream = await downloadMediaMessage(messageToDownload, 'stream', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
+
+            // Convert stream to buffer
+            const chunks = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+            const buffer = Buffer.concat(chunks);
+
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Downloaded buffer is empty');
+            }
+
+            return {
+                buffer,
+                info: {
+                    size: buffer.length,
+                    source: 'stream_download'
+                }
+            };
+
+        } catch (error) {
+            console.error('Stream download failed, trying buffer fallback:', error);
+            
+            try {
+                // Use same key extraction for buffer fallback
+                const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
+                
+                if (!ctx || !ctx.stanzaId) {
+                    throw new Error('No quoted message context found for buffer fallback');
+                }
+
+                const quotedKey = {
+                    id: ctx.stanzaId,
+                    remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                    fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                    participant: ctx.participant || undefined
+                };
+
+                const messageToDownload = {
+                    key: quotedKey,
+                    message: quoted
+                };
+
+                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                    logger: console,
+                    reuploadRequest: this.bot.sock.updateMediaMessage
+                });
+
+                return {
+                    buffer,
+                    info: {
+                        size: buffer.length,
+                        source: 'buffer_fallback'
+                    }
+                };
+            } catch (fallbackError) {
+                console.error('All download methods failed:', fallbackError);
+                // Final fallback to existing downloadMedia method with proper key
+                const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
+                const fallbackMessage = {
+                    key: { 
+                        id: ctx?.stanzaId || `final_fallback_${Date.now()}`,
+                        remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                        participant: ctx?.participant || undefined
+                    },
+                    message: quoted
+                };
+                
+                return await this.downloadMedia(fallbackMessage, mediaType);
+            }
+        }
     }
 
-    /**
-     * Download media from cached files only
-     * This method is kept as is from the original code, as the new downloadMedia
-     * method is intended to replace it or be used in conjunction.
-     * However, the prompt indicates a refactor, so we will integrate the new download logic.
-     * The new downloadMedia function handles multiple methods.
-     */
-    // async downloadMedia(quotedMessage, mediaType) {
-    //     try {
-    //         // Only use cached files method
-    //         if (this.bot.database && quotedMessage.key) {
-    //             try {
-    //                 // Try to find cached media by message ID
-    //                 const messageId = quotedMessage.key.id;
-    //                 const cachedPath = path.join(__dirname, '../session/media');
-    //                 const files = await fs.readdir(cachedPath).catch(() => []);
-                    
-    //                 console.log(`Looking for cached media for message ID: ${messageId}`);
-                    
-    //                 for (const file of files) {
-    //                     if (file.includes(messageId.replace(/[^a-zA-Z0-9]/g, '_'))) {
-    //                         const filePath = path.join(cachedPath, file);
-    //                         const buffer = await fs.readFile(filePath);
-    //                         if (buffer && buffer.length > 0) {
-    //                             console.log(`Found cached media: ${file}`);
-    //                             return buffer;
-    //                         }
-    //                     }
-    //                 }
-                    
-    //                 console.log(`No cached media found for message ID: ${messageId}`);
-    //             } catch (error) {
-    //                 console.log('Cache lookup failed:', error);
-    //             }
-    //         }
-
-    //         return null;
-    //     } catch (error) {
-    //         console.log('Media download from cache failed:', error);
-    //         return null;
-    //     }
-    // }
-
-    // The new downloadMedia function from the edited snippet is integrated below.
-    // The original downloadMedia method is effectively replaced by this new, more robust one.
     /**
      * Download media with multiple fallback methods
      */
