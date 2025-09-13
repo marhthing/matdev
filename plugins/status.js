@@ -7,15 +7,15 @@ class StatusPlugin {
         this.name = 'status';
         this.description = 'WhatsApp status auto-view, auto-send, and monitoring functionality';
         this.version = '2.0.0';
-        
+
         // Store bound handlers to prevent duplicates on hot reload
         this.boundHandleMessagesUpsert = this.handleMessagesUpsert.bind(this);
         this.boundHandleStatusMonitoring = this.handleStatusMonitoring.bind(this);
-        
+
         // Status settings storage file
         this.statusSettingsFile = path.join(__dirname, '..', 'session', 'storage', 'status_settings.json');
         this.statusSettings = this.loadStatusSettings();
-        
+
         // Message deduplication set
         this.processedMessages = new Set();
     }
@@ -43,7 +43,7 @@ class StatusPlugin {
             // Ensure storage directory exists
             const storageDir = path.dirname(this.statusSettingsFile);
             fs.ensureDirSync(storageDir);
-            
+
             if (fs.existsSync(this.statusSettingsFile)) {
                 const settings = fs.readJsonSync(this.statusSettingsFile);
                 return {
@@ -58,7 +58,7 @@ class StatusPlugin {
         } catch (error) {
             console.error('Error loading status settings:', error);
         }
-        
+
         // Default settings
         return {
             enabled: false,
@@ -136,7 +136,7 @@ class StatusPlugin {
     async handleStatusCommand(messageInfo) {
         try {
             const args = messageInfo.args;
-            
+
             if (args.length === 0) {
                 // Show current status
                 return await this.showStatusInfo(messageInfo);
@@ -148,7 +148,7 @@ class StatusPlugin {
                 // Turn off status features
                 this.statusSettings.enabled = false;
                 this.saveStatusSettings();
-                
+
                 return await this.bot.messageHandler.reply(messageInfo, 
                     '🔴 Status auto-view and auto-download disabled');
             }
@@ -170,7 +170,7 @@ class StatusPlugin {
                 const newDestination = this.normalizeJid(args[0]);
                 this.statusSettings.forwardDestination = newDestination;
                 this.saveStatusSettings();
-                
+
                 return await this.bot.messageHandler.reply(messageInfo, 
                     `📤 Status forwarding destination set to: ${newDestination}`);
             }
@@ -198,7 +198,7 @@ class StatusPlugin {
             this.statusSettings.autoDownload = true;
             this.statusSettings.viewMode = 'all';
             this.statusSettings.filterJids = [];
-            
+
             let i = 1; // Start after "on"
             let responseMsg = '🟢 Status auto-view enabled';
 
@@ -218,7 +218,7 @@ class StatusPlugin {
                         return await this.bot.messageHandler.reply(messageInfo, 
                             '❌ Missing JID list for except-view');
                     }
-                    
+
                     const jidList = args[i + 1].split(',').map(jid => jid.trim());
                     this.statusSettings.viewMode = 'except';
                     this.statusSettings.filterJids = this.normalizeJids(jidList);
@@ -232,7 +232,7 @@ class StatusPlugin {
                         return await this.bot.messageHandler.reply(messageInfo, 
                             '❌ Missing JID list for only-view');
                     }
-                    
+
                     const jidList = args[i + 1].split(',').map(jid => jid.trim());
                     this.statusSettings.viewMode = 'only';
                     this.statusSettings.filterJids = this.normalizeJids(jidList);
@@ -246,7 +246,7 @@ class StatusPlugin {
                         return await this.bot.messageHandler.reply(messageInfo, 
                             '❌ Missing destination JID');
                     }
-                    
+
                     this.statusSettings.forwardDestination = this.normalizeJid(args[i + 1]);
                     responseMsg += `\n📤 Forward destination set`;
                     i += 2;
@@ -277,14 +277,14 @@ class StatusPlugin {
         try {
             const wasEnabled = this.statusSettings.enabled;
             let responseMsg = '';
-            
+
             // If it was disabled, mention that status is still disabled
             if (!wasEnabled) {
                 responseMsg = '⚠️ Settings updated, but status is still disabled\n';
             }
-            
+
             let i = 0; // Start from the first argument (the modifier)
-            
+
             // Parse arguments
             while (i < args.length) {
                 const arg = args[i].toLowerCase();
@@ -301,7 +301,7 @@ class StatusPlugin {
                         return await this.bot.messageHandler.reply(messageInfo, 
                             '❌ Missing JID list for except-view');
                     }
-                    
+
                     const jidList = args[i + 1].split(',').map(jid => jid.trim());
                     this.statusSettings.viewMode = 'except';
                     this.statusSettings.filterJids = this.normalizeJids(jidList);
@@ -317,7 +317,7 @@ class StatusPlugin {
                         return await this.bot.messageHandler.reply(messageInfo, 
                             '❌ Missing JID list for only-view');
                     }
-                    
+
                     const jidList = args[i + 1].split(',').map(jid => jid.trim());
                     this.statusSettings.viewMode = 'only';
                     this.statusSettings.filterJids = this.normalizeJids(jidList);
@@ -335,9 +335,9 @@ class StatusPlugin {
 
             // Save settings
             this.saveStatusSettings();
-            
+
             return await this.bot.messageHandler.reply(messageInfo, responseMsg);
-            
+
         } catch (error) {
             console.error('Error handling status modifier:', error);
             return await this.bot.messageHandler.reply(messageInfo, 
@@ -355,13 +355,13 @@ class StatusPlugin {
             info += `💾 Auto download: ${this.statusSettings.autoDownload ? '✅ Enabled' : '❌ Disabled'}\n`;
             info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n`;
             info += `👁️ View mode: ${this.statusSettings.viewMode.toUpperCase()}\n`;
-            
+
             if (this.statusSettings.filterJids.length > 0) {
                 info += `📝 Filtered JIDs: ${this.statusSettings.filterJids.join(', ')}\n`;
             } else {
                 info += `📝 Filtered JIDs: None\n`;
             }
-            
+
             info += `\n💡 Usage:\n`;
             info += `${config.PREFIX}status <jid> - Set forwarding destination\n`;
             info += `${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
@@ -453,7 +453,7 @@ class StatusPlugin {
             if (message.key?.remoteJid === 'status@broadcast' && 
                 !message.key.fromMe && 
                 this.statusSettings.enabled) {
-                
+
                 // Skip deleted/revoked status messages
                 if (message.messageStubType === 'REVOKE' || 
                     message.message?.protocolMessage?.type === 'REVOKE' ||
@@ -462,34 +462,34 @@ class StatusPlugin {
                     // Skipping deleted/revoked status message
                     return;
                 }
-                
+
                 const participantJid = message.key.participant;
                 const messageId = `${message.key.remoteJid}_${message.key.id}_${participantJid}`;
-                
+
                 // Check for message deduplication
                 if (this.processedMessages.has(messageId)) {
                     return;
                 }
-                
+
                 // Apply JID filtering based on viewMode
                 if (!this.shouldViewStatus(participantJid)) {
                     this.logger.debug('🚫 Skipped viewing status from:', participantJid, '(filtered)');
                     return;
                 }
-                
+
                 // Mark message as processed
                 this.processedMessages.add(messageId);
-                
+
                 // Clean up old processed messages (keep last 1000)
                 if (this.processedMessages.size > 1000) {
                     const firstEntry = this.processedMessages.values().next().value;
                     this.processedMessages.delete(firstEntry);
                 }
-                
+
                 // Auto-view the status
                 await this.bot.sock.readMessages([message.key]);
                 // Status auto-viewed successfully
-                
+
                 // Handle auto-download and forwarding if enabled
                 if (this.statusSettings.autoDownload) {
                     await this.handleAutoDownloadAndForward(message);
@@ -505,17 +505,53 @@ class StatusPlugin {
      */
     shouldViewStatus(participantJid) {
         if (!participantJid) return false;
-        
+
+        // Log for debugging
+        console.log(`🔍 Checking if should view status from: ${participantJid}`);
+        console.log(`🔍 View mode: ${this.statusSettings.viewMode}`);
+        console.log(`🔍 Filter JIDs: ${JSON.stringify(this.statusSettings.filterJids)}`);
+
         switch (this.statusSettings.viewMode) {
             case 'all':
                 return true;
             case 'except':
-                return !this.statusSettings.filterJids.includes(participantJid);
+                // Check both exact match and normalized versions
+                const isExcluded = this.statusSettings.filterJids.some(filterJid => {
+                    return filterJid === participantJid || 
+                           this.normalizeJidForMatching(filterJid) === participantJid ||
+                           filterJid === this.normalizeJidForMatching(participantJid);
+                });
+                console.log(`🔍 Should exclude: ${isExcluded}`);
+                return !isExcluded;
             case 'only':
-                return this.statusSettings.filterJids.includes(participantJid);
+                // Check both exact match and normalized versions
+                const isIncluded = this.statusSettings.filterJids.some(filterJid => {
+                    return filterJid === participantJid || 
+                           this.normalizeJidForMatching(filterJid) === participantJid ||
+                           filterJid === this.normalizeJidForMatching(participantJid);
+                });
+                console.log(`🔍 Should include: ${isIncluded}`);
+                return isIncluded;
             default:
                 return true;
         }
+    }
+
+    /**
+     * Normalize JID for robust matching (different from the existing normalizeJid function)
+     */
+    normalizeJidForMatching(jid) {
+        if (!jid) return jid;
+
+        // Remove common suffixes for comparison
+        let normalized = jid.replace('@s.whatsapp.net', '').replace('@lid', '');
+
+        // If it's just a number, we'll compare both with and without suffixes
+        if (/^\d+$/.test(normalized)) {
+            return normalized;
+        }
+
+        return jid;
     }
 
     /**
@@ -524,20 +560,20 @@ class StatusPlugin {
     async handleAutoDownloadAndForward(message) {
         try {
             const participantJid = message.key.participant;
-            
+
             // Extract and download media if present
             const mediaData = await this.extractStatusMedia(message);
             const textContent = this.extractStatusText(message);
-            
+
             if (mediaData || textContent) {
                 // Forward to destination
                 const destination = this.statusSettings.forwardDestination;
-                
+
                 if (mediaData) {
                     // Use anti-delete style tagging format for media
                     const tagText = 'statusMessage • Status';
                     const originalCaption = mediaData.caption || '';
-                    
+
                     if (mediaData.image) {
                         await this.bot.sock.sendMessage(destination, {
                             image: mediaData.image,
@@ -609,13 +645,13 @@ class StatusPlugin {
                             }
                         });
                     }
-                    
+
                     // Status media forwarded successfully
-                    
+
                 } else if (textContent) {
                     // Forward text status with anti-delete style tagging
                     const tagText = 'statusMessage • Status';
-                    
+
                     await this.bot.sock.sendMessage(destination, {
                         text: textContent,
                         contextInfo: {
@@ -628,7 +664,7 @@ class StatusPlugin {
                             quotedMessageId: message.key.id || `status_${Date.now()}`
                         }
                     });
-                    
+
                     // Status text forwarded successfully
                 }
             }
@@ -737,10 +773,10 @@ class StatusPlugin {
     async extractStatusMedia(messageOrQuoted) {
         try {
             const { downloadMediaMessage } = require('baileys');
-            
+
             // Handle both direct message and quoted message formats
             let messageContent, messageKey;
-            
+
             if (messageOrQuoted.message) {
                 // Direct message format
                 messageContent = messageOrQuoted.message;
@@ -812,7 +848,7 @@ class StatusPlugin {
         try {
             // Handle both direct message and quoted message formats
             let messageContent;
-            
+
             if (messageOrQuoted.message) {
                 // Direct message format
                 messageContent = messageOrQuoted.message;
