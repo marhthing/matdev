@@ -515,57 +515,6 @@ class MATDEV {
         message += `╰─────────────────────────────────────╯`;
         
         return message;
-            const treeChar = isLast ? treeChars.last : treeChars.middle;
-            const configValue = config[setting.key];
-            
-            let displayValue = configValue;
-            let icon = '';
-            
-            if (setting.special === 'mode') {
-                icon = ` ${getModeIcon(configValue)}`;
-            } else if (setting.special === 'text') {
-                displayValue = `"${configValue}"`;
-                icon = setting.icon ? ` ${setting.icon}` : '';
-            } else {
-                icon = ` ${getStatusIcon(configValue)}`;
-            }
-            
-            message += `${treeChar} ${setting.label} = ${displayValue}${icon}\n`;
-        });
-        message += '\n';
-        
-        // System settings section
-        message += `${template.sections.systemSettings.title}\n`;
-        template.sections.systemSettings.items.forEach(item => {
-            message += `${item}\n`;
-        });
-        message += '\n';
-        
-        // Quick commands section
-        message += `${template.sections.quickCommands.title}\n`;
-        template.sections.quickCommands.items.forEach(item => {
-            message += `${icons.bullet} ${config.PREFIX}${item}\n`;
-        });
-        message += '\n';
-        
-        // Security section
-        message += `${template.sections.security.title}\n`;
-        template.sections.security.items.forEach(item => {
-            message += `${icons.bullet} ${item}\n`;
-        });
-        message += '\n';
-        
-        // Help section
-        message += `${template.sections.help.title}\n`;
-        template.sections.help.items.forEach(item => {
-            message += `${icons.bullet} ${config.PREFIX}${item}\n`;
-        });
-        message += '\n';
-        
-        // Footer
-        message += template.footer.replace('{prefix}', config.PREFIX);
-        
-        return message;
     }
 
     /**
