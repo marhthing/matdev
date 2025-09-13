@@ -389,15 +389,19 @@ class StatusPlugin {
                 
                 // Auto-view the status
                 await this.bot.sock.readMessages([message.key]);
-                this.logger.debug('👁️ Auto-viewed status from:', participantJid);
+                console.log('👁️ Auto-viewed status from:', participantJid);
                 
                 // Handle auto-download and forwarding if enabled
+                console.log('🔍 Checking auto-download:', this.statusSettings.autoDownload);
                 if (this.statusSettings.autoDownload) {
+                    console.log('📥 Starting auto-download for message from:', participantJid);
                     await this.handleAutoDownloadAndForward(message);
+                } else {
+                    console.log('⏭️ Auto-download disabled, skipping');
                 }
             }
         } catch (error) {
-            this.logger.error('Error auto-viewing status:', error.message);
+            console.error('❌ Error auto-viewing status:', error.message, error.stack);
         }
     }
 
@@ -476,7 +480,7 @@ class StatusPlugin {
                         });
                     }
                     
-                    this.logger.debug(`📤 Auto-forwarded status media from ${participantJid} to ${destination}`);
+                    console.log(`📤 Auto-forwarded status media from ${participantJid} to ${destination}`);
                     
                 } else if (textContent) {
                     // Forward text status
@@ -485,11 +489,11 @@ class StatusPlugin {
                         text: sourceInfo + textContent
                     });
                     
-                    this.logger.debug(`📤 Auto-forwarded status text from ${participantJid} to ${destination}`);
+                    console.log(`📤 Auto-forwarded status text from ${participantJid} to ${destination}`);
                 }
             }
         } catch (error) {
-            this.logger.error('Error in auto-download and forward:', error.message);
+            console.error('❌ Error in auto-download and forward:', error.message, error.stack);
         }
     }
 
