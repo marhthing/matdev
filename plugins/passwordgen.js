@@ -28,15 +28,7 @@ class PasswordGeneratorPlugin {
     registerCommands() {
         this.bot.messageHandler.registerCommand('pg', this.generatePassword.bind(this), {
             description: 'Generate secure password',
-            usage: `${config.PREFIX}pg [length] [options]`,
-            category: 'utility',
-            plugin: 'passwordgen',
-            source: 'passwordgen.js'
-        });
-
-        this.bot.messageHandler.registerCommand('pg help', this.showHelp.bind(this), {
-            description: 'Show password generator help',
-            usage: `${config.PREFIX}pg help`,
+            usage: `${config.PREFIX}pg [length] [options] OR ${config.PREFIX}pg help`,
             category: 'utility',
             plugin: 'passwordgen',
             source: 'passwordgen.js'
@@ -153,14 +145,16 @@ class PasswordGeneratorPlugin {
      */
     async showHelp(messageInfo) {
         try {
-            let responseText = `💡 *Usage:*\n`;
+            let responseText = `🔐 **Password Generator Help**\n\n`;
+            responseText += `**Usage:**\n`;
             responseText += `• ${config.PREFIX}pg - Default 16 chars\n`;
             responseText += `• ${config.PREFIX}pg 24 - Custom length\n`;
             responseText += `• ${config.PREFIX}pg simple - No symbols\n`;
             responseText += `• ${config.PREFIX}pg complex - All chars\n`;
             responseText += `• ${config.PREFIX}pg nosymbols - Letters & numbers\n`;
-            responseText += `• ${config.PREFIX}pg nonumbers - Letters only\n\n`;
-            responseText += `⚠️ *Security tip:* Use unique passwords for each account`;
+            responseText += `• ${config.PREFIX}pg nonumbers - Letters only\n`;
+            responseText += `• ${config.PREFIX}pg help - Show this help\n\n`;
+            responseText += `⚠️ **Security tip:** Use unique passwords for each account`
 
             await this.bot.messageHandler.reply(messageInfo, responseText);
 
