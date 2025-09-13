@@ -24,15 +24,7 @@ class TranslationPlugin {
         try {
             this.bot.messageHandler.registerCommand('translate', this.translateCommand.bind(this), {
                 description: 'Translate text to another language',
-                usage: `${config.PREFIX}translate <to_language> <text>`,
-                category: 'utility',
-                plugin: 'translation',
-                source: 'translation.js'
-            });
-
-            this.bot.messageHandler.registerCommand('languages', this.languagesCommand.bind(this), {
-                description: 'List available languages for translation',
-                usage: `${config.PREFIX}languages`,
+                usage: `${config.PREFIX}translate <to_language> <text> OR ${config.PREFIX}translate languages`,
                 category: 'utility',
                 plugin: 'translation',
                 source: 'translation.js'
@@ -49,11 +41,34 @@ class TranslationPlugin {
     async translateCommand(messageInfo) {
         try {
             const args = messageInfo.args;
+            
+            if (args.length < 1) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    '🌐 **Translation Tool**\n\n' +
+                    '**Usage:**\n' +
+                    `• ${config.PREFIX}translate <to_language> <text>\n` +
+                    `• ${config.PREFIX}translate languages (or lg)\n\n` +
+                    '**Examples:**\n' +
+                    `• ${config.PREFIX}translate spanish Hello world\n` +
+                    `• ${config.PREFIX}translate fr Good morning\n` +
+                    `• ${config.PREFIX}translate zh How are you?\n` +
+                    `• ${config.PREFIX}translate languages`);
+                return;
+            }
+
+            // Check if first argument is "languages" or "lg" for language list
+            const firstArg = args[0].toLowerCase();
+            if (firstArg === 'languages' || firstArg === 'lg') {
+                await this.handleLanguagesList(messageInfo);
+                return;
+            }
+
+            // Handle translation
             if (args.length < 2) {
                 await this.bot.messageHandler.reply(messageInfo,
                     '🌐 Usage: .translate <to_language> <text>\n\n' +
-                    'Examples:\n• .translate spanish Hello world\n• .translate fr Good morning\n• .translate zh How are you?\n\n' +
-                    'Use .languages to see available language codes');
+                    'Examples:\n• .translate spanish Hello world\n• .translate fr Good morning\n\n' +
+                    'Use .translate languages to see available language codes');
                 return;
             }
 
@@ -70,7 +85,7 @@ class TranslationPlugin {
             if (!toLangCode) {
                 await this.bot.messageHandler.reply(messageInfo,
                     `❌ Language "${toLang}" not supported.\n\n` +
-                    'Use .languages to see available options');
+                    'Use .translate languages to see available options');
                 return;
             }
 
@@ -92,7 +107,7 @@ class TranslationPlugin {
         }
     }
 
-    async languagesCommand(messageInfo) {
+    async handleLanguagesList(messageInfo) {
         try {
             const langList = Object.entries(this.languages)
                 .map(([code, name]) => `**${code}** - ${name}`)
@@ -103,7 +118,7 @@ class TranslationPlugin {
                 'Usage: .translate <code> <text>\nExample: .translate es Hello world');
 
         } catch (error) {
-            console.error('Error in languages command:', error);
+            console.error('Error in languages list:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error listing languages.');
         }
     }
