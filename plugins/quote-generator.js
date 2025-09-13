@@ -255,15 +255,11 @@ class QuoteGeneratorPlugin {
         // Try each API in sequence
         for (let i = 0; i < apis.length; i++) {
             try {
-                console.log(`📡 Trying API ${i + 1}/3 for quotes...`);
                 const result = await apis[i]();
-                console.log(`✅ API ${i + 1} successful for quotes`);
                 return result;
             } catch (error) {
-                console.log(`❌ API ${i + 1} failed: ${error.message}`);
-                if (i === apis.length - 1) {
-                    console.log('🔄 All quote APIs failed, using fallback');
-                }
+                // Silent fallback to next API
+                continue;
             }
         }
 
@@ -308,53 +304,35 @@ class QuoteGeneratorPlugin {
 
         for (let i = 0; i < apis.length; i++) {
             try {
-                console.log(`📡 Trying daily quote API ${i + 1}/2...`);
                 const result = await apis[i]();
-                console.log(`✅ Daily quote API ${i + 1} successful`);
                 return result;
             } catch (error) {
-                console.log(`❌ Daily quote API ${i + 1} failed: ${error.message}`);
+                continue;
             }
         }
-
-        console.log('🔄 All daily quote APIs failed, using fallback');
         return { success: false };
     }
 
     async getQuoteByAuthor(author) {
         // Try multiple APIs for author search
         const apis = [
-            // ZenQuotes author search (most reliable)
+            // Quotable API with author search (most reliable for specific authors)
             async () => {
-                const response = await axios.get(`https://zenquotes.io/api/quotes/${encodeURIComponent(author)}`, {
+                const response = await axios.get(`https://api.quotable.io/quotes`, {
+                    params: {
+                        author: author,
+                        limit: 1
+                    },
                     timeout: 5000,
                     headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
                 });
                 
-                if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-                    const quote = response.data[0];
+                if (response.data && response.data.results && response.data.results.length > 0) {
+                    const quote = response.data.results[0];
                     return {
                         success: true,
-                        text: quote.q,
-                        author: quote.a
-                    };
-                }
-                throw new Error('No data');
-            },
-            
-            // Try searching quotes with author name in content from ZenQuotes
-            async () => {
-                const response = await axios.get('https://zenquotes.io/api/random', { 
-                    timeout: 5000,
-                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
-                });
-                
-                // This gets a random quote - not ideal but better than nothing
-                if (response.data && response.data[0]) {
-                    return {
-                        success: true,
-                        text: response.data[0].q,
-                        author: response.data[0].a
+                        text: quote.content,
+                        author: quote.author
                     };
                 }
                 throw new Error('No data');
@@ -380,21 +358,40 @@ class QuoteGeneratorPlugin {
                     };
                 }
                 throw new Error('No data');
+            },
+            
+            // ZenQuotes random (last resort - not author specific)
+            async () => {
+                const response = await axios.get('https://zenquotes.io/api/random', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                
+                if (response.data && response.data[0]) {
+                    // Only use if author name somewhat matches
+                    const quote = response.data[0];
+                    if (quote.a.toLowerCase().includes(author.toLowerCase()) || 
+                        author.toLowerCase().includes(quote.a.toLowerCase())) {
+                        return {
+                            success: true,
+                            text: quote.q,
+                            author: quote.a
+                        };
+                    }
+                }
+                throw new Error('No matching author');
             }
         ];
 
         for (let i = 0; i < apis.length; i++) {
             try {
-                console.log(`📡 Trying author quote API ${i + 1}/3 for "${author}"...`);
                 const result = await apis[i]();
-                console.log(`✅ Author quote API ${i + 1} successful`);
                 return result;
             } catch (error) {
-                console.log(`❌ Author quote API ${i + 1} failed: ${error.message}`);
+                continue;
             }
         }
 
-        console.log(`🔄 All author quote APIs failed for "${author}", using fallback`);
         return { success: false };
     }
 
