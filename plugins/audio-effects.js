@@ -71,19 +71,19 @@ class AudioEffectsPlugin {
                 category: 'speed'
             },
             nightcore: {
-                filter: 'asetrate=44100*1.3,aresample=44100,dynaudnorm=p=0.9:s=5,anequalizer=f=2000:width_type=h:width=1000:g=3',
+                filter: 'asetrate=44100*1.3,aresample=44100,dynaudnorm=p=0.9:s=5,highpass=f=1500,volume=1.2',
                 description: 'Professional nightcore with vocal enhancement',
                 category: 'speed'
             },
             
             // EQ effects - professional grade processing
             bass: {
-                filter: 'dynaudnorm=p=0.9:s=5,anequalizer=f=60:width_type=h:width=40:g=8,anequalizer=f=120:width_type=h:width=60:g=6,volume=0.9',
+                filter: 'dynaudnorm=p=0.9:s=5,lowpass=f=150,highpass=f=20,volume=1.4,compand=attacks=0.1:points=-60/-40|-30/-20|-10/-10|0/-5:gain=3',
                 description: 'Professional bass boost with dynamic processing',
                 category: 'eq'
             },
             treble: {
-                filter: 'dynaudnorm=p=0.9:s=5,anequalizer=f=3000:width_type=h:width=1500:g=6,anequalizer=f=6000:width_type=h:width=2000:g=4,volume=0.9',
+                filter: 'dynaudnorm=p=0.9:s=5,highpass=f=2000,lowpass=f=12000,volume=1.3,compand=attacks=0.05:points=-50/-30|-20/-15|-5/-5:gain=2',
                 description: 'Enhanced treble with presence boost',
                 category: 'eq'
             },
