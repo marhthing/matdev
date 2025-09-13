@@ -13,6 +13,7 @@ class ReminderSystemPlugin {
         this.reminders = new Map();
         this.intervals = new Map();
         this.nextId = 1; // Simple counter for IDs
+        this.triggeredReminders = new Set(); // Track triggered reminders to prevent spam
     }
 
     async init(bot) {
@@ -70,12 +71,23 @@ class ReminderSystemPlugin {
             );
 
             const timeStr = this.formatDateTime(parsed.datetime);
-            await this.bot.messageHandler.reply(messageInfo,
+            const confirmMessage = await this.bot.messageHandler.reply(messageInfo,
                 `⏰ **Reminder Set**\n\n` +
                 `**ID:** ${reminderId}\n` +
                 `**Time:** ${timeStr}\n` +
                 `**Message:** ${parsed.message}\n\n` +
                 `🔔 You'll be notified when it's time!`);
+            
+            // Pin the confirmation message
+            if (confirmMessage && confirmMessage.key) {
+                try {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        pin: confirmMessage.key
+                    });
+                } catch (pinError) {
+                    console.log('Could not pin confirmation message:', pinError.message);
+                }
+            }
 
         } catch (error) {
             console.error('Error in remind command:', error);
@@ -239,16 +251,36 @@ class ReminderSystemPlugin {
 
     async triggerReminder(reminderId) {
         try {
+            // Prevent duplicate triggers
+            if (this.triggeredReminders.has(reminderId)) {
+                return;
+            }
+            
             const reminder = this.reminders.get(reminderId);
             if (!reminder) return;
 
-            await this.bot.sock.sendMessage(reminder.chatId, {
+            // Mark as triggered to prevent spam
+            this.triggeredReminders.add(reminderId);
+
+            const message = await this.bot.sock.sendMessage(reminder.chatId, {
                 text: `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`
             });
+
+            // Pin the reminder message
+            if (message && message.key) {
+                try {
+                    await this.bot.sock.sendMessage(reminder.chatId, {
+                        pin: message.key
+                    });
+                } catch (pinError) {
+                    console.log('Could not pin reminder message:', pinError.message);
+                }
+            }
 
             // Remove the completed reminder
             this.reminders.delete(reminderId);
             this.intervals.delete(reminderId);
+            this.triggeredReminders.delete(reminderId);
             await this.saveReminders();
 
         } catch (error) {
@@ -261,7 +293,7 @@ class ReminderSystemPlugin {
         setInterval(() => {
             const now = Date.now();
             for (const [id, reminder] of this.reminders.entries()) {
-                if (reminder.datetime <= now && !this.intervals.has(id)) {
+                if (reminder.datetime <= now && !this.intervals.has(id) && !this.triggeredReminders.has(id)) {
                     this.triggerReminder(id);
                 }
             }
@@ -329,6 +361,7 @@ class ReminderSystemPlugin {
     formatDateTime(timestamp) {
         const date = new Date(timestamp);
         return date.toLocaleString('en-US', {
+            timeZone: 'Africa/Lagos',
             month: 'short',
             day: 'numeric',
             year: 'numeric',
