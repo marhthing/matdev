@@ -13,7 +13,7 @@ class ImageEffectsPlugin {
         this.effects = {
             // Color grading effects
             vintage: {
-                filter: 'eq=gamma=1.3:saturation=0.8:brightness=0.1:contrast=1.1,curves=vintage,noise=c0s=5:allf=t',
+                filter: 'eq=gamma=1.3:saturation=0.8:brightness=0.1:contrast=1.1,noise=c0s=5:allf=t',
                 description: 'Vintage film look with warm tones and grain',
                 category: 'color'
             },
@@ -28,7 +28,7 @@ class ImageEffectsPlugin {
                 category: 'color'
             },
             noir: {
-                filter: 'eq=gamma=1.4:saturation=0:brightness=0.1:contrast=1.4,curves=preset=darker',
+                filter: 'eq=gamma=1.4:saturation=0:brightness=0.1:contrast=1.4',
                 description: 'Dramatic black and white film noir style',
                 category: 'color'
             },
@@ -141,24 +141,24 @@ class ImageEffectsPlugin {
                 category: 'blur'
             },
             motionblur: {
-                filter: 'mblur=radius=10:angle=45',
+                filter: 'boxblur=10:10',
                 description: 'Motion blur with directional effect',
                 category: 'blur'
             },
             tiltshift: {
-                filter: 'split[main][blur];[blur]gblur=sigma=8[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
+                filter: 'split[main][blur];[blur]gblur=sigma=8[blurred];[main][blurred]blend=all_expr=if(between(Y\\,H*0.3\\,H*0.7)\\,A\\,B)',
                 description: 'Tilt-shift miniature effect',
                 category: 'blur'
             },
             radialblur: {
-                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(hypot(X-W/2,Y-H/2)<min(W,H)/4,A,B)\'',
+                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=if(hypot(X-W/2\\,Y-H/2)<min(W\\,H)/4\\,A\\,B)',
                 description: 'Radial blur focusing on center',
                 category: 'blur'
             },
 
             // Vintage and retro effects
             film: {
-                filter: 'curves=vintage,noise=c0s=3:allf=t,eq=gamma=1.2:saturation=0.9:contrast=1.1',
+                filter: 'noise=c0s=3:allf=t,eq=gamma=1.2:saturation=0.9:contrast=1.1',
                 description: 'Classic film grain and color',
                 category: 'vintage'
             },
@@ -168,7 +168,7 @@ class ImageEffectsPlugin {
                 category: 'vintage'
             },
             faded: {
-                filter: 'eq=gamma=1.3:saturation=0.7:brightness=0.15:contrast=0.9,curves=lighter',
+                filter: 'eq=gamma=1.3:saturation=0.7:brightness=0.15:contrast=0.9',
                 description: 'Faded vintage photo look',
                 category: 'vintage'
             },
