@@ -1,13 +1,27 @@
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
+const axios = require('axios');
 
 class Base64EncoderPlugin {
     constructor() {
         this.name = 'base64-encoder';
-        this.description = 'Encode and decode text/media using Base64';
-        this.version = '2.0.0';
+        this.description = 'Encode and decode text/media using Base64 with URL shortening';
+        this.version = '2.1.0';
         this.enabled = true;
+        
+        // Base64 size threshold for automatic URL storage (10KB)
+        this.URL_STORAGE_THRESHOLD = 10 * 1024;
+        
+        // Allowed domains for URL fetching (security)
+        this.ALLOWED_DOMAINS = [
+            '0x0.st',
+            'paste.rs', 
+            'hastebin.com',
+            'tinyurl.com',
+            'is.gd',
+            'v.gd'
+        ];
     }
 
     async init(bot) {
@@ -91,34 +105,41 @@ class Base64EncoderPlugin {
 
     async decodeCommand(messageInfo) {
         try {
-            const base64 = messageInfo.args.join(' ').trim();
-            if (!base64) {
+            const input = messageInfo.args.join(' ').trim();
+            if (!input) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '🔓 Usage: .decode <base64>\n\n' +
+                    '🔓 Usage: .decode <base64|url>\n\n' +
                     '**Text Examples:**\n• .decode SGVsbG8gV29ybGQh\n• .decode TWVzc2FnZSB0byBkZWNvZGU=\n\n' +
-                    '**Media:** Paste base64 from .encode media command');
+                    '**Media:** Paste base64 or URL from .encode command');
                 return;
             }
 
-            if (base64.length > 50000000) { // ~37MB limit for media base64
+            // Check if input is a URL
+            if (this.isValidURL(input)) {
+                await this.decodeFromURL(messageInfo, input);
+                return;
+            }
+
+            // Handle as direct base64
+            if (input.length > 50000000) { // ~37MB limit for media base64
                 await this.bot.messageHandler.reply(messageInfo, '❌ Base64 string too long! Maximum ~37MB.');
                 return;
             }
 
             // Validate base64 format
-            if (!this.isValidBase64(base64)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid Base64 format. Please check your input.');
+            if (!this.isValidBase64(input)) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid Base64 format or URL. Please check your input.');
                 return;
             }
 
             try {
-                const decodedBuffer = Buffer.from(base64, 'base64');
+                const decodedBuffer = Buffer.from(input, 'base64');
                 
                 // Check if this is likely media data (check magic bytes)
                 const mediaType = this.detectMediaType(decodedBuffer);
                 
                 if (mediaType) {
-                    await this.decodeMediaCommand(messageInfo, decodedBuffer, mediaType, base64.length);
+                    await this.decodeMediaCommand(messageInfo, decodedBuffer, mediaType, input.length);
                     return;
                 }
 
@@ -130,16 +151,16 @@ class Base64EncoderPlugin {
                     await this.bot.messageHandler.reply(messageInfo,
                         `🔓 **Base64 Decoded**\n\n` +
                         `**Decoded:** *(Binary/non-printable data)*\n\n` +
-                        `📊 Length: ${base64.length} → ${decoded.length} bytes\n\n` +
+                        `📊 Length: ${input.length} → ${decoded.length} bytes\n\n` +
                         `⚠️ The decoded content appears to be binary data but no media type detected.`);
                     return;
                 }
 
                 await this.bot.messageHandler.reply(messageInfo,
                     `🔓 **Base64 Decoded (Text)**\n\n` +
-                    `**Original Base64:** ${base64.length > 50 ? base64.substring(0, 50) + '...' : base64}\n\n` +
+                    `**Original Base64:** ${input.length > 50 ? input.substring(0, 50) + '...' : input}\n\n` +
                     `**Decoded:**\n${decoded}\n\n` +
-                    `📊 Length: ${base64.length} → ${decoded.length} chars`);
+                    `📊 Length: ${input.length} → ${decoded.length} chars`);
 
             } catch (error) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Error decoding Base64. Please check your input format.');
@@ -288,11 +309,20 @@ class Base64EncoderPlugin {
             // Encode to base64
             const encoded = mediaBuffer.toString('base64');
             
-            // Send the encoded result
-            await this.bot.messageHandler.reply(messageInfo,
-                `🔐 **Base64 Encoded (${mediaType.toUpperCase()})**\n\n` +
-                `**Encoded Base64:**\n\`\`\`${encoded}\`\`\`\n\n` +
-                `💡 Use .decode to restore this media file`);
+            // Check if base64 is large enough to store via URL
+            if (encoded.length > this.URL_STORAGE_THRESHOLD) {
+                await this.sendEncodedViaURL(messageInfo, encoded, mediaType, fileName, mediaBuffer.length);
+            } else {
+                // Send the encoded result directly
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🔐 **Base64 Encoded (${mediaType.toUpperCase()})**\n\n` +
+                    `**File:** ${fileName}\n` +
+                    `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
+                    `**Type:** ${mediaType}\n\n` +
+                    `**Encoded Base64:**\n\`\`\`${encoded.substring(0, 100)}${encoded.length > 100 ? '...' : ''}\`\`\`\n\n` +
+                    `📊 Original: ${this.formatFileSize(mediaBuffer.length)} → Base64: ${encoded.length} chars\n\n` +
+                    `💡 Use .decode to restore this media file`);
+            }
 
         } catch (error) {
             console.error('Error in encode media command:', error);
