@@ -215,8 +215,6 @@ class Base64EncoderPlugin {
 
     async encodeMediaCommand(messageInfo, quotedMessage, currentMedia) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🔐 Processing media for Base64 encoding...');
-
             let mediaBuffer = null;
             let mediaType = '';
             let fileName = '';
@@ -347,8 +345,6 @@ class Base64EncoderPlugin {
 
     async decodeMediaCommand(messageInfo, mediaBuffer, mediaType, base64Length) {
         try {
-            await this.bot.messageHandler.reply(messageInfo, '🔓 Decoding Base64 to media file...');
-
             // Generate filename with timestamp
             const timestamp = Date.now();
             const extensions = {
