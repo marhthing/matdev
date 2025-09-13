@@ -291,11 +291,7 @@ class Base64EncoderPlugin {
             // Send the encoded result
             await this.bot.messageHandler.reply(messageInfo,
                 `🔐 **Base64 Encoded (${mediaType.toUpperCase()})**\n\n` +
-                `**File:** ${fileName}\n` +
-                `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
-                `**Type:** ${mediaType}\n\n` +
-                `**Encoded Base64:**\n\`\`\`${encoded.substring(0, 100)}${encoded.length > 100 ? '...' : ''}\`\`\`\n\n` +
-                `📊 Original: ${this.formatFileSize(mediaBuffer.length)} → Base64: ${encoded.length} chars\n\n` +
+                `**Encoded Base64:**\n\`\`\`${encoded}\`\`\`\n\n` +
                 `💡 Use .decode to restore this media file`);
 
         } catch (error) {
