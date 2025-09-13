@@ -71,17 +71,12 @@ class ReminderSystemPlugin {
             );
 
             const timeStr = this.formatDateTime(parsed.datetime);
-            const confirmMessage = await this.bot.messageHandler.reply(messageInfo,
+            await this.bot.messageHandler.reply(messageInfo,
                 `⏰ **Reminder Set**\n\n` +
                 `**ID:** ${reminderId}\n` +
                 `**Time:** ${timeStr}\n` +
                 `**Message:** ${parsed.message}\n\n` +
                 `🔔 You'll be notified when it's time!`);
-            
-            // Mark chat as unread to highlight the reminder
-            if (confirmMessage) {
-                await this.markChatUnread(messageInfo.chat_jid, confirmMessage);
-            }
 
         } catch (error) {
             console.error('Error in remind command:', error);
@@ -275,7 +270,6 @@ class ReminderSystemPlugin {
             const reminderText = `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`;
             
             // Send reminder 3 times with delays to avoid WhatsApp blocking
-            let firstMessage = null;
             for (let i = 0; i < 3; i++) {
                 setTimeout(async () => {
                     try {
@@ -283,9 +277,8 @@ class ReminderSystemPlugin {
                             text: reminderText
                         });
                         
-                        // Mark chat as unread after first reminder delivery
+                        // Mark chat as unread only after the first reminder delivery
                         if (i === 0 && message) {
-                            firstMessage = message;
                             await this.markChatUnread(reminder.chatId, message);
                         }
                     } catch (sendError) {
