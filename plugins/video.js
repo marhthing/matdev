@@ -133,9 +133,25 @@ class VideoPlugin {
                 return;
             }
 
-            // Generate temp filename in tmp directory with proper MP4 naming
+            // Generate temp filename with proper extension based on media type
             const timestamp = Date.now();
-            const tempFileName = `video_conversion_${timestamp}.mp4`;
+            let tempFileName, actualExtension;
+            
+            // Determine proper file extension based on media type and content
+            if (mediaType === 'stickerMessage') {
+                // Animated stickers are usually WebP format
+                actualExtension = '.webp';
+                tempFileName = `sticker_${timestamp}.webp`;
+            } else if (mediaType === 'imageMessage') {
+                // GIFs should keep their format initially
+                actualExtension = '.gif';
+                tempFileName = `gif_${timestamp}.gif`;
+            } else {
+                // Default to original behavior for other types
+                actualExtension = '.mp4';
+                tempFileName = `video_conversion_${timestamp}.mp4`;
+            }
+            
             tempFilePath = path.join(process.cwd(), 'tmp', tempFileName);
 
             // Write buffer to temp file
@@ -150,7 +166,11 @@ class VideoPlugin {
             console.log(`📹 Video file created: ${tempFileName} (${stats.size} bytes)`);
 
             // Enhanced video conversion with 2025 FFmpeg methods
-            await this.processVideoConversion(tempFilePath, mediaType, mediaResult.info.source);
+            const finalOutputPath = tempFilePath.replace(actualExtension, '.mp4');
+            await this.processVideoConversion(tempFilePath, finalOutputPath, mediaType, mediaResult.info.source);
+            
+            // Update tempFilePath to point to the converted file
+            tempFilePath = finalOutputPath;
 
             // Send converted file as MP4 video
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -181,16 +201,17 @@ class VideoPlugin {
     /**
      * Enhanced video conversion with 2025 FFmpeg methods
      */
-    async processVideoConversion(tempFilePath, mediaType, downloadSource) {
+    async processVideoConversion(inputFilePath, outputFilePath, mediaType, downloadSource) {
         console.log(`📹 Starting enhanced video conversion for ${mediaType} from ${downloadSource}...`);
+        console.log(`📹 Input: ${inputFilePath} -> Output: ${outputFilePath}`);
         
         const { exec } = require('child_process');
         const util = require('util');
         const execPromise = util.promisify(exec);
         
         // Create conversion paths
-        const inputPath = tempFilePath;
-        const outputPath = tempFilePath.replace('.mp4', '_converted.mp4');
+        const inputPath = inputFilePath;
+        const outputPath = outputFilePath;
         
         try {
             if (mediaType === 'stickerMessage') {
@@ -226,7 +247,6 @@ class VideoPlugin {
                 // Verify conversion success
                 const convertedStats = await fs.stat(outputPath);
                 if (convertedStats.size > 0) {
-                    await fs.rename(outputPath, tempFilePath);
                     console.log(`📹 Modern sticker conversion successful: ${convertedStats.size} bytes`);
                     return;
                 }
@@ -308,14 +328,13 @@ class VideoPlugin {
             console.log('📹 Primary conversion failed, trying fallback method:', primaryError.message);
             
             try {
-                // Fallback method: Universal conversion approach
-                const inputFile = mediaType === 'stickerMessage' ? inputPath.replace('.mp4', '.webp') : inputPath;
+                // Fallback method: Simple conversion approach  
                 const fallbackCommand = [
                     'ffmpeg',
                     '-hide_banner',
                     '-loglevel warning',
                     '-y',
-                    `-i "${inputFile}"`,
+                    `-i "${inputPath}"`,
                     '-c:v libx264',
                     '-profile:v baseline',
                     '-pix_fmt yuv420p',
@@ -334,15 +353,6 @@ class VideoPlugin {
                 
                 const fallbackStats = await fs.stat(outputPath);
                 if (fallbackStats.size > 0) {
-                    // Clean up input file if it's a webp rename
-                    if (mediaType === 'stickerMessage') {
-                        const webpPath = inputPath.replace('.mp4', '.webp');
-                        try {
-                            await fs.unlink(webpPath);
-                        } catch (e) {}
-                    }
-                    
-                    await fs.rename(outputPath, tempFilePath);
                     console.log(`📹 Fallback conversion successful: ${fallbackStats.size} bytes`);
                     return;
                 }
@@ -350,22 +360,67 @@ class VideoPlugin {
                 throw new Error('Fallback conversion failed');
                 
             } catch (fallbackError) {
-                console.log('📹 All conversion methods failed, using original file');
+                console.log('📹 FFmpeg conversion failed, trying static frame approach...');
                 
-                // Clean up any temporary files
                 try {
-                    await fs.unlink(outputPath);
-                } catch (e) {}
-                
-                if (mediaType === 'stickerMessage') {
-                    try {
-                        const webpPath = inputPath.replace('.mp4', '.webp');
-                        await fs.rename(webpPath, tempFilePath);
-                    } catch (e) {}
+                    // Final fallback: Create a short video from the first frame
+                    const staticCommand = [
+                        'ffmpeg',
+                        '-hide_banner',
+                        '-loglevel error',
+                        '-y',
+                        `-i "${inputPath}"`,
+                        '-vframes 1',  // Take only first frame
+                        '-c:v libx264',
+                        '-profile:v baseline',
+                        '-pix_fmt yuv420p',
+                        '-r 1',  // 1 FPS for static
+                        '-t 3',  // 3 second duration
+                        '-vf "scale=480:480:force_original_aspect_ratio=decrease,pad=480:480:(ow-iw)/2:(oh-ih)/2"',
+                        '-f mp4',
+                        `"${outputPath}"`
+                    ].join(' ');
+                    
+                    console.log('📹 Running static frame conversion:', staticCommand);
+                    await execPromise(staticCommand);
+                    
+                    const staticStats = await fs.stat(outputPath);
+                    if (staticStats.size > 0) {
+                        console.log(`📹 Static frame conversion successful: ${staticStats.size} bytes`);
+                        return;
+                    }
+                    
+                    throw new Error('Static frame conversion also failed');
+                    
+                } catch (staticError) {
+                    console.log('📹 All conversion methods failed, creating placeholder video...');
+                    
+                    // Ultimate fallback: Create a simple colored placeholder video
+                    const placeholderCommand = [
+                        'ffmpeg',
+                        '-hide_banner',
+                        '-loglevel error',
+                        '-y',
+                        '-f lavfi',
+                        '-i "color=gray:size=480x480:duration=3"',
+                        '-c:v libx264',
+                        '-profile:v baseline',
+                        '-pix_fmt yuv420p',
+                        '-r 15',
+                        `"${outputPath}"`
+                    ].join(' ');
+                    
+                    console.log('📹 Creating placeholder video');
+                    await execPromise(placeholderCommand);
+                    
+                    const placeholderStats = await fs.stat(outputPath);
+                    if (placeholderStats.size > 0) {
+                        console.log(`📹 Placeholder video created: ${placeholderStats.size} bytes`);
+                        return;
+                    }
+                    
+                    throw new Error('Unable to create any video output');
                 }
-                
-                // File will be sent as-is
-                console.log('📹 Sending original file without conversion');
             }
         }
     }
