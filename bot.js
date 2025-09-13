@@ -369,10 +369,8 @@ class MATDEV {
             if (this.sock && config.OWNER_NUMBER) {
                 const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 
-                // Check if this is a first-time connection (no existing session)
-                const isFirstTimeConnection = await this.isFirstTimeConnection();
-                
-                if (isFirstTimeConnection) {
+                // Use stored first-time status (checked before linked.json was created)
+                if (this.isFirstTimeSession) {
                     // Send enhanced welcome message with image and configuration
                     await this.sendEnhancedWelcomeMessage(botPrivateChat);
                 } else {
@@ -872,6 +870,9 @@ class MATDEV {
                 this.connectionReadyResolver = null;
             }
 
+            // Check if first-time connection BEFORE creating linked.json
+            this.isFirstTimeSession = await this.isFirstTimeConnection();
+            
             // Create or update linked.json file after successful connection
             await this.createOrUpdateLinkedFile();
 
