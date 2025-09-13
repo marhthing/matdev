@@ -125,7 +125,7 @@ class StatusPlugin {
         // Register comprehensive status command
         this.bot.messageHandler.registerCommand('status', this.handleStatusCommand.bind(this), {
             description: 'Manage automatic status viewing, downloading, and forwarding',
-            usage: `${config.PREFIX}status on|off [no-dl] [except-view|only-view <jid,...>] [destination <jid>]`,
+            usage: `${config.PREFIX}status <jid>|on|off [no-dl] [except-view|only-view <jid,...>]`,
             category: 'status'
         });
     }
@@ -158,9 +158,21 @@ class StatusPlugin {
                 return await this.handleStatusOnCommand(messageInfo, args);
             }
 
+            // Check if this is a JID to set destination (like .save <jid> or .vv <jid>)
+            if (args.length === 1) {
+                // This is setting the forwarding destination
+                const newDestination = this.normalizeJid(args[0]);
+                this.statusSettings.forwardDestination = newDestination;
+                this.saveStatusSettings();
+                
+                return await this.bot.messageHandler.reply(messageInfo, 
+                    `📤 Status forwarding destination set to: ${newDestination}`);
+            }
+
             // Invalid action
             return await this.bot.messageHandler.reply(messageInfo, 
                 `❌ Invalid action. Use:\n` +
+                `${config.PREFIX}status <jid> - Set forwarding destination\n` +
                 `${config.PREFIX}status on|off [no-dl] [except-view|only-view <jid,...>]`);
 
         } catch (error) {
@@ -257,8 +269,12 @@ class StatusPlugin {
      */
     async showStatusInfo(messageInfo) {
         try {
-            let info = `${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n\n`;
-            info += `Usage: ${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
+            let info = `📊 *Status Configuration*\n\n`;
+            info += `🔘 Status: ${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n`;
+            info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n\n`;
+            info += `💡 Usage:\n`;
+            info += `${config.PREFIX}status <jid> - Set forwarding destination\n`;
+            info += `${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
 
             return await this.bot.messageHandler.reply(messageInfo, info);
         } catch (error) {
