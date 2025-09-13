@@ -338,6 +338,46 @@ class QuoteGeneratorPlugin {
                 throw new Error('No data');
             },
             
+            // Try with different author name variations
+            async () => {
+                // Try common variations for famous authors
+                const variations = [author];
+                if (author.toLowerCase().includes('einstein')) {
+                    variations.push('Albert Einstein');
+                }
+                if (author.toLowerCase().includes('jobs')) {
+                    variations.push('Steve Jobs');
+                }
+                if (author.toLowerCase().includes('disney')) {
+                    variations.push('Walt Disney');
+                }
+                
+                for (const variation of variations) {
+                    try {
+                        const response = await axios.get(`https://api.quotable.io/quotes`, {
+                            params: {
+                                author: variation,
+                                limit: 1
+                            },
+                            timeout: 3000,
+                            headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                        });
+                        
+                        if (response.data && response.data.results && response.data.results.length > 0) {
+                            const quote = response.data.results[0];
+                            return {
+                                success: true,
+                                text: quote.content,
+                                author: quote.author
+                            };
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                throw new Error('No data');
+            },
+            
             // QuoteGarden as backup
             async () => {
                 const response = await axios.get(`https://quotegarden.herokuapp.com/api/v3/quotes`, {
@@ -358,28 +398,6 @@ class QuoteGeneratorPlugin {
                     };
                 }
                 throw new Error('No data');
-            },
-            
-            // ZenQuotes random (last resort - not author specific)
-            async () => {
-                const response = await axios.get('https://zenquotes.io/api/random', { 
-                    timeout: 5000,
-                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
-                });
-                
-                if (response.data && response.data[0]) {
-                    // Only use if author name somewhat matches
-                    const quote = response.data[0];
-                    if (quote.a.toLowerCase().includes(author.toLowerCase()) || 
-                        author.toLowerCase().includes(quote.a.toLowerCase())) {
-                        return {
-                            success: true,
-                            text: quote.q,
-                            author: quote.a
-                        };
-                    }
-                }
-                throw new Error('No matching author');
             }
         ];
 
