@@ -279,7 +279,6 @@ class VideoPlugin {
                 
                 const gifStats = await fs.stat(outputPath);
                 if (gifStats.size > 0) {
-                    await fs.rename(outputPath, tempFilePath);
                     console.log(`📹 GIF conversion successful: ${gifStats.size} bytes`);
                     return;
                 }
@@ -316,7 +315,6 @@ class VideoPlugin {
                 
                 const videoStats = await fs.stat(outputPath);
                 if (videoStats.size > 0) {
-                    await fs.rename(outputPath, tempFilePath);
                     console.log(`📹 Video re-encoding successful: ${videoStats.size} bytes`);
                     return;
                 }
@@ -360,68 +358,243 @@ class VideoPlugin {
                 throw new Error('Fallback conversion failed');
                 
             } catch (fallbackError) {
-                console.log('📹 FFmpeg conversion failed, trying static frame approach...');
+                console.log('📹 FFmpeg WebP conversion failed, trying animated WebP extraction...');
                 
+                // Try the advanced WebP frame extraction method
                 try {
-                    // Final fallback: Create a short video from the first frame
-                    const staticCommand = [
-                        'ffmpeg',
-                        '-hide_banner',
-                        '-loglevel error',
-                        '-y',
-                        `-i "${inputPath}"`,
-                        '-vframes 1',  // Take only first frame
-                        '-c:v libx264',
-                        '-profile:v baseline',
-                        '-pix_fmt yuv420p',
-                        '-r 1',  // 1 FPS for static
-                        '-t 3',  // 3 second duration
-                        '-vf "scale=480:480:force_original_aspect_ratio=decrease,pad=480:480:(ow-iw)/2:(oh-ih)/2"',
-                        '-f mp4',
-                        `"${outputPath}"`
-                    ].join(' ');
+                    await this.extractAnimatedWebPFrames(inputPath, outputPath);
                     
-                    console.log('📹 Running static frame conversion:', staticCommand);
-                    await execPromise(staticCommand);
-                    
-                    const staticStats = await fs.stat(outputPath);
-                    if (staticStats.size > 0) {
-                        console.log(`📹 Static frame conversion successful: ${staticStats.size} bytes`);
+                    const extractionStats = await fs.stat(outputPath);
+                    if (extractionStats.size > 0) {
+                        console.log(`📹 Animated WebP extraction successful: ${extractionStats.size} bytes`);
                         return;
                     }
                     
-                    throw new Error('Static frame conversion also failed');
+                    throw new Error('WebP extraction produced empty file');
                     
-                } catch (staticError) {
-                    console.log('📹 All conversion methods failed, creating placeholder video...');
+                } catch (extractionError) {
+                    console.log('📹 WebP extraction failed, trying static frame approach...');
                     
-                    // Ultimate fallback: Create a simple colored placeholder video
-                    const placeholderCommand = [
-                        'ffmpeg',
-                        '-hide_banner',
-                        '-loglevel error',
-                        '-y',
-                        '-f lavfi',
-                        '-i "color=gray:size=480x480:duration=3"',
-                        '-c:v libx264',
-                        '-profile:v baseline',
-                        '-pix_fmt yuv420p',
-                        '-r 15',
-                        `"${outputPath}"`
-                    ].join(' ');
-                    
-                    console.log('📹 Creating placeholder video');
-                    await execPromise(placeholderCommand);
-                    
-                    const placeholderStats = await fs.stat(outputPath);
-                    if (placeholderStats.size > 0) {
-                        console.log(`📹 Placeholder video created: ${placeholderStats.size} bytes`);
-                        return;
+                    try {
+                        // Final fallback: Create a short video from the first frame
+                        const staticCommand = [
+                            'ffmpeg',
+                            '-hide_banner',
+                            '-loglevel error',
+                            '-y',
+                            `-i "${inputPath}"`,
+                            '-vframes 1',  // Take only first frame
+                            '-c:v libx264',
+                            '-profile:v baseline',
+                            '-pix_fmt yuv420p',
+                            '-r 1',  // 1 FPS for static
+                            '-t 3',  // 3 second duration
+                            '-vf "scale=480:480:force_original_aspect_ratio=decrease,pad=480:480:(ow-iw)/2:(oh-ih)/2"',
+                            '-f mp4',
+                            `"${outputPath}"`
+                        ].join(' ');
+                        
+                        console.log('📹 Running static frame conversion:', staticCommand);
+                        await execPromise(staticCommand);
+                        
+                        const staticStats = await fs.stat(outputPath);
+                        if (staticStats.size > 0) {
+                            console.log(`📹 Static frame conversion successful: ${staticStats.size} bytes`);
+                            return;
+                        }
+                        
+                        throw new Error('Static frame conversion also failed');
+                        
+                    } catch (staticError) {
+                        console.log('📹 All conversion methods failed, creating placeholder video...');
+                        
+                        // Ultimate fallback: Create a simple colored placeholder video
+                        const placeholderCommand = [
+                            'ffmpeg',
+                            '-hide_banner',
+                            '-loglevel error',
+                            '-y',
+                            '-f lavfi',
+                            '-i "color=gray:size=480x480:duration=3"',
+                            '-c:v libx264',
+                            '-profile:v baseline',
+                            '-pix_fmt yuv420p',
+                            '-r 15',
+                            `"${outputPath}"`
+                        ].join(' ');
+                        
+                        console.log('📹 Creating placeholder video');
+                        await execPromise(placeholderCommand);
+                        
+                        const placeholderStats = await fs.stat(outputPath);
+                        if (placeholderStats.size > 0) {
+                            console.log(`📹 Placeholder video created: ${placeholderStats.size} bytes`);
+                            return;
+                        }
+                        
+                        throw new Error('Unable to create any video output');
                     }
-                    
-                    throw new Error('Unable to create any video output');
                 }
             }
+        }
+    }
+
+    /**
+     * Extract animated frames from WebP using Sharp library
+     */
+    async extractAnimatedWebPFrames(inputPath, outputPath) {
+        console.log('📹 Starting animated WebP frame extraction with Sharp...');
+        
+        try {
+            const sharp = require('sharp');
+            const { exec } = require('child_process');
+            const util = require('util');
+            const execPromise = util.promisify(exec);
+            
+            // Read the WebP file
+            const webpBuffer = await fs.readFile(inputPath);
+            console.log(`📹 Loaded WebP file: ${webpBuffer.length} bytes`);
+            
+            // Get animated WebP metadata
+            const sharpImage = sharp(webpBuffer, { animated: true });
+            const metadata = await sharpImage.metadata();
+            
+            console.log(`📹 WebP metadata - pages: ${metadata.pages}, width: ${metadata.width}, height: ${metadata.height}`);
+            
+            // Check if it's actually animated
+            if (!metadata.pages || metadata.pages === 1) {
+                console.log('📹 WebP is not animated, using static frame extraction...');
+                // Fallback to static frame
+                const framePath = path.join(path.dirname(outputPath), `single_frame_${Date.now()}.png`);
+                
+                try {
+                    await sharp(webpBuffer)
+                        .png()
+                        .resize(480, 480, {
+                            fit: 'contain',
+                            background: { r: 0, g: 0, b: 0, alpha: 1 }
+                        })
+                        .toFile(framePath);
+                    
+                    // Create video from single frame
+                    const videoCommand = [
+                        'ffmpeg',
+                        '-hide_banner',
+                        '-loglevel error',
+                        '-y',
+                        '-loop 1',
+                        `-i "${framePath}"`,
+                        '-c:v libx264',
+                        '-profile:v baseline',
+                        '-pix_fmt yuv420p',
+                        '-t 3',
+                        '-r 15',
+                        '-movflags +faststart',
+                        `"${outputPath}"`
+                    ].join(' ');
+                    
+                    await execPromise(videoCommand);
+                    console.log('📹 Static frame video created successfully');
+                } finally {
+                    // Clean up single frame
+                    try {
+                        await fs.unlink(framePath);
+                    } catch (e) {}
+                }
+                return;
+            }
+            
+            // Handle animated WebP
+            console.log(`📹 Processing ${metadata.pages} animated frames...`);
+            
+            // Create temporary directory for frames
+            const framesDir = path.join(path.dirname(outputPath), `frames_${Date.now()}`);
+            await fs.ensureDir(framesDir);
+            
+            try {
+                // Extract all frames
+                const framePaths = [];
+                const frameDurations = [];
+                
+                // Get frame delays from metadata (if available)
+                const frameDelays = metadata.delay || [];
+                const defaultDuration = 0.1; // 100ms default
+                
+                for (let i = 0; i < Math.min(metadata.pages, 50); i++) { // Limit to 50 frames max
+                    const framePath = path.join(framesDir, `frame_${String(i + 1).padStart(3, '0')}.png`);
+                    
+                    console.log(`📹 Extracting frame ${i + 1}/${metadata.pages}...`);
+                    
+                    // Extract specific frame from animated WebP
+                    await sharp(webpBuffer, { animated: true })
+                        .extractFrame(i)
+                        .ensureAlpha()
+                        .png()
+                        .resize(480, 480, {
+                            fit: 'contain',
+                            background: { r: 0, g: 0, b: 0, alpha: 1 }
+                        })
+                        .toFile(framePath);
+                    
+                    framePaths.push(framePath);
+                    
+                    // Calculate frame duration from delay (convert ms to seconds)
+                    const frameDuration = frameDelays[i] ? frameDelays[i] / 1000 : defaultDuration;
+                    frameDurations.push(frameDuration);
+                }
+                
+                console.log(`📹 Extracted ${framePaths.length} frames, creating concat file...`);
+                
+                // Create concat file for FFmpeg
+                const concatFile = path.join(framesDir, 'frames.txt');
+                let concatContent = '';
+                
+                for (let i = 0; i < framePaths.length; i++) {
+                    concatContent += `file '${path.basename(framePaths[i])}'\n`;
+                    concatContent += `duration ${frameDurations[i]}\n`;
+                }
+                // Add the last frame again for proper duration
+                if (framePaths.length > 0) {
+                    concatContent += `file '${path.basename(framePaths[framePaths.length - 1])}'\n`;
+                }
+                
+                await fs.writeFile(concatFile, concatContent);
+                console.log('📹 Concat file created, assembling video...');
+                
+                // Create animated video from frames (respecting concat durations)
+                const videoCommand = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel error',
+                    '-y',
+                    '-f concat',
+                    '-safe 0',
+                    `-i "${concatFile}"`,
+                    '-c:v libx264',
+                    '-profile:v baseline',
+                    '-pix_fmt yuv420p',
+                    '-movflags +faststart',
+                    `"${outputPath}"`
+                ].join(' ');
+                
+                console.log('📹 Creating animated video from frames...');
+                await execPromise(videoCommand);
+                
+                const videoStats = await fs.stat(outputPath);
+                console.log(`📹 Animated video created successfully: ${videoStats.size} bytes from ${framePaths.length} frames`);
+                
+            } finally {
+                // Clean up temporary frames directory
+                try {
+                    await fs.remove(framesDir);
+                } catch (cleanupError) {
+                    console.log('📹 Frame cleanup error (non-critical):', cleanupError.message);
+                }
+            }
+            
+        } catch (error) {
+            console.log('📹 Sharp WebP extraction error:', error.message);
+            throw new Error(`Failed to extract WebP frames with Sharp: ${error.message}`);
         }
     }
 
