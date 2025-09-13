@@ -61,11 +61,12 @@ Features multi-tier caching for various data types, concurrent processing, smart
   - Download, YouTube, TikTok, Twitter, Instagram
   - AI integrations (Gemini, Groq), Weather, Media processing
   - Group management, QR generation, scheduling, and upscaling features
-- **Image Plugin**: ✅ **Fixed September 13, 2025** - Only working commands are available:
+- **AI Generator Plugin**: ✅ **Fixed September 13, 2025** - Only working commands are available:
   - `.image` - AI image generation (Pollinations.ai) ✅ Working
   - `.write` - Text generation (Pollinations.ai) ✅ Working  
   - `.style` - Style artwork generation (Pollinations.ai) ✅ Working
   - `.video/.animate/.music` - Removed (non-working commands commented out)
+  - **File**: `ai-generator.js` (renamed from image.js for accuracy)
 - **Deployment**: Configured for VM deployment (continuous operation)
 
 ## Configuration Files

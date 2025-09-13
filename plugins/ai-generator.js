@@ -3,11 +3,11 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 
-class ImagePlugin {
+class AIGeneratorPlugin {
     constructor() {
-        this.name = 'pollinations';
-        this.description = 'Complete Pollinations.ai suite: images, videos, text, music & style transfer';
-        this.version = '3.0.0';
+        this.name = 'ai-generator';
+        this.description = 'AI content generator: images, text, and artistic styles using Pollinations.ai';
+        this.version = '4.0.0';
         this.enabled = true;
     }
 
@@ -22,8 +22,8 @@ class ImagePlugin {
                 description: 'Generate images using free AI services',
                 usage: `${config.PREFIX}image <description>`,
                 category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
+                plugin: 'ai-generator',
+                source: 'ai-generator.js'
             });
 
             // Register video generation command - COMMENTED OUT (not working)
@@ -49,8 +49,8 @@ class ImagePlugin {
                 description: 'Generate creative text content',
                 usage: `${config.PREFIX}write <prompt>`,
                 category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
+                plugin: 'ai-generator',
+                source: 'ai-generator.js'
             });
 
             // Register style transfer command
@@ -58,8 +58,8 @@ class ImagePlugin {
                 description: 'Apply artistic styles to images',
                 usage: `${config.PREFIX}style <style> (reply to image)`,
                 category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
+                plugin: 'ai-generator',
+                source: 'ai-generator.js'
             });
 
             // Register music generation command - COMMENTED OUT (not working)
@@ -420,7 +420,7 @@ class ImagePlugin {
 // Export function for plugin initialization
 module.exports = {
     init: async (bot) => {
-        const plugin = new ImagePlugin();
+        const plugin = new AIGeneratorPlugin();
         await plugin.init(bot);
         return plugin;
     }
