@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Video Plugin
  * Convert GIF or GIF stickers to video format
@@ -156,4 +157,12 @@ class VideoPlugin {
     }
 }
 
-module.exports = VideoPlugin;
+// Export the plugin class instance with init function
+const videoPlugin = new VideoPlugin();
+
+module.exports = {
+    init: videoPlugin.init.bind(videoPlugin),
+    name: videoPlugin.name,
+    description: videoPlugin.description,
+    version: videoPlugin.version
+};
