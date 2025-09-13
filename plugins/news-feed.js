@@ -1,23 +1,41 @@
 const axios = require('axios');
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
+const moment = require('moment-timezone');
 
 class NewsFeedPlugin {
     constructor() {
         this.name = 'news-feed';
-        this.description = 'Get latest news from various sources';
-        this.version = '1.0.0';
+        this.description = 'Get latest news from various sources and scheduled notifications';
+        this.version = '2.0.0';
         this.enabled = true;
         
         // Categories for news
-        this.categories = ['general', 'business', 'technology', 'sports', 'health', 'entertainment'];
+        this.categories = ['general', 'sports', 'health', 'business', 'technology', 'entertainment'];
+        
+        // Storage paths
+        this.newsSettingsPath = path.join(__dirname, '../session/storage/news_settings.json');
+        this.newsSettings = new Map();
+        this.newsCheckInterval = null;
+        
+        // Schedule times (7am and 7pm)
+        this.scheduleTimes = ['07:00', '19:00'];
     }
 
     async init(bot) {
         this.bot = bot;
         try {
+            // Load news settings
+            await this.loadNewsSettings();
+            
+            // Start news scheduler
+            this.startNewsScheduler();
+            
+            // Register existing commands
             this.bot.messageHandler.registerCommand('news', this.newsCommand.bind(this), {
-                description: 'Get latest news',
-                usage: `${config.PREFIX}news [category]`,
+                description: 'Get latest news or manage news notifications',
+                usage: `${config.PREFIX}news [category] | ${config.PREFIX}news [category] on/off`,
                 category: 'information',
                 plugin: 'news-feed',
                 source: 'news-feed.js'
@@ -41,36 +59,77 @@ class NewsFeedPlugin {
 
     async newsCommand(messageInfo) {
         try {
-            const category = messageInfo.args[0]?.toLowerCase() || 'general';
+            const args = messageInfo.args;
+            const userJid = messageInfo.from;
             
-            if (!this.categories.includes(category)) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `📰 Usage: .news [category]\n\n` +
-                    `**Available categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
-                    'Examples:\n• .news\n• .news technology\n• .news sports');
-                return;
-            }
-
-            const news = await this.getNews(category);
-            if (news.success) {
-                let message = `📰 **${category.toUpperCase()} NEWS**\n\n`;
+            // Handle different command patterns
+            if (args.length === 0) {
+                // .news - get general news
+                return await this.handleNewsRequest('general', messageInfo);
+            } else if (args.length === 1) {
+                const param = args[0].toLowerCase();
                 
-                news.articles.slice(0, 5).forEach((article, index) => {
-                    message += `**${index + 1}.** ${article.title}\n`;
-                    message += `${article.description}\n`;
-                    message += `🔗 ${article.url}\n\n`;
-                });
-
-                message += `📅 Last updated: ${new Date().toLocaleTimeString()}`;
+                if (param === 'on') {
+                    // .news on - enable all news notifications
+                    return await this.toggleAllNewsNotifications(userJid, true, messageInfo);
+                } else if (param === 'off') {
+                    // .news off - disable all news notifications  
+                    return await this.toggleAllNewsNotifications(userJid, false, messageInfo);
+                } else if (param === 'status') {
+                    // .news status - show current settings
+                    return await this.showNewsStatus(userJid, messageInfo);
+                } else if (this.categories.includes(param)) {
+                    // .news <category> - get news for category
+                    return await this.handleNewsRequest(param, messageInfo);
+                }
+            } else if (args.length === 2) {
+                const category = args[0].toLowerCase();
+                const action = args[1].toLowerCase();
                 
-                await this.bot.messageHandler.reply(messageInfo, message);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${news.error}`);
+                if (this.categories.includes(category) && (action === 'on' || action === 'off')) {
+                    // .news <category> on/off - toggle specific category
+                    return await this.toggleCategoryNotification(userJid, category, action === 'on', messageInfo);
+                }
             }
+            
+            // Show usage if command doesn't match patterns
+            await this.bot.messageHandler.reply(messageInfo,
+                `📰 **News Commands:**\n\n` +
+                `**Get News:**\n` +
+                `• \`.news\` - General news\n` +
+                `• \`.news <category>\` - Category news\n\n` +
+                `**Notifications (7am & 7pm daily):**\n` +
+                `• \`.news on/off\` - All categories\n` +
+                `• \`.news <category> on/off\` - Specific category\n` +
+                `• \`.news status\` - View current settings\n\n` +
+                `**Categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
+                `**Examples:**\n` +
+                `• \`.news sports on\`\n` +
+                `• \`.news health off\`\n` +
+                `• \`.news general on\``);
 
         } catch (error) {
             console.error('Error in news command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error fetching news.');
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing news command.');
+        }
+    }
+
+    async handleNewsRequest(category, messageInfo) {
+        const news = await this.getNews(category);
+        if (news.success) {
+            let message = `📰 **${category.toUpperCase()} NEWS**\n\n`;
+            
+            news.articles.slice(0, 5).forEach((article, index) => {
+                message += `**${index + 1}.** ${article.title}\n`;
+                message += `${article.description}\n`;
+                message += `🔗 ${article.url}\n\n`;
+            });
+
+            message += `📅 Last updated: ${new Date().toLocaleTimeString()}`;
+            
+            await this.bot.messageHandler.reply(messageInfo, message);
+        } else {
+            await this.bot.messageHandler.reply(messageInfo, `❌ ${news.error}`);
         }
     }
 
@@ -163,8 +222,8 @@ class NewsFeedPlugin {
 
     async getNewsFallback(category) {
         try {
-            // Use free news sources as fallback
-            let rssUrl = 'https://feeds.bbci.co.uk/news/rss.xml';
+            // Use free news sources as fallback with category-specific RSS feeds
+            let rssUrl = 'https://feeds.bbci.co.uk/news/rss.xml'; // Default to general
             
             if (category === 'technology') {
                 rssUrl = 'https://feeds.bbci.co.uk/news/technology/rss.xml';
@@ -172,6 +231,10 @@ class NewsFeedPlugin {
                 rssUrl = 'https://feeds.bbci.co.uk/news/business/rss.xml';
             } else if (category === 'sports') {
                 rssUrl = 'https://feeds.bbci.co.uk/sport/rss.xml';
+            } else if (category === 'health') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/health/rss.xml';
+            } else if (category === 'entertainment') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml';
             }
 
             const response = await axios.get(rssUrl, {
@@ -230,7 +293,200 @@ class NewsFeedPlugin {
         return text.substring(0, maxLength - 3) + '...';
     }
 
+    // News Settings Management
+    async loadNewsSettings() {
+        try {
+            if (fs.existsSync(this.newsSettingsPath)) {
+                const data = fs.readJsonSync(this.newsSettingsPath);
+                this.newsSettings = new Map(Object.entries(data));
+                console.log(`📰 Loaded news settings for ${this.newsSettings.size} users`);
+            } else {
+                fs.ensureDirSync(path.dirname(this.newsSettingsPath));
+                await this.saveNewsSettings();
+            }
+        } catch (error) {
+            console.warn('⚠️  Error loading news settings:', error.message);
+            this.newsSettings = new Map();
+        }
+    }
+
+    async saveNewsSettings() {
+        try {
+            const dataObj = Object.fromEntries(this.newsSettings);
+            fs.writeJsonSync(this.newsSettingsPath, dataObj, { spaces: 2 });
+        } catch (error) {
+            console.error('❌ Error saving news settings:', error.message);
+        }
+    }
+
+    // Get user's news settings
+    getUserSettings(userJid) {
+        return this.newsSettings.get(userJid) || {
+            enabled: false,
+            categories: {
+                general: false,
+                sports: false,
+                health: false,
+                business: false,
+                technology: false,
+                entertainment: false
+            }
+        };
+    }
+
+    // Set user's news settings
+    async setUserSettings(userJid, settings) {
+        this.newsSettings.set(userJid, settings);
+        await this.saveNewsSettings();
+    }
+
+    // Toggle all news notifications
+    async toggleAllNewsNotifications(userJid, enable, messageInfo) {
+        const settings = this.getUserSettings(userJid);
+        settings.enabled = enable;
+        
+        // Enable/disable all categories
+        Object.keys(settings.categories).forEach(category => {
+            settings.categories[category] = enable;
+        });
+
+        await this.setUserSettings(userJid, settings);
+
+        const status = enable ? 'enabled' : 'disabled';
+        const emoji = enable ? '🟢' : '🔴';
+        
+        await this.bot.messageHandler.reply(messageInfo,
+            `${emoji} **News notifications ${status}**\n\n` +
+            `All categories (general, sports, health, business, technology, entertainment) are now ${status}.\n\n` +
+            `📅 You'll receive news at **7:00 AM** and **7:00 PM** daily (Lagos time)`);
+    }
+
+    // Toggle specific category notification
+    async toggleCategoryNotification(userJid, category, enable, messageInfo) {
+        const settings = this.getUserSettings(userJid);
+        settings.categories[category] = enable;
+        
+        // Update overall enabled status
+        settings.enabled = Object.values(settings.categories).some(enabled => enabled);
+
+        await this.setUserSettings(userJid, settings);
+
+        const status = enable ? 'enabled' : 'disabled';
+        const emoji = enable ? '🟢' : '🔴';
+        
+        await this.bot.messageHandler.reply(messageInfo,
+            `${emoji} **${category.toUpperCase()} news notifications ${status}**\n\n` +
+            `📅 You'll receive ${category} news at **7:00 AM** and **7:00 PM** daily (Lagos time)`);
+    }
+
+    // Show current news status
+    async showNewsStatus(userJid, messageInfo) {
+        const settings = this.getUserSettings(userJid);
+        
+        let message = `📰 **Your News Notification Settings**\n\n`;
+        message += `**Overall Status:** ${settings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n\n`;
+        
+        message += `**Categories:**\n`;
+        Object.entries(settings.categories).forEach(([category, enabled]) => {
+            const emoji = enabled ? '🟢' : '🔴';
+            message += `• ${category}: ${emoji}\n`;
+        });
+
+        message += `\n📅 **Schedule:** 7:00 AM & 7:00 PM daily (Lagos time)`;
+        
+        await this.bot.messageHandler.reply(messageInfo, message);
+    }
+
+    // News Scheduler
+    startNewsScheduler() {
+        if (this.newsCheckInterval) {
+            clearInterval(this.newsCheckInterval);
+        }
+        
+        // Check every minute for scheduled times
+        this.newsCheckInterval = setInterval(() => {
+            this.checkScheduledNews();
+        }, 60000);
+        
+        // Initial check after 5 seconds
+        setTimeout(() => this.checkScheduledNews(), 5000);
+    }
+
+    async checkScheduledNews() {
+        const now = moment().tz(config.TIMEZONE);
+        const currentTime = now.format('HH:mm');
+        
+        // Check if current time matches any of our schedule times
+        if (this.scheduleTimes.includes(currentTime)) {
+            // Prevent duplicate sends by tracking last delivery time
+            const lastDeliveryKey = `last_delivery_${currentTime}`;
+            const today = now.format('YYYY-MM-DD');
+            const lastDeliveryDate = this.lastDeliveryDate || {};
+            
+            if (lastDeliveryDate[lastDeliveryKey] === today) {
+                return; // Already delivered today at this time
+            }
+            
+            console.log(`📰 News scheduled delivery time: ${currentTime}`);
+            await this.sendScheduledNews();
+            
+            // Mark as delivered today
+            lastDeliveryDate[lastDeliveryKey] = today;
+            this.lastDeliveryDate = lastDeliveryDate;
+        }
+    }
+
+    async sendScheduledNews() {
+        for (const [userJid, settings] of this.newsSettings) {
+            if (!settings.enabled) continue;
+            
+            try {
+                // Send news for each enabled category
+                for (const [category, enabled] of Object.entries(settings.categories)) {
+                    if (enabled) {
+                        await this.sendNewsToUser(userJid, category);
+                        // Add small delay between messages
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ Error sending scheduled news to ${userJid}:`, error.message);
+            }
+        }
+    }
+
+    async sendNewsToUser(userJid, category) {
+        try {
+            const news = await this.getNews(category);
+            if (news.success && news.articles.length > 0) {
+                const now = moment().tz(config.TIMEZONE);
+                const timeEmoji = now.hour() < 12 ? '🌅' : '🌆';
+                
+                let message = `${timeEmoji} **${category.toUpperCase()} NEWS UPDATE**\n\n`;
+                
+                // Send top 3 articles for scheduled news
+                news.articles.slice(0, 3).forEach((article, index) => {
+                    message += `**${index + 1}.** ${article.title}\n`;
+                    message += `${article.description}\n`;
+                    message += `🔗 ${article.url}\n\n`;
+                });
+
+                message += `📅 ${now.format('dddd, MMMM Do YYYY, h:mm A')}\n`;
+                message += `💡 Type \`.news ${category} off\` to stop these updates`;
+                
+                await this.bot.sock.sendMessage(userJid, { text: message });
+                console.log(`📰 Sent ${category} news to ${userJid}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error sending ${category} news to ${userJid}:`, error.message);
+        }
+    }
+
     async cleanup() {
+        if (this.newsCheckInterval) {
+            clearInterval(this.newsCheckInterval);
+        }
+        await this.saveNewsSettings();
         console.log('🧹 News Feed plugin cleanup completed');
     }
 }
