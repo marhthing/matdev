@@ -17,18 +17,10 @@ class ImagePlugin {
     async init(bot) {
         this.bot = bot;
         try {
-            // Register image generation commands
+            // Register image generation command
             this.bot.messageHandler.registerCommand('image', this.imageCommand.bind(this), {
                 description: 'Generate images using free AI services',
                 usage: `${config.PREFIX}image <description>`,
-                category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
-            });
-
-            this.bot.messageHandler.registerCommand('img', this.imageCommand.bind(this), {
-                description: 'Generate images using free AI services (short)',
-                usage: `${config.PREFIX}img <description>`,
                 category: 'ai',
                 plugin: 'image',
                 source: 'image.js'
@@ -51,7 +43,7 @@ class ImagePlugin {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide an image description.\nUsage: .image <description>\n\nExamples:\n• .image a cat in a fancy restaurant\n• .img futuristic city with flying cars\n\n🆓 This uses completely FREE AI services!');
+                    '❌ Please provide an image description.\nUsage: .image <description>\n\nExamples:\n• .image a cat in a fancy restaurant\n• .image futuristic city with flying cars\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
 
