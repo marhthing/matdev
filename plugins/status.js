@@ -1,14 +1,20 @@
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
 
 class StatusPlugin {
     constructor() {
         this.name = 'status';
         this.description = 'WhatsApp status auto-view, auto-send, and monitoring functionality';
-        this.version = '1.0.0';
+        this.version = '2.0.0';
         
         // Store bound handlers to prevent duplicates on hot reload
         this.boundHandleMessagesUpsert = this.handleMessagesUpsert.bind(this);
         this.boundHandleStatusMonitoring = this.handleStatusMonitoring.bind(this);
+        
+        // Status settings storage file
+        this.statusSettingsFile = path.join(__dirname, '..', 'session', 'storage', 'status_settings.json');
+        this.statusSettings = this.loadStatusSettings();
     }
 
     /**
@@ -24,6 +30,52 @@ class StatusPlugin {
 
         console.log('✅ Status plugin loaded');
         return this;
+    }
+
+    /**
+     * Load status settings from JSON file
+     */
+    loadStatusSettings() {
+        try {
+            // Ensure storage directory exists
+            const storageDir = path.dirname(this.statusSettingsFile);
+            fs.ensureDirSync(storageDir);
+            
+            if (fs.existsSync(this.statusSettingsFile)) {
+                const settings = fs.readJsonSync(this.statusSettingsFile);
+                return {
+                    enabled: settings.enabled || false,
+                    autoDownload: settings.autoDownload !== false, // default true
+                    viewMode: settings.viewMode || 'all', // 'all', 'except', 'only'
+                    filterJids: settings.filterJids || [],
+                    forwardDestination: settings.forwardDestination || `${config.OWNER_NUMBER}@s.whatsapp.net`,
+                    ...settings
+                };
+            }
+        } catch (error) {
+            console.error('Error loading status settings:', error);
+        }
+        
+        // Default settings
+        return {
+            enabled: config.AUTO_STATUS_VIEW || false,
+            autoDownload: true,
+            viewMode: 'all',
+            filterJids: [],
+            forwardDestination: `${config.OWNER_NUMBER}@s.whatsapp.net`
+        };
+    }
+
+    /**
+     * Save status settings to JSON file
+     */
+    saveStatusSettings() {
+        try {
+            fs.writeJsonSync(this.statusSettingsFile, this.statusSettings, { spaces: 2 });
+            console.log('💾 Status settings saved');
+        } catch (error) {
+            console.error('Error saving status settings:', error);
+        }
     }
 
     /**
@@ -67,7 +119,202 @@ class StatusPlugin {
      * Register all status commands
      */
     registerCommands() {
-        // No commands to register - this plugin only handles status-related events
+        // Register comprehensive status command
+        this.bot.messageHandler.registerCommand('status', this.handleStatusCommand.bind(this), {
+            description: 'Manage automatic status viewing, downloading, and forwarding',
+            usage: `${config.PREFIX}status on|off [no-dl] [except-view|only-view <jid,...>] [destination <jid>]`,
+            category: 'status'
+        });
+    }
+
+    /**
+     * Handle comprehensive status command
+     */
+    async handleStatusCommand(messageInfo) {
+        try {
+            const args = messageInfo.args;
+            
+            if (args.length === 0) {
+                // Show current status
+                return await this.showStatusInfo(messageInfo);
+            }
+
+            const action = args[0].toLowerCase();
+
+            if (action === 'off') {
+                // Turn off status features
+                this.statusSettings.enabled = false;
+                config.AUTO_STATUS_VIEW = false;
+                this.saveStatusSettings();
+                this.updateEnvVar('AUTO_STATUS_VIEW', 'false');
+                
+                return await this.bot.messageHandler.reply(messageInfo, 
+                    '🔴 Status auto-view and auto-download disabled');
+            }
+
+            if (action === 'on') {
+                // Parse complex on command arguments
+                return await this.handleStatusOnCommand(messageInfo, args);
+            }
+
+            // Invalid action
+            return await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Invalid action. Use:\n` +
+                `${config.PREFIX}status on|off [no-dl] [except-view|only-view <jid,...>]`);
+
+        } catch (error) {
+            console.error('Status command error:', error);
+            return await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Error processing status command');
+        }
+    }
+
+    /**
+     * Handle "status on" command with all its variations
+     */
+    async handleStatusOnCommand(messageInfo, args) {
+        try {
+            // Reset to defaults
+            this.statusSettings.enabled = true;
+            this.statusSettings.autoDownload = true;
+            this.statusSettings.viewMode = 'all';
+            this.statusSettings.filterJids = [];
+            
+            let i = 1; // Start after "on"
+            let responseMsg = '🟢 Status auto-view enabled';
+
+            // Parse arguments
+            while (i < args.length) {
+                const arg = args[i].toLowerCase();
+
+                if (arg === 'no-dl') {
+                    this.statusSettings.autoDownload = false;
+                    responseMsg += '\n📱 Auto-download disabled';
+                    i++;
+                    continue;
+                }
+
+                if (arg === 'except-view') {
+                    if (i + 1 >= args.length) {
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            '❌ Missing JID list for except-view');
+                    }
+                    
+                    const jidList = args[i + 1].split(',').map(jid => jid.trim());
+                    this.statusSettings.viewMode = 'except';
+                    this.statusSettings.filterJids = this.normalizeJids(jidList);
+                    responseMsg += `\n🚫 Excluding ${this.statusSettings.filterJids.length} JIDs from auto-view`;
+                    i += 2;
+                    continue;
+                }
+
+                if (arg === 'only-view') {
+                    if (i + 1 >= args.length) {
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            '❌ Missing JID list for only-view');
+                    }
+                    
+                    const jidList = args[i + 1].split(',').map(jid => jid.trim());
+                    this.statusSettings.viewMode = 'only';
+                    this.statusSettings.filterJids = this.normalizeJids(jidList);
+                    responseMsg += `\n✅ Only viewing ${this.statusSettings.filterJids.length} specified JIDs`;
+                    i += 2;
+                    continue;
+                }
+
+                if (arg === 'destination') {
+                    if (i + 1 >= args.length) {
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            '❌ Missing destination JID');
+                    }
+                    
+                    this.statusSettings.forwardDestination = this.normalizeJid(args[i + 1]);
+                    responseMsg += `\n📤 Forward destination set`;
+                    i += 2;
+                    continue;
+                }
+
+                // Unknown argument
+                return await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Unknown argument: ${args[i]}`);
+            }
+
+            // Save settings
+            config.AUTO_STATUS_VIEW = true;
+            this.saveStatusSettings();
+            this.updateEnvVar('AUTO_STATUS_VIEW', 'true');
+
+            if (this.statusSettings.autoDownload) {
+                responseMsg += '\n💾 Auto-download enabled';
+            }
+
+            return await this.bot.messageHandler.reply(messageInfo, responseMsg);
+
+        } catch (error) {
+            console.error('Status on command error:', error);
+            return await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Error processing status on command');
+        }
+    }
+
+    /**
+     * Show current status configuration
+     */
+    async showStatusInfo(messageInfo) {
+        try {
+            let info = `📊 *Status Configuration*\n\n`;
+            info += `🔘 Status: ${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n`;
+            info += `📱 Auto-download: ${this.statusSettings.autoDownload ? '✅ Yes' : '❌ No'}\n`;
+            info += `👁️ View mode: ${this.statusSettings.viewMode.toUpperCase()}\n`;
+            
+            if (this.statusSettings.filterJids.length > 0) {
+                info += `📝 Filter JIDs: ${this.statusSettings.filterJids.length} configured\n`;
+            }
+            
+            info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n\n`;
+            
+            info += `💡 Usage:\n`;
+            info += `${config.PREFIX}status on - Enable all features\n`;
+            info += `${config.PREFIX}status on no-dl - Enable view only\n`;
+            info += `${config.PREFIX}status on except-view <jids> - Exclude specific JIDs\n`;
+            info += `${config.PREFIX}status on only-view <jids> - Only view specific JIDs\n`;
+            info += `${config.PREFIX}status off - Disable all features`;
+
+            return await this.bot.messageHandler.reply(messageInfo, info);
+        } catch (error) {
+            console.error('Status info error:', error);
+        }
+    }
+
+    /**
+     * Normalize JID format
+     */
+    normalizeJid(jid) {
+        if (!jid.includes('@')) {
+            return `${jid}@s.whatsapp.net`;
+        }
+        return jid;
+    }
+
+    /**
+     * Normalize array of JIDs
+     */
+    normalizeJids(jidList) {
+        return jidList.map(jid => this.normalizeJid(jid));
+    }
+
+    /**
+     * Update environment variable
+     */
+    updateEnvVar(key, value) {
+        try {
+            // This would be handled by system plugin in production
+            // For now just update the config object
+            config[key] = value === 'true';
+            console.log(`🔧 Updated ${key} = ${value}`);
+        } catch (error) {
+            console.error(`Error updating ${key}:`, error);
+        }
     }
 
     async handleMessagesUpsert({ messages, type }) {
