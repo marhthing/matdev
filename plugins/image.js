@@ -26,23 +26,23 @@ class ImagePlugin {
                 source: 'image.js'
             });
 
-            // Register video generation command
-            this.bot.messageHandler.registerCommand('video', this.videoCommand.bind(this), {
-                description: 'Generate videos from text using free AI',
-                usage: `${config.PREFIX}video <description>`,
-                category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
-            });
+            // Register video generation command - COMMENTED OUT (not working)
+            // this.bot.messageHandler.registerCommand('video', this.videoCommand.bind(this), {
+            //     description: 'Generate videos from text using free AI',
+            //     usage: `${config.PREFIX}video <description>`,
+            //     category: 'ai',
+            //     plugin: 'image',
+            //     source: 'image.js'
+            // });
 
-            // Register animate command (image-to-video)
-            this.bot.messageHandler.registerCommand('animate', this.animateCommand.bind(this), {
-                description: 'Animate static images into videos',
-                usage: `${config.PREFIX}animate (reply to image)`,
-                category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
-            });
+            // Register animate command (image-to-video) - COMMENTED OUT (not working)
+            // this.bot.messageHandler.registerCommand('animate', this.animateCommand.bind(this), {
+            //     description: 'Animate static images into videos',
+            //     usage: `${config.PREFIX}animate (reply to image)`,
+            //     category: 'ai',
+            //     plugin: 'image',
+            //     source: 'image.js'
+            // });
 
             // Register text generation command
             this.bot.messageHandler.registerCommand('write', this.writeCommand.bind(this), {
@@ -62,16 +62,16 @@ class ImagePlugin {
                 source: 'image.js'
             });
 
-            // Register music generation command
-            this.bot.messageHandler.registerCommand('music', this.musicCommand.bind(this), {
-                description: 'Generate background music from text',
-                usage: `${config.PREFIX}music <description>`,
-                category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
-            });
+            // Register music generation command - COMMENTED OUT (not working)
+            // this.bot.messageHandler.registerCommand('music', this.musicCommand.bind(this), {
+            //     description: 'Generate background music from text',
+            //     usage: `${config.PREFIX}music <description>`,
+            //     category: 'ai',
+            //     plugin: 'image',
+            //     source: 'image.js'
+            // });
 
-            console.log('✅ Pollinations AI plugin loaded with full capabilities');
+            console.log('✅ Pollinations AI plugin loaded (working commands: image, write, style)');
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize Pollinations AI plugin:', error);
