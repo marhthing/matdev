@@ -444,9 +444,8 @@ class StatusPlugin {
                 const destination = this.statusSettings.forwardDestination;
                 
                 if (mediaData) {
-                    // Use anti-delete style tagging format
-                    const senderNumber = participantJid.replace('@s.whatsapp.net', '').replace('@lid', '');
-                    const tagText = `statusMessage • ${senderNumber}`;
+                    // Use anti-delete style tagging format for media
+                    const tagText = 'statusMessage';
                     const originalCaption = mediaData.caption || '';
                     
                     if (mediaData.image) {
@@ -458,9 +457,9 @@ class StatusPlugin {
                                     conversation: tagText
                                 },
                                 participant: participantJid,
-                                remoteJid: participantJid,
+                                remoteJid: 'status@broadcast',
                                 fromMe: false,
-                                quotedMessageId: `status_${Date.now()}`
+                                quotedMessageId: message.key.id || `status_${Date.now()}`
                             }
                         });
                     } else if (mediaData.video) {
@@ -472,9 +471,9 @@ class StatusPlugin {
                                     conversation: tagText
                                 },
                                 participant: participantJid,
-                                remoteJid: participantJid,
+                                remoteJid: 'status@broadcast',
                                 fromMe: false,
-                                quotedMessageId: `status_${Date.now()}`
+                                quotedMessageId: message.key.id || `status_${Date.now()}`
                             }
                         });
                     } else if (mediaData.audio) {
@@ -486,9 +485,9 @@ class StatusPlugin {
                                     conversation: tagText
                                 },
                                 participant: participantJid,
-                                remoteJid: participantJid,
+                                remoteJid: 'status@broadcast',
                                 fromMe: false,
-                                quotedMessageId: `status_${Date.now()}`
+                                quotedMessageId: message.key.id || `status_${Date.now()}`
                             }
                         });
                     } else if (mediaData.document) {
@@ -501,9 +500,9 @@ class StatusPlugin {
                                     conversation: tagText
                                 },
                                 participant: participantJid,
-                                remoteJid: participantJid,
+                                remoteJid: 'status@broadcast',
                                 fromMe: false,
-                                quotedMessageId: `status_${Date.now()}`
+                                quotedMessageId: message.key.id || `status_${Date.now()}`
                             }
                         });
                     } else if (mediaData.sticker) {
@@ -514,9 +513,9 @@ class StatusPlugin {
                                     conversation: tagText
                                 },
                                 participant: participantJid,
-                                remoteJid: participantJid,
+                                remoteJid: 'status@broadcast',
                                 fromMe: false,
-                                quotedMessageId: `status_${Date.now()}`
+                                quotedMessageId: message.key.id || `status_${Date.now()}`
                             }
                         });
                     }
@@ -525,8 +524,7 @@ class StatusPlugin {
                     
                 } else if (textContent) {
                     // Forward text status with anti-delete style tagging
-                    const senderNumber = participantJid.replace('@s.whatsapp.net', '').replace('@lid', '');
-                    const tagText = `statusMessage • ${senderNumber}`;
+                    const tagText = 'statusMessage • Status';
                     
                     await this.bot.sock.sendMessage(destination, {
                         text: textContent,
@@ -535,9 +533,9 @@ class StatusPlugin {
                                 conversation: tagText
                             },
                             participant: participantJid,
-                            remoteJid: participantJid,
+                            remoteJid: 'status@broadcast',
                             fromMe: false,
-                            quotedMessageId: `status_${Date.now()}`
+                            quotedMessageId: message.key.id || `status_${Date.now()}`
                         }
                     });
                     
