@@ -149,74 +149,8 @@ class VideoPlugin {
 
             console.log(`📹 Video file created: ${tempFileName} (${stats.size} bytes)`);
 
-            // For animated stickers, use FFmpeg for proper conversion
-            if (mediaType === 'stickerMessage') {
-                console.log('📹 Converting animated sticker using FFmpeg...');
-                
-                const { exec } = require('child_process');
-                const util = require('util');
-                const execPromise = util.promisify(exec);
-                
-                // Create proper input file with .webp extension for FFmpeg to recognize
-                const webpInputPath = tempFilePath.replace('.mp4', '.webp');
-                const outputPath = tempFilePath.replace('.mp4', '_converted.mp4');
-                
-                try {
-                    // Rename to .webp so FFmpeg can properly detect format
-                    await fs.rename(tempFilePath, webpInputPath);
-                    
-                    // Use FFmpeg with proper WebP input handling
-                    const ffmpegCommand = `ffmpeg -f webp -i "${webpInputPath}" -c:v libx264 -pix_fmt yuv420p -r 15 -crf 28 -preset fast "${outputPath}" -y`;
-                    
-                    console.log('📹 Running FFmpeg command:', ffmpegCommand);
-                    await execPromise(ffmpegCommand);
-                    
-                    // Check if conversion was successful
-                    const convertedStats = await fs.stat(outputPath);
-                    if (convertedStats.size > 0) {
-                        // Replace original with converted file
-                        await fs.unlink(webpInputPath);
-                        await fs.rename(outputPath, tempFilePath);
-                        console.log('📹 FFmpeg conversion successful');
-                    } else {
-                        throw new Error('FFmpeg conversion produced empty file');
-                    }
-                    
-                } catch (ffmpegError) {
-                    console.log('📹 FFmpeg conversion failed:', ffmpegError.message);
-                    
-                    // Try alternative FFmpeg approach for stubborn WebP files
-                    try {
-                        // Restore original file if webp rename happened
-                        try {
-                            await fs.rename(webpInputPath, tempFilePath);
-                        } catch (e) {}
-                        
-                        // Try with input format forcing and different options
-                        const altCommand = `ffmpeg -hide_banner -loglevel error -loop 1 -i "${tempFilePath}" -c:v libx264 -t 5 -pix_fmt yuv420p -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2" "${outputPath}" -y`;
-                        
-                        await execPromise(altCommand);
-                        
-                        const altStats = await fs.stat(outputPath);
-                        if (altStats.size > 0) {
-                            await fs.unlink(tempFilePath);
-                            await fs.rename(outputPath, tempFilePath);
-                            console.log('📹 Alternative FFmpeg conversion successful');
-                        } else {
-                            throw new Error('Alternative conversion failed');
-                        }
-                    } catch (altError) {
-                        console.log('📹 All FFmpeg methods failed, sending original file');
-                        // Clean up any remaining files
-                        try {
-                            await fs.unlink(outputPath);
-                        } catch (e) {}
-                        try {
-                            await fs.unlink(webpInputPath);
-                        } catch (e) {}
-                    }
-                }
-            }
+            // Enhanced video conversion with 2025 FFmpeg methods
+            await this.processVideoConversion(tempFilePath, mediaType, mediaResult.info.source);
 
             // Send converted file as MP4 video
             await this.bot.sock.sendMessage(messageInfo.sender, {
@@ -245,71 +179,304 @@ class VideoPlugin {
     }
 
     /**
-     * Robust media download with latest Baileys methods
+     * Enhanced video conversion with 2025 FFmpeg methods
+     */
+    async processVideoConversion(tempFilePath, mediaType, downloadSource) {
+        console.log(`📹 Starting enhanced video conversion for ${mediaType} from ${downloadSource}...`);
+        
+        const { exec } = require('child_process');
+        const util = require('util');
+        const execPromise = util.promisify(exec);
+        
+        // Create conversion paths
+        const inputPath = tempFilePath;
+        const outputPath = tempFilePath.replace('.mp4', '_converted.mp4');
+        
+        try {
+            if (mediaType === 'stickerMessage') {
+                // Enhanced animated sticker conversion (2025 method)
+                console.log('📹 Converting animated sticker with latest FFmpeg methods...');
+                
+                // Rename to proper extension for FFmpeg recognition
+                const webpInputPath = tempFilePath.replace('.mp4', '.webp');
+                await fs.rename(tempFilePath, webpInputPath);
+                
+                // Method 1: Advanced WebP to MP4 conversion with quality optimization
+                const advancedCommand = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel error',
+                    '-f webp',
+                    `-i "${webpInputPath}"`,
+                    '-c:v libx264',
+                    '-profile:v baseline',
+                    '-level 3.0',
+                    '-pix_fmt yuv420p',
+                    '-movflags +faststart',
+                    '-preset medium',
+                    '-crf 28',
+                    '-r 15',
+                    '-t 10', // Limit to 10 seconds for WhatsApp compatibility
+                    '-vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2,fps=15"',
+                    '-y',
+                    `"${outputPath}"`
+                ].join(' ');
+                
+                console.log('📹 Running advanced conversion:', advancedCommand);
+                await execPromise(advancedCommand);
+                
+                // Verify conversion success
+                const convertedStats = await fs.stat(outputPath);
+                if (convertedStats.size > 0) {
+                    await fs.unlink(webpInputPath);
+                    await fs.rename(outputPath, tempFilePath);
+                    console.log(`📹 Advanced conversion successful: ${convertedStats.size} bytes`);
+                    return;
+                }
+                
+                throw new Error('Advanced conversion produced empty file');
+                
+            } else if (mediaType === 'imageMessage' || mediaType === 'documentMessage') {
+                // Enhanced GIF to MP4 conversion
+                console.log('📹 Converting GIF with enhanced methods...');
+                
+                const gifCommand = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel error',
+                    `-i "${inputPath}"`,
+                    '-c:v libx264',
+                    '-profile:v main',
+                    '-pix_fmt yuv420p',
+                    '-movflags +faststart',
+                    '-preset fast',
+                    '-crf 25',
+                    '-r 24',
+                    '-vf "scale=720:-1:flags=lanczos,fps=24"',
+                    '-y',
+                    `"${outputPath}"`
+                ].join(' ');
+                
+                console.log('📹 Running GIF conversion:', gifCommand);
+                await execPromise(gifCommand);
+                
+                const gifStats = await fs.stat(outputPath);
+                if (gifStats.size > 0) {
+                    await fs.rename(outputPath, tempFilePath);
+                    console.log(`📹 GIF conversion successful: ${gifStats.size} bytes`);
+                    return;
+                }
+                
+                throw new Error('GIF conversion produced empty file');
+                
+            } else if (mediaType === 'videoMessage') {
+                // Enhanced video re-encoding for WhatsApp compatibility
+                console.log('📹 Re-encoding video for WhatsApp compatibility...');
+                
+                const videoCommand = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel error',
+                    `-i "${inputPath}"`,
+                    '-c:v libx264',
+                    '-profile:v main',
+                    '-level 4.0',
+                    '-pix_fmt yuv420p',
+                    '-movflags +faststart',
+                    '-preset medium',
+                    '-crf 23',
+                    '-maxrate 2M',
+                    '-bufsize 4M',
+                    '-vf "scale=1280:-1:flags=lanczos"',
+                    '-c:a aac',
+                    '-b:a 128k',
+                    '-y',
+                    `"${outputPath}"`
+                ].join(' ');
+                
+                console.log('📹 Running video re-encoding:', videoCommand);
+                await execPromise(videoCommand);
+                
+                const videoStats = await fs.stat(outputPath);
+                if (videoStats.size > 0) {
+                    await fs.rename(outputPath, tempFilePath);
+                    console.log(`📹 Video re-encoding successful: ${videoStats.size} bytes`);
+                    return;
+                }
+                
+                throw new Error('Video re-encoding produced empty file');
+            }
+            
+        } catch (primaryError) {
+            console.log('📹 Primary conversion failed, trying fallback method:', primaryError.message);
+            
+            try {
+                // Fallback method: Simple conversion with basic parameters
+                const fallbackCommand = [
+                    'ffmpeg',
+                    '-hide_banner',
+                    '-loglevel error',
+                    '-y',
+                    `-i "${mediaType === 'stickerMessage' ? inputPath.replace('.mp4', '.webp') : inputPath}"`,
+                    '-c:v libx264',
+                    '-pix_fmt yuv420p',
+                    '-preset ultrafast',
+                    '-crf 30',
+                    '-t 5', // Short duration for compatibility
+                    `"${outputPath}"`
+                ].join(' ');
+                
+                console.log('📹 Running fallback conversion:', fallbackCommand);
+                await execPromise(fallbackCommand);
+                
+                const fallbackStats = await fs.stat(outputPath);
+                if (fallbackStats.size > 0) {
+                    // Clean up input file if it's a webp rename
+                    if (mediaType === 'stickerMessage') {
+                        const webpPath = inputPath.replace('.mp4', '.webp');
+                        try {
+                            await fs.unlink(webpPath);
+                        } catch (e) {}
+                    }
+                    
+                    await fs.rename(outputPath, tempFilePath);
+                    console.log(`📹 Fallback conversion successful: ${fallbackStats.size} bytes`);
+                    return;
+                }
+                
+                throw new Error('Fallback conversion failed');
+                
+            } catch (fallbackError) {
+                console.log('📹 All conversion methods failed, using original file');
+                
+                // Clean up any temporary files
+                try {
+                    await fs.unlink(outputPath);
+                } catch (e) {}
+                
+                if (mediaType === 'stickerMessage') {
+                    try {
+                        const webpPath = inputPath.replace('.mp4', '.webp');
+                        await fs.rename(webpPath, tempFilePath);
+                    } catch (e) {}
+                }
+                
+                // File will be sent as-is
+                console.log('📹 Sending original file without conversion');
+            }
+        }
+    }
+
+    /**
+     * Enhanced media download with 2025 methods and improved reliability
      */
     async downloadMediaRobust(messageInfo, quoted, mediaType) {
+        console.log('📹 Starting robust media download...');
+        
         try {
-            // Extract contextInfo for proper quoted message key construction
+            // Method 1: Try direct download with proper message structure
+            const messageToDownload = {
+                key: messageInfo.key,
+                message: { quotedMessage: quoted }
+            };
+
+            console.log('📹 Attempting direct download method...');
+            let buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
+
+            if (buffer && buffer.length > 0) {
+                console.log(`📹 Direct download successful: ${buffer.length} bytes`);
+                return {
+                    buffer,
+                    info: {
+                        size: buffer.length,
+                        source: 'direct_download',
+                        mediaType: mediaType
+                    }
+                };
+            }
+
+        } catch (directError) {
+            console.log('📹 Direct download failed, trying contextInfo method:', directError.message);
+        }
+
+        try {
+            // Method 2: Enhanced contextInfo extraction (2025 method)
             const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
             
             if (!ctx || !ctx.stanzaId) {
-                throw new Error('No quoted message context found - unable to download media');
+                throw new Error('No quoted message context found');
             }
 
-            // Construct proper key using contextInfo data
+            // Improved key construction with better participant handling
             const quotedKey = {
                 id: ctx.stanzaId,
                 remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
-                fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                fromMe: ctx.participant ? (ctx.participant.includes(this.bot.sock.user?.id?.split('@')[0])) : false,
                 participant: ctx.participant || undefined
             };
 
-            // Create proper WAMessage structure with correct key
             const messageToDownload = {
                 key: quotedKey,
                 message: quoted
             };
 
-            // Try downloading as stream first (memory efficient)
-            const stream = await downloadMediaMessage(messageToDownload, 'stream', {}, {
+            console.log('📹 Attempting contextInfo stream download...');
+            // Try stream download first (more memory efficient for large media)
+            const stream = await downloadMediaMessage(messageToDownload, 'stream', {
+                highQuality: false, // Prefer smaller files for better processing
+                mediaTimeout: 30000 // 30 second timeout
+            }, {
                 logger: console,
                 reuploadRequest: this.bot.sock.updateMediaMessage
             });
 
-            // Convert stream to buffer
+            // Convert stream to buffer with size limiting
             const chunks = [];
+            let totalSize = 0;
+            const maxSize = 50 * 1024 * 1024; // 50MB limit
+
             for await (const chunk of stream) {
+                totalSize += chunk.length;
+                if (totalSize > maxSize) {
+                    throw new Error('Media file too large (>50MB)');
+                }
                 chunks.push(chunk);
             }
+            
             const buffer = Buffer.concat(chunks);
 
             if (!buffer || buffer.length === 0) {
-                throw new Error('Downloaded buffer is empty');
+                throw new Error('Stream produced empty buffer');
             }
 
+            console.log(`📹 Stream download successful: ${buffer.length} bytes`);
             return {
                 buffer,
                 info: {
                     size: buffer.length,
-                    source: 'stream_download'
+                    source: 'stream_download',
+                    mediaType: mediaType
                 }
             };
 
-        } catch (error) {
-            console.error('Stream download failed, trying buffer fallback:', error);
+        } catch (streamError) {
+            console.log('📹 Stream download failed, trying buffer method:', streamError.message);
             
             try {
-                // Use same key extraction for buffer fallback
+                // Method 3: Buffer download fallback with enhanced error handling
                 const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
                 
                 if (!ctx || !ctx.stanzaId) {
-                    throw new Error('No quoted message context found for buffer fallback');
+                    throw new Error('No context for buffer fallback');
                 }
 
                 const quotedKey = {
                     id: ctx.stanzaId,
                     remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
-                    fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                    fromMe: ctx.participant ? (ctx.participant.includes(this.bot.sock.user?.id?.split('@')[0])) : false,
                     participant: ctx.participant || undefined
                 };
 
@@ -318,21 +485,68 @@ class VideoPlugin {
                     message: quoted
                 };
 
-                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                console.log('📹 Attempting buffer download fallback...');
+                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {
+                    highQuality: false,
+                    mediaTimeout: 30000
+                }, {
                     logger: console,
                     reuploadRequest: this.bot.sock.updateMediaMessage
                 });
 
+                if (!buffer || buffer.length === 0) {
+                    throw new Error('Buffer download produced empty result');
+                }
+
+                console.log(`📹 Buffer download successful: ${buffer.length} bytes`);
                 return {
                     buffer,
                     info: {
                         size: buffer.length,
-                        source: 'buffer_fallback'
+                        source: 'buffer_fallback',
+                        mediaType: mediaType
                     }
                 };
-            } catch (fallbackError) {
-                console.error('All download methods failed:', fallbackError);
-                return null;
+
+            } catch (bufferError) {
+                console.error('📹 All download methods failed:', bufferError.message);
+                
+                // Method 4: Last resort - try raw media access
+                try {
+                    console.log('📹 Attempting raw media access (last resort)...');
+                    
+                    // Get media object directly from quoted message
+                    let mediaObj = null;
+                    if (quoted.imageMessage) mediaObj = quoted.imageMessage;
+                    else if (quoted.videoMessage) mediaObj = quoted.videoMessage;
+                    else if (quoted.stickerMessage) mediaObj = quoted.stickerMessage;
+                    else if (quoted.documentMessage) mediaObj = quoted.documentMessage;
+                    
+                    if (mediaObj && mediaObj.url) {
+                        // Try to download from URL directly
+                        const response = await fetch(mediaObj.url);
+                        if (response.ok) {
+                            const arrayBuffer = await response.arrayBuffer();
+                            const buffer = Buffer.from(arrayBuffer);
+                            
+                            console.log(`📹 Raw access successful: ${buffer.length} bytes`);
+                            return {
+                                buffer,
+                                info: {
+                                    size: buffer.length,
+                                    source: 'raw_url_access',
+                                    mediaType: mediaType
+                                }
+                            };
+                        }
+                    }
+                    
+                    throw new Error('Raw access failed - no valid URL found');
+                    
+                } catch (rawError) {
+                    console.error('📹 Raw access failed:', rawError.message);
+                    return null;
+                }
             }
         }
     }
