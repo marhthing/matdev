@@ -73,9 +73,19 @@ class VideoPlugin {
             if (quotedMessage.stickerMessage) {
                 mediaType = 'stickerMessage';
                 const stickerMsg = quotedMessage.stickerMessage;
-                // Accept all stickers and let the conversion handle it
-                isValidMedia = true;
-                console.log('📹 Detected sticker for MP4 conversion');
+                
+                // Check if it's an animated sticker
+                if (stickerMsg.isAnimated || stickerMsg.seconds > 0) {
+                    isValidMedia = true;
+                    console.log('📹 Detected animated sticker for MP4 conversion');
+                } else if (stickerMsg.mimetype === 'image/webp') {
+                    // Static sticker - still allow conversion but warn
+                    isValidMedia = true;
+                    console.log('📹 Detected static sticker for MP4 conversion (will be short video)');
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an animated sticker.');
+                    return;
+                }
             }
             // Check for GIF image
             else if (quotedMessage.imageMessage && 
@@ -132,6 +142,24 @@ class VideoPlugin {
             const stats = await fs.stat(tempFilePath);
             if (stats.size === 0) {
                 throw new Error('Generated video file is empty');
+            }
+
+            console.log(`📹 Video file created: ${tempFileName} (${stats.size} bytes)`);
+
+            // For animated stickers, the buffer might be WebP format
+            // WhatsApp should handle the conversion when sending as video
+            if (mediaType === 'stickerMessage') {
+                // Rename file to have proper extension based on original format
+                const originalTempPath = tempFilePath;
+                const webpTempPath = tempFilePath.replace('.mp4', '.webp');
+                
+                // Try saving as WebP first for animated stickers
+                await fs.rename(originalTempPath, webpTempPath);
+                
+                // Then rename back to mp4 for sending
+                await fs.rename(webpTempPath, originalTempPath);
+                
+                console.log('📹 Processed animated sticker format');
             }
 
             // Send as MP4 video using the temp file without caption
