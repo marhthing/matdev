@@ -6,22 +6,12 @@ const axios = require('axios');
 class Base64EncoderPlugin {
     constructor() {
         this.name = 'base64-encoder';
-        this.description = 'Encode and decode text/media using Base64 with URL shortening';
+        this.description = 'Encode and decode text/media using Base64 with tag storage';
         this.version = '2.1.0';
         this.enabled = true;
         
-        // Base64 size threshold for automatic URL storage (10KB)
-        this.URL_STORAGE_THRESHOLD = 10 * 1024;
-        
-        // Allowed domains for URL fetching (security)
-        this.ALLOWED_DOMAINS = [
-            '0x0.st',
-            'paste.rs', 
-            'hastebin.com',
-            'tinyurl.com',
-            'is.gd',
-            'v.gd'
-        ];
+        // JSON storage file path
+        this.STORAGE_PATH = path.join(process.cwd(), 'session', 'storage', 'encode.json');
     }
 
     async init(bot) {
@@ -87,11 +77,22 @@ class Base64EncoderPlugin {
             try {
                 const encoded = Buffer.from(text, 'utf8').toString('base64');
                 
+                // Generate unique tag name for text
+                const tagName = await this.generateTagName('text');
+                
+                // Save to JSON storage
+                await this.saveEncodedData(tagName, {
+                    data: encoded,
+                    type: 'text',
+                    originalText: text,
+                    timestamp: Date.now()
+                });
+                
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🔐 **Base64 Encoded (Text)**\n\n` +
+                    `🔐 **Text Encoded & Stored**\n\n` +
                     `**Original:** ${text.length > 50 ? text.substring(0, 50) + '...' : text}\n\n` +
-                    `**Encoded:**\n\`\`\`${encoded}\`\`\`\n\n` +
-                    `📊 Length: ${text.length} → ${encoded.length} chars`);
+                    `**Tag:** \`${tagName}\`\n\n` +
+                    `💡 Use \`.decode ${tagName}\` to restore this text`);
 
             } catch (error) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Error encoding text. Please check your input.');
@@ -108,15 +109,15 @@ class Base64EncoderPlugin {
             const input = messageInfo.args.join(' ').trim();
             if (!input) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '🔓 Usage: .decode <base64|url>\n\n' +
-                    '**Text Examples:**\n• .decode SGVsbG8gV29ybGQh\n• .decode TWVzc2FnZSB0byBkZWNvZGU=\n\n' +
-                    '**Media:** Paste base64 or URL from .encode command');
+                    '🔓 Usage: .decode <tag_name|base64>\n\n' +
+                    '**Tag Examples:**\n• .decode image_123456_abc\n• .decode text_789012_def\n\n' +
+                    '**Direct Base64:**\n• .decode SGVsbG8gV29ybGQh');
                 return;
             }
 
-            // Check if input is a URL
-            if (this.isValidURL(input)) {
-                await this.decodeFromURL(messageInfo, input);
+            // Check if input is a tag name (short, alphanumeric)
+            if (input.length <= 20 && /^[a-zA-Z0-9_-]+$/.test(input)) {
+                await this.decodeFromTag(messageInfo, input);
                 return;
             }
 
@@ -128,7 +129,7 @@ class Base64EncoderPlugin {
 
             // Validate base64 format
             if (!this.isValidBase64(input)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid Base64 format or URL. Please check your input.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Invalid Base64 format or tag name. Please check your input.');
                 return;
             }
 
@@ -309,20 +310,27 @@ class Base64EncoderPlugin {
             // Encode to base64
             const encoded = mediaBuffer.toString('base64');
             
-            // Check if base64 is large enough to store via URL
-            if (encoded.length > this.URL_STORAGE_THRESHOLD) {
-                await this.sendEncodedViaURL(messageInfo, encoded, mediaType, fileName, mediaBuffer.length);
-            } else {
-                // Send the encoded result directly
-                await this.bot.messageHandler.reply(messageInfo,
-                    `🔐 **Base64 Encoded (${mediaType.toUpperCase()})**\n\n` +
-                    `**File:** ${fileName}\n` +
-                    `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
-                    `**Type:** ${mediaType}\n\n` +
-                    `**Encoded Base64:**\n\`\`\`${encoded.substring(0, 100)}${encoded.length > 100 ? '...' : ''}\`\`\`\n\n` +
-                    `📊 Original: ${this.formatFileSize(mediaBuffer.length)} → Base64: ${encoded.length} chars\n\n` +
-                    `💡 Use .decode to restore this media file`);
-            }
+            // Generate unique tag name
+            const tagName = await this.generateTagName(mediaType);
+            
+            // Save to JSON storage
+            await this.saveEncodedData(tagName, {
+                data: encoded,
+                type: 'media',
+                mediaType: mediaType,
+                fileName: fileName,
+                originalSize: mediaBuffer.length,
+                timestamp: Date.now()
+            });
+            
+            // Send just the tag name
+            await this.bot.messageHandler.reply(messageInfo,
+                `🔐 **Media Encoded & Stored**\n\n` +
+                `**File:** ${fileName}\n` +
+                `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
+                `**Type:** ${mediaType.toUpperCase()}\n\n` +
+                `**Tag:** \`${tagName}\`\n\n` +
+                `💡 Use \`.decode ${tagName}\` to restore this media file`);
 
         } catch (error) {
             console.error('Error in encode media command:', error);
@@ -453,6 +461,99 @@ class Base64EncoderPlugin {
         if (bytes === 0) return '0 Bytes';
         const i = Math.floor(Math.log(bytes) / Math.log(1024));
         return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    async generateTagName(type) {
+        // Create a simple unique tag name
+        const timestamp = Date.now().toString().slice(-6); // Last 6 digits
+        const random = Math.random().toString(36).substring(2, 5); // 3 random chars
+        return `${type}_${timestamp}_${random}`;
+    }
+
+    async saveEncodedData(tagName, data) {
+        try {
+            // Ensure storage directory exists
+            await fs.ensureDir(path.dirname(this.STORAGE_PATH));
+
+            // Load existing data or create empty object
+            let storage = {};
+            try {
+                if (await fs.pathExists(this.STORAGE_PATH)) {
+                    const fileContent = await fs.readFile(this.STORAGE_PATH, 'utf8');
+                    storage = JSON.parse(fileContent);
+                }
+            } catch (error) {
+                console.error('Error reading storage file:', error);
+                storage = {};
+            }
+
+            // Add new encoded data
+            storage[tagName] = data;
+
+            // Save back to file
+            await fs.writeFile(this.STORAGE_PATH, JSON.stringify(storage, null, 2));
+            
+        } catch (error) {
+            console.error('Error saving encoded data:', error);
+            throw new Error('Failed to save encoded data');
+        }
+    }
+
+    async loadEncodedData(tagName) {
+        try {
+            if (!await fs.pathExists(this.STORAGE_PATH)) {
+                return null;
+            }
+
+            const fileContent = await fs.readFile(this.STORAGE_PATH, 'utf8');
+            const storage = JSON.parse(fileContent);
+            
+            return storage[tagName] || null;
+            
+        } catch (error) {
+            console.error('Error loading encoded data:', error);
+            return null;
+        }
+    }
+
+    async decodeFromTag(messageInfo, tagName) {
+        try {
+            const storedData = await this.loadEncodedData(tagName);
+            
+            if (!storedData) {
+                await this.bot.messageHandler.reply(messageInfo, `❌ Tag \`${tagName}\` not found. Please check the tag name.`);
+                return;
+            }
+
+            if (storedData.type === 'text') {
+                // Decode text
+                const decoded = Buffer.from(storedData.data, 'base64').toString('utf8');
+                
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🔓 **Text Decoded from Tag**\n\n` +
+                    `**Tag:** \`${tagName}\`\n` +
+                    `**Original:** ${storedData.originalText}\n\n` +
+                    `**Decoded:** ${decoded}`);
+                    
+            } else if (storedData.type === 'media') {
+                // Decode media
+                const decodedBuffer = Buffer.from(storedData.data, 'base64');
+                await this.decodeMediaCommand(messageInfo, decodedBuffer, storedData.mediaType, storedData.data.length);
+            }
+
+        } catch (error) {
+            console.error('Error decoding from tag:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error decoding from tag.');
+        }
+    }
+
+    isValidURL(string) {
+        try {
+            new URL(string);
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     async cleanup() {
