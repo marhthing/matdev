@@ -76,53 +76,155 @@ class PinterestPlugin {
     }
 
     /**
-     * Get Pinterest pin data using scraper
+     * Get Pinterest pin data using direct scraping
      */
     async getPinData(pinId) {
         try {
-            // Try using the @myno_21/pinterest-scraper package
-            const Pinterest = require('@myno_21/pinterest-scraper');
-            const pinData = await Pinterest.getPins(pinId);
+            // Use multiple methods to get Pinterest data
+            const methods = [
+                () => this.methodOne(pinId),
+                () => this.methodTwo(pinId),
+                () => this.methodThree(pinId)
+            ];
             
-            if (pinData && pinData.post) {
-                return {
-                    success: true,
-                    data: {
-                        url: pinData.post,
-                        description: pinData.description || 'Pinterest media',
-                        tags: pinData.tags || [],
-                        type: this.detectMediaType(pinData.post)
+            for (const method of methods) {
+                try {
+                    const result = await method();
+                    if (result.success) {
+                        return result;
                     }
-                };
+                } catch (error) {
+                    console.log(`Pinterest method failed: ${error.message}`);
+                    continue;
+                }
             }
             
-            throw new Error('No media found in pin');
+            throw new Error('All Pinterest extraction methods failed');
             
         } catch (error) {
-            console.error('Pinterest scraper failed:', error.message);
-            
-            // Fallback to direct API scraping method
-            return await this.fallbackScraping(pinId);
+            console.error('Pinterest extraction failed:', error.message);
+            return {
+                success: false,
+                error: error.message
+            };
         }
     }
 
     /**
-     * Fallback scraping method using direct Pinterest API
+     * Method One: Direct Pinterest page scraping
      */
-    async fallbackScraping(pinId) {
+    async methodOne(pinId) {
         try {
-            const pinterestUrl = `https://www.pinterest.com/resource/PinResource/get/?options=%7B%22field_set_key%22%3A%22detailed%22%2C%22id%22%3A%22${pinId}%22%7D&_=${Date.now()}`;
+            const pageUrl = `https://www.pinterest.com/pin/${pinId}/`;
+            const response = await axios.get(pageUrl, {
+                headers: {
+                    'User-Agent': this.userAgent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                },
+                timeout: 15000
+            });
+
+            const html = response.data;
             
-            const response = await axios.get(pinterestUrl, {
+            // Extract JSON data from script tags
+            const jsonMatch = html.match(/"images":\s*{[^}]*"orig":\s*{[^}]*"url":\s*"([^"]+)"/);
+            const videoMatch = html.match(/"videos":\s*{[^}]*"video_list":\s*{[^}]*"url":\s*"([^"]+)"/);
+            const titleMatch = html.match(/<title>([^<]+)<\/title>/);
+            const descMatch = html.match(/property="og:description" content="([^"]+)"/);
+            
+            let mediaUrl = null;
+            let mediaType = 'image';
+            
+            if (videoMatch && videoMatch[1]) {
+                mediaUrl = videoMatch[1].replace(/\\u002F/g, '/').replace(/\\/g, '');
+                mediaType = 'video';
+            } else if (jsonMatch && jsonMatch[1]) {
+                mediaUrl = jsonMatch[1].replace(/\\u002F/g, '/').replace(/\\/g, '');
+                mediaType = 'image';
+            }
+            
+            if (mediaUrl) {
+                return {
+                    success: true,
+                    data: {
+                        url: mediaUrl,
+                        description: descMatch ? descMatch[1] : (titleMatch ? titleMatch[1] : 'Pinterest media'),
+                        type: mediaType,
+                        title: titleMatch ? titleMatch[1] : 'Pinterest Pin'
+                    }
+                };
+            }
+            
+            throw new Error('No media found in page HTML');
+            
+        } catch (error) {
+            throw new Error(`Method One failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Method Two: Pinterest embed API
+     */
+    async methodTwo(pinId) {
+        try {
+            const embedUrl = `https://www.pinterest.com/pin/${pinId}/`;
+            const response = await axios.get(embedUrl, {
+                headers: {
+                    'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                    'Accept': '*/*'
+                },
+                timeout: 10000
+            });
+
+            const html = response.data;
+            
+            // Look for Open Graph image
+            const ogImageMatch = html.match(/property="og:image" content="([^"]+)"/);
+            const ogTitleMatch = html.match(/property="og:title" content="([^"]+)"/);
+            const ogDescMatch = html.match(/property="og:description" content="([^"]+)"/);
+            
+            if (ogImageMatch && ogImageMatch[1]) {
+                return {
+                    success: true,
+                    data: {
+                        url: ogImageMatch[1],
+                        description: ogDescMatch ? ogDescMatch[1] : 'Pinterest media',
+                        type: 'image',
+                        title: ogTitleMatch ? ogTitleMatch[1] : 'Pinterest Pin'
+                    }
+                };
+            }
+            
+            throw new Error('No Open Graph image found');
+            
+        } catch (error) {
+            throw new Error(`Method Two failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Method Three: Pinterest API endpoint
+     */
+    async methodThree(pinId) {
+        try {
+            const apiUrl = `https://www.pinterest.com/resource/PinResource/get/?options=%7B%22field_set_key%22%3A%22detailed%22%2C%22id%22%3A%22${pinId}%22%7D&_=${Date.now()}`;
+            
+            const response = await axios.get(apiUrl, {
                 headers: {
                     'User-Agent': this.userAgent,
                     'Accept': 'application/json, text/javascript, */*; q=0.01',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'X-Requested-With': 'XMLHttpRequest',
                     'Referer': `https://www.pinterest.com/pin/${pinId}/`,
-                    'Origin': 'https://www.pinterest.com'
+                    'Origin': 'https://www.pinterest.com',
+                    'Cookie': 'csrftoken=dummy'
                 },
-                timeout: 15000
+                timeout: 10000
             });
 
             if (response.data && response.data.resource_response && response.data.resource_response.data) {
@@ -160,14 +262,10 @@ class PinterestPlugin {
                 }
             }
             
-            throw new Error('No media URL found in Pinterest data');
+            throw new Error('No media URL found in API response');
             
         } catch (error) {
-            console.error('Fallback scraping failed:', error.message);
-            return {
-                success: false,
-                error: `Failed to extract Pinterest data: ${error.message}`
-            };
+            throw new Error(`Method Three failed: ${error.message}`);
         }
     }
 
@@ -283,10 +381,11 @@ class PinterestPlugin {
             const result = await this.getPinData(pinId);
             
             if (!result.success) {
-                await this.bot.messageHandler.editMessage(chat_jid, processingMsg.key, 
-                    '❌ *Pinterest Download Failed*\n\n' +
-                    `🚫 ${result.error}`
-                );
+                await this.bot.sock.sendMessage(chat_jid, {
+                    text: '❌ *Pinterest Download Failed*\n\n' +
+                          `🚫 ${result.error}`,
+                    edit: processingMsg.key
+                });
                 return;
             }
 
@@ -295,10 +394,11 @@ class PinterestPlugin {
             const sizeLimit = isVideo ? this.videoSizeLimit : this.imageSizeLimit;
             
             // Update processing message
-            await this.bot.messageHandler.editMessage(chat_jid, processingMsg.key, 
-                `⏳ *Downloading Pinterest ${isVideo ? 'video' : 'image'}...*\n` +
-                `📌 ${data.description.substring(0, 50)}${data.description.length > 50 ? '...' : ''}`
-            );
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: `⏳ *Downloading Pinterest ${isVideo ? 'video' : 'image'}...*\n` +
+                      `📌 ${data.description.substring(0, 50)}${data.description.length > 50 ? '...' : ''}`,
+                edit: processingMsg.key
+            });
 
             // Generate filename with appropriate extension
             const extension = isVideo ? '.mp4' : '.jpg';
@@ -350,16 +450,17 @@ class PinterestPlugin {
         } catch (error) {
             console.error('Pinterest download error:', error);
             
-            await this.bot.messageHandler.editMessage(chat_jid, processingMsg.key, 
-                '❌ *Pinterest Download Failed*\n\n' +
-                `🚫 ${error.message}\n\n` +
-                '💡 *Possible reasons:*\n' +
-                '• Pin is private or deleted\n' +
-                '• Network connectivity issues\n' +
-                '• File too large for WhatsApp\n' +
-                '• Pinterest anti-bot protection\n\n' +
-                '🔄 Try again in a few moments'
-            );
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: '❌ *Pinterest Download Failed*\n\n' +
+                      `🚫 ${error.message}\n\n` +
+                      '💡 *Possible reasons:*\n' +
+                      '• Pin is private or deleted\n' +
+                      '• Network connectivity issues\n' +
+                      '• File too large for WhatsApp\n' +
+                      '• Pinterest anti-bot protection\n\n' +
+                      '🔄 Try again in a few moments',
+                edit: processingMsg.key
+            });
         }
     }
 
