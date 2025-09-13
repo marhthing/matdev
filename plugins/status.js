@@ -445,7 +445,7 @@ class StatusPlugin {
                 
                 if (mediaData) {
                     // Use anti-delete style tagging format for media
-                    const tagText = 'statusMessage';
+                    const tagText = 'statusMessage • Status';
                     const originalCaption = mediaData.caption || '';
                     
                     if (mediaData.image) {
