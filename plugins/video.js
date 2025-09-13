@@ -157,32 +157,64 @@ class VideoPlugin {
                 const util = require('util');
                 const execPromise = util.promisify(exec);
                 
-                // Create output file path
+                // Create proper input file with .webp extension for FFmpeg to recognize
+                const webpInputPath = tempFilePath.replace('.mp4', '.webp');
                 const outputPath = tempFilePath.replace('.mp4', '_converted.mp4');
                 
                 try {
-                    // Use FFmpeg to convert WebP to MP4
-                    const ffmpegCommand = `ffmpeg -i "${tempFilePath}" -c:v libx264 -pix_fmt yuv420p -f mp4 "${outputPath}" -y`;
+                    // Rename to .webp so FFmpeg can properly detect format
+                    await fs.rename(tempFilePath, webpInputPath);
                     
+                    // Use FFmpeg with proper WebP input handling
+                    const ffmpegCommand = `ffmpeg -f webp -i "${webpInputPath}" -c:v libx264 -pix_fmt yuv420p -r 15 -crf 28 -preset fast "${outputPath}" -y`;
+                    
+                    console.log('📹 Running FFmpeg command:', ffmpegCommand);
                     await execPromise(ffmpegCommand);
                     
                     // Check if conversion was successful
                     const convertedStats = await fs.stat(outputPath);
                     if (convertedStats.size > 0) {
                         // Replace original with converted file
-                        await fs.unlink(tempFilePath);
+                        await fs.unlink(webpInputPath);
                         await fs.rename(outputPath, tempFilePath);
                         console.log('📹 FFmpeg conversion successful');
                     } else {
-                        throw new Error('FFmpeg conversion failed');
+                        throw new Error('FFmpeg conversion produced empty file');
                     }
                     
                 } catch (ffmpegError) {
-                    console.log('📹 FFmpeg conversion failed, using original file:', ffmpegError.message);
-                    // Clean up failed conversion file if it exists
+                    console.log('📹 FFmpeg conversion failed:', ffmpegError.message);
+                    
+                    // Try alternative FFmpeg approach for stubborn WebP files
                     try {
-                        await fs.unlink(outputPath);
-                    } catch (e) {}
+                        // Restore original file if webp rename happened
+                        try {
+                            await fs.rename(webpInputPath, tempFilePath);
+                        } catch (e) {}
+                        
+                        // Try with input format forcing and different options
+                        const altCommand = `ffmpeg -hide_banner -loglevel error -loop 1 -i "${tempFilePath}" -c:v libx264 -t 5 -pix_fmt yuv420p -vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2" "${outputPath}" -y`;
+                        
+                        await execPromise(altCommand);
+                        
+                        const altStats = await fs.stat(outputPath);
+                        if (altStats.size > 0) {
+                            await fs.unlink(tempFilePath);
+                            await fs.rename(outputPath, tempFilePath);
+                            console.log('📹 Alternative FFmpeg conversion successful');
+                        } else {
+                            throw new Error('Alternative conversion failed');
+                        }
+                    } catch (altError) {
+                        console.log('📹 All FFmpeg methods failed, sending original file');
+                        // Clean up any remaining files
+                        try {
+                            await fs.unlink(outputPath);
+                        } catch (e) {}
+                        try {
+                            await fs.unlink(webpInputPath);
+                        } catch (e) {}
+                    }
                 }
             }
 
