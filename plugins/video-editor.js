@@ -129,8 +129,6 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify start time and duration.\n\n📝 Usage: ${config.PREFIX}trim <start> <duration>\nExample: ${config.PREFIX}trim 5 10`);
             return;
         }
 
@@ -138,7 +136,6 @@ class VideoEditorPlugin {
         const duration = parseFloat(args[1]);
 
         if (isNaN(startTime) || isNaN(duration) || startTime < 0 || duration <= 0) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid time values. Please use positive numbers.');
             return;
         }
 
@@ -151,8 +148,6 @@ class VideoEditorPlugin {
 
         const validQualities = ['low', 'medium', 'high'];
         if (!validQualities.includes(quality)) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Invalid quality. Use: ${validQualities.join(', ')}`);
             return;
         }
 
@@ -163,15 +158,12 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify speed factor.\n\n📝 Usage: ${config.PREFIX}speed <factor>\nExample: ${config.PREFIX}speed 2 (2x faster)`);
             return;
         }
 
         const speed = parseFloat(args[0]);
 
         if (isNaN(speed) || speed <= 0 || speed > 4) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Speed factor must be between 0.1 and 4.0');
             return;
         }
 
@@ -186,8 +178,6 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify width and height.\n\n📝 Usage: ${config.PREFIX}crop <width> <height> [x] [y]`);
             return;
         }
 
@@ -197,7 +187,6 @@ class VideoEditorPlugin {
         const y = parseInt(args[3]) || 0;
 
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid dimensions. Please use positive numbers.');
             return;
         }
 
@@ -208,14 +197,11 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify rotation degrees.\n\n📝 Usage: ${config.PREFIX}rotate <degrees>`);
             return;
         }
 
         const degrees = parseFloat(args[0]);
         if (isNaN(degrees)) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid rotation value.');
             return;
         }
 
@@ -226,8 +212,6 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify width and height.\n\n📝 Usage: ${config.PREFIX}scale <width> <height>`);
             return;
         }
 
@@ -235,7 +219,6 @@ class VideoEditorPlugin {
         const height = parseInt(args[1]);
 
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid dimensions.');
             return;
         }
 
@@ -246,14 +229,11 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify frame rate.\n\n📝 Usage: ${config.PREFIX}fps <framerate>`);
             return;
         }
 
         const fps = parseFloat(args[0]);
         if (isNaN(fps) || fps <= 0 || fps > 120) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Frame rate must be between 1 and 120.');
             return;
         }
 
@@ -264,14 +244,11 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify time.\n\n📝 Usage: ${config.PREFIX}extract <time>`);
             return;
         }
 
         const time = parseFloat(args[0]);
         if (isNaN(time) || time < 0) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid time value.');
             return;
         }
 
@@ -282,14 +259,11 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify loop count.\n\n📝 Usage: ${config.PREFIX}loop <count>`);
             return;
         }
 
         const count = parseInt(args[0]);
         if (isNaN(count) || count <= 1 || count > 10) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Loop count must be between 2 and 10.');
             return;
         }
 
@@ -300,8 +274,6 @@ class VideoEditorPlugin {
         const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify start and end times.\n\n📝 Usage: ${config.PREFIX}cut <start> <end>`);
             return;
         }
 
@@ -309,7 +281,6 @@ class VideoEditorPlugin {
         const end = parseFloat(args[1]);
 
         if (isNaN(start) || isNaN(end) || start < 0 || end <= start) {
-            await this.bot.messageHandler.reply(messageInfo, '❌ Invalid time values. End must be greater than start.');
             return;
         }
 
@@ -329,19 +300,15 @@ class VideoEditorPlugin {
                                 messageInfo.message?.quotedMessage;
 
             if (!quotedMessage || !quotedMessage.videoMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
                 return;
             }
 
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
-                `⏳ Processing video ${operation}... This may take a moment.`);
+            // Process silently without status messages
 
             // Download video
             const buffer = await this.downloadMediaRobust(messageInfo, quotedMessage, 'videoMessage');
 
             if (!buffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process video. Please try again.');
                 return;
             }
 
@@ -395,7 +362,6 @@ class VideoEditorPlugin {
 
         } catch (error) {
             console.error(`Video ${operation} error:`, error);
-            await this.bot.messageHandler.reply(messageInfo, `❌ Error during video ${operation}: ${error.message}`);
         } finally {
             // Cleanup
             try {
