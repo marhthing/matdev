@@ -391,16 +391,27 @@ class MATDEV {
     }
 
     /**
-     * Check if this is a first-time connection (no existing credentials)
+     * Check if this is a first-time connection (fresh session creation)
      */
     async isFirstTimeConnection() {
         try {
-            const sessionPath = path.join(__dirname, 'session', 'auth');
-            const credsPath = path.join(sessionPath, 'creds.json');
+            // Check if status settings file exists (created by status plugin on first load)
+            const statusSettingsPath = path.join(__dirname, 'session', 'storage', 'status_settings.json');
+            const settingsExists = await fs.pathExists(statusSettingsPath);
             
-            // If credentials file doesn't exist, it's first-time
-            const credsExists = await fs.pathExists(credsPath);
-            return !credsExists;
+            // If settings file doesn't exist, it's likely first-time
+            // Also check if it was just created (size indicates new vs existing)
+            if (!settingsExists) {
+                return true;
+            }
+            
+            // Additional check: if file exists but is very recent (within last 10 seconds)
+            const stats = await fs.stat(statusSettingsPath);
+            const now = Date.now();
+            const fileAge = now - stats.mtime.getTime();
+            
+            // If file was created/modified in last 10 seconds, likely first-time
+            return fileAge < 10000;
         } catch (error) {
             logger.warn('Error checking session status:', error.message);
             return false; // Assume existing session on error

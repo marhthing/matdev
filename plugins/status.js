@@ -72,7 +72,7 @@ class StatusPlugin {
             
             const finalSettings = {
                 enabled: envStatusEnabled !== undefined ? envStatusEnabled : (settings.enabled || false),
-                autoDownload: settings.autoDownload !== false, // default true
+                autoDownload: settings.autoDownload === true, // default false
                 viewMode: settings.viewMode || 'all', // 'all', 'except', 'only'
                 filterJids: settings.filterJids || [],
                 forwardDestination: settings.forwardDestination || `${config.OWNER_NUMBER}@s.whatsapp.net`,
@@ -102,7 +102,7 @@ class StatusPlugin {
         // Default settings - check environment variable first
         return {
             enabled: config.AUTO_STATUS_VIEW || false,
-            autoDownload: true,
+            autoDownload: false,
             viewMode: 'all',
             filterJids: [],
             forwardDestination: `${config.OWNER_NUMBER}@s.whatsapp.net`,
@@ -865,9 +865,9 @@ class StatusPlugin {
         if (!participantJid) return false;
 
         // Log for debugging
-        console.log(`🔍 Checking if should view status from: ${participantJid}`);
-        console.log(`🔍 View mode: ${this.statusSettings.viewMode}`);
-        console.log(`🔍 Filter JIDs: ${JSON.stringify(this.statusSettings.filterJids)}`);
+        // console.log(`🔍 Checking if should view status from: ${participantJid}`);
+        // console.log(`🔍 View mode: ${this.statusSettings.viewMode}`);
+        // console.log(`🔍 Filter JIDs: ${JSON.stringify(this.statusSettings.filterJids)}`);
 
         switch (this.statusSettings.viewMode) {
             case 'all':
