@@ -85,6 +85,7 @@ class PinterestPlugin {
                 () => this.methodOEmbed(pinId),        // Official Pinterest oEmbed API
                 () => this.methodSocialBot(pinId),     // Social media bot headers 
                 () => this.methodIframely(pinId),      // Iframely service (reliable)
+                () => this.methodScraperAPI(pinId),    // Professional scraping service
                 () => this.methodAdvancedScraping(pinId) // Advanced scraping techniques
             ];
             
@@ -283,7 +284,93 @@ class PinterestPlugin {
     }
 
     /**
-     * Method 4: Advanced Scraping with Stealth Headers (2025 Techniques)
+     * Method 4: Professional Scraping Service (ScraperOps - 2025)
+     */
+    async methodScraperAPI(pinId) {
+        try {
+            const pinUrl = `https://www.pinterest.com/pin/${pinId}/`;
+            
+            // Try multiple professional services
+            const services = [
+                // ScraperOps - Free tier available
+                {
+                    name: 'ScraperOps',
+                    url: `https://proxy.scrapeops.io/v1/?url=${encodeURIComponent(pinUrl)}&render_js=true&wait=3000`,
+                    headers: { 'User-Agent': this.userAgent }
+                },
+                // ScrapingBee alternative endpoint
+                {
+                    name: 'Generic Proxy',
+                    url: `https://api.allorigins.win/raw?url=${encodeURIComponent(pinUrl)}`,
+                    headers: { 'User-Agent': this.userAgent }
+                }
+            ];
+            
+            for (const service of services) {
+                try {
+                    const response = await axios.get(service.url, {
+                        headers: service.headers,
+                        timeout: 20000
+                    });
+                    
+                    if (response.data && typeof response.data === 'string') {
+                        const html = response.data;
+                        
+                        // Extract using multiple patterns
+                        const patterns = [
+                            /property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+                            /name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i,
+                            /"images":\s*{[^}]*"orig":\s*{[^}]*"url":\s*"([^"]+)"/,
+                            /src=["']([^"']*pinimg\.com[^"']*\.jpg[^"']*)["']/i
+                        ];
+                        
+                        let mediaUrl = null;
+                        let title = null;
+                        let description = null;
+                        
+                        // Extract metadata
+                        const titleMatch = html.match(/<title[^>]*>([^<]+)</);
+                        const descMatch = html.match(/name=["']description["'][^>]*content=["']([^"']+)["']/);
+                        
+                        if (titleMatch) title = titleMatch[1].replace(' | Pinterest', '').trim();
+                        if (descMatch) description = descMatch[1].trim();
+                        
+                        // Try each pattern
+                        for (const pattern of patterns) {
+                            const match = html.match(pattern);
+                            if (match && match[1] && match[1].startsWith('http')) {
+                                mediaUrl = match[1];
+                                break;
+                            }
+                        }
+                        
+                        if (mediaUrl) {
+                            return {
+                                success: true,
+                                data: {
+                                    url: mediaUrl,
+                                    description: description || title || 'Pinterest media',
+                                    type: 'image',
+                                    title: title || 'Pinterest Pin'
+                                }
+                            };
+                        }
+                    }
+                } catch (serviceError) {
+                    console.log(`${service.name} failed: ${serviceError.message}`);
+                    continue;
+                }
+            }
+            
+            throw new Error('All professional scraping services failed');
+            
+        } catch (error) {
+            throw new Error(`Method ScraperAPI failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Method 5: Advanced Scraping with Stealth Headers (2025 Techniques)
      */
     async methodAdvancedScraping(pinId) {
         try {
