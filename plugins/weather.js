@@ -279,15 +279,6 @@ class WeatherPlugin {
             plugin: 'weather',
             source: 'weather.js'
         });
-
-        // Alternative command name
-        this.bot.messageHandler.registerCommand('w', this.weatherCommand.bind(this), {
-            description: 'Get weather information (short version)',
-            usage: `${config.PREFIX}w <location>`,
-            category: 'utility',
-            plugin: 'weather',
-            source: 'weather.js'
-        });
     }
 
     /**
