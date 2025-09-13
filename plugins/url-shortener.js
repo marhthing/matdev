@@ -55,10 +55,7 @@ class URLShortenerPlugin {
             const shortUrl = await this.shortenWithTinyURL(url);
             if (shortUrl) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    `🔗 **URL Shortened**\n\n` +
-                    `**Original:** ${url.length > 50 ? url.substring(0, 50) + '...' : url}\n` +
-                    `**Shortened:** ${shortUrl}\n\n` +
-                    `💾 ${((url.length - shortUrl.length) / url.length * 100).toFixed(1)}% size reduction`);
+                    `🔗 **URL Shortened**\n${shortUrl}`);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to shorten URL. Please try again later.');
             }
