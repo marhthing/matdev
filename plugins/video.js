@@ -72,9 +72,15 @@ class VideoPlugin {
             // Check for animated sticker (GIF sticker)
             if (quotedMessage.stickerMessage) {
                 mediaType = 'stickerMessage';
-                // Any sticker can potentially be converted to video
-                isValidMedia = true;
-                console.log('📹 Detected sticker message for video conversion');
+                // Check if sticker is animated (has isAnimated or duration property)
+                const stickerMsg = quotedMessage.stickerMessage;
+                if (stickerMsg.isAnimated || stickerMsg.seconds > 0 || stickerMsg.mimetype === 'image/webp') {
+                    isValidMedia = true;
+                    console.log('📹 Detected animated sticker for video conversion');
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an animated sticker (GIF sticker).');
+                    return;
+                }
             }
             // Check for GIF image
             else if (quotedMessage.imageMessage && 
@@ -119,19 +125,26 @@ class VideoPlugin {
                 return;
             }
 
-            // Generate temp filename in tmp directory
+            // Generate temp filename in tmp directory with proper MP4 naming
             const timestamp = Date.now();
-            const tempFileName = `video_${timestamp}.mp4`;
+            const tempFileName = `video_conversion_${timestamp}.mp4`;
             tempFilePath = path.join(process.cwd(), 'tmp', tempFileName);
 
             // Write buffer to temp file
             await fs.writeFile(tempFilePath, mediaResult.buffer);
 
-            // Send as video using the temp file
+            // Verify file was written successfully
+            const stats = await fs.stat(tempFilePath);
+            if (stats.size === 0) {
+                throw new Error('Generated video file is empty');
+            }
+
+            // Send as MP4 video using the temp file
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 video: { url: tempFilePath },
                 mimetype: 'video/mp4',
-                caption: '🎬 GIF converted to video'
+                fileName: `converted_video_${timestamp}.mp4`,
+                caption: '🎬 Media converted to MP4 video'
             });
 
             console.log('✅ Video');

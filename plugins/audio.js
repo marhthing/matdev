@@ -19,8 +19,8 @@ class AudioPlugin {
         this.bot = bot;
         this.registerCommands();
 
-        // Ensure media directory exists
-        await fs.ensureDir(path.join(process.cwd(), 'session', 'media'));
+        // Ensure tmp directory exists
+        await fs.ensureDir(path.join(process.cwd(), 'tmp'));
 
         console.log('✅ Audio plugin loaded');
     }
@@ -39,6 +39,8 @@ class AudioPlugin {
      * Extract audio from video and send as voice note
      */
     async audioCommand(messageInfo) {
+        let tempFilePath = null;
+
         try {
             // Check for quoted message in the proper structure
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
@@ -61,9 +63,17 @@ class AudioPlugin {
                 return;
             }
 
+            // Generate temp filename in tmp directory
+            const timestamp = Date.now();
+            const tempFileName = `audio_${timestamp}.ogg`;
+            tempFilePath = path.join(process.cwd(), 'tmp', tempFileName);
+
+            // Write buffer to temp file
+            await fs.writeFile(tempFilePath, buffer.buffer);
+
             // Send as voice note (ptt: true for voice note)
             await this.bot.sock.sendMessage(messageInfo.sender, {
-                audio: buffer.buffer,
+                audio: { url: tempFilePath },
                 mimetype: 'audio/ogg; codecs=opus',
                 ptt: true // This makes it a voice note
             });
@@ -71,6 +81,15 @@ class AudioPlugin {
         } catch (error) {
             console.log('Audio error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error extracting audio from video.');
+        } finally {
+            // Clean up temp file
+            if (tempFilePath) {
+                try {
+                    await fs.unlink(tempFilePath);
+                } catch (cleanupError) {
+                    console.log('Cleanup error (non-critical):', cleanupError.message);
+                }
+            }
         }
     }
 
