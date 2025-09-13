@@ -11,19 +11,28 @@ class QuoteGeneratorPlugin {
         // Fallback quotes in case APIs are down
         this.fallbackQuotes = [
             { text: "The only way to do great work is to love what you do.", author: "Steve Jobs", categories: ["motivational", "success", "life"] },
+            { text: "Innovation distinguishes between a leader and a follower.", author: "Steve Jobs", categories: ["motivational", "success"] },
+            { text: "Your time is limited, don't waste it living someone else's life.", author: "Steve Jobs", categories: ["motivational", "life"] },
+            { text: "Imagination is more important than knowledge.", author: "Albert Einstein", categories: ["inspirational", "life"] },
+            { text: "Try not to become a person of success, but rather try to become a person of value.", author: "Albert Einstein", categories: ["success", "inspirational"] },
+            { text: "The important thing is not to stop questioning.", author: "Albert Einstein", categories: ["inspirational", "life"] },
             { text: "Life is what happens to you while you're busy making other plans.", author: "John Lennon", categories: ["life", "inspirational"] },
             { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt", categories: ["inspirational", "motivational", "success"] },
             { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle", categories: ["inspirational", "motivational"] },
             { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney", categories: ["motivational", "success"] },
+            { text: "All our dreams can come true, if we have the courage to pursue them.", author: "Walt Disney", categories: ["motivational", "success"] },
             { text: "Don't let yesterday take up too much of today.", author: "Will Rogers", categories: ["life", "motivational"] },
             { text: "You learn more from failure than from success.", author: "Unknown", categories: ["motivational", "life"] },
-            { text: "If you are working on something that you really care about, you don't have to be pushed.", author: "Steve Jobs", categories: ["motivational", "success"] },
             { text: "Experience is the teacher of all things.", author: "Julius Caesar", categories: ["life", "inspirational"] },
             { text: "What we think, we become.", author: "Buddha", categories: ["inspirational", "life"] },
+            { text: "Peace comes from within. Do not seek it without.", author: "Buddha", categories: ["inspirational", "life"] },
+            { text: "The mind is everything. What you think you become.", author: "Buddha", categories: ["inspirational", "motivational"] },
             { text: "Being deeply loved by someone gives you strength, while loving someone deeply gives you courage.", author: "Lao Tzu", categories: ["love"] },
             { text: "The best thing to hold onto in life is each other.", author: "Audrey Hepburn", categories: ["love", "life"] },
             { text: "Love is not about how many days, weeks or months you've been together, it's all about how much you love each other every day.", author: "Unknown", categories: ["love"] },
             { text: "A successful marriage requires falling in love many times, always with the same person.", author: "Mignon McLaughlin", categories: ["love"] },
+            { text: "Be yourself; everyone else is already taken.", author: "Oscar Wilde", categories: ["life", "inspirational"] },
+            { text: "Two things are infinite: the universe and human stupidity; and I'm not sure about the universe.", author: "Albert Einstein", categories: ["funny", "life"] },
             { text: "Life is better when you're laughing.", author: "Unknown", categories: ["funny", "life"] },
             { text: "I'm not lazy, I'm on energy saving mode.", author: "Unknown", categories: ["funny"] },
             { text: "The early bird might get the worm, but the second mouse gets the cheese.", author: "Unknown", categories: ["funny", "life"] }
@@ -315,7 +324,43 @@ class QuoteGeneratorPlugin {
     async getQuoteByAuthor(author) {
         // Try multiple APIs for author search
         const apis = [
-            // QuoteGarden author search
+            // ZenQuotes author search (most reliable)
+            async () => {
+                const response = await axios.get(`https://zenquotes.io/api/quotes/${encodeURIComponent(author)}`, {
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                
+                if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+                    const quote = response.data[0];
+                    return {
+                        success: true,
+                        text: quote.q,
+                        author: quote.a
+                    };
+                }
+                throw new Error('No data');
+            },
+            
+            // Try searching quotes with author name in content from ZenQuotes
+            async () => {
+                const response = await axios.get('https://zenquotes.io/api/random', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                
+                // This gets a random quote - not ideal but better than nothing
+                if (response.data && response.data[0]) {
+                    return {
+                        success: true,
+                        text: response.data[0].q,
+                        author: response.data[0].a
+                    };
+                }
+                throw new Error('No data');
+            },
+            
+            // QuoteGarden as backup
             async () => {
                 const response = await axios.get(`https://quotegarden.herokuapp.com/api/v3/quotes`, {
                     params: {
@@ -335,34 +380,12 @@ class QuoteGeneratorPlugin {
                     };
                 }
                 throw new Error('No data');
-            },
-            
-            // Quotable as backup
-            async () => {
-                const response = await axios.get('https://api.quotable.io/quotes', {
-                    params: {
-                        author: author,
-                        limit: 1
-                    },
-                    timeout: 5000,
-                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
-                });
-
-                if (response.data && response.data.results && response.data.results.length > 0) {
-                    const quote = response.data.results[0];
-                    return {
-                        success: true,
-                        text: quote.content,
-                        author: quote.author
-                    };
-                }
-                throw new Error('No data');
             }
         ];
 
         for (let i = 0; i < apis.length; i++) {
             try {
-                console.log(`📡 Trying author quote API ${i + 1}/2 for "${author}"...`);
+                console.log(`📡 Trying author quote API ${i + 1}/3 for "${author}"...`);
                 const result = await apis[i]();
                 console.log(`✅ Author quote API ${i + 1} successful`);
                 return result;
