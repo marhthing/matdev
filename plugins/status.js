@@ -204,6 +204,7 @@ class StatusPlugin {
             if (action === 'off') {
                 // Turn off status features
                 this.statusSettings.enabled = false;
+                this.statusSettings.autoDownload = false;
                 this.saveStatusSettings();
 
                 return await this.bot.messageHandler.reply(messageInfo, 
