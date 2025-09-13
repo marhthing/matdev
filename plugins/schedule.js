@@ -152,16 +152,8 @@ class SchedulePlugin {
      */
     registerCommands() {
         this.bot.messageHandler.registerCommand('schedule', this.scheduleCommand.bind(this), {
-            description: 'Schedule a message to be sent at a specific time',
-            usage: `${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message] or reply to a message`,
-            category: 'automation',
-            plugin: 'schedule',
-            source: 'schedule.js'
-        });
-
-        this.bot.messageHandler.registerCommand('schedules', this.listSchedules.bind(this), {
-            description: 'List all pending schedules',
-            usage: `${config.PREFIX}schedules`,
+            description: 'Schedule a message or list pending schedules',
+            usage: `${config.PREFIX}schedule [dd:mm:yyyy hh:mm <jid> [message]] or reply to a message`,
             category: 'automation',
             plugin: 'schedule',
             source: 'schedule.js'
@@ -177,16 +169,22 @@ class SchedulePlugin {
     }
 
     /**
-     * Schedule command handler
+     * Schedule command handler - handles both scheduling and listing
      */
     async scheduleCommand(messageInfo) {
         const { args, quotedMessage, chat_jid } = messageInfo || {};
         const fromJid = chat_jid;
         
-        // Ensure args exists and has minimum required length
-        if (!args || !Array.isArray(args) || args.length < 2) {
+        // If no arguments provided, list all schedules
+        if (!args || !Array.isArray(args) || args.length === 0) {
+            await this.listSchedules(messageInfo);
+            return;
+        }
+        
+        // Ensure args has minimum required length for scheduling
+        if (args.length < 2) {
             await this.bot.sock.sendMessage(fromJid, { 
-                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message]\n\n*Or reply to a message:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>\n\n*Example:*\n${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net Happy Birthday!` 
+                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid> [message]\n\n*Or reply to a message:*\n${config.PREFIX}schedule dd:mm:yyyy hh:mm <jid>\n\n*Example:*\n${config.PREFIX}schedule 25:12:2024 15:30 2347012345678@s.whatsapp.net Happy Birthday!\n\n*List schedules:*\n${config.PREFIX}schedule` 
             });
             return;
         }
