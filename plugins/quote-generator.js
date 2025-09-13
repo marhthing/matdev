@@ -141,8 +141,22 @@ class QuoteGeneratorPlugin {
                     `"${quote.text}"\n\n` +
                     `— _${quote.author}_`);
             } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ No quotes found for "${author}". Try another author name.`);
+                // Check if the requested author matches any in our fallback quotes
+                const fallbackQuote = this.fallbackQuotes.find(q => 
+                    q.author.toLowerCase().includes(author.toLowerCase()) || 
+                    author.toLowerCase().includes(q.author.toLowerCase())
+                );
+                
+                if (fallbackQuote) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `👤 **Quote by ${fallbackQuote.author}** _(offline mode)_\n\n` +
+                        `"${fallbackQuote.text}"\n\n` +
+                        `— _${fallbackQuote.author}_`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ No quotes found for "${author}". The quote service is currently unavailable.\n\n` +
+                        `💡 Try these available authors: Steve Jobs, Buddha, Walt Disney, Eleanor Roosevelt, Julius Caesar`);
+                }
             }
 
         } catch (error) {
