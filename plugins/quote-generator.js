@@ -174,91 +174,205 @@ class QuoteGeneratorPlugin {
     }
 
     async getRandomQuote(category) {
-        try {
-            // Try Quotable API (free, no auth required)
-            let url = 'https://api.quotable.io/random';
-            if (category !== 'random') {
-                // Map our categories to Quotable tags
-                const tagMap = {
-                    'inspirational': 'inspirational',
-                    'motivational': 'motivational',
-                    'funny': 'humorous',
-                    'love': 'love',
-                    'life': 'life',
-                    'success': 'success'
-                };
-                const tag = tagMap[category] || category;
-                url += `?tags=${tag}`;
-            }
-
-            const response = await axios.get(url, { timeout: 8000 });
+        // Array of working APIs to try
+        const apis = [
+            // API 1: ZenQuotes (reliable and free)
+            async () => {
+                const response = await axios.get('https://zenquotes.io/api/random', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                if (response.data && response.data[0]) {
+                    return {
+                        success: true,
+                        text: response.data[0].q,
+                        author: response.data[0].a,
+                        category: category
+                    };
+                }
+                throw new Error('No data');
+            },
             
-            if (response.data && response.data.content) {
-                return {
-                    success: true,
-                    text: response.data.content,
-                    author: response.data.author,
-                    category: category
-                };
+            // API 2: QuoteGarden (backup)
+            async () => {
+                const response = await axios.get('https://quotegarden.herokuapp.com/api/v3/quotes/random', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                if (response.data && response.data.statusCode === 200 && response.data.data) {
+                    return {
+                        success: true,
+                        text: response.data.data.quoteText,
+                        author: response.data.data.quoteAuthor,
+                        category: category
+                    };
+                }
+                throw new Error('No data');
+            },
+            
+            // API 3: Quotable (original, keep as backup)
+            async () => {
+                let url = 'https://api.quotable.io/random';
+                if (category !== 'random') {
+                    const tagMap = {
+                        'inspirational': 'inspirational',
+                        'motivational': 'motivational',
+                        'funny': 'humorous',
+                        'love': 'love',
+                        'life': 'life',
+                        'success': 'success'
+                    };
+                    const tag = tagMap[category] || category;
+                    url += `?tags=${tag}`;
+                }
+                
+                const response = await axios.get(url, { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                
+                if (response.data && response.data.content) {
+                    return {
+                        success: true,
+                        text: response.data.content,
+                        author: response.data.author,
+                        category: category
+                    };
+                }
+                throw new Error('No data');
             }
+        ];
 
-            throw new Error('No quote data received');
-
-        } catch (error) {
-            console.error('Quote API error:', error.message);
-            return { success: false };
+        // Try each API in sequence
+        for (let i = 0; i < apis.length; i++) {
+            try {
+                console.log(`📡 Trying API ${i + 1}/3 for quotes...`);
+                const result = await apis[i]();
+                console.log(`✅ API ${i + 1} successful for quotes`);
+                return result;
+            } catch (error) {
+                console.log(`❌ API ${i + 1} failed: ${error.message}`);
+                if (i === apis.length - 1) {
+                    console.log('🔄 All quote APIs failed, using fallback');
+                }
+            }
         }
+
+        return { success: false };
     }
 
     async getDailyQuote() {
-        try {
-            // Use Quotable's quote of the day endpoint
-            const response = await axios.get('https://api.quotable.io/today', {
-                timeout: 8000
-            });
-
-            if (response.data && response.data.content) {
-                return {
-                    success: true,
-                    text: response.data.content,
-                    author: response.data.author
-                };
+        // Try multiple APIs for daily quotes
+        const apis = [
+            // ZenQuotes daily quote
+            async () => {
+                const response = await axios.get('https://zenquotes.io/api/today', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                if (response.data && response.data[0]) {
+                    return {
+                        success: true,
+                        text: response.data[0].q,
+                        author: response.data[0].a
+                    };
+                }
+                throw new Error('No data');
+            },
+            
+            // Fallback to random quote from ZenQuotes
+            async () => {
+                const response = await axios.get('https://zenquotes.io/api/random', { 
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                if (response.data && response.data[0]) {
+                    return {
+                        success: true,
+                        text: response.data[0].q,
+                        author: response.data[0].a
+                    };
+                }
+                throw new Error('No data');
             }
+        ];
 
-            throw new Error('No daily quote data received');
-
-        } catch (error) {
-            console.error('Daily quote API error:', error.message);
-            return { success: false };
+        for (let i = 0; i < apis.length; i++) {
+            try {
+                console.log(`📡 Trying daily quote API ${i + 1}/2...`);
+                const result = await apis[i]();
+                console.log(`✅ Daily quote API ${i + 1} successful`);
+                return result;
+            } catch (error) {
+                console.log(`❌ Daily quote API ${i + 1} failed: ${error.message}`);
+            }
         }
+
+        console.log('🔄 All daily quote APIs failed, using fallback');
+        return { success: false };
     }
 
     async getQuoteByAuthor(author) {
-        try {
-            // Search for quotes by specific author
-            const response = await axios.get('https://api.quotable.io/quotes', {
-                params: {
-                    author: author,
-                    limit: 1
-                },
-                timeout: 8000
-            });
+        // Try multiple APIs for author search
+        const apis = [
+            // QuoteGarden author search
+            async () => {
+                const response = await axios.get(`https://quotegarden.herokuapp.com/api/v3/quotes`, {
+                    params: {
+                        author: author,
+                        limit: 1
+                    },
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
+                
+                if (response.data && response.data.statusCode === 200 && response.data.data && response.data.data.length > 0) {
+                    const quote = response.data.data[0];
+                    return {
+                        success: true,
+                        text: quote.quoteText,
+                        author: quote.quoteAuthor
+                    };
+                }
+                throw new Error('No data');
+            },
+            
+            // Quotable as backup
+            async () => {
+                const response = await axios.get('https://api.quotable.io/quotes', {
+                    params: {
+                        author: author,
+                        limit: 1
+                    },
+                    timeout: 5000,
+                    headers: { 'User-Agent': 'MATDEV-Bot/2.0' }
+                });
 
-            if (response.data && response.data.results && response.data.results.length > 0) {
-                const quote = response.data.results[0];
-                return {
-                    success: true,
-                    text: quote.content,
-                    author: quote.author
-                };
+                if (response.data && response.data.results && response.data.results.length > 0) {
+                    const quote = response.data.results[0];
+                    return {
+                        success: true,
+                        text: quote.content,
+                        author: quote.author
+                    };
+                }
+                throw new Error('No data');
             }
+        ];
 
-            return { success: false };
-
-        } catch (error) {
-            console.error('Author quote API error:', error.message);
-            return { success: false };
+        for (let i = 0; i < apis.length; i++) {
+            try {
+                console.log(`📡 Trying author quote API ${i + 1}/2 for "${author}"...`);
+                const result = await apis[i]();
+                console.log(`✅ Author quote API ${i + 1} successful`);
+                return result;
+            } catch (error) {
+                console.log(`❌ Author quote API ${i + 1} failed: ${error.message}`);
+            }
         }
+
+        console.log(`🔄 All author quote APIs failed for "${author}", using fallback`);
+        return { success: false };
     }
 
     getCategoryFallbackQuote(category) {
