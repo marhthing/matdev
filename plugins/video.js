@@ -194,47 +194,44 @@ class VideoPlugin {
         
         try {
             if (mediaType === 'stickerMessage') {
-                // Enhanced animated sticker conversion (2025 method)
-                console.log('📹 Converting animated sticker with latest FFmpeg methods...');
+                // Enhanced animated sticker handling - work with actual format
+                console.log('📹 Converting animated sticker with modern methods...');
                 
-                // Rename to proper extension for FFmpeg recognition
-                const webpInputPath = tempFilePath.replace('.mp4', '.webp');
-                await fs.rename(tempFilePath, webpInputPath);
-                
-                // Method 1: Advanced WebP to MP4 conversion with quality optimization
-                const advancedCommand = [
+                // Method 1: Try converting as-is (no extension change needed)
+                const stickerCommand = [
                     'ffmpeg',
                     '-hide_banner',
                     '-loglevel error',
-                    '-f webp',
-                    `-i "${webpInputPath}"`,
+                    '-analyzeduration 2147483647',
+                    '-probesize 2147483647',
+                    `-i "${inputPath}"`,
                     '-c:v libx264',
                     '-profile:v baseline',
                     '-level 3.0',
                     '-pix_fmt yuv420p',
                     '-movflags +faststart',
-                    '-preset medium',
+                    '-preset fast',
                     '-crf 28',
                     '-r 15',
-                    '-t 10', // Limit to 10 seconds for WhatsApp compatibility
-                    '-vf "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2,fps=15"',
+                    '-t 8',
+                    '-vf "scale=480:480:force_original_aspect_ratio=decrease,pad=480:480:(ow-iw)/2:(oh-ih)/2"',
+                    '-f mp4',
                     '-y',
                     `"${outputPath}"`
                 ].join(' ');
                 
-                console.log('📹 Running advanced conversion:', advancedCommand);
-                await execPromise(advancedCommand);
+                console.log('📹 Running modern sticker conversion:', stickerCommand);
+                await execPromise(stickerCommand);
                 
                 // Verify conversion success
                 const convertedStats = await fs.stat(outputPath);
                 if (convertedStats.size > 0) {
-                    await fs.unlink(webpInputPath);
                     await fs.rename(outputPath, tempFilePath);
-                    console.log(`📹 Advanced conversion successful: ${convertedStats.size} bytes`);
+                    console.log(`📹 Modern sticker conversion successful: ${convertedStats.size} bytes`);
                     return;
                 }
                 
-                throw new Error('Advanced conversion produced empty file');
+                throw new Error('Modern sticker conversion failed');
                 
             } else if (mediaType === 'imageMessage' || mediaType === 'documentMessage') {
                 // Enhanced GIF to MP4 conversion
@@ -311,18 +308,24 @@ class VideoPlugin {
             console.log('📹 Primary conversion failed, trying fallback method:', primaryError.message);
             
             try {
-                // Fallback method: Simple conversion with basic parameters
+                // Fallback method: Universal conversion approach
+                const inputFile = mediaType === 'stickerMessage' ? inputPath.replace('.mp4', '.webp') : inputPath;
                 const fallbackCommand = [
                     'ffmpeg',
                     '-hide_banner',
-                    '-loglevel error',
+                    '-loglevel warning',
                     '-y',
-                    `-i "${mediaType === 'stickerMessage' ? inputPath.replace('.mp4', '.webp') : inputPath}"`,
+                    `-i "${inputFile}"`,
                     '-c:v libx264',
+                    '-profile:v baseline',
                     '-pix_fmt yuv420p',
                     '-preset ultrafast',
-                    '-crf 30',
-                    '-t 5', // Short duration for compatibility
+                    '-crf 28',
+                    '-r 15',
+                    '-t 10',
+                    '-vf "scale=480:480:force_original_aspect_ratio=decrease,pad=480:480:(ow-iw)/2:(oh-ih)/2"',
+                    '-avoid_negative_ts make_zero',
+                    '-f mp4',
                     `"${outputPath}"`
                 ].join(' ');
                 
