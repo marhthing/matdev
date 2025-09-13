@@ -489,7 +489,7 @@ class CorePlugin {
                 menuText += `${icon} *${categoryName} COMMANDS:*\n`;
                 
                 cmds.forEach(cmd => {
-                    menuText += `▸ ${config.PREFIX}${cmd.name}\n`;
+                    menuText += `▸ ${cmd.name}\n`;
                 });
                 
                 menuText += `\n`;
