@@ -93,33 +93,12 @@ class ImagePlugin {
             }
 
             try {
-                // Try multiple free services in order
-                const services = [
-                    () => this.generateWithPollinations(prompt),
-                    () => this.generateWithHuggingFace(prompt)
-                ];
-
-                let imageBuffer = null;
-                let serviceName = '';
-
-                for (const [index, service] of services.entries()) {
-                    try {
-                        console.log(`Trying free image service ${index + 1}...`);
-                        const result = await service();
-                        if (result && result.success) {
-                            imageBuffer = result.imageBuffer;
-                            serviceName = result.serviceName;
-                            console.log(`✅ ${serviceName} succeeded`);
-                            break;
-                        }
-                    } catch (serviceError) {
-                        console.log(`❌ Service ${index + 1} failed: ${serviceError.message}`);
-                        continue;
-                    }
-                }
-
-                if (!imageBuffer) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ All free image services are currently unavailable. Please try again later.');
+                // Only use Pollinations.ai (remove broken HuggingFace fallback)
+                console.log(`Generating image with Pollinations.ai...`);
+                const result = await this.generateWithPollinations(prompt);
+                
+                if (!result || !result.success) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Image generation service is currently unavailable. Please try again later.');
                     return;
                 }
 
@@ -130,7 +109,7 @@ class ImagePlugin {
                 await fs.ensureDir(path.dirname(tempFile));
 
                 // Write image buffer to temp file
-                await fs.writeFile(tempFile, imageBuffer);
+                await fs.writeFile(tempFile, result.imageBuffer);
 
                 // Send the generated image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -186,62 +165,6 @@ class ImagePlugin {
         }
     }
 
-    /**
-     * Generate image using Hugging Face (free tier, no auth)
-     */
-    async generateWithHuggingFace(prompt) {
-        try {
-            const models = [
-                'runwayml/stable-diffusion-v1-5',        // Most reliable
-                'stabilityai/stable-diffusion-2-1',      // Alternative
-                'CompVis/stable-diffusion-v1-4'          // Backup
-            ];
-
-            for (const model of models) {
-                try {
-                    console.log(`Trying HF model: ${model}`);
-
-                    const response = await axios.post(
-                        `https://api-inference.huggingface.co/models/${model}`,
-                        { inputs: prompt },
-                        {
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'x-wait-for-model': 'true'  // Wait for model to load
-                            },
-                            responseType: 'arraybuffer',
-                            timeout: 120000  // 2 minutes for model loading
-                        }
-                    );
-
-                    // Check if we got actual image data (not an error message)
-                    if (response.data && response.data.byteLength > 1000) {
-                        // Verify it's actually image data by checking magic bytes
-                        const bytes = new Uint8Array(response.data.slice(0, 4));
-                        const isImage = (bytes[0] === 0xFF && bytes[1] === 0xD8) || // JPEG
-                                      (bytes[0] === 0x89 && bytes[1] === 0x50) || // PNG
-                                      (bytes[0] === 0x47 && bytes[1] === 0x49);   // GIF
-
-                        if (isImage) {
-                            return {
-                                success: true,
-                                imageBuffer: Buffer.from(response.data),
-                                serviceName: 'Hugging Face'
-                            };
-                        }
-                    }
-                } catch (modelError) {
-                    console.log(`HF model ${model} failed: ${modelError.message}`);
-                    continue;
-                }
-            }
-
-            throw new Error('All HF models failed');
-
-        } catch (error) {
-            throw new Error(`Hugging Face failed: ${error.message}`);
-        }
-    }
 
 
     /**
@@ -252,41 +175,15 @@ class ImagePlugin {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Please provide a video description.\nUsage: .video <description>\n\nExamples:\n• .video a cat playing in the rain\n• .video sunset over mountains\n• .video abstract colorful particles\n\n🆓 This uses completely FREE AI services!');
+                    '❌ Video generation is currently not supported.\n\n🔧 Try these alternatives:\n• Use .image to generate a static image\n• Use .animate to create a simple slideshow (when available)\n\n💡 Video generation requires advanced infrastructure that is not currently available.');
                 return;
             }
 
-            try {
-                const result = await this.generateVideo(prompt);
-                if (!result || !result.success) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Video generation service is currently unavailable. Please try again later.');
-                    return;
-                }
-
-                // Create temporary file path
-                const tempFile = path.join(__dirname, '..', 'tmp', `generated_video_${Date.now()}.mp4`);
-
-                // Ensure tmp directory exists
-                await fs.ensureDir(path.dirname(tempFile));
-
-                // Write video buffer to temp file
-                await fs.writeFile(tempFile, result.videoBuffer);
-
-                // Send the generated video
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: tempFile },
-                    caption: `_🔧 Generated by: ${config.BOT_NAME}_`
-                });
-
-                // Clean up temp file
-                await fs.unlink(tempFile).catch(() => {});
-
-                console.log('✅ Video generated and sent');
-
-            } catch (error) {
-                console.error('Video generation error:', error);
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error generating video. Please try again later.');
-            }
+            // Video generation is not available in current free APIs
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🚧 Video generation is temporarily unavailable.\n\n' +
+                '📸 Alternative: Use `.image ${prompt}` to generate a related image instead.\n\n' +
+                '💡 True AI video generation requires specialized services that are currently not integrated.');
 
         } catch (error) {
             console.error('Error in video command:', error);
@@ -308,73 +205,11 @@ class ImagePlugin {
                 return;
             }
 
-            try {
-                // Download the image first - handle different message structures
-                const { downloadMediaMessage } = require('baileys');
-                let imageBuffer;
-
-                try {
-                    imageBuffer = await downloadMediaMessage(
-                        { message: quotedMessage },
-                        'buffer',
-                        {},
-                        {
-                            logger: console,
-                            reuploadRequest: this.bot.sock.updateMediaMessage
-                        }
-                    );
-                } catch (downloadError) {
-                    console.error('Download error:', downloadError);
-                    // Try alternative download method
-                    const stream = await downloadMediaMessage(
-                        { message: quotedMessage },
-                        'stream',
-                        {},
-                        {
-                            logger: console,
-                            reuploadRequest: this.bot.sock.updateMediaMessage
-                        }
-                    );
-                    const chunks = [];
-                    for await (const chunk of stream) {
-                        chunks.push(chunk);
-                    }
-                    imageBuffer = Buffer.concat(chunks);
-                }
-
-                // Create temp file for the image
-                const tempImageFile = path.join(__dirname, '..', 'tmp', `temp_image_${Date.now()}.jpg`);
-                await fs.ensureDir(path.dirname(tempImageFile));
-                await fs.writeFile(tempImageFile, imageBuffer);
-
-                // Generate animated video from image
-                const result = await this.animateImage(tempImageFile);
-
-                if (!result || !result.success) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Image animation service is currently unavailable. Please try again later.');
-                    return;
-                }
-
-                // Create temp file for output video
-                const tempVideoFile = path.join(__dirname, '..', 'tmp', `animated_${Date.now()}.mp4`);
-                await fs.writeFile(tempVideoFile, result.videoBuffer);
-
-                // Send the animated video
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: tempVideoFile },
-                    caption: `_🔧 Animated by: ${config.BOT_NAME}_`
-                });
-
-                // Clean up temp files
-                await fs.unlink(tempImageFile).catch(() => {});
-                await fs.unlink(tempVideoFile).catch(() => {});
-
-                console.log('✅ Image animated and sent');
-
-            } catch (error) {
-                console.error('Animation error:', error);
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error animating image. Please try again later.');
-            }
+            // Animation is not available without proper video encoding tools
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🚧 Image animation is temporarily unavailable.\n\n' +
+                '📸 The image you replied to looks great as is!\n\n' +
+                '💡 True image-to-video animation requires specialized video processing tools that are currently not available.');
 
         } catch (error) {
             console.error('Error in animate command:', error);
@@ -425,85 +260,43 @@ class ImagePlugin {
             const style = messageInfo.args.join(' ').trim();
             if (!style) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Please specify a style and reply to an image.\nUsage: .style <style> (reply to image)\n\nExamples:\n• .style anime\n• .style oil painting\n• .style cartoon\n• .style watercolor\n\n🆓 This uses completely FREE AI services!');
-                return;
-            }
-
-            // Check for quoted message
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
-
-            if (!quotedMessage || !quotedMessage.imageMessage) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image to apply style transfer.');
+                    '❌ Please specify a style.\nUsage: .style <style>\n\nExamples:\n• .style anime\n• .style oil painting\n• .style cartoon\n• .style watercolor\n\n🎨 This creates a new image in your requested style!');
                 return;
             }
 
             try {
-                // Download the image first - handle different message structures
-                const { downloadMediaMessage } = require('baileys');
-                let imageBuffer;
+                await this.bot.messageHandler.reply(messageInfo, `🎨 Creating a ${style} style artwork...`);
 
-                try {
-                    imageBuffer = await downloadMediaMessage(
-                        { message: quotedMessage },
-                        'buffer',
-                        {},
-                        {
-                            logger: console,
-                            reuploadRequest: this.bot.sock.updateMediaMessage
-                        }
-                    );
-                } catch (downloadError) {
-                    console.error('Download error:', downloadError);
-                    // Try alternative download method
-                    const stream = await downloadMediaMessage(
-                        { message: quotedMessage },
-                        'stream',
-                        {},
-                        {
-                            logger: console,
-                            reuploadRequest: this.bot.sock.updateMediaMessage
-                        }
-                    );
-                    const chunks = [];
-                    for await (const chunk of stream) {
-                        chunks.push(chunk);
-                    }
-                    imageBuffer = Buffer.concat(chunks);
-                }
-
-                // Create temp file for the image
-                const tempImageFile = path.join(__dirname, '..', 'tmp', `temp_image_${Date.now()}.jpg`);
-                await fs.ensureDir(path.dirname(tempImageFile));
-                await fs.writeFile(tempImageFile, imageBuffer);
-
-                // Apply style transfer
-                const result = await this.applyStyle(tempImageFile, style);
+                // Generate a new image with the requested style
+                const result = await this.applyStyle('', style);
 
                 if (!result || !result.success) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Style transfer service is currently unavailable. Please try again later.');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Style generation service is currently unavailable. Please try again later.');
                     return;
                 }
 
                 // Create temp file for output
                 const tempOutputFile = path.join(__dirname, '..', 'tmp', `styled_${Date.now()}.jpg`);
+                
+                // Ensure tmp directory exists
+                await fs.ensureDir(path.dirname(tempOutputFile));
+                
                 await fs.writeFile(tempOutputFile, result.imageBuffer);
 
                 // Send the styled image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: { url: tempOutputFile },
-                    caption: `_🔧 Style: ${style} - Generated by: ${config.BOT_NAME}_`
+                    caption: `_🎨 ${style} style artwork - Generated by: ${config.BOT_NAME}_`
                 });
 
                 // Clean up temp files
-                await fs.unlink(tempImageFile).catch(() => {});
                 await fs.unlink(tempOutputFile).catch(() => {});
 
-                console.log('✅ Style applied and sent');
+                console.log('✅ Style artwork generated and sent');
 
             } catch (error) {
-                console.error('Style transfer error:', error);
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error applying style transfer. Please try again later.');
+                console.error('Style generation error:', error);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error generating style artwork. Please try again later.');
             }
 
         } catch (error) {
@@ -513,50 +306,22 @@ class ImagePlugin {
     }
 
     /**
-     * Handle music generation command
+     * Handle music generation command - currently not available
      */
     async musicCommand(messageInfo) {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '❌ Please provide a music description.\nUsage: .music <description>\n\nExamples:\n• .music jazz piano solo\n• .music relaxing rain sounds\n• .music upbeat electronic\n\n🆓 This uses completely FREE AI services!');
+                    '🎵 Music generation is currently unavailable.\n\nUsage: .music <description>\n\nExamples:\n• .music jazz piano solo\n• .music relaxing rain sounds\n• .music upbeat electronic\n\n💡 Music generation requires specialized paid services that are not currently configured.');
                 return;
             }
 
-            try {
-                const result = await this.generateMusic(prompt);
-                if (!result || !result.success) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Music generation service is currently unavailable. Please try again later.');
-                    return;
-                }
-
-                // Create temporary file path
-                const tempFile = path.join(__dirname, '..', 'tmp', `generated_music_${Date.now()}.mp3`);
-
-                // Ensure tmp directory exists
-                await fs.ensureDir(path.dirname(tempFile));
-
-                // Write audio buffer to temp file
-                await fs.writeFile(tempFile, result.audioBuffer);
-
-                // Send the generated music
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: { url: tempFile },
-                    mimetype: 'audio/mpeg',
-                    fileName: `music_${Date.now()}.mp3`,
-                    caption: `_🔧 Generated by: ${config.BOT_NAME}_`
-                });
-
-                // Clean up temp file
-                await fs.unlink(tempFile).catch(() => {});
-
-                console.log('✅ Music generated and sent');
-
-            } catch (error) {
-                console.error('Music generation error:', error);
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error generating music. Please try again later.');
-            }
+            // Music generation not available without paid services
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🚧 Music generation is currently unavailable.\n\n' +
+                '💡 This feature requires paid audio generation services that are not currently integrated.\n\n' +
+                '🎨 Try using `.image ${prompt}` to generate a visual representation instead!');
 
         } catch (error) {
             console.error('Error in music command:', error);
@@ -564,79 +329,14 @@ class ImagePlugin {
         }
     }
 
-    /**
-     * Generate video using Pollinations.ai
-     */
-    async generateVideo(prompt) {
-        try {
-            const encodedPrompt = encodeURIComponent(prompt);
-            const videoUrl = `https://video.pollinations.ai/prompt/${encodedPrompt}`;
-
-            const response = await axios.get(videoUrl, {
-                responseType: 'arraybuffer',
-                timeout: 120000, // 2 minutes for video generation
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/2.0'
-                }
-            });
-
-            if (response.data && response.data.byteLength > 1000) {
-                return {
-                    success: true,
-                    videoBuffer: Buffer.from(response.data)
-                };
-            }
-
-            throw new Error('Invalid video data received');
-
-        } catch (error) {
-            throw new Error(`Video generation failed: ${error.message}`);
-        }
-    }
 
     /**
-     * Animate image using Pollinations.ai
-     */
-    async animateImage(imagePath) {
-        try {
-            // For image-to-video, we'll use a combination approach
-            // Upload image and request animation
-            const imageBuffer = await fs.readFile(imagePath);
-            const base64Image = imageBuffer.toString('base64');
-
-            // Use text-to-video with image reference
-            const prompt = encodeURIComponent('animate this image with subtle motion and effects');
-            const videoUrl = `https://video.pollinations.ai/prompt/${prompt}?image=${base64Image}`;
-
-            const response = await axios.get(videoUrl, {
-                responseType: 'arraybuffer',
-                timeout: 120000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/2.0'
-                }
-            });
-
-            if (response.data && response.data.byteLength > 1000) {
-                return {
-                    success: true,
-                    videoBuffer: Buffer.from(response.data)
-                };
-            }
-
-            throw new Error('Invalid animation data received');
-
-        } catch (error) {
-            throw new Error(`Image animation failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Generate text using Pollinations.ai
+     * Generate text using Pollinations.ai (corrected API endpoint)
      */
     async generateText(prompt) {
         try {
             const encodedPrompt = encodeURIComponent(prompt);
-            const textUrl = `https://text.pollinations.ai/prompt/${encodedPrompt}`;
+            const textUrl = `https://text.pollinations.ai/${encodedPrompt}`;
 
             const response = await axios.get(textUrl, {
                 timeout: 30000,
@@ -661,18 +361,16 @@ class ImagePlugin {
     }
 
     /**
-     * Apply style transfer using Pollinations.ai
+     * Apply style transfer using Pollinations.ai image generation with style description
      */
     async applyStyle(imagePath, style) {
         try {
-            const imageBuffer = await fs.readFile(imagePath);
-            const base64Image = imageBuffer.toString('base64');
+            // Generate a new image with the requested style (no image input needed)
+            const stylePrompt = `a ${style} style artwork, artistic ${style} interpretation, beautiful ${style} art`;
+            const encodedPrompt = encodeURIComponent(stylePrompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&enhance=true`;
 
-            // Use image generation with style prompt and reference image
-            const stylePrompt = encodeURIComponent(`transform this image to ${style} style`);
-            const styleUrl = `https://image.pollinations.ai/prompt/${stylePrompt}?image=${base64Image}&style=${encodeURIComponent(style)}`;
-
-            const response = await axios.get(styleUrl, {
+            const response = await axios.get(imageUrl, {
                 responseType: 'arraybuffer',
                 timeout: 60000,
                 headers: {
@@ -695,36 +393,21 @@ class ImagePlugin {
     }
 
     /**
-     * Generate music using Pollinations.ai
+     * Generate music - currently not available without paid services
      */
     async generateMusic(prompt) {
         try {
-            // Use the correct Pollinations.ai music/audio API
-            const encodedPrompt = encodeURIComponent(prompt);
-            const musicUrl = `https://audio.pollinations.ai/${encodedPrompt}`;
-
-            const response = await axios.get(musicUrl, {
-                responseType: 'arraybuffer',
-                timeout: 120000, // 2 minutes for audio generation
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/2.0',
-                    'Accept': 'audio/mpeg, audio/wav, audio/*'
-                }
-            });
-
-            if (response.data && response.data.byteLength > 1000) {
-                return {
-                    success: true,
-                    audioBuffer: Buffer.from(response.data)
-                };
-            }
-
-            throw new Error('Invalid audio data received');
+            // Text-to-speech APIs require payment, return unavailable
+            return {
+                success: false,
+                message: 'Audio generation requires paid API access which is not currently configured.'
+            };
 
         } catch (error) {
             throw new Error(`Music generation failed: ${error.message}`);
         }
     }
+
 
     /**
      * Cleanup method
