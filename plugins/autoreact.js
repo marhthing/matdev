@@ -49,7 +49,7 @@ class AutoReactPlugin {
         this.bot = bot;
         this.registerCommands();
         this.setupMessageListener();
-        this.setupStatusListener();
+        // Status reactions now handled as extension of status.js auto-view
         this.startCleanupTimer();
 
         // Force reload environment variables
@@ -130,31 +130,57 @@ class AutoReactPlugin {
     }
 
     /**
-     * Setup status message listener with updated method
+     * React to a status that has been viewed by status.js plugin
+     * This method is called from status.js after a status is auto-viewed
      */
-    setupStatusListener() {
-        if (this.bot.sock) {
-            // Create a unique listener identifier to prevent duplicates
-            const listenerKey = 'status-autoreact-' + Date.now();
+    async reactToViewedStatus(message) {
+        try {
+            // Check if status auto-react is enabled
+            const isEnabled = this.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true';
+            if (!isEnabled) {
+                return;
+            }
             
-            this.bot.sock.ev.on('messages.upsert', async ({ type, messages }) => {
-                // Only process notify type messages (new messages)
-                if (type === 'notify') {
-                    for (const message of messages) {
-                        // Check for status messages using multiple identifiers
-                        const jid = message.key.remoteJid;
-                        if (this.isStatusMessage(message)) {
-                            // console.log('📟 Status message detected, processing for reaction...');
-                            // Add small delay to prevent race conditions
-                            setTimeout(() => {
-                                this.processStatusForReaction(message);
-                            }, 100);
-                        }
-                    }
+            // Skip our own status
+            if (message.key.fromMe) {
+                return;
+            }
+            
+            // Create unique identifier for this status
+            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
+            
+            // Skip if we already reacted to this status
+            if (this.reactedStatuses.has(statusId)) {
+                return;
+            }
+            
+            // Mark as processed IMMEDIATELY to prevent duplicates
+            this.reactedStatuses.add(statusId);
+            
+            // Get random status reaction
+            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
+            if (!reaction) {
+                return;
+            }
+            
+            // Calculate delay based on delay mode
+            const delay = this.statusReactDelayMode === 'delay' ? 
+                         (this.statusReactionDelay.min + Math.random() * (this.statusReactionDelay.max - this.statusReactionDelay.min)) : 0;
+            
+            // Schedule the reaction
+            setTimeout(async () => {
+                try {
+                    await this.sendStatusReaction(message, reaction);
+                    // Status reacted successfully as extension of auto-view
+                } catch (error) {
+                    console.error('❌ Status reaction failed:', error.message);
+                    // Remove from cache since reaction failed
+                    this.reactedStatuses.delete(statusId);
                 }
-            });
+            }, delay);
             
-            console.log('✅ Status listener set up successfully');
+        } catch (error) {
+            console.error('❌ Error in reactToViewedStatus:', error);
         }
     }
 
