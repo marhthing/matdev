@@ -19,18 +19,18 @@ class AudioEffectsPlugin {
         this.effects = {
             // Voice effects - greatly improved with modern techniques
             robot: {
-                filter: 'aformat=sample_rates=8000:sample_fmts=s16,dynaudnorm=p=0.9:s=5,tremolo=f=5:d=0.5,volume=1.8',
-                description: 'Advanced robotic voice with tremolo modulation',
+                filter: 'aecho=0.8:0.88:6:0.4,acrusher=bits=8:mode=log:aa=1,bandpass=f=800:width_type=h:w=400,volume=1.5',
+                description: 'Metallic robot voice with digital processing',
                 category: 'voice'
             },
             chipmunk: {
-                filter: 'asetrate=r=44100*1.8,aresample=44100,dynaudnorm=p=0.95:s=3,highpass=f=200,volume=1.2',
-                description: 'Enhanced high-pitched chipmunk voice',
+                filter: 'asetrate=44100*2,atempo=0.5,dynaudnorm=p=0.9:s=3,volume=1.2',
+                description: 'Classic high-pitched chipmunk voice',
                 category: 'voice'
             },
             deep: {
-                filter: 'asetrate=r=44100*0.6,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=2000,volume=1.4',
-                description: 'Deep demonic voice with enhanced bass',
+                filter: 'asetrate=44100*0.75,atempo=1.3333,dynaudnorm=p=0.9:s=5,lowpass=f=2000,volume=1.3',
+                description: 'Deep bass voice with enhanced low frequencies',
                 category: 'voice'
             },
             echo: {
@@ -49,7 +49,7 @@ class AudioEffectsPlugin {
                 category: 'voice'
             },
             demon: {
-                filter: 'asetrate=r=44100*0.5,aresample=44100,dynaudnorm=p=0.9:s=5,lowpass=f=1500,acrusher=bits=8:mode=log:aa=1,volume=1.6',
+                filter: 'asetrate=44100*0.5,atempo=2.0,dynaudnorm=p=0.9:s=5,lowpass=f=1500,acrusher=bits=6:mode=log:aa=1,volume=1.4',
                 description: 'Terrifying demonic voice with distortion',
                 category: 'voice'
             },
@@ -90,7 +90,7 @@ class AudioEffectsPlugin {
             
             // FX effects - advanced processing chains
             distortion: {
-                filter: 'acrusher=bits=6:mode=log:aa=1,dynaudnorm=p=0.8:s=7,anequalizer=f=1000:width_type=h:width=800:g=3,volume=0.8',
+                filter: 'acrusher=bits=4:mode=log:aa=1,highpass=f=500,lowpass=f=3000,dynaudnorm=p=0.8:s=7,volume=0.8',
                 description: 'Heavy distortion with frequency shaping',
                 category: 'fx'
             },
@@ -100,7 +100,7 @@ class AudioEffectsPlugin {
                 category: 'fx'
             },
             telephone: {
-                filter: 'highpass=f=400,lowpass=f=2800,dynaudnorm=p=0.9:s=5,compand=attacks=0:points=-60/-60|-40/-30|-20/-15|-10/-10|0/-8:gain=4,volume=1.3',
+                filter: 'bandpass=f=1500:width_type=h:w=2000,dynaudnorm=p=0.9:s=5,compand=attacks=0:points=-45/-15|-27/-9|-5/-5:gain=3,volume=1.3',
                 description: 'Authentic telephone/radio effect with compression',
                 category: 'fx'
             },
@@ -110,7 +110,7 @@ class AudioEffectsPlugin {
                 category: 'fx'
             },
             vintage: {
-                filter: 'highpass=f=100,lowpass=f=5000,dynaudnorm=p=0.85:s=8,compand=attacks=0.1:points=-90/-90|-50/-40|-30/-25|-15/-15|0/-10:gain=3,volume=1.1',
+                filter: 'highpass=f=100,lowpass=f=5000,dynaudnorm=p=0.85:s=8,compand=attacks=0.1:points=-50/-40|-30/-25|-15/-15|0/-10:gain=2,volume=1.1',
                 description: 'Vintage analog sound with warmth',
                 category: 'fx'
             }
@@ -177,9 +177,9 @@ class AudioEffectsPlugin {
             }
 
             // Download audio
-            const buffer = await this.downloadMediaRobust(messageInfo, quotedMessage, 'audioMessage');
+            const media = await this.downloadMediaRobust(messageInfo, quotedMessage, 'audioMessage');
             
-            if (!buffer) {
+            if (!media?.buffer) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process audio. Please try again.');
                 return;
             }
@@ -190,7 +190,7 @@ class AudioEffectsPlugin {
             outputPath = path.join(process.cwd(), 'tmp', `effect_${effectName}_${timestamp}.ogg`);
 
             // Write input file
-            await fs.writeFile(inputPath, buffer);
+            await fs.writeFile(inputPath, media.buffer);
 
             // Apply audio effect using FFmpeg with better error handling
             const effect = this.effects[effectName];
