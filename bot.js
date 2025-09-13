@@ -450,13 +450,71 @@ class MATDEV {
         
         const getModeIcon = (isPublic) => isPublic ? icons.public : icons.private;
         
-        // Build message sections
-        let message = `${template.title}\n${template.subtitle}\n\n`;
+        // Build modern welcome message
+        let message = `╭─────────────────────────────────────╮\n`;
+        message += `│    🤖 *MATDEV BOT ACTIVATED* 🤖    │\n`;
+        message += `╰─────────────────────────────────────╯\n\n`;
+        message += `🚀 *Welcome!* Your WhatsApp is now linked!\n\n`;
         
-        // Configuration section
-        message += `${template.sections.configuration.title}\n`;
+        // Configuration section with modern boxes
+        message += `┌─ 📋 *CONFIGURATION STATUS* ─┐\n`;
         displaySettings.forEach((setting, index) => {
             const isLast = index === displaySettings.length - 1;
+            const prefix = isLast ? "└" : "├";
+            
+            const configValue = config[setting.key];
+            let displayValue = configValue;
+            let statusIcon = "";
+            
+            if (setting.special === "mode") {
+                statusIcon = getModeIcon(configValue);
+                displayValue = configValue ? "Public" : "Private";
+            } else if (setting.special === "text") {
+                statusIcon = setting.icon || "📝";
+                displayValue = `"${configValue}"`;
+            } else {
+                statusIcon = getStatusIcon(configValue);
+                displayValue = configValue ? "ON" : "OFF";
+            }
+            
+            message += `${prefix}─ ${setting.label}: ${displayValue} ${statusIcon}\n`;
+        });
+        message += `└─────────────────────────────────┘\n\n`;
+        
+        // Quick commands section
+        message += `⚡ *ESSENTIAL COMMANDS:*\n`;
+        template.sections.quickCommands.items.forEach(item => {
+            message += `▸ ${config.PREFIX}${item}\n`;
+        });
+        message += `\n`;
+        
+        // Owner commands section  
+        message += `👑 *OWNER COMMANDS:*\n`;
+        template.sections.ownerCommands.items.forEach(item => {
+            message += `▸ ${config.PREFIX}${item}\n`;
+        });
+        message += `\n`;
+        
+        // Security status
+        message += `🛡️ *SECURITY STATUS:*\n`;
+        template.sections.security.items.forEach(item => {
+            message += `✓ ${item}\n`;
+        });
+        message += `\n`;
+        
+        // Help section
+        message += `🆘 *NEED HELP?*\n`;
+        template.sections.help.items.forEach(item => {
+            message += `• ${config.PREFIX}${item}\n`;
+        });
+        message += `\n`;
+        
+        // Footer with modern styling
+        message += `╭─────────────────────────────────────╮\n`;
+        message += `│  Ready to explore? Try ${config.PREFIX}menu! 🚀  │\n`;
+        message += `╰─────────────────────────────────────╯`;
+        
+        return message;
             const treeChar = isLast ? treeChars.last : treeChars.middle;
             const configValue = config[setting.key];
             
