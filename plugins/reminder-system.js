@@ -71,12 +71,17 @@ class ReminderSystemPlugin {
             );
 
             const timeStr = this.formatDateTime(parsed.datetime);
-            await this.bot.messageHandler.reply(messageInfo,
+            const confirmMessage = await this.bot.messageHandler.reply(messageInfo,
                 `⏰ **Reminder Set**\n\n` +
                 `**ID:** ${reminderId}\n` +
                 `**Time:** ${timeStr}\n` +
                 `**Message:** ${parsed.message}\n\n` +
                 `🔔 You'll be notified when it's time!`);
+            
+            // Mark chat as unread to highlight the reminder
+            if (confirmMessage) {
+                await this.markChatUnread(messageInfo.chat_jid, confirmMessage);
+            }
 
         } catch (error) {
             console.error('Error in remind command:', error);
@@ -270,12 +275,19 @@ class ReminderSystemPlugin {
             const reminderText = `⏰ **REMINDER**\n\n${reminder.message}\n\n_Set on: ${this.formatDateTime(reminder.created)}_`;
             
             // Send reminder 3 times with delays to avoid WhatsApp blocking
+            let firstMessage = null;
             for (let i = 0; i < 3; i++) {
                 setTimeout(async () => {
                     try {
-                        await this.bot.sock.sendMessage(reminder.chatId, {
+                        const message = await this.bot.sock.sendMessage(reminder.chatId, {
                             text: reminderText
                         });
+                        
+                        // Mark chat as unread after first reminder delivery
+                        if (i === 0 && message) {
+                            firstMessage = message;
+                            await this.markChatUnread(reminder.chatId, message);
+                        }
                     } catch (sendError) {
                         console.error(`Error sending reminder ${reminderId}:`, sendError);
                     }
@@ -363,6 +375,19 @@ class ReminderSystemPlugin {
         const id = this.nextId.toString();
         this.nextId++;
         return id;
+    }
+
+    async markChatUnread(chatJid, message) {
+        try {
+            // Use the message reference to mark chat as unread
+            await this.bot.sock.chatModify({
+                markRead: false,
+                lastMessages: [message]
+            }, chatJid);
+            console.log(`🔴 Marked chat ${chatJid} as unread`);
+        } catch (error) {
+            console.log(`Could not mark chat as unread: ${error.message}`);
+        }
     }
 
     formatDateTime(timestamp) {
