@@ -110,11 +110,11 @@ class TranslationPlugin {
 
     async translateText(text, toLang) {
         try {
-            // Try Google Translate free API (via translate.googleapis.com)
+            // Try Google Translate free API with auto-detection (via translate.googleapis.com)
             const response = await axios.post('https://translate.googleapis.com/translate_a/single', null, {
                 params: {
                     client: 'gtx',
-                    sl: 'en',
+                    sl: 'auto', // Auto-detect source language
                     tl: toLang,
                     dt: 't',
                     q: text
@@ -126,10 +126,12 @@ class TranslationPlugin {
             });
 
             if (response.data && response.data[0] && response.data[0][0] && response.data[0][0][0]) {
+                // Extract detected source language from response
+                const detectedLang = response.data[2] || 'auto';
                 return {
                     success: true,
                     text: response.data[0][0][0],
-                    fromLang: 'en'
+                    fromLang: detectedLang
                 };
             }
 
@@ -142,7 +144,7 @@ class TranslationPlugin {
             try {
                 const libreResponse = await axios.post('https://libretranslate.de/translate', {
                     q: text,
-                    source: 'en',
+                    source: 'auto', // Auto-detect source language
                     target: toLang,
                     format: 'text'
                 }, {
@@ -156,7 +158,7 @@ class TranslationPlugin {
                     return {
                         success: true,
                         text: libreResponse.data.translatedText,
-                        fromLang: 'en'
+                        fromLang: 'auto'
                     };
                 }
             } catch (libreError) {
@@ -165,7 +167,7 @@ class TranslationPlugin {
 
             // Try Lingva Translate as final backup
             try {
-                const lingvaResponse = await axios.get(`https://lingva.ml/api/v1/en/${toLang}/${encodeURIComponent(text)}`, {
+                const lingvaResponse = await axios.get(`https://lingva.ml/api/v1/auto/${toLang}/${encodeURIComponent(text)}`, {
                     timeout: 10000,
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -176,7 +178,7 @@ class TranslationPlugin {
                     return {
                         success: true,
                         text: lingvaResponse.data.translation,
-                        fromLang: 'en'
+                        fromLang: 'auto'
                     };
                 }
             } catch (lingvaError) {
