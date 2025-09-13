@@ -36,22 +36,10 @@ class VoiceChangerPlugin {
     }
 
     registerCommands() {
-        // Register individual effect commands
-        Object.keys(this.effects).forEach(effect => {
-            this.bot.messageHandler.registerCommand(effect, 
-                (messageInfo) => this.voiceChangeCommand(messageInfo, effect), {
-                description: `Apply ${effect} voice effect`,
-                usage: `${config.PREFIX}${effect} (reply to audio/voice)`,
-                category: 'media',
-                plugin: 'voice-changer',
-                source: 'voice-changer.js'
-            });
-        });
-
         // Main voice command with effect parameter
         this.bot.messageHandler.registerCommand('voice', this.voiceMainCommand.bind(this), {
             description: 'Apply voice effects to audio',
-            usage: `${config.PREFIX}voice <effect> (reply to audio)\nEffects: ${Object.keys(this.effects).join(', ')}`,
+            usage: `${config.PREFIX}voice <effect> (reply to audio) OR ${config.PREFIX}voice (to list effects)`,
             category: 'media',
             plugin: 'voice-changer',
             source: 'voice-changer.js'
@@ -61,10 +49,17 @@ class VoiceChangerPlugin {
     async voiceMainCommand(messageInfo) {
         const text = messageInfo.body.split(' ').slice(1).join(' ').toLowerCase();
         
-        if (!text || !this.effects[text]) {
-            const effectsList = Object.keys(this.effects).join(', ');
+        if (!text) {
+            const effectsList = Object.keys(this.effects).map(effect => `• ${effect}`).join('\n');
             await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please specify an effect.\n\n🎵 Available effects:\n${effectsList}\n\n📝 Usage: ${config.PREFIX}voice <effect> (reply to audio)`);
+                `🎵 *Available Voice Effects:*\n\n${effectsList}\n\n📝 *Usage:* ${config.PREFIX}voice <effect> (reply to audio)\n💡 *Example:* ${config.PREFIX}voice robot`);
+            return;
+        }
+
+        if (!this.effects[text]) {
+            const effectsList = Object.keys(this.effects).map(effect => `• ${effect}`).join('\n');
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Invalid effect: *${text}*\n\n🎵 *Available effects:*\n${effectsList}\n\n📝 Usage: ${config.PREFIX}voice <effect> (reply to audio)`);
             return;
         }
 
