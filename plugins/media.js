@@ -41,7 +41,7 @@ class MediaPlugin {
         // Main media command with subcommands
         this.bot.messageHandler.registerCommand('media', this.mediaCommand.bind(this), {
             description: 'Media processing and manipulation',
-            usage: `${config.PREFIX}media [subcommand] - Available: info, convert <format>, compress, mp3, video, image`,
+            usage: `${config.PREFIX}media [subcommand] - Available: info, convert <format>, compress, mp3`,
             category: 'media'
         });
     }
@@ -68,12 +68,6 @@ class MediaPlugin {
                 case 'mp3':
                     await this.handleToMp3Command(messageInfo);
                     break;
-                case 'video':
-                    await this.handleToVideoCommand(messageInfo);
-                    break;
-                case 'image':
-                    await this.handleToImageCommand(messageInfo);
-                    break;
                 default:
                     // No subcommand - show available subcommands
                     const helpText = `*📱 MEDIA COMMANDS*\n\n` +
@@ -83,8 +77,7 @@ class MediaPlugin {
                         `• \`convert <format>\` - Convert to different format\n` +
                         `• \`compress\` - Compress media file\n` +
                         `• \`mp3\` - Convert to MP3 format\n` +
-                        `• \`video\` - Convert to video format\n` +
-                        `• \`image\` - Convert to image format\n\n` +
+                        `\n` +
                         `*Example:* ${config.PREFIX}media info (reply to media)`;
                     
                     await this.bot.messageHandler.reply(messageInfo, helpText);
@@ -319,78 +312,6 @@ class MediaPlugin {
         }
     }
 
-    /**
-     * Handle video subcommand
-     */
-    async handleToVideoCommand(messageInfo) {
-        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
-        if (error) {
-            await this.bot.messageHandler.reply(messageInfo, error);
-            return;
-        }
-        
-        await this.handleToVideo(messageInfo, quoted, mediaType);
-    }
-
-    /**
-     * Handle video processing
-     */
-    async handleToVideo(messageInfo, quoted, mediaType) {
-        try {
-            // await this.bot.messageHandler.reply(messageInfo, '🎬 Converting to video... Please wait.');
-
-            // Download media using updated method
-            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
-
-            // Send as video
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                video: buffer,
-                caption: '✅ Converted to video'
-            });
-
-        } catch (error) {
-            console.error('ToVideo error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error converting to video.');
-        }
-    }
-
-    /**
-     * Handle image subcommand
-     */
-    async handleToImageCommand(messageInfo) {
-        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
-        if (error) {
-            await this.bot.messageHandler.reply(messageInfo, error);
-            return;
-        }
-        
-        await this.handleToImage(messageInfo, quoted, mediaType);
-    }
-
-    /**
-     * Handle image processing
-     */
-    async handleToImage(messageInfo, quoted, mediaType) {
-        try {
-            if (!['stickerMessage', 'documentMessage'].includes(mediaType)) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a sticker or image document.');
-                return;
-            }
-
-            // Download media using updated method
-            const { buffer } = await this.downloadMediaRobust(messageInfo, quoted, mediaType);
-
-            // Send as image
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                image: buffer,
-                caption: '✅ Converted to image'
-            });
-
-        } catch (error) {
-            console.error('ToImage error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error converting to image.');
-        }
-    }
 
     /**
      * Robust media download with latest Baileys methods
