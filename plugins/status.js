@@ -30,8 +30,7 @@ class StatusPlugin {
             '💜',    // Purple heart
             '🤍',    // White heart
             '🤎',    // Brown heart
-            '🖤',    // Black heart
-            '🩷'     // Pink heart
+            '🖤'    // Black heart
         ];
         
         // Start cleanup timer for reacted statuses
