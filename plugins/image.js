@@ -87,7 +87,7 @@ class ImagePlugin {
             // Get the prompt from the message
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide an image description.\nUsage: .image <description>\n\nExamples:\n• .image a cat in a fancy restaurant\n• .image futuristic city with flying cars\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
@@ -101,7 +101,7 @@ class ImagePlugin {
 
                 let imageBuffer = null;
                 let serviceName = '';
-                
+
                 for (const [index, service] of services.entries()) {
                     try {
                         console.log(`Trying free image service ${index + 1}...`);
@@ -125,10 +125,10 @@ class ImagePlugin {
 
                 // Create temporary file path
                 const tempFile = path.join(__dirname, '..', 'tmp', `generated_${Date.now()}.jpg`);
-                
+
                 // Ensure tmp directory exists
                 await fs.ensureDir(path.dirname(tempFile));
-                
+
                 // Write image buffer to temp file
                 await fs.writeFile(tempFile, imageBuffer);
 
@@ -162,7 +162,7 @@ class ImagePlugin {
             // Pollinations.ai - completely free image generation
             const encodedPrompt = encodeURIComponent(prompt);
             const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
-            
+
             const response = await axios.get(imageUrl, {
                 responseType: 'arraybuffer',
                 timeout: 45000,
@@ -180,7 +180,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid image data received');
-            
+
         } catch (error) {
             throw new Error(`Pollinations failed: ${error.message}`);
         }
@@ -200,7 +200,7 @@ class ImagePlugin {
             for (const model of models) {
                 try {
                     console.log(`Trying HF model: ${model}`);
-                    
+
                     const response = await axios.post(
                         `https://api-inference.huggingface.co/models/${model}`,
                         { inputs: prompt },
@@ -221,7 +221,7 @@ class ImagePlugin {
                         const isImage = (bytes[0] === 0xFF && bytes[1] === 0xD8) || // JPEG
                                       (bytes[0] === 0x89 && bytes[1] === 0x50) || // PNG
                                       (bytes[0] === 0x47 && bytes[1] === 0x49);   // GIF
-                        
+
                         if (isImage) {
                             return {
                                 success: true,
@@ -237,7 +237,7 @@ class ImagePlugin {
             }
 
             throw new Error('All HF models failed');
-            
+
         } catch (error) {
             throw new Error(`Hugging Face failed: ${error.message}`);
         }
@@ -251,7 +251,7 @@ class ImagePlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a video description.\nUsage: .video <description>\n\nExamples:\n• .video a cat playing in the rain\n• .video sunset over mountains\n• .video abstract colorful particles\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
@@ -265,10 +265,10 @@ class ImagePlugin {
 
                 // Create temporary file path
                 const tempFile = path.join(__dirname, '..', 'tmp', `generated_video_${Date.now()}.mp4`);
-                
+
                 // Ensure tmp directory exists
                 await fs.ensureDir(path.dirname(tempFile));
-                
+
                 // Write video buffer to temp file
                 await fs.writeFile(tempFile, result.videoBuffer);
 
@@ -302,16 +302,45 @@ class ImagePlugin {
             // Check for quoted message
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.imageMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image to animate it.');
                 return;
             }
 
             try {
-                // Download the image first
+                // Download the image first - handle different message structures
                 const { downloadMediaMessage } = require('baileys');
-                const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                let imageBuffer;
+
+                try {
+                    imageBuffer = await downloadMediaMessage(
+                        { message: quotedMessage },
+                        'buffer',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                } catch (downloadError) {
+                    console.error('Download error:', downloadError);
+                    // Try alternative download method
+                    const stream = await downloadMediaMessage(
+                        { message: quotedMessage },
+                        'stream',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                    const chunks = [];
+                    for await (const chunk of stream) {
+                        chunks.push(chunk);
+                    }
+                    imageBuffer = Buffer.concat(chunks);
+                }
 
                 // Create temp file for the image
                 const tempImageFile = path.join(__dirname, '..', 'tmp', `temp_image_${Date.now()}.jpg`);
@@ -320,7 +349,7 @@ class ImagePlugin {
 
                 // Generate animated video from image
                 const result = await this.animateImage(tempImageFile);
-                
+
                 if (!result || !result.success) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Image animation service is currently unavailable. Please try again later.');
                     return;
@@ -360,7 +389,7 @@ class ImagePlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a writing prompt.\nUsage: .write <prompt>\n\nExamples:\n• .write a story about space cats\n• .write a poem about rain\n• .write a social media caption for coffee\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
@@ -395,7 +424,7 @@ class ImagePlugin {
         try {
             const style = messageInfo.args.join(' ').trim();
             if (!style) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please specify a style and reply to an image.\nUsage: .style <style> (reply to image)\n\nExamples:\n• .style anime\n• .style oil painting\n• .style cartoon\n• .style watercolor\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
@@ -403,16 +432,45 @@ class ImagePlugin {
             // Check for quoted message
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.imageMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image to apply style transfer.');
                 return;
             }
 
             try {
-                // Download the image first
+                // Download the image first - handle different message structures
                 const { downloadMediaMessage } = require('baileys');
-                const imageBuffer = await downloadMediaMessage(quotedMessage, 'buffer', {});
+                let imageBuffer;
+
+                try {
+                    imageBuffer = await downloadMediaMessage(
+                        { message: quotedMessage },
+                        'buffer',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                } catch (downloadError) {
+                    console.error('Download error:', downloadError);
+                    // Try alternative download method
+                    const stream = await downloadMediaMessage(
+                        { message: quotedMessage },
+                        'stream',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                    const chunks = [];
+                    for await (const chunk of stream) {
+                        chunks.push(chunk);
+                    }
+                    imageBuffer = Buffer.concat(chunks);
+                }
 
                 // Create temp file for the image
                 const tempImageFile = path.join(__dirname, '..', 'tmp', `temp_image_${Date.now()}.jpg`);
@@ -421,7 +479,7 @@ class ImagePlugin {
 
                 // Apply style transfer
                 const result = await this.applyStyle(tempImageFile, style);
-                
+
                 if (!result || !result.success) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Style transfer service is currently unavailable. Please try again later.');
                     return;
@@ -461,7 +519,7 @@ class ImagePlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a music description.\nUsage: .music <description>\n\nExamples:\n• .music jazz piano solo\n• .music relaxing rain sounds\n• .music upbeat electronic\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
@@ -475,10 +533,10 @@ class ImagePlugin {
 
                 // Create temporary file path
                 const tempFile = path.join(__dirname, '..', 'tmp', `generated_music_${Date.now()}.mp3`);
-                
+
                 // Ensure tmp directory exists
                 await fs.ensureDir(path.dirname(tempFile));
-                
+
                 // Write audio buffer to temp file
                 await fs.writeFile(tempFile, result.audioBuffer);
 
@@ -513,7 +571,7 @@ class ImagePlugin {
         try {
             const encodedPrompt = encodeURIComponent(prompt);
             const videoUrl = `https://video.pollinations.ai/prompt/${encodedPrompt}`;
-            
+
             const response = await axios.get(videoUrl, {
                 responseType: 'arraybuffer',
                 timeout: 120000, // 2 minutes for video generation
@@ -530,7 +588,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid video data received');
-            
+
         } catch (error) {
             throw new Error(`Video generation failed: ${error.message}`);
         }
@@ -545,11 +603,11 @@ class ImagePlugin {
             // Upload image and request animation
             const imageBuffer = await fs.readFile(imagePath);
             const base64Image = imageBuffer.toString('base64');
-            
+
             // Use text-to-video with image reference
             const prompt = encodeURIComponent('animate this image with subtle motion and effects');
             const videoUrl = `https://video.pollinations.ai/prompt/${prompt}?image=${base64Image}`;
-            
+
             const response = await axios.get(videoUrl, {
                 responseType: 'arraybuffer',
                 timeout: 120000,
@@ -566,7 +624,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid animation data received');
-            
+
         } catch (error) {
             throw new Error(`Image animation failed: ${error.message}`);
         }
@@ -579,7 +637,7 @@ class ImagePlugin {
         try {
             const encodedPrompt = encodeURIComponent(prompt);
             const textUrl = `https://text.pollinations.ai/prompt/${encodedPrompt}`;
-            
+
             const response = await axios.get(textUrl, {
                 timeout: 30000,
                 headers: {
@@ -596,7 +654,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid text data received');
-            
+
         } catch (error) {
             throw new Error(`Text generation failed: ${error.message}`);
         }
@@ -609,11 +667,11 @@ class ImagePlugin {
         try {
             const imageBuffer = await fs.readFile(imagePath);
             const base64Image = imageBuffer.toString('base64');
-            
+
             // Use image generation with style prompt and reference image
             const stylePrompt = encodeURIComponent(`transform this image to ${style} style`);
             const styleUrl = `https://image.pollinations.ai/prompt/${stylePrompt}?image=${base64Image}&style=${encodeURIComponent(style)}`;
-            
+
             const response = await axios.get(styleUrl, {
                 responseType: 'arraybuffer',
                 timeout: 60000,
@@ -630,7 +688,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid styled image data received');
-            
+
         } catch (error) {
             throw new Error(`Style transfer failed: ${error.message}`);
         }
@@ -644,7 +702,7 @@ class ImagePlugin {
             // Use the correct Pollinations.ai music/audio API
             const encodedPrompt = encodeURIComponent(prompt);
             const musicUrl = `https://audio.pollinations.ai/${encodedPrompt}`;
-            
+
             const response = await axios.get(musicUrl, {
                 responseType: 'arraybuffer',
                 timeout: 120000, // 2 minutes for audio generation
@@ -662,7 +720,7 @@ class ImagePlugin {
             }
 
             throw new Error('Invalid audio data received');
-            
+
         } catch (error) {
             throw new Error(`Music generation failed: ${error.message}`);
         }
