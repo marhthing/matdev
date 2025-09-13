@@ -391,29 +391,17 @@ class MATDEV {
     }
 
     /**
-     * Check if this is a first-time connection (fresh session creation)
+     * Check if this is a first-time connection (no linked.json file exists)
      */
     async isFirstTimeConnection() {
         try {
-            // Check if status settings file exists (created by status plugin on first load)
-            const statusSettingsPath = path.join(__dirname, 'session', 'storage', 'status_settings.json');
-            const settingsExists = await fs.pathExists(statusSettingsPath);
+            const linkedFilePath = path.join(__dirname, 'session', 'storage', 'linked.json');
+            const linkedFileExists = await fs.pathExists(linkedFilePath);
             
-            // If settings file doesn't exist, it's likely first-time
-            // Also check if it was just created (size indicates new vs existing)
-            if (!settingsExists) {
-                return true;
-            }
-            
-            // Additional check: if file exists but is very recent (within last 10 seconds)
-            const stats = await fs.stat(statusSettingsPath);
-            const now = Date.now();
-            const fileAge = now - stats.mtime.getTime();
-            
-            // If file was created/modified in last 10 seconds, likely first-time
-            return fileAge < 10000;
+            // If linked.json doesn't exist, it's first-time
+            return !linkedFileExists;
         } catch (error) {
-            logger.warn('Error checking session status:', error.message);
+            logger.warn('Error checking linked status:', error.message);
             return false; // Assume existing session on error
         }
     }
@@ -522,6 +510,49 @@ class MATDEV {
         message += template.footer.replace('{prefix}', config.PREFIX);
         
         return message;
+    }
+
+    /**
+     * Create or update linked.json file to track connection history
+     */
+    async createOrUpdateLinkedFile() {
+        try {
+            const linkedFilePath = path.join(__dirname, 'session', 'storage', 'linked.json');
+            const currentTime = new Date().toISOString();
+            
+            let linkedData = {
+                firstLinked: currentTime,
+                lastStarted: currentTime,
+                restartHistory: [currentTime]
+            };
+            
+            // If file exists, load existing data and update
+            if (await fs.pathExists(linkedFilePath)) {
+                const existingData = await fs.readJson(linkedFilePath);
+                linkedData = {
+                    firstLinked: existingData.firstLinked, // Keep original link time
+                    lastStarted: currentTime,
+                    restartHistory: [...(existingData.restartHistory || []), currentTime]
+                };
+                
+                // Keep only last 10 restart entries to prevent file bloat
+                if (linkedData.restartHistory.length > 10) {
+                    linkedData.restartHistory = linkedData.restartHistory.slice(-10);
+                }
+            }
+            
+            // Ensure storage directory exists
+            await fs.ensureDir(path.dirname(linkedFilePath));
+            
+            // Write updated linked data
+            await fs.writeJson(linkedFilePath, linkedData, { spaces: 2 });
+            
+            if (!await fs.pathExists(linkedFilePath.replace('.json', '.backup.json'))) {
+                logger.info('📝 Created linked.json - WhatsApp connection history initialized');
+            }
+        } catch (error) {
+            logger.warn('Failed to create/update linked.json:', error.message);
+        }
     }
 
     /**
@@ -840,6 +871,9 @@ class MATDEV {
                 this.connectionReadyResolver();
                 this.connectionReadyResolver = null;
             }
+
+            // Create or update linked.json file after successful connection
+            await this.createOrUpdateLinkedFile();
 
             // Send startup notification if configured (will be done after plugins load)
             if (config.OWNER_NUMBER && config.STARTUP_MESSAGE) {
