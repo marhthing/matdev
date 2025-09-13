@@ -352,8 +352,17 @@ class StatusPlugin {
         try {
             let info = `📊 *Status Configuration*\n\n`;
             info += `🔘 Status: ${this.statusSettings.enabled ? '🟢 Enabled' : '🔴 Disabled'}\n`;
-            info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n\n`;
-            info += `💡 Usage:\n`;
+            info += `💾 Auto download: ${this.statusSettings.autoDownload ? '✅ Enabled' : '❌ Disabled'}\n`;
+            info += `📤 Forward to: ${this.statusSettings.forwardDestination}\n`;
+            info += `👁️ View mode: ${this.statusSettings.viewMode.toUpperCase()}\n`;
+            
+            if (this.statusSettings.filterJids.length > 0) {
+                info += `📝 Filtered JIDs: ${this.statusSettings.filterJids.join(', ')}\n`;
+            } else {
+                info += `📝 Filtered JIDs: None\n`;
+            }
+            
+            info += `\n💡 Usage:\n`;
             info += `${config.PREFIX}status <jid> - Set forwarding destination\n`;
             info += `${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
 
