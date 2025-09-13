@@ -126,7 +126,7 @@ class VideoEditorPlugin {
     }
 
     async trimCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -146,7 +146,7 @@ class VideoEditorPlugin {
     }
 
     async compressCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
         const quality = args[0]?.toLowerCase() || 'medium';
 
         const validQualities = ['low', 'medium', 'high'];
@@ -160,7 +160,7 @@ class VideoEditorPlugin {
     }
 
     async speedCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -183,7 +183,7 @@ class VideoEditorPlugin {
     }
 
     async cropCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -205,7 +205,7 @@ class VideoEditorPlugin {
     }
 
     async rotateCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -223,7 +223,7 @@ class VideoEditorPlugin {
     }
 
     async scaleCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -243,7 +243,7 @@ class VideoEditorPlugin {
     }
 
     async fpsCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -261,7 +261,7 @@ class VideoEditorPlugin {
     }
 
     async extractCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -279,7 +279,7 @@ class VideoEditorPlugin {
     }
 
     async loopCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -297,7 +297,7 @@ class VideoEditorPlugin {
     }
 
     async cutCommand(messageInfo) {
-        const args = messageInfo.body.split(' ').slice(1);
+        const args = messageInfo.text.split(' ').slice(1);
 
         if (args.length < 2) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -380,13 +380,13 @@ class VideoEditorPlugin {
 
             // Send processed media
             if (operation === 'extract') {
-                await this.bot.sock.sendMessage(messageInfo.sender, {
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: { url: outputPath },
                     mimetype: 'image/jpeg',
                     caption: `EXTRACTED FRAME`,
                 });
             } else {
-                await this.bot.sock.sendMessage(messageInfo.sender, {
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     video: { url: outputPath },
                     mimetype: 'video/mp4',
                     caption: `${operation.toUpperCase()}`,
