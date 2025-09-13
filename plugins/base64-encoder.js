@@ -184,6 +184,251 @@ class Base64EncoderPlugin {
         return true;
     }
 
+    async encodeMediaCommand(messageInfo, quotedMessage, currentMedia) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🔐 Processing media for Base64 encoding...');
+
+            let mediaBuffer = null;
+            let mediaType = '';
+            let fileName = '';
+
+            // Handle quoted message media
+            if (quotedMessage) {
+                const { downloadMediaMessage } = require('baileys');
+                
+                // Determine media type and get media object
+                if (quotedMessage.imageMessage) {
+                    mediaType = 'image';
+                    fileName = quotedMessage.imageMessage.caption || 'encoded_image';
+                } else if (quotedMessage.videoMessage) {
+                    mediaType = 'video';
+                    fileName = quotedMessage.videoMessage.caption || 'encoded_video';
+                } else if (quotedMessage.audioMessage) {
+                    mediaType = 'audio';
+                    fileName = 'encoded_audio';
+                } else if (quotedMessage.documentMessage) {
+                    mediaType = 'document';
+                    fileName = quotedMessage.documentMessage.fileName || 'encoded_document';
+                } else if (quotedMessage.stickerMessage) {
+                    mediaType = 'sticker';
+                    fileName = 'encoded_sticker';
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Unsupported media type in quoted message.');
+                    return;
+                }
+
+                // Download the media
+                try {
+                    mediaBuffer = await downloadMediaMessage(
+                        { message: quotedMessage },
+                        'buffer',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                } catch (downloadError) {
+                    console.error('Media download error:', downloadError);
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media. Please try again.');
+                    return;
+                }
+            }
+            // Handle current message media
+            else if (currentMedia) {
+                const { downloadMediaMessage } = require('baileys');
+                
+                if (messageInfo.message.imageMessage) {
+                    mediaType = 'image';
+                    fileName = messageInfo.message.imageMessage.caption || 'encoded_image';
+                } else if (messageInfo.message.videoMessage) {
+                    mediaType = 'video';
+                    fileName = messageInfo.message.videoMessage.caption || 'encoded_video';
+                } else if (messageInfo.message.audioMessage) {
+                    mediaType = 'audio';
+                    fileName = 'encoded_audio';
+                } else if (messageInfo.message.documentMessage) {
+                    mediaType = 'document';
+                    fileName = messageInfo.message.documentMessage.fileName || 'encoded_document';
+                } else if (messageInfo.message.stickerMessage) {
+                    mediaType = 'sticker';
+                    fileName = 'encoded_sticker';
+                }
+
+                try {
+                    mediaBuffer = await downloadMediaMessage(
+                        { key: messageInfo.key, message: messageInfo.message },
+                        'buffer',
+                        {},
+                        {
+                            logger: console,
+                            reuploadRequest: this.bot.sock.updateMediaMessage
+                        }
+                    );
+                } catch (downloadError) {
+                    console.error('Media download error:', downloadError);
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media. Please try again.');
+                    return;
+                }
+            }
+
+            if (!mediaBuffer || mediaBuffer.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ No media data found.');
+                return;
+            }
+
+            // Check file size limit (25MB)
+            if (mediaBuffer.length > 25 * 1024 * 1024) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Media file too large: ${this.formatFileSize(mediaBuffer.length)}\n` +
+                    'Maximum supported size: 25MB');
+                return;
+            }
+
+            // Encode to base64
+            const encoded = mediaBuffer.toString('base64');
+            
+            // Send the encoded result
+            await this.bot.messageHandler.reply(messageInfo,
+                `🔐 **Base64 Encoded (${mediaType.toUpperCase()})**\n\n` +
+                `**File:** ${fileName}\n` +
+                `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
+                `**Type:** ${mediaType}\n\n` +
+                `**Encoded Base64:**\n\`\`\`${encoded.substring(0, 100)}${encoded.length > 100 ? '...' : ''}\`\`\`\n\n` +
+                `📊 Original: ${this.formatFileSize(mediaBuffer.length)} → Base64: ${encoded.length} chars\n\n` +
+                `💡 Use .decode to restore this media file`);
+
+        } catch (error) {
+            console.error('Error in encode media command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error encoding media.');
+        }
+    }
+
+    async decodeMediaCommand(messageInfo, mediaBuffer, mediaType, base64Length) {
+        try {
+            await this.bot.messageHandler.reply(messageInfo, '🔓 Decoding Base64 to media file...');
+
+            // Generate filename with timestamp
+            const timestamp = Date.now();
+            const extensions = {
+                'image': 'jpg',
+                'video': 'mp4', 
+                'audio': 'mp3',
+                'document': 'pdf',
+                'sticker': 'webp'
+            };
+            
+            const extension = extensions[mediaType] || 'bin';
+            const fileName = `decoded_${mediaType}_${timestamp}.${extension}`;
+            const tempPath = path.join(__dirname, '..', 'tmp', fileName);
+
+            // Ensure tmp directory exists
+            await fs.ensureDir(path.dirname(tempPath));
+
+            // Save buffer to temp file
+            await fs.writeFile(tempPath, mediaBuffer);
+
+            // Send the media back based on type
+            const caption = `🔓 **Decoded from Base64**\n\n` +
+                          `**Type:** ${mediaType.toUpperCase()}\n` +
+                          `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
+                          `**Base64 Length:** ${base64Length} chars`;
+
+            try {
+                if (mediaType === 'image') {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        image: { url: tempPath },
+                        caption: caption
+                    });
+                } else if (mediaType === 'video') {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        video: { url: tempPath },
+                        caption: caption
+                    });
+                } else if (mediaType === 'audio') {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        audio: { url: tempPath },
+                        caption: caption
+                    });
+                } else if (mediaType === 'sticker') {
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        sticker: { url: tempPath }
+                    });
+                    // Send caption separately for stickers
+                    await this.bot.messageHandler.reply(messageInfo, caption);
+                } else {
+                    // Handle as document
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        document: { url: tempPath },
+                        fileName: fileName,
+                        caption: caption
+                    });
+                }
+
+                // Clean up temp file after a delay
+                setTimeout(async () => {
+                    try {
+                        await fs.unlink(tempPath);
+                    } catch (error) {
+                        console.error('Error cleaning up temp file:', error);
+                    }
+                }, 5000);
+
+            } catch (sendError) {
+                console.error('Error sending decoded media:', sendError);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error sending decoded media file.');
+                
+                // Clean up on error
+                try {
+                    await fs.unlink(tempPath);
+                } catch (unlinkError) {
+                    console.error('Error cleaning up temp file:', unlinkError);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error in decode media command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error decoding media.');
+        }
+    }
+
+    detectMediaType(buffer) {
+        if (buffer.length < 4) return null;
+
+        // Check magic bytes for common media types
+        const magicBytes = buffer.subarray(0, 4);
+        
+        // JPEG
+        if (magicBytes[0] === 0xFF && magicBytes[1] === 0xD8) return 'image';
+        
+        // PNG
+        if (magicBytes[0] === 0x89 && magicBytes[1] === 0x50 && 
+            magicBytes[2] === 0x4E && magicBytes[3] === 0x47) return 'image';
+        
+        // WebP
+        if (buffer.length >= 12 && 
+            buffer.subarray(0, 4).toString() === 'RIFF' &&
+            buffer.subarray(8, 12).toString() === 'WEBP') return 'sticker';
+        
+        // MP4
+        if (buffer.length >= 8 && buffer.subarray(4, 8).toString() === 'ftyp') return 'video';
+        
+        // PDF
+        if (buffer.subarray(0, 4).toString() === '%PDF') return 'document';
+        
+        // Check for audio formats (simplified)
+        if (magicBytes[0] === 0x49 && magicBytes[1] === 0x44 && magicBytes[2] === 0x33) return 'audio'; // MP3
+        
+        return null;
+    }
+
+    formatFileSize(bytes) {
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        if (bytes === 0) return '0 Bytes';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
     async cleanup() {
         console.log('🧹 Base64 Encoder plugin cleanup completed');
     }
