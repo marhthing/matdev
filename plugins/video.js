@@ -72,15 +72,10 @@ class VideoPlugin {
             // Check for animated sticker (GIF sticker)
             if (quotedMessage.stickerMessage) {
                 mediaType = 'stickerMessage';
-                // Check if sticker is animated (has isAnimated or duration property)
                 const stickerMsg = quotedMessage.stickerMessage;
-                if (stickerMsg.isAnimated || stickerMsg.seconds > 0 || stickerMsg.mimetype === 'image/webp') {
-                    isValidMedia = true;
-                    console.log('📹 Detected animated sticker for video conversion');
-                } else {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an animated sticker (GIF sticker).');
-                    return;
-                }
+                // Accept all stickers and let the conversion handle it
+                isValidMedia = true;
+                console.log('📹 Detected sticker for MP4 conversion');
             }
             // Check for GIF image
             else if (quotedMessage.imageMessage && 
@@ -139,12 +134,11 @@ class VideoPlugin {
                 throw new Error('Generated video file is empty');
             }
 
-            // Send as MP4 video using the temp file
+            // Send as MP4 video using the temp file without caption
             await this.bot.sock.sendMessage(messageInfo.sender, {
                 video: { url: tempFilePath },
                 mimetype: 'video/mp4',
-                fileName: `converted_video_${timestamp}.mp4`,
-                caption: '🎬 Media converted to MP4 video'
+                fileName: `converted_video_${timestamp}.mp4`
             });
 
             console.log('✅ Video');
