@@ -32,7 +32,24 @@ class VoiceChangerPlugin {
         this.registerCommands();
 
         await fs.ensureDir(path.join(process.cwd(), 'tmp'));
-        console.log('✅ Voice Changer plugin loaded');
+        
+        // Check if FFmpeg is available
+        try {
+            const { exec } = require('child_process');
+            await new Promise((resolve, reject) => {
+                exec('ffmpeg -version', (error, stdout, stderr) => {
+                    if (error) {
+                        console.log('⚠️ FFmpeg not found - voice effects may not work');
+                        reject(error);
+                    } else {
+                        console.log('✅ Voice Changer plugin loaded (FFmpeg available)');
+                        resolve();
+                    }
+                });
+            });
+        } catch (error) {
+            console.log('✅ Voice Changer plugin loaded (FFmpeg check failed - will attempt to use anyway)');
+        }
     }
 
     registerCommands() {
@@ -100,25 +117,51 @@ class VoiceChangerPlugin {
             // Write input file
             await fs.writeFile(inputPath, buffer.buffer);
 
-            // Apply voice effect using FFmpeg
+            // Apply voice effect using FFmpeg with better error handling
             const effect = this.effects[effectType];
-            const command = `ffmpeg -i "${inputPath}" -af "${effect}" -c:a libopus -b:a 64k "${outputPath}"`;
-
-            await new Promise((resolve, reject) => {
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        console.error('FFmpeg error:', error);
-                        reject(error);
-                    } else {
-                        resolve();
-                    }
+            let command = `ffmpeg -i "${inputPath}" -af "${effect}" -c:a libopus -b:a 64k "${outputPath}"`;
+            
+            // Fallback to MP3 if opus fails
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(command, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error('FFmpeg opus error:', stderr);
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
                 });
-            });
+            } catch (opusError) {
+                console.log('⚠️ Opus encoding failed, trying MP3 fallback...');
+                const mp3OutputPath = outputPath.replace('.ogg', '.mp3');
+                command = `ffmpeg -i "${inputPath}" -af "${effect}" -c:a mp3 -b:a 64k "${mp3OutputPath}"`;
+                
+                await new Promise((resolve, reject) => {
+                    exec(command, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error('FFmpeg MP3 error:', stderr);
+                            reject(new Error(`Voice effect failed: ${stderr}`));
+                        } else {
+                            // Update output path to MP3 version
+                            if (outputPath !== mp3OutputPath) {
+                                try {
+                                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                                } catch (e) {}
+                                outputPath = mp3OutputPath;
+                            }
+                            resolve();
+                        }
+                    });
+                });
+            }
 
-            // Send processed audio as voice note
-            await this.bot.sock.sendMessage(messageInfo.sender, {
+            // Send processed audio as voice note with proper mimetype
+            const isMP3 = outputPath.endsWith('.mp3');
+            const audioMessage = {
                 audio: { url: outputPath },
-                mimetype: 'audio/ogg; codecs=opus',
+                mimetype: isMP3 ? 'audio/mpeg' : 'audio/ogg; codecs=opus',
                 ptt: true,
                 contextInfo: {
                     externalAdReply: {
@@ -127,18 +170,45 @@ class VoiceChangerPlugin {
                         showAdAttribution: false
                     }
                 }
-            });
+            };
+
+            await this.bot.sock.sendMessage(messageInfo.sender, audioMessage);
 
         } catch (error) {
             console.error('Voice changer error:', error);
-            await this.bot.messageHandler.reply(messageInfo, `❌ Error applying ${effectType} effect.`);
+            let errorMessage = `❌ Error applying ${effectType} effect.`;
+            
+            if (error.message.includes('FFmpeg')) {
+                errorMessage += ' FFmpeg may not be installed.';
+            } else if (error.message.includes('format')) {
+                errorMessage += ' Audio format not supported.';
+            }
+            
+            await this.bot.messageHandler.reply(messageInfo, errorMessage);
         } finally {
-            // Cleanup
-            try {
-                if (inputPath) await fs.unlink(inputPath);
-                if (outputPath) await fs.unlink(outputPath);
-            } catch (cleanupError) {
-                console.log('Cleanup error (non-critical):', cleanupError.message);
+            // Enhanced cleanup with multiple attempts
+            const filesToClean = [inputPath, outputPath];
+            
+            for (const filePath of filesToClean) {
+                if (filePath) {
+                    try {
+                        if (await fs.pathExists(filePath)) {
+                            await fs.unlink(filePath);
+                        }
+                    } catch (cleanupError) {
+                        console.log(`Cleanup warning: ${cleanupError.message}`);
+                        // Force cleanup attempt
+                        setTimeout(async () => {
+                            try {
+                                if (await fs.pathExists(filePath)) {
+                                    await fs.unlink(filePath);
+                                }
+                            } catch (e) {
+                                // Silent failure for delayed cleanup
+                            }
+                        }, 5000);
+                    }
+                }
             }
         }
     }
