@@ -265,7 +265,7 @@ class AIGeneratorPlugin {
             }
 
             try {
-                await this.bot.messageHandler.reply(messageInfo, `🎨 Creating a ${style} style artwork...`);
+                // await this.bot.messageHandler.reply(messageInfo, `🎨 Creating a ${style} style artwork...`);
 
                 // Generate a new image with the requested style
                 const result = await this.applyStyle('', style);
