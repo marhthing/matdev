@@ -2,6 +2,7 @@ const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
+const { exec } = require('child_process'); // Required for LibreOffice conversion
 
 class PDFToolsPlugin {
     constructor() {
@@ -15,8 +16,8 @@ class PDFToolsPlugin {
         this.bot = bot;
         try {
             this.bot.messageHandler.registerCommand('pdf', this.pdfCommand.bind(this), {
-                description: 'Convert text or message to PDF',
-                usage: `${config.PREFIX}pdf <text> OR reply to message with ${config.PREFIX}pdf`,
+                description: 'Convert text, images, or documents to PDF',
+                usage: `${config.PREFIX}pdf <text> OR reply to message/image/document with ${config.PREFIX}pdf`,
                 category: 'utility',
                 plugin: 'pdf-tools',
                 source: 'pdf-tools.js'
@@ -32,43 +33,67 @@ class PDFToolsPlugin {
 
     async pdfCommand(messageInfo) {
         try {
-            // Check for quoted/replied message first
+            // Check for quoted/tagged message first
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
 
+            // Check if the message itself has media
+            let currentMedia = null;
+            if (messageInfo.message?.imageMessage) {
+                currentMedia = { type: 'image', data: messageInfo.message.imageMessage };
+            } else if (messageInfo.message?.documentMessage) {
+                currentMedia = { type: 'document', data: messageInfo.message.documentMessage };
+            }
+
             let textContent = '';
             let title = '';
+            let mediaToProcess = null;
 
             if (quotedMessage) {
-                // Extract text from quoted message
-                if (quotedMessage.conversation) {
+                // Check for media in quoted message
+                if (quotedMessage.imageMessage) {
+                    mediaToProcess = { type: 'image', data: quotedMessage.imageMessage, isQuoted: true };
+                } else if (quotedMessage.documentMessage) {
+                    mediaToProcess = { type: 'document', data: quotedMessage.documentMessage, isQuoted: true };
+                } else if (quotedMessage.conversation) {
                     textContent = quotedMessage.conversation;
                 } else if (quotedMessage.extendedTextMessage?.text) {
                     textContent = quotedMessage.extendedTextMessage.text;
                 } else {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text.');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text, image, or document.');
                     return;
                 }
-                title = `Message from ${new Date().toLocaleString()}`;
+                title = mediaToProcess ? `Media from ${new Date().toLocaleDateString()}` : `Message from ${new Date().toLocaleString()}`;
+            } else if (currentMedia) {
+                // Use current media
+                mediaToProcess = currentMedia;
+                title = `Media from ${new Date().toLocaleDateString()}`;
             } else {
                 // Get text from command arguments
                 textContent = messageInfo.args.join(' ').trim();
                 if (!textContent) {
                     await this.bot.messageHandler.reply(messageInfo,
-                        '📄 Usage: `.pdf <text>` OR reply to a message with `.pdf`\n\n' +
-                        'Examples:\n• `.pdf Hello World`\n• `.pdf This is a longer text that will be converted to PDF`\n• Reply to any message and type `.pdf`');
+                        '📄 Usage: `.pdf <text>` OR reply to a message/image/document with `.pdf`\n\n' +
+                        'Examples:\n• `.pdf Hello World`\n• Reply to any message/image/document and type `.pdf`\n• Send `.pdf` as caption on image/document\n\n' +
+                        '📸 Supported: Images (JPG, PNG, WebP)\n📄 Supported: Documents (PDF, DOC, DOCX, TXT)');
                     return;
                 }
                 title = 'Generated Document';
             }
 
-            // Check text length
-            if (textContent.length > 5000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 5000 characters.');
-                return;
-            }
+            // Process based on content type
+            let pdfResult;
 
-            const pdfResult = await this.createPDF(title, textContent);
+            if (mediaToProcess) {
+                pdfResult = await this.processMediaToPDF(messageInfo, mediaToProcess, title);
+            } else {
+                // Check text length
+                if (textContent.length > 5000) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 5000 characters.');
+                    return;
+                }
+                pdfResult = await this.createPDF(title, textContent);
+            }
 
             if (pdfResult.success) {
                 // Send the PDF file
@@ -88,6 +113,75 @@ class PDFToolsPlugin {
         } catch (error) {
             console.error('Error in pdf command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error creating PDF.');
+        }
+    }
+
+    async processMediaToPDF(messageInfo, mediaInfo, title) {
+        const tempDir = path.join(__dirname, '..', 'tmp');
+        await fs.ensureDir(tempDir);
+
+        const originalFileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+        const originalFilePath = path.join(tempDir, originalFileName);
+
+        try {
+            let fileUrl = null;
+            let mimeType = '';
+
+            if (mediaInfo.type === 'image') {
+                // Get image URL from message data
+                fileUrl = await this.bot.sock.downloadMediaMessage(mediaInfo.data, 'buffer');
+                mimeType = mediaInfo.data.mimetype;
+            } else if (mediaInfo.type === 'document') {
+                // Get document URL from message data
+                fileUrl = await this.bot.sock.downloadMediaMessage(mediaInfo.data, 'buffer');
+                mimeType = mediaInfo.data.mimetype;
+            }
+
+            if (!fileUrl) {
+                return { success: false, error: 'Could not download media.' };
+            }
+
+            // Save the downloaded media to a temporary file
+            await fs.writeFile(originalFilePath, fileUrl);
+
+            // Convert to PDF using LibreOffice
+            const outputFileName = `${originalFileName}.pdf`;
+            const outputFilePath = path.join(tempDir, outputFileName);
+
+            // Check if LibreOffice is installed and available
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(`soffice --headless --convert-to pdf --outdir "${tempDir}" "${originalFilePath}"`, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error(`LibreOffice conversion error: ${stderr}`);
+                            reject(new Error('LibreOffice conversion failed.'));
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
+
+                // Check if the output file was created
+                if (fs.existsSync(outputFilePath)) {
+                    return {
+                        success: true,
+                        filePath: outputFilePath,
+                        fileName: outputFileName
+                    };
+                } else {
+                    return { success: false, error: 'PDF conversion failed. Output file not found.' };
+                }
+            } catch (error) {
+                console.error('LibreOffice execution error:', error);
+                return { success: false, error: 'Error during PDF conversion. Ensure LibreOffice is installed and in your PATH.' };
+            }
+
+        } catch (error) {
+            console.error('Error processing media for PDF:', error);
+            return { success: false, error: 'Failed to process media for PDF conversion.' };
+        } finally {
+            // Clean up the original downloaded file
+            await fs.unlink(originalFilePath).catch(() => {});
         }
     }
 
@@ -282,23 +376,23 @@ class PDFToolsPlugin {
                 margin: 50,
                 font: 'Helvetica'
             });
-            
+
             // Create write stream
             const stream = fs.createWriteStream(filePath);
             doc.pipe(stream);
-            
+
             // Add title
             doc.fontSize(20)
                .fillColor('#333333')
                .text(title, 50, 50);
-            
+
             // Add underline
             doc.moveTo(50, 80)
                .lineTo(550, 80)
                .strokeColor('#007acc')
                .lineWidth(2)
                .stroke();
-            
+
             // Add content
             doc.fontSize(12)
                .fillColor('#000000')
@@ -307,7 +401,7 @@ class PDFToolsPlugin {
                    align: 'justify',
                    lineGap: 5
                });
-            
+
             // Add footer
             const pageHeight = doc.page.height;
             doc.fontSize(10)
@@ -315,16 +409,16 @@ class PDFToolsPlugin {
                .text(`Generated by MATDEV Bot on ${new Date().toLocaleString()}`, 50, pageHeight - 50, {
                    align: 'center'
                });
-            
+
             // Finalize the PDF
             doc.end();
-            
+
             // Wait for the stream to finish
             await new Promise((resolve, reject) => {
                 stream.on('finish', resolve);
                 stream.on('error', reject);
             });
-            
+
             return {
                 success: true,
                 filePath: filePath,
