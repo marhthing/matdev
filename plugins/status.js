@@ -587,6 +587,9 @@ class StatusPlugin {
             try {
                 // Handle auto status view first
                 await this.handleAutoStatusView(message);
+                
+                // Handle independent status reactions (works without viewing)
+                await this.handleIndependentStatusReact(message);
 
                 // Extract JID information using centralized JID utils
                 const jids = this.bot.jidUtils.extractJIDs(message);
@@ -622,7 +625,125 @@ class StatusPlugin {
     }
 
     /**
-     * Handle status auto react functionality  
+     * Handle independent status reactions (works without auto-view)
+     */
+    async handleIndependentStatusReact(message) {
+        try {
+            // Only process if status reactions are enabled
+            if (!this.statusSettings.statusReactEnabled) {
+                return;
+            }
+            
+            // Check if this is a status message
+            if (!this.isStatusMessage(message)) {
+                return;
+            }
+            
+            // Skip deleted/revoked status messages
+            if (message.messageStubType === 'REVOKE' || 
+                message.message?.protocolMessage?.type === 'REVOKE' ||
+                !message.message || 
+                Object.keys(message.message).length === 0) {
+                return;
+            }
+            
+            // Skip our own status
+            if (message.key.fromMe) {
+                return;
+            }
+            
+            const participantJid = message.key.participant;
+            const messageId = `${message.key.remoteJid}_${message.key.id}_${participantJid}`;
+            
+            // Check for message deduplication
+            if (this.processedMessages.has(messageId)) {
+                return;
+            }
+            
+            // Apply JID filtering based on status settings (reuse viewing filters)
+            if (!this.shouldViewStatus(participantJid)) {
+                return;
+            }
+            
+            // Mark message as processed for deduplication
+            this.processedMessages.add(messageId);
+            
+            // Clean up old processed messages (keep last 1000)
+            if (this.processedMessages.size > 1000) {
+                const firstEntry = this.processedMessages.values().next().value;
+                this.processedMessages.delete(firstEntry);
+            }
+            
+            // Process reaction without viewing the status
+            await this.handleStatusReactionOnly(message);
+            
+        } catch (error) {
+            console.error('❌ Error in handleIndependentStatusReact:', error);
+        }
+    }
+    
+    /**
+     * Check if message is a status message
+     */
+    isStatusMessage(message) {
+        if (!message || !message.key) return false;
+        
+        const jid = message.key.remoteJid;
+        
+        // Multiple checks for status messages
+        return (
+            jid === 'status@broadcast' ||           // Traditional method
+            jid?.endsWith('@broadcast') ||          // Updated method
+            jid?.includes('status') ||              // Alternative check
+            message.key.id?.startsWith('status_')   // ID-based check
+        );
+    }
+    
+    /**
+     * Handle status reaction only (without viewing)
+     */
+    async handleStatusReactionOnly(message) {
+        try {
+            // Create unique identifier for this status
+            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
+            
+            // Skip if we already reacted to this status
+            if (this.reactedStatuses.has(statusId)) {
+                return;
+            }
+            
+            // Mark as processed IMMEDIATELY to prevent duplicates
+            this.reactedStatuses.add(statusId);
+            
+            // Get random status reaction
+            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
+            if (!reaction) {
+                return;
+            }
+            
+            // Calculate delay based on delay mode
+            const delay = this.statusSettings.statusReactDelayMode === 'delay' ? 
+                         (this.statusSettings.statusReactionDelay.min + Math.random() * (this.statusSettings.statusReactionDelay.max - this.statusSettings.statusReactionDelay.min)) : 0;
+            
+            // Schedule the reaction (WITHOUT viewing the status)
+            setTimeout(async () => {
+                try {
+                    await this.sendStatusReaction(message, reaction);
+                    // Status reacted successfully WITHOUT viewing
+                } catch (error) {
+                    console.error('❌ Independent status reaction failed:', error.message);
+                    // Remove from cache since reaction failed
+                    this.reactedStatuses.delete(statusId);
+                }
+            }, delay);
+            
+        } catch (error) {
+            console.error('❌ Error in handleStatusReactionOnly:', error);
+        }
+    }
+    
+    /**
+     * Handle status auto react functionality (only when viewing)
      */
     async handleStatusAutoReact(message) {
         try {
@@ -715,7 +836,7 @@ class StatusPlugin {
                 await this.bot.sock.readMessages([message.key]);
                 // Status auto-viewed successfully
                 
-                // Handle status auto-react if enabled
+                // Handle status auto-react if enabled (only when viewing)
                 if (this.statusSettings.statusReactEnabled) {
                     await this.handleStatusAutoReact(message);
                 }
