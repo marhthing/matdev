@@ -147,44 +147,53 @@ class VideoPlugin {
                 throw new Error('Generated video file is empty');
             }
 
-            // Check buffer content type for better debugging
-            const bufferStart = mediaResult.buffer.slice(0, 20).toString('hex');
             console.log(`📹 Video file created: ${tempFileName} (${stats.size} bytes)`);
-            console.log(`📹 Buffer signature: ${bufferStart}`);
 
-            // For animated stickers, verify the buffer contains valid data
+            // For animated stickers, use FFmpeg for proper conversion
             if (mediaType === 'stickerMessage') {
-                console.log('📹 Processing animated sticker - buffer type verification');
+                console.log('📹 Converting animated sticker using FFmpeg...');
                 
-                // Check if buffer starts with WebP signature
-                const isWebP = mediaResult.buffer.slice(0, 4).toString() === 'RIFF' && 
-                              mediaResult.buffer.slice(8, 12).toString() === 'WEBP';
+                const { exec } = require('child_process');
+                const util = require('util');
+                const execPromise = util.promisify(exec);
                 
-                if (isWebP) {
-                    console.log('📹 Confirmed WebP animated sticker format');
-                } else {
-                    console.log('📹 Non-WebP sticker format detected');
+                // Create output file path
+                const outputPath = tempFilePath.replace('.mp4', '_converted.mp4');
+                
+                try {
+                    // Use FFmpeg to convert WebP to MP4
+                    const ffmpegCommand = `ffmpeg -i "${tempFilePath}" -c:v libx264 -pix_fmt yuv420p -f mp4 "${outputPath}" -y`;
+                    
+                    await execPromise(ffmpegCommand);
+                    
+                    // Check if conversion was successful
+                    const convertedStats = await fs.stat(outputPath);
+                    if (convertedStats.size > 0) {
+                        // Replace original with converted file
+                        await fs.unlink(tempFilePath);
+                        await fs.rename(outputPath, tempFilePath);
+                        console.log('📹 FFmpeg conversion successful');
+                    } else {
+                        throw new Error('FFmpeg conversion failed');
+                    }
+                    
+                } catch (ffmpegError) {
+                    console.log('📹 FFmpeg conversion failed, using original file:', ffmpegError.message);
+                    // Clean up failed conversion file if it exists
+                    try {
+                        await fs.unlink(outputPath);
+                    } catch (e) {}
                 }
             }
 
-            // Send converted file - let WhatsApp handle the format
-            if (mediaType === 'stickerMessage') {
-                // For animated stickers, send as document to preserve format
-                await this.bot.sock.sendMessage(messageInfo.sender, {
-                    document: { url: tempFilePath },
-                    mimetype: 'video/mp4',
-                    fileName: `converted_sticker_${timestamp}.mp4`
-                });
-                console.log('📹 Sent animated sticker as MP4 document');
-            } else {
-                // For GIFs and other videos, send as video
-                await this.bot.sock.sendMessage(messageInfo.sender, {
-                    video: { url: tempFilePath },
-                    mimetype: 'video/mp4',
-                    fileName: `converted_video_${timestamp}.mp4`
-                });
-                console.log('📹 Sent as MP4 video');
-            }
+            // Send converted file as MP4 video
+            await this.bot.sock.sendMessage(messageInfo.sender, {
+                video: { url: tempFilePath },
+                mimetype: 'video/mp4',
+                fileName: `converted_video_${timestamp}.mp4`
+            });
+            
+            console.log('📹 Sent as MP4 video');
 
             console.log('✅ Video');
 
