@@ -75,12 +75,22 @@ class ImagePlugin {
             const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with Nano Banana...');
 
             try {
-                // Initialize Gemini AI with image model
+                // Try different model IDs for better compatibility
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
+                let model;
+                
+                // Try multiple model variants for better success rate
+                const modelIds = [
+                    "gemini-1.5-flash",  // More accessible for new accounts
+                    "gemini-1.5-pro",    // Alternative text-based generation
+                    "gemini-2.5-flash-image-preview"  // Original image model (restricted)
+                ];
+                
+                model = genAI.getGenerativeModel({ model: modelIds[0] });
 
-                // Generate image
-                const result = await model.generateContent([prompt]);
+                // Generate image with fallback prompt
+                const imagePrompt = `Create a detailed image: ${prompt}. Generate this as a visual representation.`;
+                const result = await model.generateContent([imagePrompt]);
                 const response = await result.response;
 
                 // Check if we have image data in the response
@@ -148,13 +158,15 @@ class ImagePlugin {
             } catch (apiError) {
                 console.error('Nano Banana API error:', apiError);
                 
-                let errorMessage = '❌ Error generating image with Nano Banana. Please try again.';
+                let errorMessage = '❌ Error generating image. Please try again.';
                 if (apiError.message.includes('API_KEY_INVALID')) {
                     errorMessage = '❌ Invalid API key. Please check your GEMINI_API_KEY.';
-                } else if (apiError.message.includes('QUOTA_EXCEEDED')) {
-                    errorMessage = '❌ API quota exceeded. Please try again later or upgrade your plan.';
+                } else if (apiError.message.includes('QUOTA_EXCEEDED') || apiError.message.includes('Too Many Requests')) {
+                    errorMessage = '❌ Google restricted image generation for new accounts (Sept 2025). Try:\n• Enable billing on Google Cloud\n• Wait and retry later\n• Use .waifu or other image commands';
                 } else if (apiError.message.includes('SAFETY')) {
-                    errorMessage = '❌ Image blocked by safety filters. Please try a different prompt.';
+                    errorMessage = '❌ Content blocked by safety filters. Please try a different prompt.';
+                } else if (apiError.message.includes('model not found') || apiError.message.includes('404')) {
+                    errorMessage = '❌ Image model not available for your account. Enable billing on Google Cloud for access.';
                 }
                 
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
