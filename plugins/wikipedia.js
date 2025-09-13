@@ -13,16 +13,8 @@ class WikipediaPlugin {
         this.bot = bot;
         try {
             this.bot.messageHandler.registerCommand('wiki', this.wikiCommand.bind(this), {
-                description: 'Search Wikipedia',
-                usage: `${config.PREFIX}wiki <search_term>`,
-                category: 'information',
-                plugin: 'wikipedia',
-                source: 'wikipedia.js'
-            });
-
-            this.bot.messageHandler.registerCommand('wikisummary', this.wikiSummaryCommand.bind(this), {
-                description: 'Get Wikipedia article summary',
-                usage: `${config.PREFIX}wikisummary <article_title>`,
+                description: 'Search Wikipedia or get article summary',
+                usage: `${config.PREFIX}wiki <search_term> | ${config.PREFIX}wiki summarize <article_title>`,
                 category: 'information',
                 plugin: 'wikipedia',
                 source: 'wikipedia.js'
@@ -38,32 +30,60 @@ class WikipediaPlugin {
 
     async wikiCommand(messageInfo) {
         try {
-            const query = messageInfo.args.join(' ').trim();
-            if (!query) {
+            const args = messageInfo.args.join(' ').trim();
+            if (!args) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '📖 Usage: .wiki <search_term>\n\n' +
-                    'Examples:\n• .wiki Albert Einstein\n• .wiki Machine Learning\n• .wiki Nigeria history');
+                    '📖 **Wikipedia Usage:**\n\n' +
+                    '• `.wiki <search_term>` - Search articles\n' +
+                    '• `.wiki summarize <article_title>` - Get article summary\n\n' +
+                    '**Examples:**\n' +
+                    '• `.wiki Albert Einstein`\n' +
+                    '• `.wiki summarize Python programming language`\n' +
+                    '• `.wiki Machine Learning`');
                 return;
             }
 
-            const results = await this.searchWikipedia(query);
-            if (results.success) {
-                if (results.results.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, `❌ No Wikipedia articles found for "${query}"`);
+            // Check if this is a summary request
+            if (args.toLowerCase().startsWith('summarize ')) {
+                const title = args.substring(10).trim(); // Remove "summarize " prefix
+                if (!title) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        '📚 Usage: `.wiki summarize <article_title>`\n\n' +
+                        'Example: `.wiki summarize Albert Einstein`');
                     return;
                 }
 
-                let message = `📖 **Wikipedia Search: "${query}"**\n\n`;
-                
-                results.results.slice(0, 5).forEach((result, index) => {
-                    message += `**${index + 1}.** ${result.title}\n${result.snippet}\n\n`;
-                });
-
-                message += `🔗 Use .wikisummary <title> to get full article summary`;
-                
-                await this.bot.messageHandler.reply(messageInfo, message);
+                const summary = await this.getWikipediaSummary(title);
+                if (summary.success) {
+                    await this.bot.messageHandler.reply(messageInfo,
+                        `📚 **Wikipedia Summary**\n\n` +
+                        `**Title:** ${summary.title}\n\n` +
+                        `${summary.extract}\n\n` +
+                        `🔗 **Full article:** ${summary.url}`);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, `❌ ${summary.error}`);
+                }
             } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${results.error}`);
+                // Regular search
+                const results = await this.searchWikipedia(args);
+                if (results.success) {
+                    if (results.results.length === 0) {
+                        await this.bot.messageHandler.reply(messageInfo, `❌ No Wikipedia articles found for "${args}"`);
+                        return;
+                    }
+
+                    let message = `📖 **Wikipedia Search: "${args}"**\n\n`;
+                    
+                    results.results.slice(0, 5).forEach((result, index) => {
+                        message += `**${index + 1}.** ${result.title}\n${result.snippet}\n\n`;
+                    });
+
+                    message += `💡 Use \`.wiki summarize <title>\` to get full article summary`;
+                    
+                    await this.bot.messageHandler.reply(messageInfo, message);
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, `❌ ${results.error}`);
+                }
             }
 
         } catch (error) {
@@ -72,32 +92,6 @@ class WikipediaPlugin {
         }
     }
 
-    async wikiSummaryCommand(messageInfo) {
-        try {
-            const title = messageInfo.args.join(' ').trim();
-            if (!title) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    '📚 Usage: .wikisummary <article_title>\n\n' +
-                    'Examples:\n• .wikisummary Albert Einstein\n• .wikisummary Python programming language');
-                return;
-            }
-
-            const summary = await this.getWikipediaSummary(title);
-            if (summary.success) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `📚 **Wikipedia Summary**\n\n` +
-                    `**Title:** ${summary.title}\n\n` +
-                    `${summary.extract}\n\n` +
-                    `🔗 **Full article:** ${summary.url}`);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${summary.error}`);
-            }
-
-        } catch (error) {
-            console.error('Error in wikisummary command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting Wikipedia summary.');
-        }
-    }
 
     async searchWikipedia(query) {
         try {
