@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
@@ -6,8 +6,8 @@ const config = require('../config');
 class ImagePlugin {
     constructor() {
         this.name = 'image';
-        this.description = 'Google Nano Banana (Gemini 2.5 Flash Image) for AI image generation and editing';
-        this.version = '1.0.0';
+        this.description = 'Free AI image generation using DeepAI and Hugging Face APIs';
+        this.version = '2.0.0';
         this.enabled = true;
     }
 
@@ -19,7 +19,7 @@ class ImagePlugin {
         try {
             // Register image generation commands
             this.bot.messageHandler.registerCommand('image', this.imageCommand.bind(this), {
-                description: 'Generate images using Google Nano Banana AI',
+                description: 'Generate images using free AI services',
                 usage: `${config.PREFIX}image <description>`,
                 category: 'ai',
                 plugin: 'image',
@@ -27,22 +27,14 @@ class ImagePlugin {
             });
 
             this.bot.messageHandler.registerCommand('img', this.imageCommand.bind(this), {
-                description: 'Generate images using Google Nano Banana AI (short)',
+                description: 'Generate images using free AI services (short)',
                 usage: `${config.PREFIX}img <description>`,
                 category: 'ai',
                 plugin: 'image',
                 source: 'image.js'
             });
 
-            this.bot.messageHandler.registerCommand('edit', this.editCommand.bind(this), {
-                description: 'Edit images using Google Nano Banana AI',
-                usage: `${config.PREFIX}edit <description> (reply to image)`,
-                category: 'ai',
-                plugin: 'image',
-                source: 'image.js'
-            });
-
-            console.log('✅ Nano Banana Image plugin loaded');
+            console.log('✅ Free AI Image plugin loaded');
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize Image plugin:', error);
@@ -55,71 +47,46 @@ class ImagePlugin {
      */
     async imageCommand(messageInfo) {
         try {
-            // Check if API key exists
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No API found, use .setenv GEMINI_API_KEY=<key>\nGet your free key at: ai.google.dev');
-                return;
-            }
-
             // Get the prompt from the message
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide an image description.\nUsage: .image <description>\n\nExamples:\n• .image a cat eating nano banana in fancy restaurant\n• .img futuristic city with flying cars');
+                    '❌ Please provide an image description.\nUsage: .image <description>\n\nExamples:\n• .image a cat in a fancy restaurant\n• .img futuristic city with flying cars\n\n🆓 This uses completely FREE AI services!');
                 return;
             }
 
             // Send generating indicator
-            const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with Nano Banana...');
+            const generatingMsg = await this.bot.messageHandler.reply(messageInfo, '🎨 Generating image with free AI...');
 
             try {
-                // Try different model IDs for better compatibility
-                const genAI = new GoogleGenerativeAI(apiKey);
-                let model;
-                
-                // Try multiple model variants for better success rate
-                const modelIds = [
-                    "gemini-1.5-flash",  // More accessible for new accounts
-                    "gemini-1.5-pro",    // Alternative text-based generation
-                    "gemini-2.5-flash-image-preview"  // Original image model (restricted)
+                // Try multiple free services in order
+                const services = [
+                    () => this.generateWithPollinations(prompt),
+                    () => this.generateWithHuggingFace(prompt)
                 ];
-                
-                model = genAI.getGenerativeModel({ model: modelIds[0] });
 
-                // Generate image with fallback prompt
-                const imagePrompt = `Create a detailed image: ${prompt}. Generate this as a visual representation.`;
-                const result = await model.generateContent([imagePrompt]);
-                const response = await result.response;
-
-                // Check if we have image data in the response
-                const candidates = response.candidates || [];
-                if (candidates.length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ No image generated. Try a different prompt.',
-                        edit: generatingMsg.key
-                    });
-                    return;
-                }
-
-                // Look for inline image data
                 let imageBuffer = null;
-                for (const candidate of candidates) {
-                    if (candidate.content && candidate.content.parts) {
-                        for (const part of candidate.content.parts) {
-                            if (part.inline_data && part.inline_data.data) {
-                                imageBuffer = Buffer.from(part.inline_data.data, 'base64');
-                                break;
-                            }
+                let serviceName = '';
+                
+                for (const [index, service] of services.entries()) {
+                    try {
+                        console.log(`Trying free image service ${index + 1}...`);
+                        const result = await service();
+                        if (result && result.success) {
+                            imageBuffer = result.imageBuffer;
+                            serviceName = result.serviceName;
+                            console.log(`✅ ${serviceName} succeeded`);
+                            break;
                         }
+                    } catch (serviceError) {
+                        console.log(`❌ Service ${index + 1} failed: ${serviceError.message}`);
+                        continue;
                     }
-                    if (imageBuffer) break;
                 }
 
                 if (!imageBuffer) {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Image data not found in response. Please try again.',
+                        text: '❌ All free image services are currently unavailable. Please try again later.',
                         edit: generatingMsg.key
                     });
                     return;
@@ -136,7 +103,7 @@ class ImagePlugin {
                 // Send the generated image
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: { url: imagePath },
-                    caption: `🎨 *Generated by Nano Banana*\n\n📝 Prompt: ${prompt}`
+                    caption: `🎨 *Generated by ${serviceName} (FREE)*\n\n📝 Prompt: ${prompt}`
                 });
 
                 // Delete the generating message
@@ -153,24 +120,12 @@ class ImagePlugin {
                     }
                 }, 5000);
 
-                console.log('✅ Image generated and sent');
+                console.log('✅ Free image generated and sent');
 
-            } catch (apiError) {
-                console.error('Nano Banana API error:', apiError);
-                
-                let errorMessage = '❌ Error generating image. Please try again.';
-                if (apiError.message.includes('API_KEY_INVALID')) {
-                    errorMessage = '❌ Invalid API key. Please check your GEMINI_API_KEY.';
-                } else if (apiError.message.includes('QUOTA_EXCEEDED') || apiError.message.includes('Too Many Requests')) {
-                    errorMessage = '❌ Google restricted image generation for new accounts (Sept 2025). Try:\n• Enable billing on Google Cloud\n• Wait and retry later\n• Use .waifu or other image commands';
-                } else if (apiError.message.includes('SAFETY')) {
-                    errorMessage = '❌ Content blocked by safety filters. Please try a different prompt.';
-                } else if (apiError.message.includes('model not found') || apiError.message.includes('404')) {
-                    errorMessage = '❌ Image model not available for your account. Enable billing on Google Cloud for access.';
-                }
-                
+            } catch (error) {
+                console.error('Image generation error:', error);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: errorMessage,
+                    text: '❌ Error generating image. Please try again later.',
                     edit: generatingMsg.key
                 });
             }
@@ -182,149 +137,100 @@ class ImagePlugin {
     }
 
     /**
-     * Handle image editing command
+     * Generate image using Pollinations (completely free, no auth)
      */
-    async editCommand(messageInfo) {
+    async generateWithPollinations(prompt) {
         try {
-            // Check if API key exists
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No API found, use .setenv GEMINI_API_KEY=<key>');
-                return;
-            }
-
-            // Get the edit prompt
-            const editPrompt = messageInfo.args.join(' ').trim();
-            if (!editPrompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide edit instructions and reply to an image.\nUsage: .edit <instructions>\n\nExample: .edit add sunglasses to the person');
-                return;
-            }
-
-            // Check if this is a reply to a message with an image
-            const quotedMsg = messageInfo.message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            if (!quotedMsg || !quotedMsg.imageMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to an image message with your edit instructions.');
-                return;
-            }
-
-            // Send editing indicator
-            const editingMsg = await this.bot.messageHandler.reply(messageInfo, '✏️ Editing image with Nano Banana...');
-
-            try {
-                // Download the original image
-                const media = await this.bot.sock.downloadMediaMessage({
-                    key: messageInfo.message.key,
-                    message: { imageMessage: quotedMsg.imageMessage }
-                });
-
-                if (!media) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Could not download the original image.',
-                        edit: editingMsg.key
-                    });
-                    return;
+            // Pollinations.ai - completely free image generation
+            const encodedPrompt = encodeURIComponent(prompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+            
+            const response = await axios.get(imageUrl, {
+                responseType: 'arraybuffer',
+                timeout: 45000,
+                headers: {
+                    'User-Agent': 'MATDEV-Bot/2.0'
                 }
+            });
 
-                // Initialize Gemini AI
-                const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
-
-                // Prepare image data for Gemini
-                const imageData = {
-                    inlineData: {
-                        data: media.toString('base64'),
-                        mimeType: 'image/jpeg'
-                    }
+            if (response.data && response.data.byteLength > 1000) {
+                return {
+                    success: true,
+                    imageBuffer: Buffer.from(response.data),
+                    serviceName: 'Pollinations.ai'
                 };
-
-                // Generate edited image
-                const result = await model.generateContent([editPrompt, imageData]);
-                const response = await result.response;
-
-                // Check for image data in response
-                let editedImageBuffer = null;
-                const candidates = response.candidates || [];
-                
-                for (const candidate of candidates) {
-                    if (candidate.content && candidate.content.parts) {
-                        for (const part of candidate.content.parts) {
-                            if (part.inline_data && part.inline_data.data) {
-                                editedImageBuffer = Buffer.from(part.inline_data.data, 'base64');
-                                break;
-                            }
-                        }
-                    }
-                    if (editedImageBuffer) break;
-                }
-
-                if (!editedImageBuffer) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Could not edit the image. Please try a different edit instruction.',
-                        edit: editingMsg.key
-                    });
-                    return;
-                }
-
-                // Save edited image
-                const tempDir = path.join(__dirname, '..', 'tmp');
-                await fs.ensureDir(tempDir);
-                const timestamp = Date.now();
-                const editedImagePath = path.join(tempDir, `edited_${timestamp}.jpg`);
-                
-                await fs.writeFile(editedImagePath, editedImageBuffer);
-
-                // Send the edited image
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    image: { url: editedImagePath },
-                    caption: `✏️ *Edited by Nano Banana*\n\n📝 Edit: ${editPrompt}`
-                });
-
-                // Delete the editing message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    delete: editingMsg.key
-                });
-
-                // Clean up temp file
-                setTimeout(async () => {
-                    try {
-                        await fs.unlink(editedImagePath);
-                    } catch (cleanupError) {
-                        console.log('Cleanup note: temp file already removed');
-                    }
-                }, 5000);
-
-                console.log('✅ Image edited and sent');
-
-            } catch (apiError) {
-                console.error('Image editing error:', apiError);
-                
-                let errorMessage = '❌ Error editing image. Please try again with different instructions.';
-                if (apiError.message.includes('API_KEY_INVALID')) {
-                    errorMessage = '❌ Invalid API key. Please check your GEMINI_API_KEY.';
-                } else if (apiError.message.includes('QUOTA_EXCEEDED')) {
-                    errorMessage = '❌ API quota exceeded. Please try again later.';
-                }
-                
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: errorMessage,
-                    edit: editingMsg.key
-                });
             }
 
+            throw new Error('Invalid image data received');
+            
         } catch (error) {
-            console.error('Error in edit command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your edit request.');
+            throw new Error(`Pollinations failed: ${error.message}`);
         }
     }
+
+    /**
+     * Generate image using Hugging Face (free tier, no auth)
+     */
+    async generateWithHuggingFace(prompt) {
+        try {
+            const models = [
+                'runwayml/stable-diffusion-v1-5',        // Most reliable
+                'stabilityai/stable-diffusion-2-1',      // Alternative
+                'CompVis/stable-diffusion-v1-4'          // Backup
+            ];
+
+            for (const model of models) {
+                try {
+                    console.log(`Trying HF model: ${model}`);
+                    
+                    const response = await axios.post(
+                        `https://api-inference.huggingface.co/models/${model}`,
+                        { inputs: prompt },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'x-wait-for-model': 'true'  // Wait for model to load
+                            },
+                            responseType: 'arraybuffer',
+                            timeout: 120000  // 2 minutes for model loading
+                        }
+                    );
+
+                    // Check if we got actual image data (not an error message)
+                    if (response.data && response.data.byteLength > 1000) {
+                        // Verify it's actually image data by checking magic bytes
+                        const bytes = new Uint8Array(response.data.slice(0, 4));
+                        const isImage = (bytes[0] === 0xFF && bytes[1] === 0xD8) || // JPEG
+                                      (bytes[0] === 0x89 && bytes[1] === 0x50) || // PNG
+                                      (bytes[0] === 0x47 && bytes[1] === 0x49);   // GIF
+                        
+                        if (isImage) {
+                            return {
+                                success: true,
+                                imageBuffer: Buffer.from(response.data),
+                                serviceName: 'Hugging Face'
+                            };
+                        }
+                    }
+                } catch (modelError) {
+                    console.log(`HF model ${model} failed: ${modelError.message}`);
+                    continue;
+                }
+            }
+
+            throw new Error('All HF models failed');
+            
+        } catch (error) {
+            throw new Error(`Hugging Face failed: ${error.message}`);
+        }
+    }
+
 
     /**
      * Cleanup method
      */
     async cleanup() {
-        console.log('🧹 Image plugin cleanup completed');
+        console.log('🧹 Free Image plugin cleanup completed');
     }
 }
 
