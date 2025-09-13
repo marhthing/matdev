@@ -35,173 +35,168 @@ class CaptionEditorPlugin {
      * Register commands
      */
     registerCommands() {
-        // Add caption to media
-        this.bot.messageHandler.registerCommand('addcaption', this.addCaptionCommand.bind(this), {
-            description: 'Add caption to image/video without downloading',
-            usage: `${config.PREFIX}addcaption <new caption> (reply to media)`,
+        // Main caption command with subcommands
+        this.bot.messageHandler.registerCommand('caption', this.captionCommand.bind(this), {
+            description: 'Manage media captions - add, edit, remove, or copy',
+            usage: `${config.PREFIX}caption <add|edit|remove|copy> [caption text] (reply to media)`,
             category: 'media',
             plugin: 'captioneditor',
             source: 'captioneditor.js'
         });
-
-        // Edit existing caption
-        this.bot.messageHandler.registerCommand('editcaption', this.editCaptionCommand.bind(this), {
-            description: 'Edit caption of image/video without downloading',
-            usage: `${config.PREFIX}editcaption <new caption> (reply to media)`,
-            category: 'media',
-            plugin: 'captioneditor',
-            source: 'captioneditor.js'
-        });
-
-        // Remove caption
-        this.bot.messageHandler.registerCommand('removecaption', this.removeCaptionCommand.bind(this), {
-            description: 'Remove caption from image/video without downloading',
-            usage: `${config.PREFIX}removecaption (reply to media)`,
-            category: 'media',
-            plugin: 'captioneditor',
-            source: 'captioneditor.js'
-        });
-
-        // Copy caption text from media
-        this.bot.messageHandler.registerCommand('copycaption', this.copyCaptionCommand.bind(this), {
-            description: 'Extract and send caption text from media',
-            usage: `${config.PREFIX}copycaption (reply to media)`,
-            category: 'media',
-            plugin: 'captioneditor',
-            source: 'captioneditor.js'
-        });
-
     }
 
     /**
-     * Add caption command
+     * Main caption command handler with subcommands
      */
-    async addCaptionCommand(messageInfo) {
+    async captionCommand(messageInfo) {
         try {
-            const quotedMessage = await this.getQuotedMessage(messageInfo);
-            if (!quotedMessage) {
+            const { args } = messageInfo;
+            
+            if (!args || args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please reply to an image or video to add a caption.\n\n*Usage:* ${config.PREFIX}addcaption <caption>`
+                    `❌ Please specify an action!\n\n*Usage:*\n` +
+                    `${config.PREFIX}caption add <caption text> (reply to media)\n` +
+                    `${config.PREFIX}caption edit <new caption> (reply to media)\n` +
+                    `${config.PREFIX}caption remove (reply to media)\n` +
+                    `${config.PREFIX}caption copy (reply to media)`
                 );
                 return;
             }
 
-            const mediaInfo = this.getMediaInfo(quotedMessage);
-            if (!mediaInfo) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
-                return;
-            }
+            const action = args[0].toLowerCase();
+            const remainingArgs = args.slice(1);
 
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide a caption.\n\n*Usage:* ${config.PREFIX}addcaption <caption>`
-                );
-                return;
+            switch (action) {
+                case 'add':
+                    await this.handleAddCaption(messageInfo, remainingArgs);
+                    break;
+                case 'edit':
+                    await this.handleEditCaption(messageInfo, remainingArgs);
+                    break;
+                case 'remove':
+                    await this.handleRemoveCaption(messageInfo);
+                    break;
+                case 'copy':
+                    await this.handleCopyCaption(messageInfo);
+                    break;
+                default:
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Unknown action: "${action}"\n\n*Valid actions:* add, edit, remove, copy`
+                    );
+                    break;
             }
-
-            const newCaption = messageInfo.args.join(' ');
-            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'added');
 
         } catch (error) {
-            console.error('Error in addCaptionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error adding caption: ' + error.message);
+            console.error('Error in captionCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing caption command: ' + error.message);
         }
     }
 
     /**
-     * Edit caption command
+     * Handle add caption subcommand
      */
-    async editCaptionCommand(messageInfo) {
-        try {
-            const quotedMessage = await this.getQuotedMessage(messageInfo);
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please reply to an image or video to edit its caption.\n\n*Usage:* ${config.PREFIX}editcaption <new caption>`
-                );
-                return;
-            }
-
-            const mediaInfo = this.getMediaInfo(quotedMessage);
-            if (!mediaInfo) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
-                return;
-            }
-
-            if (!messageInfo.args.length) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide a new caption.\n\n*Usage:* ${config.PREFIX}editcaption <new caption>`
-                );
-                return;
-            }
-
-            const newCaption = messageInfo.args.join(' ');
-            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'edited');
-
-        } catch (error) {
-            console.error('Error in editCaptionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error editing caption: ' + error.message);
+    async handleAddCaption(messageInfo, args) {
+        const quotedMessage = await this.getQuotedMessage(messageInfo);
+        if (!quotedMessage) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please reply to an image or video to add a caption.\n\n*Usage:* ${config.PREFIX}caption add <caption text>`
+            );
+            return;
         }
+
+        const mediaInfo = this.getMediaInfo(quotedMessage);
+        if (!mediaInfo) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
+            return;
+        }
+
+        if (!args.length) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please provide a caption.\n\n*Usage:* ${config.PREFIX}caption add <caption text>`
+            );
+            return;
+        }
+
+        const newCaption = args.join(' ');
+        await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'added');
     }
 
     /**
-     * Remove caption command
+     * Handle edit caption subcommand
      */
-    async removeCaptionCommand(messageInfo) {
-        try {
-            const quotedMessage = await this.getQuotedMessage(messageInfo);
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please reply to an image or video to remove its caption.\n\n*Usage:* ${config.PREFIX}removecaption`
-                );
-                return;
-            }
-
-            const mediaInfo = this.getMediaInfo(quotedMessage);
-            if (!mediaInfo) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
-                return;
-            }
-
-            await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, null, 'removed');
-
-        } catch (error) {
-            console.error('Error in removeCaptionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error removing caption: ' + error.message);
+    async handleEditCaption(messageInfo, args) {
+        const quotedMessage = await this.getQuotedMessage(messageInfo);
+        if (!quotedMessage) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please reply to an image or video to edit its caption.\n\n*Usage:* ${config.PREFIX}caption edit <new caption>`
+            );
+            return;
         }
+
+        const mediaInfo = this.getMediaInfo(quotedMessage);
+        if (!mediaInfo) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
+            return;
+        }
+
+        if (!args.length) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please provide a new caption.\n\n*Usage:* ${config.PREFIX}caption edit <new caption>`
+            );
+            return;
+        }
+
+        const newCaption = args.join(' ');
+        await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, newCaption, 'edited');
     }
 
     /**
-     * Copy caption command - extracts and sends caption text only
+     * Handle remove caption subcommand
      */
-    async copyCaptionCommand(messageInfo) {
-        try {
-            const quotedMessage = await this.getQuotedMessage(messageInfo);
-            if (!quotedMessage) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please reply to an image or video to copy its caption.\n\n*Usage:* ${config.PREFIX}copycaption`
-                );
-                return;
-            }
-
-            const mediaInfo = this.getMediaInfo(quotedMessage);
-            if (!mediaInfo) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
-                return;
-            }
-
-            // Check if there's a caption to copy
-            if (!mediaInfo.originalCaption) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ The media has no caption to copy.');
-                return;
-            }
-
-            // Send only the caption text as a regular message
-            await this.bot.messageHandler.reply(messageInfo, mediaInfo.originalCaption);
-
-        } catch (error) {
-            console.error('Error in copyCaptionCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error copying caption: ' + error.message);
+    async handleRemoveCaption(messageInfo) {
+        const quotedMessage = await this.getQuotedMessage(messageInfo);
+        if (!quotedMessage) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please reply to an image or video to remove its caption.\n\n*Usage:* ${config.PREFIX}caption remove`
+            );
+            return;
         }
+
+        const mediaInfo = this.getMediaInfo(quotedMessage);
+        if (!mediaInfo) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
+            return;
+        }
+
+        await this.processMediaWithCaption(messageInfo, quotedMessage, mediaInfo, null, 'removed');
+    }
+
+    /**
+     * Handle copy caption subcommand
+     */
+    async handleCopyCaption(messageInfo) {
+        const quotedMessage = await this.getQuotedMessage(messageInfo);
+        if (!quotedMessage) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Please reply to an image or video to copy its caption.\n\n*Usage:* ${config.PREFIX}caption copy`
+            );
+            return;
+        }
+
+        const mediaInfo = this.getMediaInfo(quotedMessage);
+        if (!mediaInfo) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ The replied message must contain an image or video.');
+            return;
+        }
+
+        // Check if there's a caption to copy
+        if (!mediaInfo.originalCaption) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ The media has no caption to copy.');
+            return;
+        }
+
+        // Send only the caption text as a regular message
+        await this.bot.messageHandler.reply(messageInfo, mediaInfo.originalCaption);
     }
 
     /**
