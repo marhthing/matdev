@@ -15,16 +15,8 @@ class HashGeneratorPlugin {
         this.bot = bot;
         try {
             this.bot.messageHandler.registerCommand('hash', this.hashCommand.bind(this), {
-                description: 'Generate hash from text',
-                usage: `${config.PREFIX}hash <algorithm> <text>`,
-                category: 'utility',
-                plugin: 'hash-generator',
-                source: 'hash-generator.js'
-            });
-
-            this.bot.messageHandler.registerCommand('hashfile', this.hashFileCommand.bind(this), {
-                description: 'Generate hash from file (reply to document)',
-                usage: `${config.PREFIX}hashfile <algorithm> (reply to file)`,
+                description: 'Generate hash from text or file',
+                usage: `${config.PREFIX}hash <algorithm> <text> OR ${config.PREFIX}hash file <algorithm>`,
                 category: 'utility',
                 plugin: 'hash-generator',
                 source: 'hash-generator.js'
@@ -41,42 +33,29 @@ class HashGeneratorPlugin {
     async hashCommand(messageInfo) {
         try {
             const args = messageInfo.args;
-            if (args.length < 2) {
+            
+            if (args.length < 1) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '🔐 Usage: .hash <algorithm> <text>\n\n' +
+                    '🔐 **Hash Generator**\n\n' +
+                    '**Usage:**\n' +
+                    `• ${config.PREFIX}hash <algorithm> <text>\n` +
+                    `• ${config.PREFIX}hash file <algorithm> (reply to file)\n\n` +
                     '**Available algorithms:**\n• md5\n• sha1\n• sha256\n• sha512\n\n' +
-                    'Examples:\n• .hash md5 Hello World\n• .hash sha256 My secret text\n• .hash sha1 password123');
+                    '**Examples:**\n' +
+                    `• ${config.PREFIX}hash md5 Hello World\n` +
+                    `• ${config.PREFIX}hash sha256 My secret text\n` +
+                    `• ${config.PREFIX}hash file md5 (reply to document)`);
                 return;
             }
 
-            const algorithm = args[0].toLowerCase();
-            const text = args.slice(1).join(' ');
-
-            if (!this.supportedHashes.includes(algorithm)) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `❌ Unsupported algorithm: ${algorithm}\n\n` +
-                    `**Available:** ${this.supportedHashes.join(', ')}`);
+            // Check if first argument is "file" for file hashing
+            if (args[0].toLowerCase() === 'file') {
+                await this.handleFileHash(messageInfo, args.slice(1));
                 return;
             }
 
-            if (text.length > 1000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 1000 characters.');
-                return;
-            }
-
-            try {
-                const hash = this.generateHash(text, algorithm);
-                
-                await this.bot.messageHandler.reply(messageInfo,
-                    `🔐 **${algorithm.toUpperCase()} Hash**\n\n` +
-                    `**Text:** ${text.length > 50 ? text.substring(0, 50) + '...' : text}\n\n` +
-                    `**Hash:**\n\`\`\`${hash}\`\`\`\n\n` +
-                    `📊 Algorithm: ${algorithm.toUpperCase()}\n` +
-                    `📏 Length: ${hash.length} characters`);
-
-            } catch (error) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error generating hash. Please try again.');
-            }
+            // Handle text hashing
+            await this.handleTextHash(messageInfo, args);
 
         } catch (error) {
             console.error('Error in hash command:', error);
@@ -84,14 +63,14 @@ class HashGeneratorPlugin {
         }
     }
 
-    async hashFileCommand(messageInfo) {
+    async handleFileHash(messageInfo, args) {
         try {
             const args = messageInfo.args;
             if (args.length < 1) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '📄 Usage: .hashfile <algorithm> (reply to file)\n\n' +
+                    '📄 Usage: .hash file <algorithm> (reply to file)\n\n' +
                     '**Available algorithms:** md5, sha1, sha256, sha512\n\n' +
-                    'Example: Reply to a document and type .hashfile md5');
+                    'Example: Reply to a document and type .hash file md5');
                 return;
             }
 
@@ -142,8 +121,53 @@ class HashGeneratorPlugin {
             }
 
         } catch (error) {
-            console.error('Error in hashfile command:', error);
+            console.error('Error in file hash command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing file hash command.');
+        }
+    }
+
+    async handleTextHash(messageInfo, args) {
+        try {
+            if (args.length < 2) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    '🔐 Usage: .hash <algorithm> <text>\n\n' +
+                    '**Available algorithms:**\n• md5\n• sha1\n• sha256\n• sha512\n\n' +
+                    'Examples:\n• .hash md5 Hello World\n• .hash sha256 My secret text');
+                return;
+            }
+
+            const algorithm = args[0].toLowerCase();
+            const text = args.slice(1).join(' ');
+
+            if (!this.supportedHashes.includes(algorithm)) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `❌ Unsupported algorithm: ${algorithm}\n\n` +
+                    `**Available:** ${this.supportedHashes.join(', ')}`);
+                return;
+            }
+
+            if (text.length > 1000) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 1000 characters.');
+                return;
+            }
+
+            try {
+                const hash = this.generateHash(text, algorithm);
+                
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🔐 **${algorithm.toUpperCase()} Hash**\n\n` +
+                    `**Text:** ${text.length > 50 ? text.substring(0, 50) + '...' : text}\n\n` +
+                    `**Hash:**\n\`\`\`${hash}\`\`\`\n\n` +
+                    `📊 Algorithm: ${algorithm.toUpperCase()}\n` +
+                    `📏 Length: ${hash.length} characters`);
+
+            } catch (error) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error generating hash. Please try again.');
+            }
+
+        } catch (error) {
+            console.error('Error in text hash command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing text hash command.');
         }
     }
 
