@@ -368,15 +368,117 @@ class MATDEV {
         try {
             if (this.sock && config.OWNER_NUMBER) {
                 const botPrivateChat = `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                await this.sock.sendMessage(botPrivateChat, {
-                    text: "MATDEV bot started successfully"
-                });
+                
+                // Check if this is a first-time connection (no existing session)
+                const isFirstTimeConnection = await this.isFirstTimeConnection();
+                
+                if (isFirstTimeConnection) {
+                    // Send enhanced welcome message with image and configuration
+                    await this.sendEnhancedWelcomeMessage(botPrivateChat);
+                } else {
+                    // Send normal startup message for existing sessions
+                    await this.sock.sendMessage(botPrivateChat, {
+                        text: "MATDEV bot started successfully"
+                    });
+                }
+                
                 this.messageStats.sent++; // Increment sent counter for startup message
                 logger.info('✅ Startup confirmation sent to bot private chat');
             }
         } catch (error) {
             logger.error('Failed to send startup confirmation:', error.message);
         }
+    }
+
+    /**
+     * Check if this is a first-time connection (no existing credentials)
+     */
+    async isFirstTimeConnection() {
+        try {
+            const sessionPath = path.join(__dirname, 'session', 'auth');
+            const credsPath = path.join(sessionPath, 'creds.json');
+            
+            // If credentials file doesn't exist, it's first-time
+            const credsExists = await fs.pathExists(credsPath);
+            return !credsExists;
+        } catch (error) {
+            logger.warn('Error checking session status:', error.message);
+            return false; // Assume existing session on error
+        }
+    }
+
+    /**
+     * Send enhanced welcome message for first-time connections
+     */
+    async sendEnhancedWelcomeMessage(chatId) {
+        try {
+            // Read the bot image
+            const imagePath = path.join(__dirname, 'attached_assets', 'bot_1757756125990.JPG');
+            
+            // Generate configuration display
+            const configDisplay = this.generateConfigDisplay();
+            
+            // Send image with detailed caption
+            await this.sock.sendMessage(chatId, {
+                image: { url: imagePath },
+                caption: configDisplay
+            });
+            
+            logger.info('✅ Enhanced welcome message sent for first-time connection');
+        } catch (error) {
+            logger.error('Failed to send enhanced welcome message:', error.message);
+            // Fallback to normal message
+            await this.sock.sendMessage(chatId, {
+                text: "MATDEV bot started successfully"
+            });
+        }
+    }
+
+    /**
+     * Generate configuration display for welcome message
+     */
+    generateConfigDisplay() {
+        const getStatusIcon = (value) => {
+            if (typeof value === 'boolean') {
+                return value ? '✅' : '❌';
+            }
+            return value === 'true' ? '✅' : '❌';
+        };
+        
+        const getModeIcon = (isPublic) => isPublic ? '🌍' : '🔒';
+        
+        return `🎉 *WELCOME TO MATDEV BOT!*\n` +
+               `🚀 Your WhatsApp account has been successfully linked!\n\n` +
+               `📋 *CURRENT CONFIGURATION:*\n` +
+               `├── AUTO_READ = ${config.AUTO_READ} ${getStatusIcon(config.AUTO_READ)}\n` +
+               `├── AUTO_STATUS_VIEW = ${config.AUTO_STATUS_VIEW} ${getStatusIcon(config.AUTO_STATUS_VIEW)}\n` +
+               `├── AUTO_TYPING = ${config.AUTO_TYPING} ${getStatusIcon(config.AUTO_TYPING)}\n` +
+               `├── AUTO_REACT = ${config.AUTO_REACT} ${getStatusIcon(config.AUTO_REACT)}\n` +
+               `├── STATUS_AUTO_REACT = ${config.STATUS_AUTO_REACT} ${getStatusIcon(config.STATUS_AUTO_REACT)}\n` +
+               `├── ANTI_DELETE = ${config.ANTI_DELETE} ${getStatusIcon(config.ANTI_DELETE)}\n` +
+               `├── PUBLIC_MODE = ${config.PUBLIC_MODE} ${getModeIcon(config.PUBLIC_MODE)}\n` +
+               `├── PREFIX = "${config.PREFIX}" \n` +
+               `├── LANGUAGE = "${config.LANGUAGE}" 🌍\n` +
+               `└── TIMEZONE = ${config.TIMEZONE} 🕐\n\n` +
+               `🔧 *SYSTEM SETTINGS:*\n` +
+               `└── Auto-configured from environment\n\n` +
+               `⚡ *QUICK COMMANDS:*\n` +
+               `• ${config.PREFIX}menu - View all available commands\n` +
+               `• ${config.PREFIX}env - Check environment variables\n` +
+               `• ${config.PREFIX}setenv KEY=VALUE - Modify settings\n` +
+               `• ${config.PREFIX}sysinfo - System information\n` +
+               `• ${config.PREFIX}plugins - View loaded plugins\n` +
+               `• ${config.PREFIX}help - Get detailed help\n\n` +
+               `🔒 *SECURITY:*\n` +
+               `• Owner-only commands protected\n` +
+               `• Rate limiting enabled\n` +
+               `• Anti-ban protection active\n` +
+               `• Session encryption enabled\n\n` +
+               `🆘 *NEED HELP?*\n` +
+               `• ${config.PREFIX}help <command> for specific command info\n` +
+               `• ${config.PREFIX}status for bot health check\n` +
+               `• Check logs for troubleshooting\n\n` +
+               `Ready to explore? Start with ${config.PREFIX}menu to see all available features! 🚀`;
     }
 
     /**
