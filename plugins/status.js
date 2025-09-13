@@ -158,6 +158,12 @@ class StatusPlugin {
                 return await this.handleStatusOnCommand(messageInfo, args);
             }
 
+            // Check if this is a modifier command (except-view, only-view, no-dl)
+            if (action === 'except-view' || action === 'only-view' || action === 'no-dl') {
+                // Apply modifier to current settings without requiring "on"
+                return await this.handleStatusModifier(messageInfo, args);
+            }
+
             // Check if this is a JID to set destination (like .save <jid> or .vv <jid>)
             if (args.length === 1) {
                 // This is setting the forwarding destination
@@ -261,6 +267,81 @@ class StatusPlugin {
             console.error('Status on command error:', error);
             return await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Error processing status on command');
+        }
+    }
+
+    /**
+     * Handle status modifier commands without requiring "on"
+     */
+    async handleStatusModifier(messageInfo, args) {
+        try {
+            const wasEnabled = this.statusSettings.enabled;
+            let responseMsg = '';
+            
+            // If it was disabled, mention that status is still disabled
+            if (!wasEnabled) {
+                responseMsg = '⚠️ Settings updated, but status is still disabled\n';
+            }
+            
+            let i = 0; // Start from the first argument (the modifier)
+            
+            // Parse arguments
+            while (i < args.length) {
+                const arg = args[i].toLowerCase();
+
+                if (arg === 'no-dl') {
+                    this.statusSettings.autoDownload = false;
+                    responseMsg += wasEnabled ? '📱 Auto-download disabled' : '📱 Auto-download will be disabled when enabled';
+                    i++;
+                    continue;
+                }
+
+                if (arg === 'except-view') {
+                    if (i + 1 >= args.length) {
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            '❌ Missing JID list for except-view');
+                    }
+                    
+                    const jidList = args[i + 1].split(',').map(jid => jid.trim());
+                    this.statusSettings.viewMode = 'except';
+                    this.statusSettings.filterJids = this.normalizeJids(jidList);
+                    responseMsg += wasEnabled ? 
+                        `🚫 Excluding ${this.statusSettings.filterJids.length} JIDs from auto-view` :
+                        `🚫 Will exclude ${this.statusSettings.filterJids.length} JIDs when enabled`;
+                    i += 2;
+                    continue;
+                }
+
+                if (arg === 'only-view') {
+                    if (i + 1 >= args.length) {
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            '❌ Missing JID list for only-view');
+                    }
+                    
+                    const jidList = args[i + 1].split(',').map(jid => jid.trim());
+                    this.statusSettings.viewMode = 'only';
+                    this.statusSettings.filterJids = this.normalizeJids(jidList);
+                    responseMsg += wasEnabled ?
+                        `✅ Only viewing ${this.statusSettings.filterJids.length} specified JIDs` :
+                        `✅ Will only view ${this.statusSettings.filterJids.length} JIDs when enabled`;
+                    i += 2;
+                    continue;
+                }
+
+                // Unknown argument
+                return await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Unknown argument: ${args[i]}`);
+            }
+
+            // Save settings
+            this.saveStatusSettings();
+            
+            return await this.bot.messageHandler.reply(messageInfo, responseMsg);
+            
+        } catch (error) {
+            console.error('Error handling status modifier:', error);
+            return await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Error processing status modifier');
         }
     }
 
