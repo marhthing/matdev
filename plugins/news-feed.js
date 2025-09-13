@@ -257,24 +257,35 @@ class NewsFeedPlugin {
 
     parseRSSBasic(xmlData) {
         try {
-            // Very basic RSS parsing without XML parser
+            // Improved RSS parsing to correctly match title, link, and description from same item
             const items = [];
-            const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>/g;
-            const linkRegex = /<link>(.*?)<\/link>/g;
-            const descRegex = /<description><!\[CDATA\[(.*?)\]\]><\/description>/g;
-
-            let titleMatch, linkMatch, descMatch;
+            
+            // Extract individual RSS items first
+            const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+            let itemMatch;
             let count = 0;
 
-            while ((titleMatch = titleRegex.exec(xmlData)) && count < 5) {
-                linkMatch = linkRegex.exec(xmlData);
-                descMatch = descRegex.exec(xmlData);
+            while ((itemMatch = itemRegex.exec(xmlData)) && count < 5) {
+                const itemContent = itemMatch[1];
                 
-                if (titleMatch[1] && !titleMatch[1].includes('BBC News')) { // Skip BBC News title
+                // Extract title, link, and description from this specific item
+                const titleMatch = itemContent.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/);
+                const linkMatch = itemContent.match(/<link>(.*?)<\/link>/) || 
+                                itemContent.match(/<link><!\[CDATA\[(.*?)\]\]><\/link>/);
+                const descMatch = itemContent.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/);
+                
+                if (titleMatch && titleMatch[1] && !titleMatch[1].includes('BBC News')) {
+                    const title = titleMatch[1].trim();
+                    const url = linkMatch ? linkMatch[1].trim() : '#';
+                    const description = descMatch ? this.truncateText(descMatch[1].trim(), 100) : 'No description';
+                    
+                    // Validate URL format
+                    const validUrl = url.startsWith('http') ? url : '#';
+                    
                     items.push({
-                        title: titleMatch[1],
-                        url: linkMatch ? linkMatch[1] : '#',
-                        description: this.truncateText(descMatch ? descMatch[1] : 'No description', 100),
+                        title: title,
+                        url: validUrl,
+                        description: description,
                         source: 'BBC News'
                     });
                     count++;
