@@ -230,7 +230,7 @@ class VideoEffectsPlugin {
             const videoMessage = {
                 video: { url: outputPath },
                 mimetype: 'video/mp4',
-                caption: `🎬 ${effectName.toUpperCase()} Effect Applied\\n${effect_info.description}\\n\\n🎥 Processed with 2025 FFmpeg techniques | MATDEV`,
+                caption: `${effectName.toUpperCase()}`,
             };
 
             await this.bot.sock.sendMessage(messageInfo.sender, videoMessage);
