@@ -54,42 +54,28 @@ class MediaPlugin {
             const { args } = messageInfo;
             const subcommand = args[0]?.toLowerCase();
 
-            // Get quoted message
-            const quoted = this.getQuoted(messageInfo);
-            if (!quoted) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a media message.');
-                return;
-            }
-
-            // Validate it's a media message
-            const mediaType = this.getMediaType(quoted);
-            if (!mediaType) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Quoted message is not a media file.');
-                return;
-            }
-
             // Handle subcommands
             switch (subcommand) {
                 case 'info':
-                    await this.handleInfo(messageInfo, quoted, mediaType);
+                    await this.handleInfoCommand(messageInfo);
                     break;
                 case 'convert':
-                    await this.handleConvert(messageInfo, quoted, mediaType, args.slice(1));
+                    await this.handleConvertCommand(messageInfo, args.slice(1));
                     break;
                 case 'compress':
-                    await this.handleCompress(messageInfo, quoted, mediaType);
+                    await this.handleCompressCommand(messageInfo);
                     break;
                 case 'toaudio':
-                    await this.handleToAudio(messageInfo, quoted, mediaType);
+                    await this.handleToAudioCommand(messageInfo);
                     break;
                 case 'mp3':
-                    await this.handleToMp3(messageInfo, quoted, mediaType);
+                    await this.handleToMp3Command(messageInfo);
                     break;
                 case 'video':
-                    await this.handleToVideo(messageInfo, quoted, mediaType);
+                    await this.handleToVideoCommand(messageInfo);
                     break;
                 case 'image':
-                    await this.handleToImage(messageInfo, quoted, mediaType);
+                    await this.handleToImageCommand(messageInfo);
                     break;
                 default:
                     // No subcommand - show available subcommands
@@ -140,7 +126,39 @@ class MediaPlugin {
     }
 
     /**
+     * Get and validate quoted media message
+     */
+    getQuotedMedia(messageInfo) {
+        // Get quoted message
+        const quoted = this.getQuoted(messageInfo);
+        if (!quoted) {
+            return { error: '❌ Please reply to a media message.' };
+        }
+
+        // Validate it's a media message
+        const mediaType = this.getMediaType(quoted);
+        if (!mediaType) {
+            return { error: '❌ Quoted message is not a media file.' };
+        }
+
+        return { quoted, mediaType };
+    }
+
+    /**
      * Handle info subcommand
+     */
+    async handleInfoCommand(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleInfo(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle info processing
      */
     async handleInfo(messageInfo, quoted, mediaType) {
         try {
@@ -167,6 +185,19 @@ class MediaPlugin {
 
     /**
      * Handle convert subcommand
+     */
+    async handleConvertCommand(messageInfo, args) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleConvert(messageInfo, quoted, mediaType, args);
+    }
+
+    /**
+     * Handle convert processing
      */
     async handleConvert(messageInfo, quoted, mediaType, args) {
         try {
@@ -210,6 +241,19 @@ class MediaPlugin {
     /**
      * Handle compress subcommand
      */
+    async handleCompressCommand(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleCompress(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle compress processing
+     */
     async handleCompress(messageInfo, quoted, mediaType) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🗜️ Compressing media... Please wait.');
@@ -241,6 +285,19 @@ class MediaPlugin {
     /**
      * Handle toaudio subcommand
      */
+    async handleToAudioCommand(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleToAudio(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle toaudio processing
+     */
     async handleToAudio(messageInfo, quoted, mediaType) {
         try {
             if (mediaType !== 'videoMessage') {
@@ -268,6 +325,19 @@ class MediaPlugin {
 
     /**
      * Handle mp3 subcommand
+     */
+    async handleToMp3Command(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleToMp3(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle mp3 processing
      */
     async handleToMp3(messageInfo, quoted, mediaType) {
         try {
@@ -297,6 +367,19 @@ class MediaPlugin {
     /**
      * Handle video subcommand
      */
+    async handleToVideoCommand(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleToVideo(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle video processing
+     */
     async handleToVideo(messageInfo, quoted, mediaType) {
         try {
             await this.bot.messageHandler.reply(messageInfo, '🎬 Converting to video... Please wait.');
@@ -318,6 +401,19 @@ class MediaPlugin {
 
     /**
      * Handle image subcommand
+     */
+    async handleToImageCommand(messageInfo) {
+        const { quoted, mediaType, error } = this.getQuotedMedia(messageInfo);
+        if (error) {
+            await this.bot.messageHandler.reply(messageInfo, error);
+            return;
+        }
+        
+        await this.handleToImage(messageInfo, quoted, mediaType);
+    }
+
+    /**
+     * Handle image processing
      */
     async handleToImage(messageInfo, quoted, mediaType) {
         try {
