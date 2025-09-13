@@ -72,14 +72,6 @@ class CurrencyPlugin {
             source: 'currency.js'
         });
 
-        // Alternative command name
-        this.bot.messageHandler.registerCommand('currency', this.convertCommand.bind(this), {
-            description: 'Currency exchange (alternative)',
-            usage: `${config.PREFIX}currency 100eur to usd`,
-            category: 'utility',
-            plugin: 'currency', 
-            source: 'currency.js'
-        });
     }
 
     /**
