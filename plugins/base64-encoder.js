@@ -363,39 +363,28 @@ class Base64EncoderPlugin {
             await fs.writeFile(tempPath, mediaBuffer);
 
             // Send the media back based on type
-            const caption = `🔓 **Decoded from Base64**\n\n` +
-                          `**Type:** ${mediaType.toUpperCase()}\n` +
-                          `**Size:** ${this.formatFileSize(mediaBuffer.length)}\n` +
-                          `**Base64 Length:** ${base64Length} chars`;
-
             try {
                 if (mediaType === 'image') {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        image: { url: tempPath },
-                        caption: caption
+                        image: { url: tempPath }
                     });
                 } else if (mediaType === 'video') {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        video: { url: tempPath },
-                        caption: caption
+                        video: { url: tempPath }
                     });
                 } else if (mediaType === 'audio') {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        audio: { url: tempPath },
-                        caption: caption
+                        audio: { url: tempPath }
                     });
                 } else if (mediaType === 'sticker') {
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         sticker: { url: tempPath }
                     });
-                    // Send caption separately for stickers
-                    await this.bot.messageHandler.reply(messageInfo, caption);
                 } else {
                     // Handle as document
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         document: { url: tempPath },
-                        fileName: fileName,
-                        caption: caption
+                        fileName: fileName
                     });
                 }
 
