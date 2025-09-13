@@ -5,7 +5,7 @@ const path = require('path');
 class StatusPlugin {
     constructor() {
         this.name = 'status';
-        this.description = 'WhatsApp status auto-view, auto-send, and monitoring functionality';
+        this.description = 'WhatsApp status auto-view, auto-send, monitoring, and auto-react functionality';
         this.version = '2.0.0';
 
         // Store bound handlers to prevent duplicates on hot reload
@@ -18,6 +18,17 @@ class StatusPlugin {
 
         // Message deduplication set
         this.processedMessages = new Set();
+        
+        // Status reaction functionality
+        this.reactedStatuses = new Set();
+        this.statusReactions = [
+            '❤️', '💙', '💚', '💛', '🧡', '💜', '🤍', '🤎',
+            '👍', '👏', '🔥', '💯', '😍', '😊', '😂', '🤩',
+            '✨', '💎', '🌟', '⭐', '💪', '🙌', '👌', '💝'
+        ];
+        
+        // Start cleanup timer for reacted statuses
+        this.startStatusReactCleanupTimer();
     }
 
     /**
@@ -59,6 +70,13 @@ class StatusPlugin {
                 viewMode: settings.viewMode || 'all', // 'all', 'except', 'only'
                 filterJids: settings.filterJids || [],
                 forwardDestination: settings.forwardDestination || `${config.OWNER_NUMBER}@s.whatsapp.net`,
+                // Status reaction settings
+                statusReactEnabled: settings.statusReactEnabled || process.env.STATUS_AUTO_REACT === 'true' || false,
+                statusReactDelayMode: settings.statusReactDelayMode || process.env.STATUS_REACT_DELAY || 'delay',
+                statusReactionDelay: settings.statusReactionDelay || {
+                    min: 30000,  // 30 seconds
+                    max: 300000  // 5 minutes
+                },
                 ...settings
             };
 
@@ -81,7 +99,14 @@ class StatusPlugin {
             autoDownload: true,
             viewMode: 'all',
             filterJids: [],
-            forwardDestination: `${config.OWNER_NUMBER}@s.whatsapp.net`
+            forwardDestination: `${config.OWNER_NUMBER}@s.whatsapp.net`,
+            // Status reaction defaults
+            statusReactEnabled: process.env.STATUS_AUTO_REACT === 'true' || false,
+            statusReactDelayMode: process.env.STATUS_REACT_DELAY || 'delay',
+            statusReactionDelay: {
+                min: 30000,  // 30 seconds
+                max: 300000  // 5 minutes
+            }
         };
     }
 
@@ -145,6 +170,13 @@ class StatusPlugin {
         this.bot.messageHandler.registerCommand('status', this.handleStatusCommand.bind(this), {
             description: 'Manage automatic status viewing, downloading, and forwarding',
             usage: `${config.PREFIX}status <jid>|on|off [no-dl] [except-view|only-view <jid,...>]`,
+            category: 'status'
+        });
+        
+        // Register status reaction command
+        this.bot.messageHandler.registerCommand('statusreact', this.handleStatusReactCommand.bind(this), {
+            description: 'Manage automatic status reactions',
+            usage: `${config.PREFIX}statusreact on|off|delay|nodelay`,
             category: 'status'
         });
     }
@@ -425,6 +457,128 @@ class StatusPlugin {
             console.error(`Error updating ${key}:`, error);
         }
     }
+    
+    /**
+     * Update .env file directly
+     */
+    updateEnvFile(key, value) {
+        try {
+            const envPath = path.join(__dirname, '..', '.env');
+            
+            if (!fs.existsSync(envPath)) {
+                console.warn('⚠️ .env file not found, cannot save setting');
+                return false;
+            }
+            
+            let envContent = fs.readFileSync(envPath, 'utf8');
+            const lines = envContent.split('\n');
+            let keyFound = false;
+            
+            // Update existing key or add new one
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith(`${key}=`)) {
+                    lines[i] = `${key}=${value}`;
+                    keyFound = true;
+                    break;
+                }
+            }
+            
+            // Add key if not found
+            if (!keyFound) {
+                lines.push(`${key}=${value}`);
+            }
+            
+            // Write back to file
+            fs.writeFileSync(envPath, lines.join('\n'));
+            
+            // Update process.env for immediate effect
+            process.env[key] = value;
+            
+            return true;
+        } catch (error) {
+            console.error('Error updating .env file:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Start cleanup timer for old reacted statuses
+     */
+    startStatusReactCleanupTimer() {
+        // Clean up every 6 hours
+        this.statusReactCleanupInterval = setInterval(() => {
+            console.log(`🧹 Cleaning up reacted status cache (${this.reactedStatuses.size} entries)`);
+            this.reactedStatuses.clear();
+        }, 6 * 60 * 60 * 1000);
+    }
+    
+    /**
+     * Handle status react command
+     */
+    async handleStatusReactCommand(messageInfo) {
+        try {
+            const action = messageInfo.args[0]?.toLowerCase();
+            
+            if (action === 'on' || action === 'enable') {
+                this.statusSettings.statusReactEnabled = true;
+                this.saveStatusSettings();
+                this.updateEnvFile('STATUS_AUTO_REACT', 'true');
+                await this.bot.messageHandler.reply(messageInfo, `✅ *STATUS AUTO REACTIONS ENABLED*`);
+            } else if (action === 'off' || action === 'disable') {
+                this.statusSettings.statusReactEnabled = false;
+                this.saveStatusSettings();
+                this.updateEnvFile('STATUS_AUTO_REACT', 'false');
+                await this.bot.messageHandler.reply(messageInfo, '❌ *STATUS AUTO REACTIONS DISABLED*');
+            } else if (action === 'delay') {
+                this.statusSettings.statusReactDelayMode = 'delay';
+                this.saveStatusSettings();
+                this.updateEnvFile('STATUS_REACT_DELAY', 'delay');
+                await this.bot.messageHandler.reply(messageInfo, '⏰ *STATUS REACTION DELAY ENABLED*\n\n🕐 Bot will now wait 30s-5min before reacting to status updates.');
+            } else if (action === 'nodelay') {
+                this.statusSettings.statusReactDelayMode = 'nodelay';
+                this.saveStatusSettings();
+                this.updateEnvFile('STATUS_REACT_DELAY', 'nodelay');
+                await this.bot.messageHandler.reply(messageInfo, '⚡ *STATUS REACTION DELAY DISABLED*\n\n💨 Bot will now react to status updates instantly.');
+            } else {
+                // Show status
+                const delayStatus = this.statusSettings.statusReactDelayMode === 'delay' ? 
+                    `⏰ Delayed (${this.statusSettings.statusReactionDelay.min/1000}s-${this.statusSettings.statusReactionDelay.max/60000}min)` : 
+                    '⚡ Instant';
+                
+                const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
+                    `*Status:* ${this.statusSettings.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `*Timing:* ${delayStatus}\n` +
+                    `*Reactions:* ${this.statusReactions.join('')}\n` +
+                    `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
+                    `*Commands:*\n` +
+                    `${config.PREFIX}statusreact on/off/delay/nodelay`;
+                
+                await this.bot.messageHandler.reply(messageInfo, response);
+            }
+        } catch (error) {
+            console.error('Error in handleStatusReactCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error toggling status reactions: ' + error.message);
+        }
+    }
+    
+    /**
+     * Send status reaction using the proven working method
+     */
+    async sendStatusReaction(message, reaction) {
+        // Use the proven working method: React using participant JID with status key structure
+        return await this.bot.sock.sendMessage(message.key.participant, {
+            react: {
+                text: reaction,
+                key: {
+                    remoteJid: 'status@broadcast',
+                    id: message.key.id,
+                    participant: message.key.participant,
+                    fromMe: false
+                }
+            }
+        });
+    }
 
     async handleMessagesUpsert({ messages, type }) {
         if (type !== 'notify') return;
@@ -467,6 +621,54 @@ class StatusPlugin {
         }
     }
 
+    /**
+     * Handle status auto react functionality  
+     */
+    async handleStatusAutoReact(message) {
+        try {
+            // Skip our own status
+            if (message.key.fromMe) {
+                return;
+            }
+            
+            // Create unique identifier for this status
+            const statusId = `${message.key.participant || message.key.remoteJid}_${message.key.id}`;
+            
+            // Skip if we already reacted to this status
+            if (this.reactedStatuses.has(statusId)) {
+                return;
+            }
+            
+            // Mark as processed IMMEDIATELY to prevent duplicates
+            this.reactedStatuses.add(statusId);
+            
+            // Get random status reaction
+            const reaction = this.statusReactions[Math.floor(Math.random() * this.statusReactions.length)];
+            if (!reaction) {
+                return;
+            }
+            
+            // Calculate delay based on delay mode
+            const delay = this.statusSettings.statusReactDelayMode === 'delay' ? 
+                         (this.statusSettings.statusReactionDelay.min + Math.random() * (this.statusSettings.statusReactionDelay.max - this.statusSettings.statusReactionDelay.min)) : 0;
+            
+            // Schedule the reaction
+            setTimeout(async () => {
+                try {
+                    await this.sendStatusReaction(message, reaction);
+                    // Status reacted successfully as extension of auto-view
+                } catch (error) {
+                    console.error('❌ Status reaction failed:', error.message);
+                    // Remove from cache since reaction failed
+                    this.reactedStatuses.delete(statusId);
+                }
+            }, delay);
+            
+        } catch (error) {
+            console.error('❌ Error in handleStatusAutoReact:', error);
+        }
+    }
+    
     /**
      * Handle auto status view functionality
      */
@@ -512,6 +714,11 @@ class StatusPlugin {
                 // Auto-view the status
                 await this.bot.sock.readMessages([message.key]);
                 // Status auto-viewed successfully
+                
+                // Handle status auto-react if enabled
+                if (this.statusSettings.statusReactEnabled) {
+                    await this.handleStatusAutoReact(message);
+                }
 
                 // Handle auto-download and forwarding if enabled
                 if (this.statusSettings.autoDownload) {
@@ -913,6 +1120,13 @@ class StatusPlugin {
                 this.bot.sock.ev.off('messages.upsert', this.boundHandleMessagesUpsert);
                 this.bot.sock.ev.off('messages.upsert', this.boundHandleStatusMonitoring);
                 console.log('🗑️ Status plugin event listeners cleaned up');
+            }
+            
+            // Clean up status reaction cleanup interval
+            if (this.statusReactCleanupInterval) {
+                clearInterval(this.statusReactCleanupInterval);
+                this.statusReactCleanupInterval = null;
+                console.log('🗑️ Status reaction cleanup timer stopped');
             }
         } catch (error) {
             console.error('Error cleaning up status plugin events:', error);
