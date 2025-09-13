@@ -29,24 +29,8 @@ class QuoteGeneratorPlugin {
         this.bot = bot;
         try {
             this.bot.messageHandler.registerCommand('quote', this.quoteCommand.bind(this), {
-                description: 'Get a random inspirational quote',
-                usage: `${config.PREFIX}quote [category]`,
-                category: 'fun',
-                plugin: 'quote-generator',
-                source: 'quote-generator.js'
-            });
-
-            this.bot.messageHandler.registerCommand('dailyquote', this.dailyQuoteCommand.bind(this), {
-                description: 'Get quote of the day',
-                usage: `${config.PREFIX}dailyquote`,
-                category: 'fun',
-                plugin: 'quote-generator',
-                source: 'quote-generator.js'
-            });
-
-            this.bot.messageHandler.registerCommand('authorquote', this.authorQuoteCommand.bind(this), {
-                description: 'Get quote by specific author',
-                usage: `${config.PREFIX}authorquote <author_name>`,
+                description: 'Quote system with subcommands: author, daily, or random',
+                usage: `${config.PREFIX}quote [author|daily|category]`,
                 category: 'fun',
                 plugin: 'quote-generator',
                 source: 'quote-generator.js'
@@ -62,13 +46,30 @@ class QuoteGeneratorPlugin {
 
     async quoteCommand(messageInfo) {
         try {
-            const category = messageInfo.args[0]?.toLowerCase() || 'random';
+            const subcommand = messageInfo.args[0]?.toLowerCase();
+            
+            // Handle subcommands
+            if (subcommand === 'author') {
+                await this.handleAuthorQuote(messageInfo);
+                return;
+            }
+            
+            if (subcommand === 'daily') {
+                await this.handleDailyQuote(messageInfo);
+                return;
+            }
+            
+            // Handle help or show usage
+            if (subcommand === 'help') {
+                await this.showQuoteHelp(messageInfo);
+                return;
+            }
+            
+            // Handle random quote with optional category
+            const category = subcommand || 'random';
             
             if (category !== 'random' && !this.categories.includes(category)) {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `💬 Usage: .quote [category]\n\n` +
-                    `**Available categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
-                    'Examples:\n• .quote\n• .quote inspirational\n• .quote funny');
+                await this.showQuoteHelp(messageInfo);
                 return;
             }
 
@@ -94,7 +95,7 @@ class QuoteGeneratorPlugin {
         }
     }
 
-    async dailyQuoteCommand(messageInfo) {
+    async handleDailyQuote(messageInfo) {
         try {
             const quote = await this.getDailyQuote();
             if (quote.success) {
@@ -115,18 +116,21 @@ class QuoteGeneratorPlugin {
             }
 
         } catch (error) {
-            console.error('Error in dailyquote command:', error);
+            console.error('Error in daily quote:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error getting daily quote.');
         }
     }
 
-    async authorQuoteCommand(messageInfo) {
+    async handleAuthorQuote(messageInfo) {
         try {
-            const author = messageInfo.args.join(' ').trim();
+            // Remove 'author' from args and get the author name
+            const authorArgs = messageInfo.args.slice(1);
+            const author = authorArgs.join(' ').trim();
+            
             if (!author) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    '👤 Usage: .authorquote <author_name>\n\n' +
-                    'Examples:\n• .authorquote Albert Einstein\n• .authorquote Maya Angelou\n• .authorquote Steve Jobs');
+                    '👤 Usage: .quote author <author_name>\n\n' +
+                    'Examples:\n• .quote author Albert Einstein\n• .quote author Maya Angelou\n• .quote author Steve Jobs');
                 return;
             }
 
@@ -142,7 +146,7 @@ class QuoteGeneratorPlugin {
             }
 
         } catch (error) {
-            console.error('Error in authorquote command:', error);
+            console.error('Error in author quote:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error getting author quote.');
         }
     }
@@ -233,6 +237,23 @@ class QuoteGeneratorPlugin {
             console.error('Author quote API error:', error.message);
             return { success: false };
         }
+    }
+
+    async showQuoteHelp(messageInfo) {
+        await this.bot.messageHandler.reply(messageInfo,
+            `💬 **Quote Generator Commands**\n\n` +
+            `**Usage:**\n` +
+            `• \`.quote\` - Random quote\n` +
+            `• \`.quote daily\` - Quote of the day\n` +
+            `• \`.quote author <name>\` - Quote by specific author\n` +
+            `• \`.quote <category>\` - Quote from category\n\n` +
+            `**Available categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
+            `**Examples:**\n` +
+            `• \`.quote\`\n` +
+            `• \`.quote daily\`\n` +
+            `• \`.quote author Steve Jobs\`\n` +
+            `• \`.quote inspirational\`\n` +
+            `• \`.quote funny\``);
     }
 
     async cleanup() {
