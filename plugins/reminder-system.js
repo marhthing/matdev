@@ -77,6 +77,9 @@ class ReminderSystemPlugin {
                 `**Time:** ${timeStr}\n` +
                 `**Message:** ${parsed.message}\n\n` +
                 `🔔 You'll be notified when it's time!`);
+            
+            // Mark chat as unread to highlight the reminder
+            await this.markChatUnread(messageInfo.chat_jid);
 
         } catch (error) {
             console.error('Error in remind command:', error);
@@ -280,6 +283,11 @@ class ReminderSystemPlugin {
                             text: reminderText
                         });
                         console.log(`✅ Reminder ${reminderId} - attempt ${i + 1}/3 sent successfully`);
+                        
+                        // Mark chat as unread after first reminder delivery
+                        if (i === 0) {
+                            await this.markChatUnread(reminder.chatId);
+                        }
                     } catch (sendError) {
                         console.error(`❌ Error sending reminder ${reminderId} attempt ${i + 1}/3:`, sendError);
                     }
@@ -367,6 +375,15 @@ class ReminderSystemPlugin {
         const id = this.nextId.toString();
         this.nextId++;
         return id;
+    }
+
+    async markChatUnread(chatJid) {
+        try {
+            await this.bot.sock.chatModify({ markRead: false }, chatJid);
+            console.log(`🔴 Marked chat ${chatJid} as unread`);
+        } catch (error) {
+            console.log(`Could not mark chat as unread: ${error.message}`);
+        }
     }
 
     formatDateTime(timestamp) {
