@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 const { exec } = require('child_process'); // Required for LibreOffice conversion
+const { downloadMediaMessage } = require('@whiskeysockets/baileys'); // Import downloadMediaMessage
 
 class PDFToolsPlugin {
     constructor() {
@@ -136,9 +137,9 @@ class PDFToolsPlugin {
                     const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                         messageInfo.message?.quotedMessage;
                     const messageToDownload = { message: quotedMessage };
-                    fileUrl = await this.bot.sock.downloadMediaMessage(messageToDownload, 'buffer', {});
+                    fileUrl = await downloadMediaMessage(messageToDownload, 'buffer', {});
                 } else {
-                    fileUrl = await this.bot.sock.downloadMediaMessage(messageInfo, 'buffer', {});
+                    fileUrl = await downloadMediaMessage(messageInfo, 'buffer', {});
                 }
                 mimeType = mediaInfo.data.mimetype;
             } else if (mediaInfo.type === 'document') {
@@ -147,9 +148,9 @@ class PDFToolsPlugin {
                     const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                         messageInfo.message?.quotedMessage;
                     const messageToDownload = { message: quotedMessage };
-                    fileUrl = await this.bot.sock.downloadMediaMessage(messageToDownload, 'buffer', {});
+                    fileUrl = await downloadMediaMessage(messageToDownload, 'buffer', {});
                 } else {
-                    fileUrl = await this.bot.sock.downloadMediaMessage(messageInfo, 'buffer', {});
+                    fileUrl = await downloadMediaMessage(messageInfo, 'buffer', {});
                 }
                 mimeType = mediaInfo.data.mimetype;
             }
