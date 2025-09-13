@@ -64,8 +64,8 @@ class UnitConverterPlugin {
                 return;
             }
 
-            // Parse input: "100 cm to inch"
-            const match = args.match(/^(\d+(?:\.\d+)?)\s+(\w+)\s+to\s+(\w+)$/i);
+            // Parse input: "100 cm to inch" or "100cm to inch"
+            const match = args.match(/^(\d+(?:\.\d+)?)\s*(\w+)\s+to\s+(\w+)$/i);
             if (!match) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Format: .convert <value> <from_unit> to <to_unit>');
                 return;
