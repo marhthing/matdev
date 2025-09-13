@@ -243,11 +243,7 @@ class StatusPlugin {
             // Save settings
             this.saveStatusSettings();
 
-            if (this.statusSettings.autoDownload) {
-                responseMsg += '\n💾 Auto-download enabled';
-            }
-
-            return await this.bot.messageHandler.reply(messageInfo, responseMsg);
+            return await this.bot.messageHandler.reply(messageInfo, '🟢 Enabled');
 
         } catch (error) {
             console.error('Status on command error:', error);
