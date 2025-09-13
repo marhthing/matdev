@@ -101,10 +101,14 @@ class WikipediaPlugin {
 
     async searchWikipedia(query) {
         try {
-            const response = await axios.get('https://en.wikipedia.org/api/rest_v1/page/search', {
+            const response = await axios.get('https://en.wikipedia.org/w/api.php', {
                 params: {
-                    q: query,
-                    limit: 5
+                    action: 'query',
+                    list: 'search',
+                    srsearch: query,
+                    srlimit: 5,
+                    format: 'json',
+                    origin: '*'
                 },
                 headers: {
                     'User-Agent': 'MATDEV-Bot/1.0 (https://github.com/matdev; matdev@bot.com)'
@@ -112,12 +116,12 @@ class WikipediaPlugin {
                 timeout: 10000
             });
 
-            if (response.data && response.data.pages) {
+            if (response.data && response.data.query && response.data.query.search) {
                 return {
                     success: true,
-                    results: response.data.pages.map(page => ({
+                    results: response.data.query.search.map(page => ({
                         title: page.title,
-                        snippet: this.cleanSnippet(page.description || page.excerpt || 'No description available'),
+                        snippet: this.cleanSnippet(page.snippet || 'No description available'),
                         url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, '_'))}`
                     }))
                 };
@@ -139,27 +143,73 @@ class WikipediaPlugin {
 
     async getWikipediaSummary(title) {
         try {
-            const response = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
+            // First try the REST API for summary (still works)
+            try {
+                const response = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
+                    headers: {
+                        'User-Agent': 'MATDEV-Bot/1.0 (https://github.com/matdev; matdev@bot.com)'
+                    },
+                    timeout: 10000
+                });
+
+                if (response.data && response.data.extract) {
+                    let extract = response.data.extract;
+                    
+                    // Limit length for WhatsApp
+                    if (extract.length > 800) {
+                        extract = extract.substring(0, 800) + '...';
+                    }
+
+                    return {
+                        success: true,
+                        title: response.data.title,
+                        extract: extract,
+                        url: response.data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
+                    };
+                }
+            } catch (restError) {
+                // If REST API fails, fallback to Action API
+                console.log('REST API failed, trying Action API fallback...');
+            }
+
+            // Fallback: Use Action API to get page extract
+            const response = await axios.get('https://en.wikipedia.org/w/api.php', {
+                params: {
+                    action: 'query',
+                    prop: 'extracts',
+                    exintro: true,
+                    explaintext: true,
+                    exsectionformat: 'plain',
+                    titles: title,
+                    format: 'json',
+                    origin: '*'
+                },
                 headers: {
                     'User-Agent': 'MATDEV-Bot/1.0 (https://github.com/matdev; matdev@bot.com)'
                 },
                 timeout: 10000
             });
 
-            if (response.data && response.data.extract) {
-                let extract = response.data.extract;
-                
-                // Limit length for WhatsApp
-                if (extract.length > 800) {
-                    extract = extract.substring(0, 800) + '...';
-                }
+            if (response.data && response.data.query && response.data.query.pages) {
+                const pages = response.data.query.pages;
+                const pageId = Object.keys(pages)[0];
+                const page = pages[pageId];
 
-                return {
-                    success: true,
-                    title: response.data.title,
-                    extract: extract,
-                    url: response.data.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
-                };
+                if (pageId !== '-1' && page.extract) {
+                    let extract = page.extract;
+                    
+                    // Limit length for WhatsApp
+                    if (extract.length > 800) {
+                        extract = extract.substring(0, 800) + '...';
+                    }
+
+                    return {
+                        success: true,
+                        title: page.title,
+                        extract: extract,
+                        url: `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, '_'))}`
+                    };
+                }
             }
 
             return {
