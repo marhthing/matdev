@@ -110,30 +110,35 @@ class TranslationPlugin {
 
     async translateText(text, toLang) {
         try {
-            // Try MyMemory API (free, no API key required)
-            const response = await axios.get('https://api.mymemory.translated.net/get', {
+            // Try Google Translate free API (via translate.googleapis.com)
+            const response = await axios.post('https://translate.googleapis.com/translate_a/single', null, {
                 params: {
-                    q: text,
-                    langpair: `en|${toLang}`, // Assuming source is English for now
-                    de: 'matdev@bot.com'
+                    client: 'gtx',
+                    sl: 'en',
+                    tl: toLang,
+                    dt: 't',
+                    q: text
                 },
-                timeout: 10000
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
             });
 
-            if (response.data && response.data.responseStatus === 200) {
+            if (response.data && response.data[0] && response.data[0][0] && response.data[0][0][0]) {
                 return {
                     success: true,
-                    text: response.data.responseData.translatedText,
+                    text: response.data[0][0][0],
                     fromLang: 'en'
                 };
             }
 
-            throw new Error('Translation API returned an error');
+            throw new Error('Google Translate API returned invalid response');
 
         } catch (error) {
-            console.error('Translation error:', error.message);
+            console.error('Google Translate error:', error.message);
             
-            // Try LibreTranslate as backup (if available)
+            // Try LibreTranslate as backup
             try {
                 const libreResponse = await axios.post('https://libretranslate.de/translate', {
                     q: text,
@@ -156,6 +161,26 @@ class TranslationPlugin {
                 }
             } catch (libreError) {
                 console.error('LibreTranslate error:', libreError.message);
+            }
+
+            // Try Lingva Translate as final backup
+            try {
+                const lingvaResponse = await axios.get(`https://lingva.ml/api/v1/en/${toLang}/${encodeURIComponent(text)}`, {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                if (lingvaResponse.data && lingvaResponse.data.translation) {
+                    return {
+                        success: true,
+                        text: lingvaResponse.data.translation,
+                        fromLang: 'en'
+                    };
+                }
+            } catch (lingvaError) {
+                console.error('Lingva error:', lingvaError.message);
             }
 
             return {
