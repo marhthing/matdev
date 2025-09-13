@@ -1,0 +1,250 @@
+const axios = require('axios');
+const config = require('../config');
+
+class QuoteGeneratorPlugin {
+    constructor() {
+        this.name = 'quote-generator';
+        this.description = 'Get inspirational and funny quotes';
+        this.version = '1.0.0';
+        this.enabled = true;
+        
+        // Fallback quotes in case APIs are down
+        this.fallbackQuotes = [
+            { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+            { text: "Life is what happens to you while you're busy making other plans.", author: "John Lennon" },
+            { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+            { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
+            { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+            { text: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
+            { text: "You learn more from failure than from success.", author: "Unknown" },
+            { text: "If you are working on something that you really care about, you don't have to be pushed.", author: "Steve Jobs" },
+            { text: "Experience is the teacher of all things.", author: "Julius Caesar" },
+            { text: "What we think, we become.", author: "Buddha" }
+        ];
+        
+        this.categories = ['inspirational', 'motivational', 'funny', 'love', 'life', 'success'];
+    }
+
+    async init(bot) {
+        this.bot = bot;
+        try {
+            this.bot.messageHandler.registerCommand('quote', this.quoteCommand.bind(this), {
+                description: 'Get a random inspirational quote',
+                usage: `${config.PREFIX}quote [category]`,
+                category: 'fun',
+                plugin: 'quote-generator',
+                source: 'quote-generator.js'
+            });
+
+            this.bot.messageHandler.registerCommand('dailyquote', this.dailyQuoteCommand.bind(this), {
+                description: 'Get quote of the day',
+                usage: `${config.PREFIX}dailyquote`,
+                category: 'fun',
+                plugin: 'quote-generator',
+                source: 'quote-generator.js'
+            });
+
+            this.bot.messageHandler.registerCommand('authorquote', this.authorQuoteCommand.bind(this), {
+                description: 'Get quote by specific author',
+                usage: `${config.PREFIX}authorquote <author_name>`,
+                category: 'fun',
+                plugin: 'quote-generator',
+                source: 'quote-generator.js'
+            });
+
+            console.log('✅ Quote Generator plugin loaded');
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to initialize Quote Generator plugin:', error);
+            return false;
+        }
+    }
+
+    async quoteCommand(messageInfo) {
+        try {
+            const category = messageInfo.args[0]?.toLowerCase() || 'random';
+            
+            if (category !== 'random' && !this.categories.includes(category)) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `💬 Usage: .quote [category]\n\n` +
+                    `**Available categories:**\n${this.categories.map(c => `• ${c}`).join('\n')}\n\n` +
+                    'Examples:\n• .quote\n• .quote inspirational\n• .quote funny');
+                return;
+            }
+
+            const quote = await this.getRandomQuote(category);
+            if (quote.success) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `💬 **Quote of the Moment**\n\n` +
+                    `"${quote.text}"\n\n` +
+                    `— _${quote.author}_\n\n` +
+                    `📂 Category: ${quote.category || 'General'}`);
+            } else {
+                // Use fallback quote
+                const fallback = this.fallbackQuotes[Math.floor(Math.random() * this.fallbackQuotes.length)];
+                await this.bot.messageHandler.reply(messageInfo,
+                    `💬 **Quote of the Moment**\n\n` +
+                    `"${fallback.text}"\n\n` +
+                    `— _${fallback.author}_`);
+            }
+
+        } catch (error) {
+            console.error('Error in quote command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting quote.');
+        }
+    }
+
+    async dailyQuoteCommand(messageInfo) {
+        try {
+            const quote = await this.getDailyQuote();
+            if (quote.success) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🌅 **Quote of the Day**\n\n` +
+                    `"${quote.text}"\n\n` +
+                    `— _${quote.author}_\n\n` +
+                    `📅 ${new Date().toLocaleDateString()}`);
+            } else {
+                // Use date-based fallback
+                const today = new Date().getDate();
+                const fallback = this.fallbackQuotes[today % this.fallbackQuotes.length];
+                await this.bot.messageHandler.reply(messageInfo,
+                    `🌅 **Quote of the Day**\n\n` +
+                    `"${fallback.text}"\n\n` +
+                    `— _${fallback.author}_\n\n` +
+                    `📅 ${new Date().toLocaleDateString()}`);
+            }
+
+        } catch (error) {
+            console.error('Error in dailyquote command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting daily quote.');
+        }
+    }
+
+    async authorQuoteCommand(messageInfo) {
+        try {
+            const author = messageInfo.args.join(' ').trim();
+            if (!author) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    '👤 Usage: .authorquote <author_name>\n\n' +
+                    'Examples:\n• .authorquote Albert Einstein\n• .authorquote Maya Angelou\n• .authorquote Steve Jobs');
+                return;
+            }
+
+            const quote = await this.getQuoteByAuthor(author);
+            if (quote.success) {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `👤 **Quote by ${quote.author}**\n\n` +
+                    `"${quote.text}"\n\n` +
+                    `— _${quote.author}_`);
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ No quotes found for "${author}". Try another author name.`);
+            }
+
+        } catch (error) {
+            console.error('Error in authorquote command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting author quote.');
+        }
+    }
+
+    async getRandomQuote(category) {
+        try {
+            // Try Quotable API (free, no auth required)
+            let url = 'https://api.quotable.io/random';
+            if (category !== 'random') {
+                // Map our categories to Quotable tags
+                const tagMap = {
+                    'inspirational': 'inspirational',
+                    'motivational': 'motivational',
+                    'funny': 'humorous',
+                    'love': 'love',
+                    'life': 'life',
+                    'success': 'success'
+                };
+                const tag = tagMap[category] || category;
+                url += `?tags=${tag}`;
+            }
+
+            const response = await axios.get(url, { timeout: 8000 });
+            
+            if (response.data && response.data.content) {
+                return {
+                    success: true,
+                    text: response.data.content,
+                    author: response.data.author,
+                    category: category
+                };
+            }
+
+            throw new Error('No quote data received');
+
+        } catch (error) {
+            console.error('Quote API error:', error.message);
+            return { success: false };
+        }
+    }
+
+    async getDailyQuote() {
+        try {
+            // Use Quotable's quote of the day endpoint
+            const response = await axios.get('https://api.quotable.io/today', {
+                timeout: 8000
+            });
+
+            if (response.data && response.data.content) {
+                return {
+                    success: true,
+                    text: response.data.content,
+                    author: response.data.author
+                };
+            }
+
+            throw new Error('No daily quote data received');
+
+        } catch (error) {
+            console.error('Daily quote API error:', error.message);
+            return { success: false };
+        }
+    }
+
+    async getQuoteByAuthor(author) {
+        try {
+            // Search for quotes by specific author
+            const response = await axios.get('https://api.quotable.io/quotes', {
+                params: {
+                    author: author,
+                    limit: 1
+                },
+                timeout: 8000
+            });
+
+            if (response.data && response.data.results && response.data.results.length > 0) {
+                const quote = response.data.results[0];
+                return {
+                    success: true,
+                    text: quote.content,
+                    author: quote.author
+                };
+            }
+
+            return { success: false };
+
+        } catch (error) {
+            console.error('Author quote API error:', error.message);
+            return { success: false };
+        }
+    }
+
+    async cleanup() {
+        console.log('🧹 Quote Generator plugin cleanup completed');
+    }
+}
+
+// Export function for plugin initialization
+module.exports = {
+    init: async (bot) => {
+        const plugin = new QuoteGeneratorPlugin();
+        await plugin.init(bot);
+        return plugin;
+    }
+};
