@@ -3,8 +3,12 @@ const config = require('../config');
 class StatusPlugin {
     constructor() {
         this.name = 'status';
-        this.description = 'WhatsApp status saving and auto-send functionality';
+        this.description = 'WhatsApp status auto-view, auto-send, and monitoring functionality';
         this.version = '1.0.0';
+        
+        // Store bound handlers to prevent duplicates on hot reload
+        this.boundHandleMessagesUpsert = this.handleMessagesUpsert.bind(this);
+        this.boundHandleStatusMonitoring = this.handleStatusMonitoring.bind(this);
     }
 
     /**
@@ -47,11 +51,11 @@ class StatusPlugin {
      */
     registerSocketEvents() {
         try {
-            // Register message handler for auto-send functionality
-            this.bot.sock.ev.on('messages.upsert', this.handleMessagesUpsert.bind(this));
+            // Register message handler for auto-send functionality and auto-view
+            this.bot.sock.ev.on('messages.upsert', this.boundHandleMessagesUpsert);
 
             // Monitor status updates for auto-saving
-            this.bot.sock.ev.on('messages.upsert', this.handleStatusMonitoring.bind(this));
+            this.bot.sock.ev.on('messages.upsert', this.boundHandleStatusMonitoring);
 
             console.log('✅ Status plugin socket events registered');
         } catch (error) {
@@ -71,6 +75,9 @@ class StatusPlugin {
 
         for (const message of messages) {
             try {
+                // Handle auto status view first
+                await this.handleAutoStatusView(message);
+
                 // Extract JID information using centralized JID utils
                 const jids = this.bot.jidUtils.extractJIDs(message);
                 if (!jids) continue;
@@ -101,6 +108,24 @@ class StatusPlugin {
             } catch (error) {
                 // console.error(`Error in status message handler: ${error.message}`);
             }
+        }
+    }
+
+    /**
+     * Handle auto status view functionality
+     */
+    async handleAutoStatusView(message) {
+        try {
+            // Check if this is a status update and auto-view is enabled
+            if (message.key?.remoteJid === 'status@broadcast' && 
+                !message.key.fromMe && 
+                config.AUTO_STATUS_VIEW) {
+                
+                await this.bot.sock.readMessages([message.key]);
+                this.logger.debug('👁️ Auto-viewed status from:', message.key.participant || message.key.remoteJid);
+            }
+        } catch (error) {
+            this.logger.error('Error auto-viewing status:', error.message);
         }
     }
 
@@ -288,6 +313,21 @@ class StatusPlugin {
         } catch (error) {
             console.error(`Error extracting status text: ${error.message}`);
             return null;
+        }
+    }
+
+    /**
+     * Clean up event listeners to prevent duplicates on hot reload
+     */
+    destroy() {
+        try {
+            if (this.bot.sock?.ev) {
+                this.bot.sock.ev.off('messages.upsert', this.boundHandleMessagesUpsert);
+                this.bot.sock.ev.off('messages.upsert', this.boundHandleStatusMonitoring);
+                console.log('🗑️ Status plugin event listeners cleaned up');
+            }
+        } catch (error) {
+            console.error('Error cleaning up status plugin events:', error);
         }
     }
 }

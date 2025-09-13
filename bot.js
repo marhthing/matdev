@@ -337,6 +337,11 @@ class MATDEV {
      */
     async unloadPlugin(pluginName) {
         try {
+            // Clean up plugin event listeners if destroy method exists
+            if (this.plugins[pluginName] && typeof this.plugins[pluginName].destroy === 'function') {
+                this.plugins[pluginName].destroy();
+            }
+
             // Remove plugin from stored references
             if (this.plugins[pluginName]) {
                 delete this.plugins[pluginName];
@@ -742,18 +747,9 @@ class MATDEV {
                     continue;
                 }
 
-                // Handle status updates separately
+                // Handle status updates - now handled by status plugin
                 if (message.key.remoteJid === 'status@broadcast') {
-                    // Auto view status if enabled
-                    if (config.AUTO_STATUS_VIEW && !message.key.fromMe) {
-                        try {
-                            await this.sock.readMessages([message.key]);
-                            logger.debug('👁️ Auto-viewed status from:', message.key.participant || message.key.remoteJid);
-                        } catch (error) {
-                            logger.error('Error auto-viewing status:', error.message);
-                        }
-                    }
-                    continue; // Status plugin handles this
+                    continue; // Status plugin handles all status-related functionality
                 }
 
                 // Auto-read messages if enabled (for non-status messages)
