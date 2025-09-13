@@ -230,7 +230,7 @@ class ImageEffectsPlugin {
                 (messageInfo) => this.applyEffect(messageInfo, effect), {
                 description: this.effects[effect].description,
                 usage: `${config.PREFIX}${commandName} (reply to image)`,
-                category: 'image editing',
+                category: 'image effects',
                 plugin: 'image-effects',
                 source: 'image-effects.js'
             });

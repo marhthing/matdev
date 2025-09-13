@@ -161,7 +161,7 @@ class VideoEffectsPlugin {
                 (messageInfo) => this.applyEffect(messageInfo, effect), {
                 description: this.effects[effect].description,
                 usage: `${config.PREFIX}${commandName} (reply to video)`,
-                category: 'video editing',
+                category: 'video effects',
                 plugin: 'video-effects',
                 source: 'video-effects.js'
             });

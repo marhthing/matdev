@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Video Editor Plugin
  * Trim, compress, merge and edit videos
@@ -29,7 +28,7 @@ class VideoEditorPlugin {
         this.bot.messageHandler.registerCommand('trim', this.trimCommand.bind(this), {
             description: 'Trim video to specified duration',
             usage: `${config.PREFIX}trim <start> <duration> (reply to video)\nExample: ${config.PREFIX}trim 5 10 (start at 5s, duration 10s)`,
-            category: 'media',
+            category: 'video editing',
             plugin: 'video-editor',
             source: 'video-editor.js'
         });
@@ -37,7 +36,7 @@ class VideoEditorPlugin {
         this.bot.messageHandler.registerCommand('compress', this.compressCommand.bind(this), {
             description: 'Compress video to reduce file size',
             usage: `${config.PREFIX}compress [quality] (reply to video)\nQuality: low, medium, high (default: medium)`,
-            category: 'media',
+            category: 'video editing',
             plugin: 'video-editor',
             source: 'video-editor.js'
         });
@@ -45,7 +44,7 @@ class VideoEditorPlugin {
         this.bot.messageHandler.registerCommand('speed', this.speedCommand.bind(this), {
             description: 'Change video playback speed',
             usage: `${config.PREFIX}speed <factor> (reply to video)\nExample: ${config.PREFIX}speed 2 (2x faster), ${config.PREFIX}speed 0.5 (2x slower)`,
-            category: 'media',
+            category: 'video editing',
             plugin: 'video-editor',
             source: 'video-editor.js'
         });
@@ -53,7 +52,7 @@ class VideoEditorPlugin {
         this.bot.messageHandler.registerCommand('reverse', this.reverseCommand.bind(this), {
             description: 'Reverse video playback',
             usage: `${config.PREFIX}reverse (reply to video)`,
-            category: 'media',
+            category: 'video editing',
             plugin: 'video-editor',
             source: 'video-editor.js'
         });
@@ -61,7 +60,7 @@ class VideoEditorPlugin {
 
     async trimCommand(messageInfo) {
         const args = messageInfo.body.split(' ').slice(1);
-        
+
         if (args.length < 2) {
             await this.bot.messageHandler.reply(messageInfo, 
                 `❌ Please specify start time and duration.\n\n📝 Usage: ${config.PREFIX}trim <start> <duration>\nExample: ${config.PREFIX}trim 5 10`);
@@ -82,7 +81,7 @@ class VideoEditorPlugin {
     async compressCommand(messageInfo) {
         const args = messageInfo.body.split(' ').slice(1);
         const quality = args[0]?.toLowerCase() || 'medium';
-        
+
         const validQualities = ['low', 'medium', 'high'];
         if (!validQualities.includes(quality)) {
             await this.bot.messageHandler.reply(messageInfo, 
@@ -95,7 +94,7 @@ class VideoEditorPlugin {
 
     async speedCommand(messageInfo) {
         const args = messageInfo.body.split(' ').slice(1);
-        
+
         if (args.length < 1) {
             await this.bot.messageHandler.reply(messageInfo, 
                 `❌ Please specify speed factor.\n\n📝 Usage: ${config.PREFIX}speed <factor>\nExample: ${config.PREFIX}speed 2 (2x faster)`);
@@ -103,7 +102,7 @@ class VideoEditorPlugin {
         }
 
         const speed = parseFloat(args[0]);
-        
+
         if (isNaN(speed) || speed <= 0 || speed > 4) {
             await this.bot.messageHandler.reply(messageInfo, '❌ Speed factor must be between 0.1 and 4.0');
             return;
@@ -123,7 +122,7 @@ class VideoEditorPlugin {
         try {
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
             if (!quotedMessage || !quotedMessage.videoMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a video.');
                 return;
@@ -131,7 +130,7 @@ class VideoEditorPlugin {
 
             // Download video
             const buffer = await this.downloadMediaRobust(messageInfo, quotedMessage, 'videoMessage');
-            
+
             if (!buffer) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process video. Please try again.');
                 return;
@@ -147,22 +146,22 @@ class VideoEditorPlugin {
 
             // Build FFmpeg command based on operation
             let command = '';
-            
+
             switch (operation) {
                 case 'trim':
                     command = `ffmpeg -i "${inputPath}" -ss ${params.startTime} -t ${params.duration} -c copy "${outputPath}"`;
                     break;
-                    
+
                 case 'compress':
                     const crf = params.quality === 'low' ? '35' : params.quality === 'high' ? '20' : '28';
                     command = `ffmpeg -i "${inputPath}" -c:v libx264 -crf ${crf} -preset fast -c:a aac -b:a 128k "${outputPath}"`;
                     break;
-                    
+
                 case 'speed':
                     const audioSpeed = 1 / params.speed;
                     command = `ffmpeg -i "${inputPath}" -filter:v "setpts=${audioSpeed}*PTS" -filter:a "atempo=${params.speed}" "${outputPath}"`;
                     break;
-                    
+
                 case 'reverse':
                     command = `ffmpeg -i "${inputPath}" -vf reverse -af areverse "${outputPath}"`;
                     break;
@@ -210,7 +209,7 @@ class VideoEditorPlugin {
     async downloadMediaRobust(messageInfo, quoted, mediaType) {
         try {
             const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
-            
+
             if (!ctx || !ctx.stanzaId) {
                 throw new Error('No quoted message context found');
             }
