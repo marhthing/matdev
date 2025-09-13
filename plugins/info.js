@@ -125,4 +125,12 @@ class InfoPlugin {
     }
 }
 
-module.exports = InfoPlugin;
+// Export the plugin class instance with init function
+const infoPlugin = new InfoPlugin();
+
+module.exports = {
+    init: infoPlugin.init.bind(infoPlugin),
+    name: infoPlugin.name,
+    description: infoPlugin.description,
+    version: infoPlugin.version
+};

@@ -168,4 +168,12 @@ class AudioPlugin {
     }
 }
 
-module.exports = AudioPlugin;
+// Export the plugin class instance with init function
+const audioPlugin = new AudioPlugin();
+
+module.exports = {
+    init: audioPlugin.init.bind(audioPlugin),
+    name: audioPlugin.name,
+    description: audioPlugin.description,
+    version: audioPlugin.version
+};

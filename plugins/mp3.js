@@ -170,4 +170,12 @@ class Mp3Plugin {
     }
 }
 
-module.exports = Mp3Plugin;
+// Export the plugin class instance with init function
+const mp3Plugin = new Mp3Plugin();
+
+module.exports = {
+    init: mp3Plugin.init.bind(mp3Plugin),
+    name: mp3Plugin.name,
+    description: mp3Plugin.description,
+    version: mp3Plugin.version
+};

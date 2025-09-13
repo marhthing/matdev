@@ -42,48 +42,80 @@ class VideoPlugin {
         let tempFilePath = null;
 
         try {
-            // Check for quoted message using the same approach as photo plugin
-            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                  messageInfo.message?.quotedMessage;
+            // Enhanced quoted message detection using contextInfo
+            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
+            let quotedMessage = null;
+            let quotedKey = null;
+
+            if (contextInfo && contextInfo.quotedMessage) {
+                quotedMessage = contextInfo.quotedMessage;
+                quotedKey = {
+                    id: contextInfo.stanzaId,
+                    remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                    fromMe: contextInfo.participant ? (contextInfo.participant === this.bot.sock.user?.id) : false,
+                    participant: contextInfo.participant || undefined
+                };
+            } else if (messageInfo.message?.quotedMessage) {
+                quotedMessage = messageInfo.message.quotedMessage;
+                quotedKey = messageInfo.key;
+            }
 
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a GIF or GIF sticker.');
                 return;
             }
 
-            // Check if quoted message is GIF sticker or regular GIF
-            const isGifSticker = quotedMessage.stickerMessage && quotedMessage.stickerMessage.isAnimated;
-            const isGifImage = quotedMessage.imageMessage && quotedMessage.imageMessage.mimetype === 'image/gif';
-            const isGifDocument = quotedMessage.documentMessage && quotedMessage.documentMessage.mimetype === 'image/gif';
+            // Enhanced media type detection
+            let mediaType = null;
+            let isValidMedia = false;
 
-            if (!isGifSticker && !isGifImage && !isGifDocument) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a GIF or GIF sticker.');
+            // Check for animated sticker (GIF sticker)
+            if (quotedMessage.stickerMessage) {
+                mediaType = 'stickerMessage';
+                // Any sticker can potentially be converted to video
+                isValidMedia = true;
+                console.log('📹 Detected sticker message for video conversion');
+            }
+            // Check for GIF image
+            else if (quotedMessage.imageMessage && 
+                     (quotedMessage.imageMessage.mimetype === 'image/gif' || 
+                      quotedMessage.imageMessage.gifPlayback)) {
+                mediaType = 'imageMessage';
+                isValidMedia = true;
+                console.log('📹 Detected GIF image for video conversion');
+            }
+            // Check for GIF document
+            else if (quotedMessage.documentMessage && 
+                     quotedMessage.documentMessage.mimetype === 'image/gif') {
+                mediaType = 'documentMessage';
+                isValidMedia = true;
+                console.log('📹 Detected GIF document for video conversion');
+            }
+            // Check for video (for potential re-encoding)
+            else if (quotedMessage.videoMessage) {
+                mediaType = 'videoMessage';
+                isValidMedia = true;
+                console.log('📹 Detected video for re-encoding');
+            }
+
+            if (!isValidMedia) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to a GIF, sticker, or video.');
                 return;
             }
 
-            // Create proper message structure for downloadMedia
+            // Create proper message structure for download
             const messageToProcess = {
-                key: messageInfo.message?.extendedTextMessage?.contextInfo?.stanzaId ? 
-                     { id: messageInfo.message.extendedTextMessage.contextInfo.stanzaId } : 
-                     messageInfo.key,
+                key: quotedKey,
                 message: quotedMessage
             };
 
-            // Determine media type
-            let mediaType;
-            if (isGifSticker) {
-                mediaType = 'stickerMessage';
-            } else if (isGifImage) {
-                mediaType = 'imageMessage';
-            } else {
-                mediaType = 'documentMessage';
-            }
+            console.log(`📹 Processing ${mediaType} for video conversion...`);
 
-            // Download media using the downloadMedia method
-            const mediaResult = await this.downloadMedia(messageToProcess, mediaType);
+            // Download media using the robust download method
+            const mediaResult = await this.downloadMediaRobust(messageInfo, quotedMessage, mediaType);
 
             if (!mediaResult || !mediaResult.buffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process GIF. Please try again.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
                 return;
             }
 
@@ -120,7 +152,100 @@ class VideoPlugin {
     }
 
     /**
-     * Download media with multiple fallback methods
+     * Robust media download with latest Baileys methods
+     */
+    async downloadMediaRobust(messageInfo, quoted, mediaType) {
+        try {
+            // Extract contextInfo for proper quoted message key construction
+            const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
+            
+            if (!ctx || !ctx.stanzaId) {
+                throw new Error('No quoted message context found - unable to download media');
+            }
+
+            // Construct proper key using contextInfo data
+            const quotedKey = {
+                id: ctx.stanzaId,
+                remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                participant: ctx.participant || undefined
+            };
+
+            // Create proper WAMessage structure with correct key
+            const messageToDownload = {
+                key: quotedKey,
+                message: quoted
+            };
+
+            // Try downloading as stream first (memory efficient)
+            const stream = await downloadMediaMessage(messageToDownload, 'stream', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
+
+            // Convert stream to buffer
+            const chunks = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+            const buffer = Buffer.concat(chunks);
+
+            if (!buffer || buffer.length === 0) {
+                throw new Error('Downloaded buffer is empty');
+            }
+
+            return {
+                buffer,
+                info: {
+                    size: buffer.length,
+                    source: 'stream_download'
+                }
+            };
+
+        } catch (error) {
+            console.error('Stream download failed, trying buffer fallback:', error);
+            
+            try {
+                // Use same key extraction for buffer fallback
+                const ctx = messageInfo.message?.extendedTextMessage?.contextInfo;
+                
+                if (!ctx || !ctx.stanzaId) {
+                    throw new Error('No quoted message context found for buffer fallback');
+                }
+
+                const quotedKey = {
+                    id: ctx.stanzaId,
+                    remoteJid: messageInfo.key?.remoteJid || messageInfo.sender,
+                    fromMe: ctx.participant ? (ctx.participant === this.bot.sock.user?.id) : false,
+                    participant: ctx.participant || undefined
+                };
+
+                const messageToDownload = {
+                    key: quotedKey,
+                    message: quoted
+                };
+
+                const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                    logger: console,
+                    reuploadRequest: this.bot.sock.updateMediaMessage
+                });
+
+                return {
+                    buffer,
+                    info: {
+                        size: buffer.length,
+                        source: 'buffer_fallback'
+                    }
+                };
+            } catch (fallbackError) {
+                console.error('All download methods failed:', fallbackError);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Download media with multiple fallback methods (legacy method)
      */
     async downloadMedia(message, messageType) {
         let mediaBuffer = null;
