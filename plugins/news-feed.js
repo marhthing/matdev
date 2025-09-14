@@ -456,6 +456,13 @@ class NewsFeedPlugin {
         
         // Check if current time matches any of our schedule times
         if (this.scheduleTimes.includes(currentTime)) {
+            // Check if anyone has news enabled BEFORE logging
+            const enabledUsers = Array.from(this.newsSettings.entries()).filter(([, settings]) => settings.enabled);
+            
+            if (enabledUsers.length === 0) {
+                return; // No one has news enabled, exit silently
+            }
+            
             // Prevent duplicate sends by tracking last delivery time
             const lastDeliveryKey = `last_delivery_${currentTime}`;
             const today = now.format('YYYY-MM-DD');
