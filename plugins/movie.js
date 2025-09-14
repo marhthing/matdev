@@ -304,6 +304,40 @@ class MoviePlugin {
     }
 
     /**
+     * Convert standard ratings to user-friendly age guidance
+     */
+    convertRatingToAge(rating) {
+        if (!rating) return 'N/A';
+
+        switch (rating.toUpperCase()) {
+            case 'G':
+                return 'All Ages';
+            case 'PG':
+                return 'PG';
+            case 'PG-13':
+                return '13+';
+            case 'R':
+                return '17+'; // Restricted
+            case 'NC-17':
+                return '18+'; // Adults Only
+            case 'TV-Y':
+                return 'All Ages';
+            case 'TV-G':
+                return 'All Ages';
+            case 'TV-Y7':
+                return '7+';
+            case 'TV-PG':
+                return 'PG';
+            case 'TV-14':
+                return '14+';
+            case 'TV-MA':
+                return '18+'; // Mature Audiences
+            default:
+                return rating; // Return original if unknown
+        }
+    }
+
+    /**
      * Format movie/TV info for WhatsApp
      */
     formatMovieInfo(data, type = 'movie') {
@@ -339,7 +373,8 @@ class MoviePlugin {
         }
 
         if (data.Rated && data.Rated !== 'N/A') {
-            text += `🔞 *Age Rating:* ${data.Rated}\n`;
+            const ageGuidance = this.convertRatingToAge(data.Rated);
+            text += `🔞 *Age Rating:* ${ageGuidance} (${data.Rated})\n`;
         }
 
         if (data.Language && data.Language !== 'N/A') {
@@ -558,7 +593,8 @@ class MoviePlugin {
         }
 
         if (data.Rated && data.Rated !== 'N/A') {
-            text += `🔞 *Age Rating:* ${data.Rated}\n`;
+            const ageGuidance = this.convertRatingToAge(data.Rated);
+            text += `🔞 *Age Rating:* ${ageGuidance} (${data.Rated})\n`;
         }
 
         if (data.Language && data.Language !== 'N/A') {
