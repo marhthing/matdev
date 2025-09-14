@@ -18,7 +18,7 @@ class GroupPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        
+        this.registerGroupEvents();
         
         console.log('✅ Group plugin loaded');
     }
@@ -762,10 +762,11 @@ class GroupPlugin {
             // Perform the promotion
             await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'promote');
 
-            // Send confirmation message
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ User @${displayName} has been promoted to admin.`
-            );
+            // Send confirmation message with proper mention
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: `✅ User @${displayName} has been promoted to admin.`,
+                mentions: [targetJid]
+            });
 
         } catch (error) {
             console.error('Error in promote user:', error);
@@ -885,16 +886,122 @@ class GroupPlugin {
             // Perform the demotion
             await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'demote');
 
-            // Send confirmation message
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ User @${displayName} has been demoted from admin.`
-            );
+            // Send confirmation message with proper mention
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: `✅ User @${displayName} has been demoted from admin.`,
+                mentions: [targetJid]
+            });
 
         } catch (error) {
             console.error('Error in demote user:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to demote user. Please try again or check if I have admin permissions.'
             );
+        }
+    }
+
+    /**
+     * Register group event handlers
+     */
+    registerGroupEvents() {
+        // Listen for group participants update events
+        this.bot.sock.ev.on('group-participants.update', async (update) => {
+            try {
+                await this.handleGroupParticipantsUpdate(update);
+            } catch (error) {
+                console.error('Error handling group participants update:', error);
+            }
+        });
+    }
+
+    /**
+     * Handle group participants update (join/leave/promote/demote)
+     */
+    async handleGroupParticipantsUpdate(update) {
+        try {
+            const { id: groupJid, participants, action } = update;
+
+            // Only handle group chats
+            if (!groupJid.endsWith('@g.us')) return;
+
+            for (const participantJid of participants) {
+                // Get display name for participant
+                let displayName = participantJid;
+                if (displayName.includes('@lid')) {
+                    displayName = displayName.split('@')[0];
+                } else if (displayName.includes('@s.whatsapp.net')) {
+                    displayName = displayName.replace('@s.whatsapp.net', '');
+                }
+
+                switch (action) {
+                    case 'add':
+                        await this.sendWelcomeMessage(groupJid, participantJid, displayName);
+                        break;
+                    case 'remove':
+                        await this.sendGoodbyeMessage(groupJid, participantJid, displayName);
+                        break;
+                }
+            }
+        } catch (error) {
+            console.error('Error in handleGroupParticipantsUpdate:', error);
+        }
+    }
+
+    /**
+     * Send welcome message for new group member
+     */
+    async sendWelcomeMessage(groupJid, participantJid, displayName) {
+        try {
+            // Don't welcome the bot itself
+            if (participantJid === this.bot.sock.user?.id) return;
+
+            const welcomeMessages = [
+                `🎉 Welcome to the group, @${displayName}! We're excited to have you here.`,
+                `👋 Hello @${displayName}! Welcome aboard! Feel free to introduce yourself.`,
+                `🌟 Welcome @${displayName}! You just made this group more awesome.`,
+                `🎊 Hey @${displayName}! Welcome to our amazing community!`,
+                `✨ Welcome @${displayName}! We're glad you joined us. Let's have some fun!`
+            ];
+
+            // Pick a random welcome message
+            const randomMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+
+            await this.bot.sock.sendMessage(groupJid, {
+                text: randomMessage,
+                mentions: [participantJid]
+            });
+
+        } catch (error) {
+            console.error('Error sending welcome message:', error);
+        }
+    }
+
+    /**
+     * Send goodbye message when member leaves/removed
+     */
+    async sendGoodbyeMessage(groupJid, participantJid, displayName) {
+        try {
+            // Don't send goodbye for the bot itself
+            if (participantJid === this.bot.sock.user?.id) return;
+
+            const goodbyeMessages = [
+                `👋 Goodbye @${displayName}! Thanks for being part of our group. You'll be missed!`,
+                `🌺 Farewell @${displayName}! Best wishes on your journey ahead.`,
+                `💫 @${displayName} has left the group. Thanks for the memories!`,
+                `🕊️ See you later @${displayName}! Take care and stay awesome.`,
+                `🌅 @${displayName} has departed. Wishing you all the best!`
+            ];
+
+            // Pick a random goodbye message
+            const randomMessage = goodbyeMessages[Math.floor(Math.random() * goodbyeMessages.length)];
+
+            await this.bot.sock.sendMessage(groupJid, {
+                text: randomMessage,
+                mentions: [participantJid]
+            });
+
+        } catch (error) {
+            console.error('Error sending goodbye message:', error);
         }
     }
 
