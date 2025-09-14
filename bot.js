@@ -237,33 +237,44 @@ class MATDEV {
 
             let loadedCount = 0;
 
-            for (const file of pluginFiles) {
+            // Load plugins in batches to reduce CPU spikes
+            const batchSize = 5;
+            for (let i = 0; i < pluginFiles.length; i += batchSize) {
+                const batch = pluginFiles.slice(i, i + batchSize);
+                
+                await Promise.all(batch.map(async (file) => {
                 if (file.endsWith('.js')) {
-                    try {
-                        const plugin = require(path.join(pluginsDir, file));
-                        if (plugin && typeof plugin.init === 'function') {
-                            const pluginInstance = await plugin.init(this);
+                        try {
+                            const plugin = require(path.join(pluginsDir, file));
+                            if (plugin && typeof plugin.init === 'function') {
+                                const pluginInstance = await plugin.init(this);
 
-                            // Store plugin reference for direct access
-                            const pluginName = file.replace('.js', '');
-                            if (pluginInstance && pluginInstance.name) {
-                                this.plugins[pluginInstance.name] = pluginInstance;
-                                // Plugin reference stored
-                            } else if (pluginName === 'antidelete') {
-                                // Special handling for antidelete plugin
-                                this.plugins.antidelete = pluginInstance || plugin;
-                                // Plugin reference stored
+                                // Store plugin reference for direct access
+                                const pluginName = file.replace('.js', '');
+                                if (pluginInstance && pluginInstance.name) {
+                                    this.plugins[pluginInstance.name] = pluginInstance;
+                                    // Plugin reference stored
+                                } else if (pluginName === 'antidelete') {
+                                    // Special handling for antidelete plugin
+                                    this.plugins.antidelete = pluginInstance || plugin;
+                                    // Plugin reference stored
+                                }
+
+                                loadedCount++;
+                                // Plugin loaded
+                            } else {
+                                logger.warn(`⚠️ Plugin ${file} has no init function - skipping`);
                             }
-
-                            loadedCount++;
-                            // Plugin loaded
-                        } else {
-                            logger.warn(`⚠️ Plugin ${file} has no init function - skipping`);
+                        } catch (error) {
+                            logger.error(`❌ Failed to load plugin ${file}: ${error.message} - continuing with other plugins`);
+                            // Continue loading other plugins instead of stopping
                         }
-                    } catch (error) {
-                        logger.error(`❌ Failed to load plugin ${file}: ${error.message} - continuing with other plugins`);
-                        // Continue loading other plugins instead of stopping
                     }
+                }));
+                
+                // Small delay between batches to prevent CPU spikes
+                if (i + batchSize < pluginFiles.length) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
 
