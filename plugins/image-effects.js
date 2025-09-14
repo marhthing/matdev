@@ -292,9 +292,9 @@ class ImageEffectsPlugin {
             // Write input file
             await fs.writeFile(inputPath, media.buffer);
 
-            // Apply image effect using FFmpeg with 2025 optimizations
+            // Apply image effect using FFmpeg with CPU-optimized settings
             const effect = this.effects[effectName];
-            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -vf "${effect.filter}" -q:v 1 -pix_fmt yuv420p -threads 0 "${outputPath}"`;
+            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -vf "${effect.filter}" -q:v 1 -pix_fmt yuv420p -threads 1 "${outputPath}"`;
             
             // Execute FFmpeg command
             await new Promise((resolve, reject) => {
