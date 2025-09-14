@@ -146,7 +146,7 @@ class ScheduleStatusPlugin {
         
         try {
             // Get status recipients - all contacts or fallback to owner
-            const statusJidList = this.getStatusRecipients();
+            const statusJidList = await this.getStatusRecipients();
             
             // Check if we have recipients
             if (statusJidList.length === 0) {
@@ -194,7 +194,7 @@ class ScheduleStatusPlugin {
     async postStatusNow(type, content, mediaPath = null, caption = null) {
         try {
             // Get status recipients - all contacts or fallback to owner
-            const statusJidList = this.getStatusRecipients();
+            const statusJidList = await this.getStatusRecipients();
             
             // Check if we have recipients
             if (statusJidList.length === 0) {
@@ -240,6 +240,15 @@ class ScheduleStatusPlugin {
         this.bot.messageHandler.registerCommand('poststatus', this.postStatusCommand.bind(this), {
             description: 'Post text or media to status immediately',
             usage: `${config.PREFIX}poststatus <text> | Reply to media with caption`,
+            category: 'status',
+            plugin: 'schedulestatus',
+            source: 'schedulestatus.js'
+        });
+
+        // Register debug command to check contacts
+        this.bot.messageHandler.registerCommand('checkcontacts', this.checkContactsCommand.bind(this), {
+            description: 'Debug command to check available contacts for status posting',
+            usage: `${config.PREFIX}checkcontacts`,
             category: 'status',
             plugin: 'schedulestatus',
             source: 'schedulestatus.js'
@@ -635,52 +644,217 @@ class ScheduleStatusPlugin {
     /**
      * Get status recipients list for 2025 WhatsApp status posting method
      */
-    getStatusRecipients() {
+    async getStatusRecipients() {
         const statusJidList = [];
         
         try {
-            // Method 1: Get all contacts from WhatsApp (preferred for real status behavior)
+            // Normalize self JID for comparison
+            const selfJid = this.bot.sock.user?.id;
+            const normalizedSelf = selfJid ? this.normalizeJid(selfJid) : null;
+            
+            console.log(`🤖 Bot JID: ${selfJid}, normalized: ${normalizedSelf}`);
+            
+            // Method 1: Get contacts from multiple sources
+            const allCandidates = new Set();
+            
+            // From sock.contacts
             if (this.bot.sock && this.bot.sock.contacts) {
-                const allContacts = Object.keys(this.bot.sock.contacts);
+                const contactJids = Object.keys(this.bot.sock.contacts);
+                contactJids.forEach(jid => {
+                    if (jid.endsWith('@s.whatsapp.net')) {
+                        allCandidates.add(jid);
+                    }
+                });
+                console.log(`📱 Found ${contactJids.length} contacts from sock.contacts`);
+            }
+            
+            // From store.contacts if available
+            if (this.bot.store && this.bot.store.contacts) {
+                const storeContactJids = Object.keys(this.bot.store.contacts);
+                storeContactJids.forEach(jid => {
+                    if (jid.endsWith('@s.whatsapp.net')) {
+                        allCandidates.add(jid);
+                    }
+                });
+                console.log(`📱 Found ${storeContactJids.length} contacts from store.contacts`);
+            }
+            
+            // From chats if available
+            if (this.bot.store && this.bot.store.chats) {
+                const chatJids = Object.keys(this.bot.store.chats);
+                chatJids.forEach(jid => {
+                    if (jid.endsWith('@s.whatsapp.net')) {
+                        allCandidates.add(jid);
+                    }
+                });
+                console.log(`💬 Found ${chatJids.length} personal chats from store.chats`);
+            }
+            
+            // Filter out self and normalize
+            const filteredContacts = Array.from(allCandidates).filter(jid => {
+                const normalizedJid = this.normalizeJid(jid);
+                return normalizedJid !== normalizedSelf;
+            });
+            
+            console.log(`📋 Total candidates: ${allCandidates.size}, after excluding self: ${filteredContacts.length}`);
+            
+            // Validate contacts are real WhatsApp users (optional, can be expensive)
+            if (filteredContacts.length > 0 && filteredContacts.length <= 50) {
+                try {
+                    const validatedContacts = await this.validateContacts(filteredContacts);
+                    if (validatedContacts.length > 0) {
+                        console.log(`✅ Validated ${validatedContacts.length} real WhatsApp contacts for status posting`);
+                        return validatedContacts.slice(0, 200); // Limit to 200 to prevent issues
+                    }
+                } catch (validationError) {
+                    console.warn('⚠️ Contact validation failed, using unvalidated list:', validationError.message);
+                    if (filteredContacts.length > 0) {
+                        console.log(`📱 Using ${filteredContacts.length} unvalidated contacts for status posting`);
+                        return filteredContacts.slice(0, 200);
+                    }
+                }
+            } else if (filteredContacts.length > 0) {
+                console.log(`📱 Using ${filteredContacts.length} contacts for status posting (skipped validation due to large number)`);
+                return filteredContacts.slice(0, 200);
+            }
+            
+            // Method 2: Check if owner is different from bot
+            if (config.OWNER_NUMBER) {
+                const ownerJid = config.OWNER_NUMBER.includes('@') ? 
+                    config.OWNER_NUMBER : 
+                    `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    
+                const normalizedOwner = this.normalizeJid(ownerJid);
                 
-                // Filter to get only personal contacts (not groups)
-                const personalContacts = allContacts.filter(jid => 
-                    jid.endsWith('@s.whatsapp.net') && 
-                    jid !== this.bot.sock.user?.id // Exclude bot itself
-                );
-                
-                if (personalContacts.length > 0) {
-                    console.log(`📱 Found ${personalContacts.length} contacts for status posting`);
-                    return personalContacts;
+                // Only use owner if it's different from the bot itself
+                if (normalizedOwner !== normalizedSelf) {
+                    statusJidList.push(ownerJid);
+                    console.log('📱 Using owner number for status posting (different from bot)');
+                    return statusJidList;
+                } else {
+                    console.warn('⚠️ Owner number is same as bot number - cannot use for status posting');
                 }
             }
             
-            // Method 2: Fallback to owner number if contacts not available
-            if (config.OWNER_NUMBER) {
-                const ownerJid = config.OWNER_NUMBER.includes('@') ? 
-                    config.OWNER_NUMBER : 
-                    `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                statusJidList.push(ownerJid);
-                console.log('📱 Using owner number for status posting');
-                return statusJidList;
-            }
-            
-            // Method 3: Last resort - log warning about empty recipient list
-            console.warn('⚠️ No contacts or owner number found for status posting. Status may not be visible.');
+            // If we reach here, no valid recipients found
+            console.error('❌ No valid contacts found for status posting. Status will not be visible.');
+            throw new Error('No valid recipients available for status posting. Please ensure the bot has contacts or configure different owner number.');
             
         } catch (error) {
             console.error('Error getting status recipients:', error);
-            
-            // Emergency fallback to owner
-            if (config.OWNER_NUMBER) {
-                const ownerJid = config.OWNER_NUMBER.includes('@') ? 
-                    config.OWNER_NUMBER : 
-                    `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                statusJidList.push(ownerJid);
-            }
+            throw error;
         }
+    }
+    
+    /**
+     * Normalize JID for comparison
+     */
+    normalizeJid(jid) {
+        if (!jid) return null;
+        // Remove any extra characters and ensure proper format
+        return jid.split('@')[0] + '@s.whatsapp.net';
+    }
+    
+    /**
+     * Validate that contacts are real WhatsApp users
+     */
+    async validateContacts(contacts) {
+        try {
+            if (!this.bot.sock || !this.bot.sock.onWhatsApp) {
+                return contacts; // Skip validation if not available
+            }
+            
+            // Batch validation to avoid rate limits
+            const batchSize = 10;
+            const validatedContacts = [];
+            
+            for (let i = 0; i < contacts.length; i += batchSize) {
+                const batch = contacts.slice(i, i + batchSize);
+                try {
+                    const results = await this.bot.sock.onWhatsApp(...batch);
+                    const validJids = results
+                        .filter(result => result.exists)
+                        .map(result => result.jid);
+                    validatedContacts.push(...validJids);
+                    
+                    // Small delay between batches to avoid rate limiting
+                    if (i + batchSize < contacts.length) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                } catch (batchError) {
+                    console.warn(`⚠️ Batch validation failed for batch ${i}-${i+batchSize}:`, batchError.message);
+                    // Add batch contacts without validation as fallback
+                    validatedContacts.push(...batch);
+                }
+            }
+            
+            return validatedContacts;
+        } catch (error) {
+            console.warn('⚠️ Contact validation failed:', error.message);
+            return contacts; // Return original list if validation fails
+        }
+    }
+
+    /**
+     * Debug command to check available contacts
+     */
+    async checkContactsCommand(messageInfo) {
+        const { chat_jid } = messageInfo || {};
+        const fromJid = chat_jid;
         
-        return statusJidList;
+        try {
+            let response = `🔍 *CONTACT DEBUG INFORMATION*\n\n`;
+            
+            // Check bot info
+            const botUser = this.bot.sock?.user;
+            response += `🤖 *Bot Info:*\n`;
+            response += `- ID: ${botUser?.id || 'Not available'}\n`;
+            response += `- Name: ${botUser?.name || 'Not available'}\n`;
+            response += `- Normalized: ${this.normalizeJid(botUser?.id) || 'Not available'}\n\n`;
+            
+            // Check contacts from different sources
+            const sockContacts = this.bot.sock?.contacts || {};
+            const storeContacts = this.bot.store?.contacts || {};
+            const storeChats = this.bot.store?.chats || {};
+            
+            response += `📱 *Contact Sources:*\n`;
+            response += `- sock.contacts: ${Object.keys(sockContacts).length} entries\n`;
+            response += `- store.contacts: ${Object.keys(storeContacts).length} entries\n`;
+            response += `- store.chats: ${Object.keys(storeChats).length} entries\n\n`;
+            
+            // Test the getStatusRecipients function
+            try {
+                const recipients = await this.getStatusRecipients();
+                response += `✅ *Recipients Found:* ${recipients.length}\n`;
+                if (recipients.length > 0) {
+                    response += `📋 *First 5 Recipients:*\n`;
+                    recipients.slice(0, 5).forEach((jid, index) => {
+                        response += `${index + 1}. ${jid}\n`;
+                    });
+                    if (recipients.length > 5) {
+                        response += `... and ${recipients.length - 5} more\n`;
+                    }
+                } else {
+                    response += `❌ No valid recipients found for status posting\n`;
+                }
+            } catch (error) {
+                response += `❌ *Error getting recipients:* ${error.message}\n`;
+            }
+            
+            response += `\n💡 *Tips:*\n`;
+            response += `- Make sure you have contacts in your WhatsApp\n`;
+            response += `- Try sending messages to contacts first\n`;
+            response += `- Status only works with real contacts\n`;
+            response += `- You cannot see status sent only to yourself`;
+            
+            await this.bot.sock.sendMessage(fromJid, { text: response });
+            
+        } catch (error) {
+            console.error('Error in checkContactsCommand:', error);
+            await this.bot.sock.sendMessage(fromJid, {
+                text: '❌ Error checking contacts: ' + error.message
+            });
+        }
     }
 
     /**
