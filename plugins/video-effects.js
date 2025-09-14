@@ -123,6 +123,48 @@ class VideoEffectsPlugin {
                 filter: 'eq=saturation=0,edgedetect=mode=canny:low=0.1:high=0.4,negate',
                 description: 'Pencil sketch effect with edge detection',
                 category: 'artistic'
+            },
+
+            // Blur and focus effects - 2025 latest methods
+            blur: {
+                filter: 'gblur=sigma=8:steps=3',
+                description: 'High-quality Gaussian blur with improved performance',
+                category: 'blur'
+            },
+            radialblur: {
+                filter: 'dblur=angle=0:radius=15,dblur=angle=90:radius=15,dblur=angle=45:radius=10,dblur=angle=135:radius=10',
+                description: 'Advanced radial blur using multiple directional passes',
+                category: 'blur'
+            },
+            directionalblur: {
+                filter: 'dblur=angle=0:radius=20',
+                description: 'Directional motion blur - 2025 technique',
+                category: 'blur'
+            },
+            verticalblur: {
+                filter: 'dblur=angle=90:radius=15',
+                description: 'Vertical directional blur effect',
+                category: 'blur'
+            },
+            diagonalblur: {
+                filter: 'dblur=angle=45:radius=18',
+                description: 'Diagonal motion blur effect',
+                category: 'blur'
+            },
+            tiltshift: {
+                filter: 'smartblur=luma_radius=1.5:luma_strength=1.0:luma_threshold=0,gblur=sigma=12:enable=\'between(Y,H*0.3,H*0.7)\'',
+                description: 'Professional tilt-shift miniature effect',
+                category: 'blur'
+            },
+            focusblur: {
+                filter: 'smartblur=luma_radius=2.0:luma_strength=0.8:luma_threshold=32:chroma_radius=1.5:chroma_strength=0.6',
+                description: 'Smart focus blur with edge preservation',
+                category: 'blur'
+            },
+            motionblur_advanced: {
+                filter: 'tmix=frames=12:weights=\'1 1 1 1 1 1 1 1 1 1 1 1\':scale=1,fps=fps=30',
+                description: 'Advanced motion blur using temporal mixing - 2025 method',
+                category: 'blur'
             }
         };
     }
