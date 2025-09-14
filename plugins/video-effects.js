@@ -244,9 +244,9 @@ class VideoEffectsPlugin {
             // Write input file
             await fs.writeFile(inputPath, media.buffer);
 
-            // Apply video effect using FFmpeg with CPU-optimized settings
+            // Apply video effect using FFmpeg with 2025 techniques and optimizations
             const effect = this.effects[effectName];
-            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -map 0:v:0 -map 0:a? -vf "${effect.filter}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -profile:v high -level 4.1 -movflags +faststart -c:a aac -b:a 128k -threads 1 "${outputPath}"`;
+            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -map 0:v:0 -map 0:a? -vf "${effect.filter}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -profile:v high -level 4.1 -movflags +faststart -c:a aac -b:a 128k -threads 0 "${outputPath}"`;
             
             // Execute FFmpeg command with enhanced buffer for video processing
             await new Promise((resolve, reject) => {

@@ -376,47 +376,47 @@ class VideoEditorPlugin {
     buildFFmpegCommand(operation, params, inputPath, outputPath) {
         switch (operation) {
             case 'trim':
-                return `ffmpeg -i "${inputPath}" -ss ${params.startTime} -t ${params.duration} -c copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -ss ${params.startTime} -t ${params.duration} -c copy "${outputPath}"`;
 
             case 'compress':
                 const crf = params.quality === 'low' ? '35' : params.quality === 'high' ? '20' : '28';
-                return `ffmpeg -i "${inputPath}" -c:v libx264 -crf ${crf} -preset fast -c:a aac -b:a 128k -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -c:v libx264 -crf ${crf} -preset fast -c:a aac -b:a 128k "${outputPath}"`;
 
             case 'speed':
                 if (params.speed >= 1) {
                     const audioSpeed = 1 / params.speed;
-                    return `ffmpeg -i "${inputPath}" -filter:v "setpts=${audioSpeed}*PTS" -filter:a "atempo=${params.speed}" -threads 1 "${outputPath}"`;
+                    return `ffmpeg -i "${inputPath}" -filter:v "setpts=${audioSpeed}*PTS" -filter:a "atempo=${params.speed}" "${outputPath}"`;
                 } else {
-                    return `ffmpeg -i "${inputPath}" -filter:v "setpts=${1/params.speed}*PTS" -filter:a "atempo=${params.speed}" -threads 1 "${outputPath}"`;
+                    return `ffmpeg -i "${inputPath}" -filter:v "setpts=${1/params.speed}*PTS" -filter:a "atempo=${params.speed}" "${outputPath}"`;
                 }
 
             case 'reverse':
-                return `ffmpeg -i "${inputPath}" -vf reverse -af areverse -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -vf reverse -af areverse "${outputPath}"`;
 
             case 'crop':
-                return `ffmpeg -i "${inputPath}" -filter:v "crop=${params.width}:${params.height}:${params.x}:${params.y}" -c:a copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -filter:v "crop=${params.width}:${params.height}:${params.x}:${params.y}" -c:a copy "${outputPath}"`;
 
             case 'rotate':
                 const radians = params.degrees * Math.PI / 180;
-                return `ffmpeg -i "${inputPath}" -vf "rotate=${radians}" -c:a copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -vf "rotate=${radians}" -c:a copy "${outputPath}"`;
 
             case 'scale':
-                return `ffmpeg -i "${inputPath}" -vf "scale=${params.width}:${params.height}" -c:a copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -vf "scale=${params.width}:${params.height}" -c:a copy "${outputPath}"`;
 
             case 'fps':
-                return `ffmpeg -i "${inputPath}" -r ${params.fps} -c:v libx264 -c:a copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -r ${params.fps} -c:v libx264 -c:a copy "${outputPath}"`;
 
             case 'extract':
-                return `ffmpeg -i "${inputPath}" -ss ${params.time} -vframes 1 -f image2 -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -ss ${params.time} -vframes 1 -f image2 "${outputPath}"`;
 
             case 'loop':
-                return `ffmpeg -stream_loop ${params.count - 1} -i "${inputPath}" -c copy -threads 1 "${outputPath}"`;
+                return `ffmpeg -stream_loop ${params.count - 1} -i "${inputPath}" -c copy "${outputPath}"`;
 
             case 'cut':
-                return `ffmpeg -i "${inputPath}" -vf "select='not(between(t,${params.start},${params.end}))',setpts=N/FRAME_RATE/TB" -af "aselect='not(between(t,${params.start},${params.end}))',asetpts=N/SR/TB" -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -vf "select='not(between(t,${params.start},${params.end}))',setpts=N/FRAME_RATE/TB" -af "aselect='not(between(t,${params.start},${params.end}))',asetpts=N/SR/TB" "${outputPath}"`;
 
             case 'mute':
-                return `ffmpeg -i "${inputPath}" -c:v copy -an -threads 1 "${outputPath}"`;
+                return `ffmpeg -i "${inputPath}" -c:v copy -an "${outputPath}"`;
 
             default:
                 throw new Error(`Unknown operation: ${operation}`);

@@ -435,21 +435,16 @@ class NewsFeedPlugin {
         await this.bot.messageHandler.reply(messageInfo, message);
     }
 
-    // News Scheduler - CPU Optimized
+    // News Scheduler
     startNewsScheduler() {
         if (this.newsCheckInterval) {
             clearInterval(this.newsCheckInterval);
         }
         
-        // Optimized: Check every 5 minutes instead of every minute
-        // Only check if there are enabled users
+        // Check every minute for scheduled times
         this.newsCheckInterval = setInterval(() => {
-            // Only check if someone has news enabled (lazy checking)
-            const enabledUsers = Array.from(this.newsSettings.entries()).filter(([, settings]) => settings.enabled);
-            if (enabledUsers.length === 0) return;
-            
             this.checkScheduledNews();
-        }, 5 * 60 * 1000); // Check every 5 minutes instead of 1 minute
+        }, 60000);
         
         // Initial check after 5 seconds
         setTimeout(() => this.checkScheduledNews(), 5000);

@@ -90,20 +90,16 @@ class SchedulePlugin {
     }
 
     /**
-     * Start the schedule checker - CPU optimized (every 5 minutes with lazy checking)
+     * Start the schedule checker (runs every minute)
      */
     startScheduleChecker() {
         if (this.checkInterval) {
             clearInterval(this.checkInterval);
         }
         
-        // Optimized: Check every 5 minutes instead of 1 minute, only if there are schedules
         this.checkInterval = setInterval(() => {
-            // Only check if we have pending schedules (lazy checking)
-            if (this.schedules.size === 0) return;
-            
             this.checkPendingSchedules();
-        }, 5 * 60 * 1000); // Check every 5 minutes instead of 1 minute
+        }, 60000); // Check every minute
         
         // Also check immediately on startup
         setTimeout(() => this.checkPendingSchedules(), 5000);

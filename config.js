@@ -24,7 +24,7 @@ function ensureEnvFileWithDefaults() {
         REACT_DELAY: 'nodelay',
         STATUS_REACT_DELAY: 'nodelay',
         ANTI_DELETE: 'true',
-        MAX_CONCURRENT_MESSAGES: '3',
+        MAX_CONCURRENT_MESSAGES: '5',
         MESSAGE_TIMEOUT: '30000',
         CACHE_TTL: '3600',
         ANTI_BAN: 'true',
@@ -32,7 +32,7 @@ function ensureEnvFileWithDefaults() {
         RATE_LIMIT_MAX_REQUESTS: '20',
         MAX_MEDIA_SIZE: '104857600',
         ALLOWED_MEDIA_TYPES: 'image,video,audio,document',
-        LOG_LEVEL: 'warn',
+        LOG_LEVEL: 'info',
         LOG_TO_FILE: 'false',
         PLUGIN_AUTO_LOAD: 'true',
         STARTUP_MESSAGE: 'false',
@@ -135,8 +135,8 @@ const config = {
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
     REJECT_CALLS: process.env.REJECT_CALLS === 'true' || false,
 
-    // Performance Settings - optimized for single-threaded FFmpeg
-    MAX_CONCURRENT_MESSAGES: parseInt(process.env.MAX_CONCURRENT_MESSAGES) || 3,
+    // Performance Settings
+    MAX_CONCURRENT_MESSAGES: parseInt(process.env.MAX_CONCURRENT_MESSAGES) || 5,
     MESSAGE_TIMEOUT: parseInt(process.env.MESSAGE_TIMEOUT) || 30000,
     CACHE_TTL: parseInt(process.env.CACHE_TTL) || 3600, // 1 hour
 
@@ -149,8 +149,8 @@ const config = {
     MAX_MEDIA_SIZE: parseInt(process.env.MAX_MEDIA_SIZE) || 100 * 1024 * 1024, // 100MB
     ALLOWED_MEDIA_TYPES: (process.env.ALLOWED_MEDIA_TYPES || 'image,video,audio,document').split(','),
 
-    // Logging - optimized for performance
-    LOG_LEVEL: process.env.LOG_LEVEL || 'warn',
+    // Logging
+    LOG_LEVEL: process.env.LOG_LEVEL || 'info',
     LOG_TO_FILE: process.env.LOG_TO_FILE === 'true',
 
     // Advanced Features

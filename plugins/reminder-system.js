@@ -301,19 +301,15 @@ class ReminderSystemPlugin {
     }
 
     startReminderChecker() {
-        // Optimized: Check for overdue reminders every 5 minutes (reduced CPU usage)
-        // Only start timer if there are active reminders
-        this.reminderCheckInterval = setInterval(() => {
-            // Only check if we have reminders
-            if (this.reminders.size === 0) return;
-            
+        // Check for overdue reminders every minute
+        setInterval(() => {
             const now = Date.now();
             for (const [id, reminder] of this.reminders.entries()) {
                 if (reminder.datetime <= now && !this.intervals.has(id) && !this.triggeredReminders.has(id)) {
                     this.triggerReminder(id);
                 }
             }
-        }, 5 * 60 * 1000); // Check every 5 minutes instead of 1 minute
+        }, 60000);
     }
 
     async loadReminders() {
@@ -406,11 +402,6 @@ class ReminderSystemPlugin {
             clearTimeout(timeout);
         }
         this.intervals.clear();
-        
-        // Clear reminder check interval
-        if (this.reminderCheckInterval) {
-            clearInterval(this.reminderCheckInterval);
-        }
         
         console.log('🧹 Reminder System plugin cleanup completed');
     }

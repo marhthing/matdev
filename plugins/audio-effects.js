@@ -194,7 +194,7 @@ class AudioEffectsPlugin {
 
             // Apply audio effect using FFmpeg with better error handling
             const effect = this.effects[effectName];
-            let command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libopus -b:a 64k -threads 1 "${outputPath}"`;
+            let command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libopus -b:a 64k "${outputPath}"`;
             
             // Fallback to MP3 if opus fails
             try {
@@ -211,7 +211,7 @@ class AudioEffectsPlugin {
             } catch (opusError) {
                 console.log('⚠️ Opus encoding failed, trying MP3 fallback...');
                 const mp3OutputPath = outputPath.replace('.ogg', '.mp3');
-                command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libmp3lame -b:a 64k -threads 1 "${mp3OutputPath}"`;
+                command = `ffmpeg -i "${inputPath}" -af "${effect.filter}" -c:a libmp3lame -b:a 64k "${mp3OutputPath}"`;
                 
                 await new Promise((resolve, reject) => {
                     exec(command, (error, stdout, stderr) => {
