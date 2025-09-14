@@ -69,6 +69,10 @@ class GifSearchPlugin {
      * Handle GIF search command
      */
     async gifSearchCommand(messageInfo) {
+        const fs = require('fs-extra');
+        const path = require('path');
+        const axios = require('axios');
+        
         try {
             const query = messageInfo.args.join(' ').trim();
             
@@ -77,9 +81,6 @@ class GifSearchPlugin {
                     `❌ Please provide a search term.\n\nUsage: ${config.PREFIX}gif <search term>\n\nExamples:\n• ${config.PREFIX}gif funny cat\n• ${config.PREFIX}gif happy dance\n• ${config.PREFIX}gif excited`);
                 return;
             }
-
-            // Send searching message
-            const searchingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching for GIFs...');
 
             try {
                 // Try Giphy first
@@ -91,34 +92,56 @@ class GifSearchPlugin {
                 }
 
                 if (!gifs || gifs.length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ No GIFs found for "${query}". Try different keywords.`,
-                        edit: searchingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, `❌ No GIFs found for "${query}". Try different keywords.`);
                     return;
                 }
 
                 // Select a random GIF from the results
                 const randomGif = gifs[Math.floor(Math.random() * Math.min(gifs.length, 10))];
                 
-                // Send the GIF
+                // Download GIF to tmp directory
+                const timestamp = Date.now();
+                const tempFilePath = path.join(__dirname, '..', 'tmp', `gif_${timestamp}.mp4`);
+                
+                // Ensure tmp directory exists
+                await fs.ensureDir(path.dirname(tempFilePath));
+                
+                // Download the GIF
+                const response = await axios.get(randomGif.url, {
+                    responseType: 'stream',
+                    timeout: 30000
+                });
+                
+                // Write to temp file
+                await new Promise((resolve, reject) => {
+                    const writeStream = fs.createWriteStream(tempFilePath);
+                    response.data.pipe(writeStream);
+                    
+                    response.data.on('error', reject);
+                    writeStream.on('error', reject);
+                    writeStream.on('finish', resolve);
+                });
+                
+                // Send the GIF without caption
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: randomGif.url },
-                    caption: `🎭 *${randomGif.title}*\n\n🔍 Search: "${query}"\n📡 Source: ${randomGif.source}\n\n_GIF search by ${config.BOT_NAME}_`,
+                    video: { url: tempFilePath },
                     gifPlayback: true
                 });
 
-                // Delete the searching message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    delete: searchingMsg.key
-                });
+                // Clean up temp file after sending
+                setTimeout(async () => {
+                    try {
+                        if (await fs.pathExists(tempFilePath)) {
+                            await fs.remove(tempFilePath);
+                        }
+                    } catch (cleanupError) {
+                        console.error('Error cleaning up GIF temp file:', cleanupError);
+                    }
+                }, 5000);
 
             } catch (apiError) {
                 console.error('GIF search API error:', apiError);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Error searching for GIFs. Please try again later.`,
-                    edit: searchingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error searching for GIFs. Please try again later.');
             }
 
         } catch (error) {
@@ -131,10 +154,11 @@ class GifSearchPlugin {
      * Handle trending GIFs command
      */
     async trendingGifsCommand(messageInfo) {
+        const fs = require('fs-extra');
+        const path = require('path');
+        const axios = require('axios');
+        
         try {
-            // Send searching message
-            const searchingMsg = await this.bot.messageHandler.reply(messageInfo, '🔥 Getting trending GIFs...');
-
             try {
                 // Try Giphy trending first
                 let gifs = await this.getTrendingGiphy();
@@ -145,34 +169,56 @@ class GifSearchPlugin {
                 }
 
                 if (!gifs || gifs.length === 0) {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: '❌ Could not fetch trending GIFs. Please try again later.',
-                        edit: searchingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Could not fetch trending GIFs. Please try again later.');
                     return;
                 }
 
                 // Select a random trending GIF
                 const randomGif = gifs[Math.floor(Math.random() * Math.min(gifs.length, 20))];
                 
-                // Send the GIF
+                // Download GIF to tmp directory
+                const timestamp = Date.now();
+                const tempFilePath = path.join(__dirname, '..', 'tmp', `trending_gif_${timestamp}.mp4`);
+                
+                // Ensure tmp directory exists
+                await fs.ensureDir(path.dirname(tempFilePath));
+                
+                // Download the GIF
+                const response = await axios.get(randomGif.url, {
+                    responseType: 'stream',
+                    timeout: 30000
+                });
+                
+                // Write to temp file
+                await new Promise((resolve, reject) => {
+                    const writeStream = fs.createWriteStream(tempFilePath);
+                    response.data.pipe(writeStream);
+                    
+                    response.data.on('error', reject);
+                    writeStream.on('error', reject);
+                    writeStream.on('finish', resolve);
+                });
+                
+                // Send the GIF without caption
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: randomGif.url },
-                    caption: `🔥 *Trending: ${randomGif.title}*\n\n📊 Currently trending on ${randomGif.source}\n\n_Trending GIFs by ${config.BOT_NAME}_`,
+                    video: { url: tempFilePath },
                     gifPlayback: true
                 });
 
-                // Delete the searching message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    delete: searchingMsg.key
-                });
+                // Clean up temp file after sending
+                setTimeout(async () => {
+                    try {
+                        if (await fs.pathExists(tempFilePath)) {
+                            await fs.remove(tempFilePath);
+                        }
+                    } catch (cleanupError) {
+                        console.error('Error cleaning up trending GIF temp file:', cleanupError);
+                    }
+                }, 5000);
 
             } catch (apiError) {
                 console.error('Trending GIFs API error:', apiError);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: '❌ Error fetching trending GIFs. Please try again later.',
-                    edit: searchingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, '❌ Error fetching trending GIFs. Please try again later.');
             }
 
         } catch (error) {
