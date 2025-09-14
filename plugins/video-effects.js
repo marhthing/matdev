@@ -132,28 +132,28 @@ class VideoEffectsPlugin {
                 category: 'blur'
             },
             radialblur: {
-                filter: 'dblur=angle=0:radius=15,dblur=angle=90:radius=15,dblur=angle=45:radius=10,dblur=angle=135:radius=10',
-                description: 'Advanced radial blur using multiple directional passes',
+                filter: 'split[main][blur];[blur]gblur=sigma=15[blurred];[main][blurred]blend=all_mode=multiply:all_opacity=0.7',
+                description: 'Radial-style blur effect with center focus',
                 category: 'blur'
             },
             directionalblur: {
-                filter: 'dblur=angle=0:radius=20',
-                description: 'Directional motion blur - 2025 technique',
+                filter: 'boxblur=20:5',
+                description: 'Horizontal directional blur effect',
                 category: 'blur'
             },
             verticalblur: {
-                filter: 'dblur=angle=90:radius=15',
+                filter: 'boxblur=5:20',
                 description: 'Vertical directional blur effect',
                 category: 'blur'
             },
             diagonalblur: {
-                filter: 'dblur=angle=45:radius=18',
-                description: 'Diagonal motion blur effect',
+                filter: 'convolution=\'0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0\'',
+                description: 'Diagonal blur effect using convolution',
                 category: 'blur'
             },
             tiltshift: {
-                filter: 'smartblur=luma_radius=1.5:luma_strength=1.0:luma_threshold=0,gblur=sigma=12:enable=\'between(Y,H*0.3,H*0.7)\'',
-                description: 'Professional tilt-shift miniature effect',
+                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
+                description: 'Tilt-shift miniature effect',
                 category: 'blur'
             },
             focusblur: {
@@ -162,7 +162,7 @@ class VideoEffectsPlugin {
                 category: 'blur'
             },
             motionblur_advanced: {
-                filter: 'tmix=frames=12:weights=\'1 1 1 1 1 1 1 1 1 1 1 1\':scale=1,fps=fps=30',
+                filter: 'tmix=frames=12:weights=\'1 1 1 1 1 1 1 1 1 1 1 1\',fps=fps=30',
                 description: 'Advanced motion blur using temporal mixing - 2025 method',
                 category: 'blur'
             }
@@ -244,9 +244,9 @@ class VideoEffectsPlugin {
             // Write input file
             await fs.writeFile(inputPath, media.buffer);
 
-            // Apply video effect using FFmpeg with 2025 techniques
+            // Apply video effect using FFmpeg with 2025 techniques and optimizations
             const effect = this.effects[effectName];
-            let command = `ffmpeg -i "${inputPath}" -map 0:v:0 -map 0:a? -vf "${effect.filter}" -c:v libx264 -preset medium -crf 23 -pix_fmt yuv420p -c:a aac -b:a 128k "${outputPath}"`;
+            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -map 0:v:0 -map 0:a? -vf "${effect.filter}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -profile:v high -level 4.1 -movflags +faststart -c:a aac -b:a 128k -threads 0 "${outputPath}"`;
             
             // Execute FFmpeg command with enhanced buffer for video processing
             await new Promise((resolve, reject) => {

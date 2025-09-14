@@ -141,28 +141,28 @@ class ImageEffectsPlugin {
                 category: 'blur'
             },
             motionblur: {
-                filter: 'dblur=angle=0:radius=15',
-                description: 'Directional motion blur using 2025 technique',
+                filter: 'boxblur=15:15',
+                description: 'Directional motion blur effect',
                 category: 'blur'
             },
             verticalblur: {
-                filter: 'dblur=angle=90:radius=12',
+                filter: 'boxblur=1:15',
                 description: 'Vertical motion blur effect',
                 category: 'blur'
             },
             diagonalblur: {
-                filter: 'dblur=angle=45:radius=14',
-                description: 'Diagonal motion blur effect',
+                filter: 'convolution=\'0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0\'',
+                description: 'Diagonal blur effect using convolution',
                 category: 'blur'
             },
             radialblur: {
-                filter: 'dblur=angle=0:radius=8,dblur=angle=90:radius=8,dblur=angle=45:radius=6,dblur=angle=135:radius=6',
-                description: 'Advanced radial blur using multiple directional passes - 2025 method',
+                filter: 'split[main][blur];[blur]gblur=sigma=15[blurred];[main][blurred]blend=all_mode=multiply:all_opacity=0.7',
+                description: 'Radial-style blur effect with center focus',
                 category: 'blur'
             },
             tiltshift: {
-                filter: 'smartblur=luma_radius=1.5:luma_strength=1.0:luma_threshold=0,gblur=sigma=10:enable=\'between(Y,H*0.3,H*0.7)\'',
-                description: 'Professional tilt-shift miniature effect',
+                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
+                description: 'Tilt-shift miniature effect',
                 category: 'blur'
             },
             focusblur: {
@@ -292,9 +292,9 @@ class ImageEffectsPlugin {
             // Write input file
             await fs.writeFile(inputPath, media.buffer);
 
-            // Apply image effect using FFmpeg
+            // Apply image effect using FFmpeg with 2025 optimizations
             const effect = this.effects[effectName];
-            let command = `ffmpeg -i "${inputPath}" -vf "${effect.filter}" -q:v 2 -pix_fmt yuv420p "${outputPath}"`;
+            let command = `ffmpeg -hide_banner -loglevel error -i "${inputPath}" -vf "${effect.filter}" -q:v 1 -pix_fmt yuv420p -threads 0 "${outputPath}"`;
             
             // Execute FFmpeg command
             await new Promise((resolve, reject) => {
