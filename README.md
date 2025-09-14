@@ -1,7 +1,9 @@
 
 # MATDEV - Host Anywhere
 
-<div align="center">
+<p align="center">
+  <img src="lib/img/matdev-bot.jpg" alt="Matdev Bot" width="250">
+</p>
 
 [![Node.js](https://img.shields.io/badge/Node.js-18+-brightgreen.svg)](https://nodejs.org/)
 [![Baileys](https://img.shields.io/badge/Baileys-Latest-blue.svg)](https://github.com/WhiskeySockets/Baileys)
