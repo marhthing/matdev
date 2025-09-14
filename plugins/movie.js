@@ -384,7 +384,7 @@ class MoviePlugin {
             } catch (apiError) {
                 console.error('Movie API error:', apiError);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Could not find "${title}". Try:\n• Check spelling (e.g., "Moana" not "Moanna")\n• Use full title (e.g., "Frozen II" or "Frozen 2")\n• Try alternative titles\n\n💡 The movie database might not have all regional variations.`,
+                    text: `❌ Could not find "${title}".`,
                     edit: searchingMsg.key
                 });
             }
