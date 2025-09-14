@@ -420,9 +420,19 @@ class ContactManagerPlugin {
             const contextInfo = message?.extendedTextMessage?.contextInfo;
             const quotedMessage = contextInfo?.quotedMessage;
 
-            if (!quotedMessage || !quotedMessage.documentMessage) {
+            if (!quotedMessage || (!quotedMessage.documentMessage && !quotedMessage.extendedTextMessage)) {
                 await this.bot.sock.sendMessage(fromJid, {
-                    text: '❌ Please reply to a CSV file with this command!\n\n' +
+                    text: '❌ Please reply to a file with this command!\n\n' +
+                          'Example: Upload your CSV/text file, then reply to it with:\n' +
+                          `${config.PREFIX}contact upload`
+                });
+                return;
+            }
+
+            // Accept both document messages and text files
+            if (!quotedMessage.documentMessage) {
+                await this.bot.sock.sendMessage(fromJid, {
+                    text: '❌ Please reply to a document/file with this command!\n\n' +
                           'Example: Upload your CSV file, then reply to it with:\n' +
                           `${config.PREFIX}contact upload`
                 });
