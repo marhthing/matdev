@@ -239,9 +239,9 @@ class ScheduleStatusPlugin {
      */
     registerCommands() {
         // Register immediate status posting command
-        this.bot.messageHandler.registerCommand('poststatus', this.postStatusCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('setstatus', this.postStatusCommand.bind(this), {
             description: 'Post text or media to status immediately',
-            usage: `${config.PREFIX}poststatus <text> | Reply to media with caption`,
+            usage: `${config.PREFIX}setstatus <text> | Reply to media with caption`,
             category: 'status',
             plugin: 'schedulestatus',
             source: 'schedulestatus.js'
@@ -250,9 +250,9 @@ class ScheduleStatusPlugin {
         
 
         // Register status scheduling command
-        this.bot.messageHandler.registerCommand('schedulestatus', this.scheduleStatusCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('scstatus', this.scheduleStatusCommand.bind(this), {
             description: 'Schedule a status update or list pending status schedules',
-            usage: `${config.PREFIX}schedulestatus [dd:mm:yyyy hh:mm <text>] or reply to media`,
+            usage: `${config.PREFIX}scstatus [dd:mm:yyyy hh:mm <text>] or reply to media`,
             category: 'status',
             plugin: 'schedulestatus',
             source: 'schedulestatus.js'
@@ -339,7 +339,7 @@ class ScheduleStatusPlugin {
                 }
             } else {
                 await this.bot.sock.sendMessage(fromJid, {
-                    text: `❌ *Invalid usage!*\n\n*For text status:*\n${config.PREFIX}poststatus Your status text here\n\n*For media status:*\nReply to an image/video with:\n${config.PREFIX}poststatus [optional caption]`
+                    text: `❌ *Invalid usage!*\n\n*For text status:*\n${config.PREFIX}setstatus Your status text here\n\n*For media status:*\nReply to an image/video with:\n${config.PREFIX}setstatus [optional caption]`
                 });
             }
         } catch (error) {
@@ -366,7 +366,7 @@ class ScheduleStatusPlugin {
         // Ensure args has minimum required length for scheduling
         if (args.length < 2) {
             await this.bot.sock.sendMessage(fromJid, { 
-                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}schedulestatus dd:mm:yyyy hh:mm <text>\n\n*Or reply to media:*\n${config.PREFIX}schedulestatus dd:mm:yyyy hh:mm [caption]\n\n*Example:*\n${config.PREFIX}schedulestatus 25:12:2024 15:30 Happy New Year!\n\n*List schedules:*\n${config.PREFIX}statusschedules` 
+                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm <text>\n\n*Or reply to media:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm [caption]\n\n*Example:*\n${config.PREFIX}scstatus 25:12:2024 15:30 Happy New Year!\n\n*List schedules:*\n${config.PREFIX}statusschedules` 
             });
             return;
         }
@@ -441,7 +441,7 @@ class ScheduleStatusPlugin {
                 if (args.length < 3) {
                     await this.bot.sock.sendMessage(fromJid, {
                         text: '❌ Please provide status text!\n\n*Usage:*\n' +
-                              `${config.PREFIX}schedulestatus dd:mm:yyyy hh:mm <status text>`
+                              `${config.PREFIX}scstatus dd:mm:yyyy hh:mm <status text>`
                     });
                     return;
                 }
@@ -523,7 +523,7 @@ class ScheduleStatusPlugin {
         
         response += `\n💡 *Commands:*\n`;
         response += `${config.PREFIX}cancelstatus <id> - Cancel schedule\n`;
-        response += `${config.PREFIX}poststatus <text> - Post status now`;
+        response += `${config.PREFIX}setstatus <text> - Post status now`;
         
         await this.bot.sock.sendMessage(fromJid, { text: response });
     }
