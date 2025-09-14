@@ -86,19 +86,48 @@ class ContactManagerPlugin {
             return phoneNumber;
         }
         
-        // Remove all non-numeric characters
+        // Remove all non-numeric characters (including +, -, spaces, parentheses)
         let cleaned = phoneNumber.replace(/[^\d]/g, '');
         
-        // Handle different country code formats
-        if (cleaned.startsWith('0')) {
-            // Remove leading 0 for Nigerian numbers (+234)
-            cleaned = '234' + cleaned.substring(1);
-        } else if (!cleaned.startsWith('234') && cleaned.length === 11) {
-            // Add Nigerian country code if missing
-            cleaned = '234' + cleaned.substring(1);
+        console.log(`📱 Raw phone: "${phoneNumber}" -> Cleaned: "${cleaned}"`);
+        
+        // Skip if too short after cleaning
+        if (cleaned.length < 8) {
+            console.warn(`❌ Phone too short after cleaning: ${cleaned} (${cleaned.length} digits)`);
+            return null;
         }
         
-        return `${cleaned}@s.whatsapp.net`;
+        // Handle Nigerian numbers (default country code 234)
+        if (cleaned.startsWith('0') && cleaned.length === 11) {
+            // Remove leading 0 and add Nigerian country code
+            cleaned = '234' + cleaned.substring(1);
+            console.log(`🇳🇬 Nigerian format: 0${cleaned.substring(3)} -> ${cleaned}`);
+        } else if (cleaned.startsWith('234') && cleaned.length === 13) {
+            // Already has Nigerian country code
+            console.log(`🇳🇬 Already has country code: ${cleaned}`);
+        } else if (cleaned.length === 10) {
+            // 10 digit number without country code, add Nigerian
+            cleaned = '234' + cleaned;
+            console.log(`🇳🇬 Added country code to 10-digit: ${cleaned}`);
+        } else if (cleaned.length === 11 && !cleaned.startsWith('0') && !cleaned.startsWith('234')) {
+            // 11 digit number without country code, might be Nigerian without leading 0
+            cleaned = '234' + cleaned.substring(1);
+            console.log(`🇳🇬 11-digit converted: ${cleaned}`);
+        }
+        // For other country codes, use as-is if they look valid
+        else if (cleaned.length >= 10 && cleaned.length <= 15) {
+            console.log(`🌍 International number: ${cleaned}`);
+        } else {
+            console.warn(`⚠️ Unusual number format: ${cleaned} (${cleaned.length} digits)`);
+            // Still try to use it if it's not too short
+            if (cleaned.length < 8) {
+                return null;
+            }
+        }
+        
+        const finalJid = `${cleaned}@s.whatsapp.net`;
+        console.log(`✅ Final JID: ${finalJid}`);
+        return finalJid;
     }
 
     /**
@@ -153,16 +182,22 @@ class ContactManagerPlugin {
                 lastSeen: source === 'auto' ? new Date().toISOString() : null
             };
 
-            // Validate contact exists on WhatsApp (optional)
-            if (source === 'manual' || source === 'csv') {
+            // Validate contact exists on WhatsApp (optional for CSV uploads)
+            if (source === 'manual') {
+                // Always validate manual entries
                 try {
                     const exists = await this.validateContact(normalizedJid);
                     if (!exists) {
                         return { success: false, message: 'Phone number not found on WhatsApp' };
                     }
                 } catch (validationError) {
-                    console.warn('⚠️  Contact validation failed, adding anyway:', validationError.message);
+                    console.warn('⚠️  Contact validation failed for manual entry:', validationError.message);
+                    return { success: false, message: 'Could not verify WhatsApp account' };
                 }
+            } else if (source === 'csv') {
+                // Skip validation for CSV to speed up bulk imports
+                // The numbers will be checked when actually sending status
+                console.debug(`📱 Skipping validation for CSV contact: ${normalizedJid}`);
             }
 
             // Add to contacts
@@ -200,39 +235,112 @@ class ContactManagerPlugin {
         try {
             const lines = csvContent.split('\n').filter(line => line.trim());
             const contacts = [];
+            let isHeader = true;
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
 
-                // Support multiple CSV formats
+                // Skip header lines that contain field names
+                if (isHeader && (line.toLowerCase().includes('displayname') || 
+                                line.toLowerCase().includes('phone') || 
+                                line.toLowerCase().includes('name'))) {
+                    console.log(`📋 Skipping header line: ${line.substring(0, 50)}...`);
+                    continue;
+                }
+                isHeader = false;
+
                 let name = null;
                 let phoneNumber = null;
 
-                // Try comma-separated format: Name,Phone or Phone,Name
+                // Handle CSV format with multiple columns
                 if (line.includes(',')) {
-                    const parts = line.split(',').map(part => part.trim().replace(/['"]/g, ''));
+                    const parts = line.split(',').map(part => {
+                        // Clean up quotes and decode HTML entities
+                        let cleaned = part.trim().replace(/^["']|["']$/g, '');
+                        
+                        // Decode common HTML entities (like =42=6F=6C=61 format)
+                        if (cleaned.includes('=')) {
+                            try {
+                                // This looks like quoted-printable encoding
+                                cleaned = cleaned.replace(/=([0-9A-F]{2})/g, (match, hex) => {
+                                    return String.fromCharCode(parseInt(hex, 16));
+                                });
+                            } catch (e) {
+                                // Keep original if decoding fails
+                            }
+                        }
+                        
+                        return cleaned;
+                    });
                     
-                    // Detect which part is the phone number
-                    const phoneRegex = /[\d\+\-\s\(\)]{8,}/;
+                    // Find phone number in any column
+                    for (let j = 0; j < parts.length; j++) {
+                        const part = parts[j];
+                        
+                        // Enhanced phone number detection
+                        const phoneRegex = /[\d\+\-\s\(\)\.]{8,}/;
+                        const hasEnoughDigits = (part.match(/\d/g) || []).length >= 8;
+                        
+                        if (phoneRegex.test(part) && hasEnoughDigits) {
+                            phoneNumber = part;
+                            
+                            // Try to find a name in other columns
+                            if (!name) {
+                                for (let k = 0; k < parts.length; k++) {
+                                    if (k !== j && parts[k] && 
+                                        parts[k].length > 0 && 
+                                        parts[k] !== phoneNumber &&
+                                        !phoneRegex.test(parts[k])) {
+                                        name = parts[k];
+                                        break;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
                     
-                    if (phoneRegex.test(parts[0])) {
-                        phoneNumber = parts[0];
-                        name = parts[1] || null;
-                    } else if (phoneRegex.test(parts[1])) {
-                        name = parts[0];
-                        phoneNumber = parts[1];
+                    // If still no phone found, check first column specifically
+                    if (!phoneNumber && parts[0]) {
+                        const digitCount = (parts[0].match(/\d/g) || []).length;
+                        if (digitCount >= 8) {
+                            phoneNumber = parts[0];
+                            name = parts[1] || null;
+                        }
                     }
                 } else {
                     // Single column - assume it's phone number
                     phoneNumber = line;
                 }
 
+                // Clean and validate phone number
                 if (phoneNumber) {
-                    contacts.push({ name, phoneNumber });
+                    // Remove extra quotes and whitespace
+                    phoneNumber = phoneNumber.trim().replace(/^["']|["']$/g, '');
+                    
+                    // Count digits to ensure it's likely a phone number
+                    const digitCount = (phoneNumber.match(/\d/g) || []).length;
+                    
+                    if (digitCount >= 8) {
+                        // Clean name
+                        if (name) {
+                            name = name.trim().replace(/^["']|["']$/g, '');
+                            // Don't use empty or very short names
+                            if (name.length < 2 || name === phoneNumber) {
+                                name = null;
+                            }
+                        }
+                        
+                        contacts.push({ name, phoneNumber });
+                        console.log(`📱 Extracted: ${name || 'No name'} - ${phoneNumber}`);
+                    } else {
+                        console.log(`❌ Skipping invalid phone: ${phoneNumber} (only ${digitCount} digits)`);
+                    }
                 }
             }
 
+            console.log(`📋 Parsed ${contacts.length} contacts from CSV`);
             return contacts;
         } catch (error) {
             throw new Error(`CSV parsing failed: ${error.message}`);
@@ -466,6 +574,7 @@ class ContactManagerPlugin {
             let successCount = 0;
             let errorCount = 0;
             let duplicateCount = 0;
+            let invalidCount = 0;
 
             const progressMessage = await this.bot.sock.sendMessage(fromJid, {
                 text: `📤 Processing ${parsedContacts.length} contacts...`
@@ -478,6 +587,11 @@ class ContactManagerPlugin {
                     successCount++;
                 } else if (result.message.includes('already exists')) {
                     duplicateCount++;
+                } else if (result.message.includes('Invalid phone number')) {
+                    invalidCount++;
+                    console.warn(`Invalid phone number format: ${contactData.phoneNumber}`);
+                } else if (result.message.includes('bot\'s own number')) {
+                    console.warn(`Skipped bot's own number: ${contactData.phoneNumber}`);
                 } else {
                     errorCount++;
                     console.warn(`Failed to add contact ${contactData.phoneNumber}: ${result.message}`);
@@ -495,7 +609,8 @@ class ContactManagerPlugin {
                              `📊 *Results:*\n` +
                              `✅ Added: ${successCount} contacts\n` +
                              `🔄 Duplicates: ${duplicateCount} contacts\n` +
-                             `❌ Errors: ${errorCount} contacts\n` +
+                             `❌ Invalid format: ${invalidCount} contacts\n` +
+                             `⚠️ Other errors: ${errorCount} contacts\n` +
                              `📱 Total contacts: ${this.contacts.size}\n\n` +
                              `💡 Use \`${config.PREFIX}contact list\` to view all contacts`;
 
