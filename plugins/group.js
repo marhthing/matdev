@@ -97,6 +97,16 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Greeting control command (admin only)
+        this.bot.messageHandler.registerCommand('greeting', this.greetingCommand.bind(this), {
+            description: 'Control welcome/goodbye messages (admin only)',
+            usage: `${config.PREFIX}greeting [on/off] [welcome/goodbye] [on/off]`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -975,6 +985,11 @@ class GroupPlugin {
             // Don't welcome the bot itself
             if (participantJid === this.bot.sock.user?.id) return;
 
+            // Check if greetings are enabled
+            if (!config.GREETING_ENABLED || !config.GREETING_WELCOME) {
+                return;
+            }
+
             // Simplified welcome message
             const welcomeMessage = `@${displayName}! Welcome 👏`;
 
@@ -1017,6 +1032,11 @@ class GroupPlugin {
         try {
             // Don't send goodbye for the bot itself
             if (participantJid === this.bot.sock.user?.id) return;
+
+            // Check if greetings are enabled
+            if (!config.GREETING_ENABLED || !config.GREETING_GOODBYE) {
+                return;
+            }
 
             // Simplified goodbye message
             const goodbyeMessage = `@${displayName} Goodbye 👋`;
@@ -1167,6 +1187,161 @@ class GroupPlugin {
 
 
 
+
+    /**
+     * Greeting control command
+     */
+    async greetingCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // If no arguments, show current status
+            if (args.length === 0) {
+                const status = `🎉 *Greeting Settings*\n\n` +
+                    `📊 *Overall:* ${config.GREETING_ENABLED ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `👋 *Welcome:* ${config.GREETING_WELCOME ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `👋 *Goodbye:* ${config.GREETING_GOODBYE ? '✅ Enabled' : '❌ Disabled'}\n\n` +
+                    `*Usage:*\n` +
+                    `• \`${config.PREFIX}greeting on/off\` - Toggle all greetings\n` +
+                    `• \`${config.PREFIX}greeting welcome on/off\` - Toggle welcome only\n` +
+                    `• \`${config.PREFIX}greeting goodbye on/off\` - Toggle goodbye only`;
+
+                await this.bot.messageHandler.reply(messageInfo, status);
+                return;
+            }
+
+            const command = args[0].toLowerCase();
+
+            // Handle main greeting toggle
+            if (command === 'on' || command === 'off') {
+                const enabled = command === 'on';
+                await this.updateEnvSetting('GREETING_ENABLED', enabled.toString());
+                config.GREETING_ENABLED = enabled;
+
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `🎉 Greetings ${enabled ? 'enabled' : 'disabled'} successfully!`
+                );
+                return;
+            }
+
+            // Handle specific greeting type toggles
+            if (command === 'welcome' || command === 'goodbye') {
+                if (args.length < 2) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Please specify on/off for ${command}.\nUsage: \`${config.PREFIX}greeting ${command} on/off\``
+                    );
+                    return;
+                }
+
+                const action = args[1].toLowerCase();
+                if (action !== 'on' && action !== 'off') {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Invalid action. Use 'on' or 'off'.`
+                    );
+                    return;
+                }
+
+                const enabled = action === 'on';
+                const envKey = command === 'welcome' ? 'GREETING_WELCOME' : 'GREETING_GOODBYE';
+                
+                await this.updateEnvSetting(envKey, enabled.toString());
+                
+                if (command === 'welcome') {
+                    config.GREETING_WELCOME = enabled;
+                } else {
+                    config.GREETING_GOODBYE = enabled;
+                }
+
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `👋 ${command.charAt(0).toUpperCase() + command.slice(1)} messages ${enabled ? 'enabled' : 'disabled'} successfully!`
+                );
+                return;
+            }
+
+            // Invalid command
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Invalid usage. Use:\n` +
+                `• \`${config.PREFIX}greeting\` - Show status\n` +
+                `• \`${config.PREFIX}greeting on/off\` - Toggle all\n` +
+                `• \`${config.PREFIX}greeting welcome on/off\`\n` +
+                `• \`${config.PREFIX}greeting goodbye on/off\``
+            );
+
+        } catch (error) {
+            console.error('Error in greeting command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to update greeting settings. Please try again.'
+            );
+        }
+    }
+
+    /**
+     * Update environment setting and .env file
+     */
+    async updateEnvSetting(key, value) {
+        try {
+            // Update process.env
+            process.env[key] = value;
+
+            // Update .env file
+            const path = require('path');
+            const fs = require('fs-extra');
+            const envPath = path.join(__dirname, '../.env');
+            
+            let envContent = '';
+            if (await fs.pathExists(envPath)) {
+                envContent = await fs.readFile(envPath, 'utf8');
+            }
+
+            const lines = envContent.split('\n');
+            let keyExists = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith(`${key}=`)) {
+                    lines[i] = `${key}=${value}`;
+                    keyExists = true;
+                    break;
+                }
+            }
+
+            if (!keyExists) {
+                lines.push(`${key}=${value}`);
+            }
+
+            await fs.writeFile(envPath, lines.join('\n'));
+            console.log(`📝 Updated .env: ${key}=${value}`);
+
+        } catch (error) {
+            console.error(`Failed to update .env setting ${key}:`, error);
+        }
+    }
 
     /**
      * Cleanup method

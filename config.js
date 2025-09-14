@@ -41,7 +41,10 @@ function ensureEnvFileWithDefaults() {
         PORT: '8000',
         NODE_ENV: 'production',
         TIMEZONE: 'Africa/Lagos',
-        LANGUAGE: 'en'
+        LANGUAGE: 'en',
+        GREETING_ENABLED: 'true',
+        GREETING_WELCOME: 'true',
+        GREETING_GOODBYE: 'true'
     };
     
     try {
@@ -175,6 +178,11 @@ const config = {
     // Regional Settings
     TIMEZONE: process.env.TIMEZONE || 'Africa/Lagos', // UTC+1
     LANGUAGE: process.env.LANGUAGE || 'en',
+
+    // Greeting Settings
+    GREETING_ENABLED: process.env.GREETING_ENABLED !== 'false',
+    GREETING_WELCOME: process.env.GREETING_WELCOME !== 'false',
+    GREETING_GOODBYE: process.env.GREETING_GOODBYE !== 'false',
 
     // Hosting Platform Detection
     PLATFORM: process.env.DYNO ? 'heroku' : 
