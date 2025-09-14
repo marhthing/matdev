@@ -29,19 +29,20 @@ class AutoReplyPlugin {
             // Register commands
             this.bot.messageHandler.registerCommand('autoreply', this.autoReplyCommand.bind(this), {
                 description: 'Manage auto-replies',
-                usage: `${config.PREFIX}autoreply <add/remove/list> [keyword] [reply]`,
+                usage: `${config.PREFIX}autoreply <add|remove|list> [keyword|index] [reply]`,
                 category: 'utility',
                 plugin: 'auto-reply',
                 source: 'auto-reply.js'
             });
 
-            this.bot.messageHandler.registerCommand('ar', this.autoReplyCommand.bind(this), {
-                description: 'Manage auto-replies (short)',
-                usage: `${config.PREFIX}ar <add/remove/list> [keyword] [reply]`,
-                category: 'utility',
-                plugin: 'auto-reply',
-                source: 'auto-reply.js'
-            });
+            // Removed the 'ar' alias command to enforce the single command usage
+            // this.bot.messageHandler.registerCommand('ar', this.autoReplyCommand.bind(this), {
+            //     description: 'Manage auto-replies (short)',
+            //     usage: `${config.PREFIX}ar <add|remove|list> [keyword|index] [reply]`,
+            //     category: 'utility',
+            //     plugin: 'auto-reply',
+            //     source: 'auto-reply.js'
+            // });
 
             // Register message listener for auto-replies
             this.registerMessageListener();
@@ -61,11 +62,21 @@ class AutoReplyPlugin {
         try {
             if (await fs.pathExists(this.storageFile)) {
                 const data = await fs.readJson(this.storageFile);
-                this.autoReplies = new Map(Object.entries(data));
-                console.log(`📂 Loaded ${this.autoReplies.size} auto-replies`);
+                // Ensure data is a plain object before converting to Map
+                if (typeof data === 'object' && data !== null) {
+                    this.autoReplies = new Map(Object.entries(data));
+                    console.log(`📂 Loaded ${this.autoReplies.size} auto-replies`);
+                } else {
+                    console.warn('⚠️ Auto-replies file is empty or corrupted. Starting fresh.');
+                    this.autoReplies = new Map();
+                }
+            } else {
+                console.log('ℹ️ No auto-replies file found. Starting fresh.');
+                this.autoReplies = new Map();
             }
         } catch (error) {
             console.error('Error loading auto-replies:', error);
+            this.autoReplies = new Map(); // Ensure map is initialized even on error
         }
     }
 
@@ -91,22 +102,22 @@ class AutoReplyPlugin {
         if (!this.bot.messageHandler.autoReplyProcessors) {
             this.bot.messageHandler.autoReplyProcessors = [];
         }
-        
+
         // Add our processor to the list
         this.bot.messageHandler.autoReplyProcessors.push(this.processAutoReply.bind(this));
-        
+
         // Store reference to original process method
         const originalProcess = this.bot.messageHandler.process.bind(this.bot.messageHandler);
-        
+
         // Only override if not already overridden by auto-reply system
         if (!this.bot.messageHandler._autoReplySystemEnabled) {
             this.bot.messageHandler._autoReplySystemEnabled = true;
-            
+
             // Safe override that supports multiple plugins
             this.bot.messageHandler.process = async (message) => {
                 // First call original process to get normal message processing
                 await originalProcess(message);
-                
+
                 // Then run all auto-reply processors
                 if (this.bot.messageHandler.autoReplyProcessors && this.bot.messageHandler.autoReplyProcessors.length > 0) {
                     const jids = this.bot.messageHandler.jidUtils.extractJIDs(message);
@@ -114,7 +125,7 @@ class AutoReplyPlugin {
                         // Extract message content - same logic as MessageHandler
                         const messageTypes = Object.keys(message.message || {});
                         let text = '';
-                        
+
                         // Handle media messages with captions first
                         for (const type of messageTypes) {
                             const content = message.message[type];
@@ -123,7 +134,7 @@ class AutoReplyPlugin {
                                 break;
                             }
                         }
-                        
+
                         // If no media caption found, try other message types
                         if (!text) {
                             for (const type of messageTypes) {
@@ -161,7 +172,7 @@ class AutoReplyPlugin {
                                 }
                             }
                         }
-                        
+
                         if (text && text.trim()) {
                             const messageInfo = {
                                 content: text.trim(),
@@ -170,7 +181,7 @@ class AutoReplyPlugin {
                                 sender_name: jids.sender_name || 'User',
                                 chat_name: jids.chat_name || 'Chat'
                             };
-                            
+
                             // Run all registered auto-reply processors
                             for (const processor of this.bot.messageHandler.autoReplyProcessors) {
                                 try {
@@ -203,17 +214,17 @@ class AutoReplyPlugin {
 
             // Check for keyword matches (case-insensitive)
             const content = messageInfo.content.toLowerCase().trim();
-            
+
             for (const [keyword, reply] of this.autoReplies) {
                 if (content.includes(keyword.toLowerCase())) {
                     // Process reply variables
                     const processedReply = this.processReplyVariables(reply, messageInfo);
-                    
+
                     // Send auto-reply
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         text: processedReply
                     });
-                    
+
                     console.log(`🤖 Auto-reply triggered: "${keyword}" -> "${processedReply}"`);
                     break; // Only trigger first match
                 }
@@ -228,33 +239,33 @@ class AutoReplyPlugin {
      */
     processReplyVariables(reply, messageInfo) {
         let processed = reply;
-        
+
         // Available variables:
         // {name} - Sender's name
         // {chat} - Chat name
         // {time} - Current time
         // {bot} - Bot name
-        
+
         try {
             // Get sender name
             const senderName = messageInfo.sender_name || 'User';
             processed = processed.replace(/\{name\}/g, senderName);
-            
+
             // Get chat name
             const chatName = messageInfo.chat_name || 'Chat';
             processed = processed.replace(/\{chat\}/g, chatName);
-            
+
             // Current time
             const currentTime = new Date().toLocaleTimeString();
             processed = processed.replace(/\{time\}/g, currentTime);
-            
+
             // Bot name
             processed = processed.replace(/\{bot\}/g, config.BOT_NAME);
-            
+
         } catch (error) {
             console.error('Error processing reply variables:', error);
         }
-        
+
         return processed;
     }
 
@@ -264,11 +275,11 @@ class AutoReplyPlugin {
     async autoReplyCommand(messageInfo) {
         try {
             const args = messageInfo.args;
-            
+
             if (!args || args.length === 0) {
                 const help = `🤖 *Auto-Reply Management*\n\n` +
                     `*Commands:*\n` +
-                    `${config.PREFIX}autoreply add <keyword> <reply> - Add auto-reply\n` +
+                    `${config.PREFIX}autoreply add <keyword> | <reply> - Add auto-reply\n` +
                     `${config.PREFIX}autoreply remove <keyword> - Remove auto-reply\n` +
                     `${config.PREFIX}autoreply list - List all auto-replies\n\n` +
                     `*Variables in replies:*\n` +
@@ -277,8 +288,8 @@ class AutoReplyPlugin {
                     `{time} - Current time\n` +
                     `{bot} - Bot name\n\n` +
                     `*Example:*\n` +
-                    `${config.PREFIX}ar add hello Hello {name}! Welcome to {chat}`;
-                
+                    `${config.PREFIX}autoreply add hello | Hello {name}! Welcome to {chat}`;
+
                 await this.bot.messageHandler.reply(messageInfo, help);
                 return;
             }
@@ -298,7 +309,7 @@ class AutoReplyPlugin {
                     break;
                 default:
                     await this.bot.messageHandler.reply(messageInfo, 
-                        `❌ Invalid action. Use: add, remove, or list\nExample: ${config.PREFIX}ar add hello Hello there!`);
+                        `❌ Invalid action. Use: add, remove, or list\nExample: ${config.PREFIX}autoreply add hello | Hello there!`);
             }
 
         } catch (error) {
@@ -311,14 +322,29 @@ class AutoReplyPlugin {
      * Add new auto-reply
      */
     async addAutoReply(messageInfo, args) {
-        if (args.length < 2) {
+        if (args.length === 0) {
             await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please provide keyword and reply.\nUsage: ${config.PREFIX}ar add <keyword> <reply>\nExample: ${config.PREFIX}ar add hello Hello {name}!`);
+                `❌ Please provide keyword and reply.\nUsage: ${config.PREFIX}autoreply add <keyword> | <reply>\nExample: ${config.PREFIX}autoreply add hello | Hello {name}!`);
             return;
         }
 
-        const keyword = args[0].toLowerCase();
-        const reply = args.slice(1).join(' ');
+        // Find the separator '|'
+        const separatorIndex = args.findIndex(arg => arg === '|');
+
+        if (separatorIndex === -1) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Invalid format. Please use a pipe '|' to separate keyword and reply.\nUsage: ${config.PREFIX}autoreply add <keyword> | <reply>\nExample: ${config.PREFIX}autoreply add hello | Hello {name}!`);
+            return;
+        }
+
+        const keyword = args.slice(0, separatorIndex).join(' ').toLowerCase().trim();
+        const reply = args.slice(separatorIndex + 1).join(' ').trim();
+
+        if (!keyword || !reply) {
+             await this.bot.messageHandler.reply(messageInfo, 
+                `❌ Keyword and reply cannot be empty.\nUsage: ${config.PREFIX}autoreply add <keyword> | <reply>\nExample: ${config.PREFIX}autoreply add hello | Hello {name}!`);
+            return;
+        }
 
         // Check if keyword already exists
         if (this.autoReplies.has(keyword)) {
@@ -330,13 +356,13 @@ class AutoReplyPlugin {
         try {
             // Add to memory
             this.autoReplies.set(keyword, reply);
-            
+
             // Save to storage
             await this.saveAutoReplies();
-            
+
             await this.bot.messageHandler.reply(messageInfo, 
                 `✅ Auto-reply added!\n\n*Keyword:* ${keyword}\n*Reply:* ${reply}\n\nNow when someone mentions "${keyword}", the bot will automatically reply.`);
-                
+
         } catch (error) {
             console.error('Error adding auto-reply:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Failed to add auto-reply. Please try again.');
@@ -349,7 +375,7 @@ class AutoReplyPlugin {
     async removeAutoReply(messageInfo, args) {
         if (args.length === 0) {
             await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Please provide keyword to remove.\nUsage: ${config.PREFIX}ar remove <keyword>`);
+                `❌ Please provide keyword to remove.\nUsage: ${config.PREFIX}autoreply remove <keyword>`);
             return;
         }
 
@@ -365,13 +391,13 @@ class AutoReplyPlugin {
             // Remove from memory
             const removedReply = this.autoReplies.get(keyword);
             this.autoReplies.delete(keyword);
-            
+
             // Save to storage
             await this.saveAutoReplies();
-            
+
             await this.bot.messageHandler.reply(messageInfo, 
                 `✅ Auto-reply removed!\n\n*Keyword:* ${keyword}\n*Reply:* ${removedReply}`);
-                
+
         } catch (error) {
             console.error('Error removing auto-reply:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Failed to remove auto-reply. Please try again.');
@@ -384,26 +410,26 @@ class AutoReplyPlugin {
     async listAutoReplies(messageInfo) {
         if (this.autoReplies.size === 0) {
             await this.bot.messageHandler.reply(messageInfo, 
-                `📝 No auto-replies configured.\n\nAdd one with: ${config.PREFIX}ar add <keyword> <reply>`);
+                `📝 No auto-replies configured.\n\nAdd one with: ${config.PREFIX}autoreply add <keyword> | <reply>`);
             return;
         }
 
         let text = `🤖 *Auto-Replies (${this.autoReplies.size})*\n\n`;
-        
+
         let count = 1;
         for (const [keyword, reply] of this.autoReplies) {
             text += `${count}. *${keyword}*\n   → ${reply}\n\n`;
             count++;
-            
+
             // Prevent message too long
             if (text.length > 3000) {
                 text += '... (list truncated due to length)';
                 break;
             }
         }
-        
-        text += `_To remove: ${config.PREFIX}ar remove <keyword>_`;
-        
+
+        text += `_To remove: ${config.PREFIX}autoreply remove <keyword>_`;
+
         await this.bot.messageHandler.reply(messageInfo, text);
     }
 
