@@ -1,6 +1,3 @@
-
-# MATDEV - Host Anywhere
-
 <p align="center">
   <img src="lib/img/matdev-bot.jpg" alt="Matdev Bot" width="250">
 </p>
