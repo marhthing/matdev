@@ -1087,15 +1087,6 @@ class GroupPlugin {
                 return;
             }
 
-            // Check if bot has admin permissions
-            const botParticipant = groupMetadata.participants.find(p => p.id === this.bot.sock.user?.id);
-            if (!botParticipant || (botParticipant.admin !== 'admin' && botParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Bot needs admin permissions to change group settings.'
-                );
-                return;
-            }
-
             // Check if group is already locked
             if (groupMetadata.announce) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1150,15 +1141,6 @@ class GroupPlugin {
             if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
-            // Check if bot has admin permissions
-            const botParticipant = groupMetadata.participants.find(p => p.id === this.bot.sock.user?.id);
-            if (!botParticipant || (botParticipant.admin !== 'admin' && botParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Bot needs admin permissions to change group settings.'
                 );
                 return;
             }
