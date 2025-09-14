@@ -14,7 +14,7 @@ class AutoReplyPlugin {
         this.version = '1.0.0';
         this.enabled = true;
         this.autoReplies = new Map();
-        this.storageFile = path.join(__dirname, '..', 'session', 'auto-replies.json');
+        this.storageFile = path.join(__dirname, '..', 'session', 'storage', 'auto-replies.json');
     }
 
     /**
