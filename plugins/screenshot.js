@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Website Screenshot Plugin
  * Capture screenshots of websites using free APIs
@@ -13,29 +12,26 @@ class ScreenshotPlugin {
         this.description = 'Capture website screenshots';
         this.version = '1.0.0';
         this.enabled = true;
-        
-        // Free screenshot APIs
+
+        // Updated working screenshot APIs
         this.apis = [
             {
-                name: 'screenshot-api.net',
-                url: 'https://shot.screenshotapi.net/screenshot',
+                name: 'screenshotmachine',
+                url: 'https://api.screenshotmachine.com/',
                 params: (url) => ({
+                    key: 'demo',
                     url: url,
-                    output: 'image',
-                    file_type: 'png',
-                    wait_for_event: 'load'
+                    dimension: '1280x720',
+                    format: 'png'
                 })
             },
             {
-                name: 'htmlcsstoimage.com',
-                url: 'https://hcti.io/v1/image',
-                headers: {
-                    'Authorization': 'Basic ' + Buffer.from('demo:demo').toString('base64')
-                },
-                data: (url) => ({
+                name: 'urlbox',
+                url: 'https://api.urlbox.io/v1/demo/png',
+                params: (url) => ({
                     url: url,
-                    viewport_width: 1280,
-                    viewport_height: 720
+                    width: 1280,
+                    height: 720
                 })
             }
         ];
@@ -48,7 +44,6 @@ class ScreenshotPlugin {
         this.bot = bot;
         try {
             this.registerCommands();
-            console.log('✅ Website Screenshot plugin loaded');
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize Screenshot plugin:', error);
@@ -67,15 +62,6 @@ class ScreenshotPlugin {
             plugin: 'screenshot',
             source: 'screenshot.js'
         });
-
-        // Alias
-        this.bot.messageHandler.registerCommand('ss', this.screenshotCommand.bind(this), {
-            description: 'Capture a website screenshot (alias)',
-            usage: `${config.PREFIX}ss <website URL>`,
-            category: 'utility',
-            plugin: 'screenshot',
-            source: 'screenshot.js'
-        });
     }
 
     /**
@@ -84,7 +70,7 @@ class ScreenshotPlugin {
     async screenshotCommand(messageInfo) {
         try {
             let url = messageInfo.args.join(' ').trim();
-            
+
             // Check if it's a reply to a message with URL
             if (!url && messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                 const quotedText = this.extractTextFromQuoted(messageInfo.message.extendedTextMessage.contextInfo.quotedMessage);
@@ -92,10 +78,10 @@ class ScreenshotPlugin {
                     url = quotedText;
                 }
             }
-            
+
             if (!url) {
                 await this.bot.messageHandler.reply(messageInfo,
-                    `❌ Please provide a website URL.\n\nUsage: ${config.PREFIX}screenshot <URL>\n\nExamples:\n• ${config.PREFIX}screenshot https://google.com\n• ${config.PREFIX}ss https://github.com\n• ${config.PREFIX}screenshot reddit.com`);
+                    `❌ Please provide a website URL.\n\nUsage: ${config.PREFIX}screenshot <URL>\n\nExamples:\n• ${config.PREFIX}screenshot https://google.com\n• ${config.PREFIX}screenshot reddit.com`);
                 return;
             }
 
@@ -107,37 +93,20 @@ class ScreenshotPlugin {
                 return;
             }
 
-            // Send processing message
-            const processingMsg = await this.bot.messageHandler.reply(messageInfo, 
-                `📸 Capturing screenshot of: ${url}\n\n⏳ This may take a few seconds...`);
-
             try {
                 const screenshotBuffer = await this.captureScreenshot(url);
-                
-                if (screenshotBuffer) {
-                    // Send the screenshot
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        image: screenshotBuffer,
-                        caption: `📸 *Website Screenshot*\n\n🌐 *URL:* ${url}\n📅 *Captured:* ${new Date().toLocaleString()}\n🖥️ *Resolution:* 1280x720\n\n_Screenshot by ${config.BOT_NAME}_`
-                    });
 
-                    // Delete processing message
+                if (screenshotBuffer) {
+                    // Send the screenshot without caption
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        delete: processingMsg.key
+                        image: screenshotBuffer
                     });
                 } else {
-                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        text: `❌ Failed to capture screenshot of ${url}.\n\nPossible reasons:\n• Website is down or inaccessible\n• Website blocks screenshot services\n• Invalid URL format\n\nPlease try again with a different URL.`,
-                        edit: processingMsg.key
-                    });
+                    await this.bot.messageHandler.reply(messageInfo, `❌ Failed to capture screenshot of ${url}.`);
                 }
 
             } catch (apiError) {
-                console.error('Screenshot API error:', apiError);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Error capturing screenshot: ${apiError.message}`,
-                    edit: processingMsg.key
-                });
+                await this.bot.messageHandler.reply(messageInfo, `❌ Error capturing screenshot: ${apiError.message}`);
             }
 
         } catch (error) {
@@ -152,11 +121,9 @@ class ScreenshotPlugin {
     async captureScreenshot(url) {
         for (const api of this.apis) {
             try {
-                console.log(`📸 Trying ${api.name} for screenshot of ${url}`);
-                
                 let response;
-                
-                if (api.name === 'screenshot-api.net') {
+
+                if (api.name === 'screenshotmachine') {
                     response = await axios.get(api.url, {
                         params: api.params(url),
                         responseType: 'arraybuffer',
@@ -165,55 +132,51 @@ class ScreenshotPlugin {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                         }
                     });
-                } else if (api.name === 'htmlcsstoimage.com') {
-                    response = await axios.post(api.url, api.data(url), {
-                        headers: api.headers,
-                        timeout: 30000
+                } else if (api.name === 'urlbox') {
+                    response = await axios.get(api.url, {
+                        params: api.params(url),
+                        responseType: 'arraybuffer',
+                        timeout: 30000,
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
                     });
-                    
-                    if (response.data && response.data.url) {
-                        // Download the image from the provided URL
-                        const imageResponse = await axios.get(response.data.url, {
-                            responseType: 'arraybuffer',
-                            timeout: 15000
-                        });
-                        response.data = imageResponse.data;
-                    }
                 }
-                
+
                 if (response && response.data) {
-                    console.log(`✅ Screenshot captured successfully using ${api.name}`);
                     return Buffer.from(response.data);
                 }
-                
+
             } catch (error) {
-                console.error(`❌ ${api.name} failed:`, error.message);
                 continue;
             }
         }
-        
-        // Try a simple fallback using a different service
-        try {
-            console.log('📸 Trying fallback screenshot service...');
-            const fallbackUrl = `https://api.screenshotmachine.com/?key=demo&url=${encodeURIComponent(url)}&dimension=1280x720`;
-            
-            const response = await axios.get(fallbackUrl, {
-                responseType: 'arraybuffer',
-                timeout: 25000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+
+        // Try additional fallback services
+        const fallbackServices = [
+            `https://mini.s-shot.ru/1280x720/PNG/1280/Z100/?${encodeURIComponent(url)}`,
+            `https://image.thum.io/get/width/1280/crop/720/${encodeURIComponent(url)}`
+        ];
+
+        for (const fallbackUrl of fallbackServices) {
+            try {
+                const response = await axios.get(fallbackUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 25000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                if (response && response.data) {
+                    return Buffer.from(response.data);
                 }
-            });
-            
-            if (response && response.data) {
-                console.log('✅ Screenshot captured using fallback service');
-                return Buffer.from(response.data);
+
+            } catch (error) {
+                continue;
             }
-            
-        } catch (error) {
-            console.error('❌ Fallback screenshot service failed:', error.message);
         }
-        
+
         return null;
     }
 
@@ -222,15 +185,15 @@ class ScreenshotPlugin {
      */
     formatUrl(url) {
         url = url.trim();
-        
+
         // Remove common prefixes that users might accidentally include
-        url = url.replace(/^(screenshot|ss)\s+/i, '');
-        
+        url = url.replace(/^(screenshot)\s+/i, '');
+
         // Add protocol if missing
         if (!url.match(/^https?:\/\//)) {
             url = 'https://' + url;
         }
-        
+
         return url;
     }
 
@@ -251,7 +214,7 @@ class ScreenshotPlugin {
      */
     extractTextFromQuoted(quotedMessage) {
         if (!quotedMessage) return null;
-        
+
         const messageTypes = Object.keys(quotedMessage);
         for (const type of messageTypes) {
             const content = quotedMessage[type];
@@ -263,7 +226,7 @@ class ScreenshotPlugin {
                 return content.caption;
             }
         }
-        
+
         return null;
     }
 
@@ -271,7 +234,7 @@ class ScreenshotPlugin {
      * Cleanup method
      */
     async cleanup() {
-        console.log('🧹 Website Screenshot plugin cleanup completed');
+        // No console log for cleanup as per silent requirement
     }
 }
 
