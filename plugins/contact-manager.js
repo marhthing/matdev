@@ -93,7 +93,7 @@ class ContactManagerPlugin {
         
         // Skip if too short after cleaning
         if (cleaned.length < 8) {
-            console.warn(`❌ Phone too short after cleaning: ${cleaned} (${cleaned.length} digits)`);
+            // console.warn(`❌ Phone too short after cleaning: ${cleaned} (${cleaned.length} digits)`);
             return null;
         }
         
@@ -101,7 +101,7 @@ class ContactManagerPlugin {
         if (cleaned.startsWith('0') && cleaned.length === 11) {
             // Remove leading 0 and add Nigerian country code
             cleaned = '234' + cleaned.substring(1);
-            console.log(`🇳🇬 Nigerian format: 0${cleaned.substring(3)} -> ${cleaned}`);
+            // console.log(`🇳🇬 Nigerian format: 0${cleaned.substring(3)} -> ${cleaned}`);
         } else if (cleaned.startsWith('234') && cleaned.length === 13) {
             // Already has Nigerian country code
             // console.log(`🇳🇬 Already has country code: ${cleaned}`);
