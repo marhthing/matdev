@@ -1098,11 +1098,6 @@ class GroupPlugin {
             // Lock the group (announcement mode - only admins can send messages)
             await this.bot.sock.groupSettingUpdate(chat_jid, 'announcement');
 
-            // Send confirmation message
-            await this.bot.messageHandler.reply(messageInfo, 
-                '🔒 *Group Locked!*\n\nOnly admins can send messages now. Regular members can read but cannot respond.'
-            );
-
         } catch (error) {
             console.error('Error in lock group:', error);
             await this.bot.messageHandler.reply(messageInfo, 
@@ -1155,11 +1150,6 @@ class GroupPlugin {
 
             // Unlock the group (disable announcement mode - everyone can send messages)
             await this.bot.sock.groupSettingUpdate(chat_jid, 'not_announcement');
-
-            // Send confirmation message
-            await this.bot.messageHandler.reply(messageInfo, 
-                '🔓 *Group Unlocked!*\n\nEveryone can send messages now. All members can participate in the conversation.'
-            );
 
         } catch (error) {
             console.error('Error in unlock group:', error);
