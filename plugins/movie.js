@@ -91,7 +91,7 @@ class MoviePlugin {
         for (let i = 0; i < workingApiKeys.length; i++) {
             const apiKey = workingApiKeys[i];
             try {
-                console.log(`Trying OMDB API key ${i + 1}/${workingApiKeys.length}...`);
+                // console.log(`Trying OMDB API key ${i + 1}/${workingApiKeys.length}...`);
                 
                 const response = await axios.get('https://www.omdbapi.com/', {
                     params: {
@@ -121,16 +121,16 @@ class MoviePlugin {
                         });
 
                         if (detailResponse.data && detailResponse.data.Response === 'True') {
-                            console.log(`✅ Found movie with OMDB API key ${i + 1}`);
+                            // console.log(`✅ Found movie with OMDB API key ${i + 1}`);
                             return { success: true, data: detailResponse.data };
                         }
                     }
                 }
 
-                console.log(`No results with OMDB API key ${i + 1}`);
+                // console.log(`No results with OMDB API key ${i + 1}`);
 
             } catch (error) {
-                console.log(`❌ OMDB API key ${i + 1} failed:`, error.response?.status || error.message);
+                // console.log(`❌ OMDB API key ${i + 1} failed:`, error.response?.status || error.message);
                 continue;
             }
         }
@@ -143,7 +143,7 @@ class MoviePlugin {
      */
     async searchTMDB(title, type) {
         try {
-            console.log('Trying TMDb API...');
+            // console.log('Trying TMDb API...');
             
             const endpoint = type === 'movie' ? 'movie' : 'tv';
             const response = await axios.get(`https://api.themoviedb.org/3/search/${endpoint}`, {
@@ -173,14 +173,14 @@ class MoviePlugin {
                     });
 
                     if (detailResponse.data) {
-                        console.log('✅ Found movie with TMDb API');
+                        // console.log('✅ Found movie with TMDb API');
                         return { success: true, data: detailResponse.data };
                     }
                 }
             }
 
         } catch (error) {
-            console.log('❌ TMDb API failed:', error.response?.status || error.message);
+            // console.log('❌ TMDb API failed:', error.response?.status || error.message);
         }
 
         return { success: false };
