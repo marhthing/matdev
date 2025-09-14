@@ -615,7 +615,10 @@ class ScheduleStatusPlugin {
             };
             
             // Download using Baileys downloadMediaMessage
-            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
             
             if (buffer) {
                 await fs.writeFile(filePath, buffer);
