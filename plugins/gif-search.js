@@ -56,13 +56,7 @@ class GifSearchPlugin {
             source: 'gif-search.js'
         });
 
-        this.bot.messageHandler.registerCommand('giftrend', this.trendingGifsCommand.bind(this), {
-            description: 'Get trending GIFs',
-            usage: `${config.PREFIX}giftrend`,
-            category: 'fun',
-            plugin: 'gif-search',
-            source: 'gif-search.js'
-        });
+        
     }
 
     /**
@@ -150,82 +144,7 @@ class GifSearchPlugin {
         }
     }
 
-    /**
-     * Handle trending GIFs command
-     */
-    async trendingGifsCommand(messageInfo) {
-        const fs = require('fs-extra');
-        const path = require('path');
-        const axios = require('axios');
-        
-        try {
-            try {
-                // Try Giphy trending first
-                let gifs = await this.getTrendingGiphy();
-                
-                // If Giphy fails, try Tenor
-                if (!gifs || gifs.length === 0) {
-                    gifs = await this.getTrendingTenor();
-                }
-
-                if (!gifs || gifs.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Could not fetch trending GIFs. Please try again later.');
-                    return;
-                }
-
-                // Select a random trending GIF
-                const randomGif = gifs[Math.floor(Math.random() * Math.min(gifs.length, 20))];
-                
-                // Download GIF to tmp directory
-                const timestamp = Date.now();
-                const tempFilePath = path.join(__dirname, '..', 'tmp', `trending_gif_${timestamp}.mp4`);
-                
-                // Ensure tmp directory exists
-                await fs.ensureDir(path.dirname(tempFilePath));
-                
-                // Download the GIF
-                const response = await axios.get(randomGif.url, {
-                    responseType: 'stream',
-                    timeout: 30000
-                });
-                
-                // Write to temp file
-                await new Promise((resolve, reject) => {
-                    const writeStream = fs.createWriteStream(tempFilePath);
-                    response.data.pipe(writeStream);
-                    
-                    response.data.on('error', reject);
-                    writeStream.on('error', reject);
-                    writeStream.on('finish', resolve);
-                });
-                
-                // Send the GIF without caption
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: tempFilePath },
-                    gifPlayback: true
-                });
-
-                // Clean up temp file after sending
-                setTimeout(async () => {
-                    try {
-                        if (await fs.pathExists(tempFilePath)) {
-                            await fs.remove(tempFilePath);
-                        }
-                    } catch (cleanupError) {
-                        console.error('Error cleaning up trending GIF temp file:', cleanupError);
-                    }
-                }, 5000);
-
-            } catch (apiError) {
-                console.error('Trending GIFs API error:', apiError);
-                await this.bot.messageHandler.reply(messageInfo, '❌ Error fetching trending GIFs. Please try again later.');
-            }
-
-        } catch (error) {
-            console.error('Error in trending GIFs command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your request.');
-        }
-    }
+    
 
     /**
      * Search GIFs on Giphy
