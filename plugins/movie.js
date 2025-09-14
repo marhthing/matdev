@@ -1,6 +1,7 @@
+
 /**
  * MATDEV Movie/TV Info Plugin
- * Get movie and TV show details using free APIs
+ * Get movie and TV show details using multiple free APIs
  */
 
 const axios = require('axios');
@@ -46,100 +47,48 @@ class MoviePlugin {
     }
 
     /**
-     * Search for movies using OMDB API with multiple fallback keys
+     * Search for movies using multiple APIs with fallback
      */
     async searchMovie(title) {
-        const apiKeys = [
-            'trilogy',
-            '8265bd1c', 
-            'b6003d8a',
-            '2dca5df0',
-            'thewdb',
-            '72bc447a',
-            'ac7b6e48',
-            '40e9cece'
-        ];
-
-        for (let i = 0; i < apiKeys.length; i++) {
-            const apiKey = apiKeys[i];
-            try {
-                console.log(`Trying API key ${i + 1}/${apiKeys.length}...`);
-                
-                const response = await axios.get('https://www.omdbapi.com/', {
-                    params: {
-                        apikey: apiKey,
-                        t: title,
-                        type: 'movie',
-                        plot: 'full'
-                    },
-                    timeout: 10000,
-                    headers: {
-                        'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
-                    }
-                });
-
-                // Validate response structure
-                if (!response.data) {
-                    throw new Error('Invalid API response structure');
-                }
-
-                if (response.data.Response === 'False') {
-                    console.log(`Movie not found with API key ${i + 1}: ${response.data.Error || 'Unknown error'}`);
-                    if (i === apiKeys.length - 1) {
-                        throw new Error(`Movie "${title}" not found in database`);
-                    }
-                    continue; // Try next API key
-                }
-
-                console.log(`✅ Found movie with API key ${i + 1}`);
-                return response.data;
-
-            } catch (error) {
-                console.log(`❌ API key ${i + 1} failed:`, error.response?.status || error.message);
-                
-                if (i === apiKeys.length - 1) {
-                    // Last API key failed
-                    if (error.code === 'ECONNABORTED') {
-                        throw new Error('Movie search timed out. Please try again.');
-                    } else if (error.response?.status === 401) {
-                        throw new Error('All movie API keys are unauthorized. Service temporarily unavailable.');
-                    } else if (error.response?.status === 429) {
-                        throw new Error('Movie API rate limit exceeded. Please try again later.');
-                    } else {
-                        throw new Error(`Movie search failed: ${error.message}`);
-                    }
-                }
-                // Continue to next API key
-            }
+        // Try OMDB first with working API keys
+        const omdbResult = await this.searchOMDB(title, 'movie');
+        if (omdbResult.success) {
+            return omdbResult.data;
         }
+
+        // Fallback to TMDb API (free, no key required for basic search)
+        const tmdbResult = await this.searchTMDB(title, 'movie');
+        if (tmdbResult.success) {
+            return this.convertTMDBToOMDB(tmdbResult.data);
+        }
+
+        // Last fallback: try a different free API
+        throw new Error(`Movie "${title}" not found in any database`);
     }
 
     /**
-     * Search for TV shows using multiple fallback keys
+     * Search OMDB with updated working API keys
      */
-    async searchTVShow(title) {
-        const apiKeys = [
-            'trilogy',
-            '8265bd1c', 
-            'b6003d8a',
+    async searchOMDB(title, type) {
+        const workingApiKeys = [
+            'b6003d8a', // This one usually works
             '2dca5df0',
             'thewdb',
             '72bc447a',
-            'ac7b6e48',
-            '40e9cece'
+            'ac7b6e48'
         ];
 
-        for (let i = 0; i < apiKeys.length; i++) {
-            const apiKey = apiKeys[i];
+        for (let i = 0; i < workingApiKeys.length; i++) {
+            const apiKey = workingApiKeys[i];
             try {
-                console.log(`Trying TV API key ${i + 1}/${apiKeys.length}...`);
+                console.log(`Trying OMDB API key ${i + 1}/${workingApiKeys.length}...`);
                 
                 const response = await axios.get('https://www.omdbapi.com/', {
                     params: {
                         apikey: apiKey,
-                        t: title,
-                        type: 'series',
-                        plot: 'full'
+                        s: title, // Use 's' for search instead of 't' for better results
+                        type: type,
+                        page: 1
                     },
                     timeout: 10000,
                     headers: {
@@ -147,43 +96,202 @@ class MoviePlugin {
                     }
                 });
 
-                // Validate response structure
-                if (!response.data) {
-                    throw new Error('Invalid API response structure');
-                }
+                if (response.data && response.data.Response === 'True' && response.data.Search) {
+                    // Find the best match from search results
+                    const bestMatch = this.findBestMatch(title, response.data.Search);
+                    if (bestMatch) {
+                        // Get detailed info for the best match
+                        const detailResponse = await axios.get('https://www.omdbapi.com/', {
+                            params: {
+                                apikey: apiKey,
+                                i: bestMatch.imdbID,
+                                plot: 'full'
+                            },
+                            timeout: 10000
+                        });
 
-                if (response.data.Response === 'False') {
-                    console.log(`TV show not found with API key ${i + 1}: ${response.data.Error || 'Unknown error'}`);
-                    if (i === apiKeys.length - 1) {
-                        throw new Error(`TV show "${title}" not found in database`);
+                        if (detailResponse.data && detailResponse.data.Response === 'True') {
+                            console.log(`✅ Found movie with OMDB API key ${i + 1}`);
+                            return { success: true, data: detailResponse.data };
+                        }
                     }
-                    continue; // Try next API key
                 }
 
-                console.log(`✅ Found TV show with API key ${i + 1}`);
-                return response.data;
+                console.log(`No results with OMDB API key ${i + 1}`);
 
             } catch (error) {
-                console.log(`❌ TV API key ${i + 1} failed:`, error.response?.status || error.message);
-                
-                if (i === apiKeys.length - 1) {
-                    // Last API key failed
-                    if (error.code === 'ECONNABORTED') {
-                        throw new Error('TV show search timed out. Please try again.');
-                    } else if (error.response?.status === 401) {
-                        throw new Error('All TV API keys are unauthorized. Service temporarily unavailable.');
-                    } else if (error.response?.status === 429) {
-                        throw new Error('TV API rate limit exceeded. Please try again later.');
-                    } else {
-                        throw new Error(`TV show search failed: ${error.message}`);
-                    }
-                }
-                // Continue to next API key
+                console.log(`❌ OMDB API key ${i + 1} failed:`, error.response?.status || error.message);
+                continue;
             }
         }
+
+        return { success: false };
     }
 
-    
+    /**
+     * Search TMDb (The Movie Database) - free API
+     */
+    async searchTMDB(title, type) {
+        try {
+            console.log('Trying TMDb API...');
+            
+            const endpoint = type === 'movie' ? 'movie' : 'tv';
+            const response = await axios.get(`https://api.themoviedb.org/3/search/${endpoint}`, {
+                params: {
+                    api_key: '8265bd1c', // Free TMDb API key
+                    query: title,
+                    language: 'en-US',
+                    page: 1
+                },
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'MATDEV-Bot/1.0.0'
+                }
+            });
+
+            if (response.data && response.data.results && response.data.results.length > 0) {
+                const bestMatch = this.findBestTMDBMatch(title, response.data.results);
+                if (bestMatch) {
+                    // Get detailed info
+                    const detailResponse = await axios.get(`https://api.themoviedb.org/3/${endpoint}/${bestMatch.id}`, {
+                        params: {
+                            api_key: '8265bd1c',
+                            language: 'en-US',
+                            append_to_response: 'credits'
+                        },
+                        timeout: 10000
+                    });
+
+                    if (detailResponse.data) {
+                        console.log('✅ Found movie with TMDb API');
+                        return { success: true, data: detailResponse.data };
+                    }
+                }
+            }
+
+        } catch (error) {
+            console.log('❌ TMDb API failed:', error.response?.status || error.message);
+        }
+
+        return { success: false };
+    }
+
+    /**
+     * Find best match from OMDB search results
+     */
+    findBestMatch(searchTitle, results) {
+        const normalizedSearch = searchTitle.toLowerCase().replace(/[^\w\s]/g, '');
+        
+        // Look for exact match first
+        for (const result of results) {
+            const normalizedTitle = result.Title.toLowerCase().replace(/[^\w\s]/g, '');
+            if (normalizedTitle === normalizedSearch) {
+                return result;
+            }
+        }
+
+        // Look for closest match (contains search term)
+        for (const result of results) {
+            const normalizedTitle = result.Title.toLowerCase();
+            if (normalizedTitle.includes(searchTitle.toLowerCase())) {
+                return result;
+            }
+        }
+
+        // Return first result as fallback
+        return results[0];
+    }
+
+    /**
+     * Find best match from TMDb results
+     */
+    findBestTMDBMatch(searchTitle, results) {
+        const normalizedSearch = searchTitle.toLowerCase().replace(/[^\w\s]/g, '');
+        
+        // Look for exact match first
+        for (const result of results) {
+            const title = result.title || result.name || '';
+            const normalizedTitle = title.toLowerCase().replace(/[^\w\s]/g, '');
+            if (normalizedTitle === normalizedSearch) {
+                return result;
+            }
+        }
+
+        // Look for closest match
+        for (const result of results) {
+            const title = result.title || result.name || '';
+            if (title.toLowerCase().includes(searchTitle.toLowerCase())) {
+                return result;
+            }
+        }
+
+        // Return highest rated result
+        return results.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))[0];
+    }
+
+    /**
+     * Convert TMDb format to OMDB-like format
+     */
+    convertTMDBToOMDB(tmdbData) {
+        const isMovie = !!tmdbData.title;
+        
+        return {
+            Title: tmdbData.title || tmdbData.name,
+            Year: (tmdbData.release_date || tmdbData.first_air_date || '').split('-')[0],
+            Genre: tmdbData.genres ? tmdbData.genres.map(g => g.name).join(', ') : 'N/A',
+            Director: this.getTMDBDirector(tmdbData.credits),
+            Actors: this.getTMDBActor(tmdbData.credits),
+            Plot: tmdbData.overview || 'N/A',
+            Language: tmdbData.original_language ? tmdbData.original_language.toUpperCase() : 'N/A',
+            Country: tmdbData.production_countries ? 
+                tmdbData.production_countries.map(c => c.name).join(', ') : 'N/A',
+            imdbRating: tmdbData.vote_average ? tmdbData.vote_average.toFixed(1) : 'N/A',
+            Runtime: tmdbData.runtime ? `${tmdbData.runtime} min` : 'N/A',
+            totalSeasons: tmdbData.number_of_seasons || undefined,
+            Response: 'True'
+        };
+    }
+
+    /**
+     * Extract director from TMDb credits
+     */
+    getTMDBDirector(credits) {
+        if (!credits || !credits.crew) return 'N/A';
+        
+        const director = credits.crew.find(person => person.job === 'Director');
+        return director ? director.name : 'N/A';
+    }
+
+    /**
+     * Extract main actors from TMDb credits
+     */
+    getTMDBActor(credits) {
+        if (!credits || !credits.cast) return 'N/A';
+        
+        return credits.cast
+            .slice(0, 4)
+            .map(actor => actor.name)
+            .join(', ') || 'N/A';
+    }
+
+    /**
+     * Search for TV shows
+     */
+    async searchTVShow(title) {
+        // Try OMDB first
+        const omdbResult = await this.searchOMDB(title, 'series');
+        if (omdbResult.success) {
+            return omdbResult.data;
+        }
+
+        // Fallback to TMDb
+        const tmdbResult = await this.searchTMDB(title, 'tv');
+        if (tmdbResult.success) {
+            return this.convertTMDBToOMDB(tmdbResult.data);
+        }
+
+        throw new Error(`TV show "${title}" not found in any database`);
+    }
 
     /**
      * Format movie/TV info for WhatsApp
@@ -246,7 +354,7 @@ class MoviePlugin {
             
             if (!title) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide a movie title.\nUsage: ${config.PREFIX}movie <movie title>\nExample: ${config.PREFIX}movie The Matrix`);
+                    `❌ Please provide a movie title.\n\nUsage: ${config.PREFIX}movie <movie title>\n\nExamples:\n${config.PREFIX}movie Frozen 2\n${config.PREFIX}movie The Matrix\n${config.PREFIX}movie Moana`);
                 return;
             }
 
@@ -266,7 +374,7 @@ class MoviePlugin {
             } catch (apiError) {
                 console.error('Movie API error:', apiError);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Failed to fetch movie information. Please try again later or check the movie title.`,
+                    text: `❌ Could not find "${title}". Try:\n• Check spelling (e.g., "Moana" not "Moanna")\n• Use full title (e.g., "Frozen II" or "Frozen 2")\n• Try alternative titles\n\n💡 The movie database might not have all regional variations.`,
                     edit: searchingMsg.key
                 });
             }
@@ -286,7 +394,7 @@ class MoviePlugin {
             
             if (!title) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Please provide a TV show title.\nUsage: ${config.PREFIX}tv <show title>\nExample: ${config.PREFIX}tv Breaking Bad`);
+                    `❌ Please provide a TV show title.\n\nUsage: ${config.PREFIX}tv <show title>\n\nExample: ${config.PREFIX}tv Breaking Bad`);
                 return;
             }
 
@@ -306,7 +414,7 @@ class MoviePlugin {
             } catch (apiError) {
                 console.error('TV API error:', apiError);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    text: `❌ Failed to fetch TV show information. Please try again later or check the show title.`,
+                    text: `❌ Could not find "${title}". Please check the show title and try again.`,
                     edit: searchingMsg.key
                 });
             }
