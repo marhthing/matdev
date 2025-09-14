@@ -975,21 +975,35 @@ class GroupPlugin {
             // Don't welcome the bot itself
             if (participantJid === this.bot.sock.user?.id) return;
 
-            const welcomeMessages = [
-                `🎉 Welcome to the group, @${displayName}! We're excited to have you here.`,
-                `👋 Hello @${displayName}! Welcome aboard! Feel free to introduce yourself.`,
-                `🌟 Welcome @${displayName}! You just made this group more awesome.`,
-                `🎊 Hey @${displayName}! Welcome to our amazing community!`,
-                `✨ Welcome @${displayName}! We're glad you joined us. Let's have some fun!`
-            ];
+            // Simplified welcome message
+            const welcomeMessage = `@${displayName}! Welcome 👏`;
 
-            // Pick a random welcome message
-            const randomMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-
-            await this.bot.sock.sendMessage(groupJid, {
-                text: randomMessage,
-                mentions: [participantJid]
-            });
+            try {
+                // Try to get user's profile picture
+                const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
+                
+                if (profilePicUrl) {
+                    // Send profile picture with welcome message as caption
+                    await this.bot.sock.sendMessage(groupJid, {
+                        image: { url: profilePicUrl },
+                        caption: welcomeMessage,
+                        mentions: [participantJid]
+                    });
+                } else {
+                    // Fallback to text message if no profile picture
+                    await this.bot.sock.sendMessage(groupJid, {
+                        text: welcomeMessage,
+                        mentions: [participantJid]
+                    });
+                }
+            } catch (profileError) {
+                console.log('Profile picture not available, using text message');
+                // Fallback to text message if profile picture fails
+                await this.bot.sock.sendMessage(groupJid, {
+                    text: welcomeMessage,
+                    mentions: [participantJid]
+                });
+            }
 
         } catch (error) {
             console.error('Error sending welcome message:', error);
@@ -1004,19 +1018,11 @@ class GroupPlugin {
             // Don't send goodbye for the bot itself
             if (participantJid === this.bot.sock.user?.id) return;
 
-            const goodbyeMessages = [
-                `👋 Goodbye @${displayName}! Thanks for being part of our group. You'll be missed!`,
-                `🌺 Farewell @${displayName}! Best wishes on your journey ahead.`,
-                `💫 @${displayName} has left the group. Thanks for the memories!`,
-                `🕊️ See you later @${displayName}! Take care and stay awesome.`,
-                `🌅 @${displayName} has departed. Wishing you all the best!`
-            ];
-
-            // Pick a random goodbye message
-            const randomMessage = goodbyeMessages[Math.floor(Math.random() * goodbyeMessages.length)];
+            // Simplified goodbye message
+            const goodbyeMessage = `@${displayName} Goodbye 👋`;
 
             await this.bot.sock.sendMessage(groupJid, {
-                text: randomMessage,
+                text: goodbyeMessage,
                 mentions: [participantJid]
             });
 
