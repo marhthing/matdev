@@ -5,6 +5,7 @@
 
 const config = require('../config');
 const Utils = require('../lib/utils');
+const JIDUtils = require('../lib/jid-utils');
 const fs = require('fs-extra');
 const path = require('path');
 const moment = require('moment-timezone');
@@ -20,6 +21,7 @@ class ScheduleStatusPlugin {
         this.statusSchedulePath = path.join(__dirname, '../session/storage/status_schedules.json');
         this.statusSchedules = new Map();
         this.checkInterval = null;
+        this.jidUtils = new JIDUtils();
     }
 
     /**
@@ -675,8 +677,9 @@ class ScheduleStatusPlugin {
     getContactManager() {
         // Look for the contact manager plugin in the bot's plugins
         if (this.bot.plugins) {
-            for (const plugin of this.bot.plugins.values()) {
-                if (plugin.name === 'contact-manager') {
+            // bot.plugins is a plain object, use Object.values() to iterate
+            for (const plugin of Object.values(this.bot.plugins)) {
+                if (plugin && plugin.name === 'contact-manager') {
                     return plugin;
                 }
             }
@@ -691,9 +694,9 @@ class ScheduleStatusPlugin {
         const statusJidList = [];
         
         try {
-            // Normalize self JID for comparison
+            // Get base self JID for comparison (remove device suffix)
             const selfJid = this.bot.sock.user?.id;
-            const normalizedSelf = selfJid ? this.normalizeJid(selfJid) : null;
+            const normalizedSelf = selfJid ? this.getBaseJidFromUser(selfJid) : null;
             
             console.log(`🤖 Fallback mode - Bot JID: ${selfJid}, normalized: ${normalizedSelf}`);
             
@@ -735,8 +738,8 @@ class ScheduleStatusPlugin {
             
             // Filter out self and normalize
             const filteredContacts = Array.from(allCandidates).filter(jid => {
-                const normalizedJid = this.normalizeJid(jid);
-                return normalizedJid !== normalizedSelf;
+                const baseJid = this.getBaseJidFromUser(jid);
+                return baseJid !== normalizedSelf;
             });
             
             console.log(`📋 Total candidates: ${allCandidates.size}, after excluding self: ${filteredContacts.length}`);
@@ -752,7 +755,7 @@ class ScheduleStatusPlugin {
                     config.OWNER_NUMBER : 
                     `${config.OWNER_NUMBER}@s.whatsapp.net`;
                     
-                const normalizedOwner = this.normalizeJid(ownerJid);
+                const normalizedOwner = this.getBaseJidFromUser(ownerJid);
                 
                 // Only use owner if it's different from the bot itself
                 if (normalizedOwner !== normalizedSelf) {
@@ -775,12 +778,24 @@ class ScheduleStatusPlugin {
     }
     
     /**
-     * Normalize JID for comparison
+     * Normalize JID for comparison (preserves device suffixes)
      */
     normalizeJid(jid) {
         if (!jid) return null;
-        // Remove any extra characters and ensure proper format
-        return jid.split('@')[0] + '@s.whatsapp.net';
+        
+        // Use proper JIDUtils to preserve device suffixes
+        return this.jidUtils.normalizeJid(jid);
+    }
+
+    /**
+     * Get base JID from user JID (removes device suffix for comparison)
+     */
+    getBaseJidFromUser(userJid) {
+        if (!userJid) return null;
+        
+        // Extract base phone number from user JID
+        const phoneNumber = userJid.split(':')[0];
+        return `${phoneNumber}@s.whatsapp.net`;
     }
     
     /**

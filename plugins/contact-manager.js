@@ -6,6 +6,7 @@
 
 const config = require('../config');
 const Utils = require('../lib/utils');
+const JIDUtils = require('../lib/jid-utils');
 const fs = require('fs-extra');
 const path = require('path');
 const { downloadMediaMessage } = require('baileys');
@@ -19,6 +20,8 @@ class ContactManagerPlugin {
         this.version = '1.0.0';
         this.contactsStoragePath = path.join(__dirname, '../session/storage/contacts.json');
         this.contacts = new Map(); // Map of normalized_jid -> contact_info
+        this.jidUtils = new JIDUtils();
+        this.autoDetectionSetup = false; // Prevent duplicate setup
     }
 
     /**
@@ -73,9 +76,15 @@ class ContactManagerPlugin {
 
     /**
      * Normalize phone number to JID format
+     * ONLY for phone number input, NOT for existing JIDs
      */
-    normalizeJid(phoneNumber) {
+    normalizePhoneToJid(phoneNumber) {
         if (!phoneNumber) return null;
+        
+        // If it's already a JID, return as-is to preserve device suffixes
+        if (phoneNumber.includes('@')) {
+            return phoneNumber;
+        }
         
         // Remove all non-numeric characters
         let cleaned = phoneNumber.replace(/[^\d]/g, '');
@@ -93,11 +102,32 @@ class ContactManagerPlugin {
     }
 
     /**
+     * Safely normalize any JID without corrupting device suffixes
+     */
+    safeNormalizeJid(jid) {
+        if (!jid) return null;
+        
+        // Use the proper JIDUtils for JID normalization
+        return this.jidUtils.normalizeJid(jid);
+    }
+
+    /**
+     * Extract base phone number from JID (without device suffix)
+     */
+    getBaseJidFromUser(userJid) {
+        if (!userJid) return null;
+        
+        // Extract base phone number from user JID (removes device suffix)
+        const phoneNumber = userJid.split(':')[0];
+        return `${phoneNumber}@s.whatsapp.net`;
+    }
+
+    /**
      * Add a contact to the system
      */
     async addContact(phoneNumber, name = null, source = 'manual') {
         try {
-            const normalizedJid = this.normalizeJid(phoneNumber);
+            const normalizedJid = this.normalizePhoneToJid(phoneNumber);
             if (!normalizedJid) {
                 throw new Error('Invalid phone number format');
             }
@@ -107,9 +137,9 @@ class ContactManagerPlugin {
                 return { success: false, message: 'Contact already exists', jid: normalizedJid };
             }
 
-            // Exclude bot's own number
-            const botJid = this.normalizeJid(this.bot.sock?.user?.id);
-            if (normalizedJid === botJid) {
+            // Exclude bot's own number (properly extract base JID)
+            const botBaseJid = this.getBaseJidFromUser(this.bot.sock?.user?.id);
+            if (normalizedJid === botBaseJid) {
                 return { success: false, message: 'Cannot add bot\'s own number as contact' };
             }
 
@@ -211,20 +241,36 @@ class ContactManagerPlugin {
 
     /**
      * Setup auto-detection of contacts from incoming messages
+     * Use event-based approach to avoid monkey-patching issues
      */
     setupAutoDetection() {
-        // Hook into message processing
-        if (this.bot.messageHandler) {
-            const originalProcess = this.bot.messageHandler.process.bind(this.bot.messageHandler);
-            
-            this.bot.messageHandler.process = async (message) => {
-                // Auto-detect contact first
-                await this.autoDetectContact(message);
-                
-                // Then proceed with normal message processing
-                return await originalProcess(message);
-            };
+        // Prevent multiple setup on hot reload
+        if (this.autoDetectionSetup) {
+            return;
         }
+
+        // Use event-based approach instead of monkey-patching
+        if (this.bot.messageHandler && this.bot.messageHandler.on) {
+            this.bot.messageHandler.on('message', this.autoDetectContact.bind(this));
+        } else {
+            // Fallback: Check if we can safely monkey-patch
+            if (this.bot.messageHandler && !this.bot.messageHandler._contactManagerPatched) {
+                const originalProcess = this.bot.messageHandler.process.bind(this.bot.messageHandler);
+                
+                this.bot.messageHandler.process = async (message) => {
+                    // Auto-detect contact first
+                    await this.autoDetectContact(message);
+                    
+                    // Then proceed with normal message processing
+                    return await originalProcess(message);
+                };
+                
+                // Mark as patched to prevent duplicate patching
+                this.bot.messageHandler._contactManagerPatched = true;
+            }
+        }
+        
+        this.autoDetectionSetup = true;
     }
 
     /**
@@ -243,17 +289,20 @@ class ContactManagerPlugin {
                 return;
             }
 
-            const normalizedJid = this.normalizeJid(senderJid);
+            // Use proper JID normalization (preserves device suffixes)
+            const normalizedJid = this.safeNormalizeJid(senderJid);
+            const baseJid = this.getBaseJidFromUser(senderJid); // For storage key
             
             // Update existing contact or add new one
-            if (this.contacts.has(normalizedJid)) {
+            if (this.contacts.has(baseJid)) {
                 // Update last seen
-                const contact = this.contacts.get(normalizedJid);
+                const contact = this.contacts.get(baseJid);
                 contact.lastSeen = new Date().toISOString();
-                this.contacts.set(normalizedJid, contact);
+                this.contacts.set(baseJid, contact);
+                await this.saveContacts();
             } else {
-                // Add new auto-detected contact
-                const phoneNumber = senderJid.split('@')[0];
+                // Add new auto-detected contact using base phone number
+                const phoneNumber = senderJid.split('@')[0].split(':')[0];
                 await this.addContact(phoneNumber, null, 'auto');
             }
 
@@ -267,11 +316,11 @@ class ContactManagerPlugin {
      */
     getStatusRecipients() {
         const recipients = [];
-        const botJid = this.normalizeJid(this.bot.sock?.user?.id);
+        const botBaseJid = this.getBaseJidFromUser(this.bot.sock?.user?.id);
 
         for (const [jid, contact] of this.contacts) {
-            // Exclude bot's own number
-            if (jid !== botJid) {
+            // Exclude bot's own number (compare base JIDs)
+            if (jid !== botBaseJid) {
                 recipients.push(jid);
             }
         }
@@ -421,6 +470,7 @@ class ContactManagerPlugin {
                     duplicateCount++;
                 } else {
                     errorCount++;
+                    console.warn(`Failed to add contact ${contactData.phoneNumber}: ${result.message}`);
                 }
             }
 
@@ -575,8 +625,9 @@ class ContactManagerPlugin {
      */
     cleanupFile(filePath) {
         try {
-            if (fs.existsSync(filePath)) {
+            if (filePath && fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
+                console.log(`🗑️ Cleaned up temporary file: ${path.basename(filePath)}`);
             }
         } catch (error) {
             console.error('Error cleaning up file:', error);
@@ -587,7 +638,15 @@ class ContactManagerPlugin {
      * Cleanup when plugin is stopped
      */
     stop() {
-        // Cleanup if needed
+        // Clean up event listeners if using event-based approach
+        if (this.bot.messageHandler && this.bot.messageHandler.removeListener) {
+            this.bot.messageHandler.removeListener('message', this.autoDetectContact.bind(this));
+        }
+        
+        // Reset auto-detection setup flag
+        this.autoDetectionSetup = false;
+        
+        console.log('🛑 Contact Manager stopped and cleaned up');
     }
 
     /**
