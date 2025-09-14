@@ -61,13 +61,23 @@ class AutoReplyPlugin {
     async loadAutoReplies() {
         try {
             if (await fs.pathExists(this.storageFile)) {
-                const data = await fs.readJson(this.storageFile);
-                // Ensure data is a plain object before converting to Map
+                const fileContent = await fs.readFile(this.storageFile, 'utf8');
+
+                // Check if file is empty or contains invalid JSON
+                if (!fileContent.trim()) {
+                    console.log('ℹ️ Auto-replies file is empty. Starting fresh.');
+                    this.autoReplies = new Map();
+                    return;
+                }
+
+                const data = JSON.parse(fileContent);
+
+                // Ensure data is an object before converting to Map
                 if (typeof data === 'object' && data !== null) {
                     this.autoReplies = new Map(Object.entries(data));
                     console.log(`📂 Loaded ${this.autoReplies.size} auto-replies`);
                 } else {
-                    console.warn('⚠️ Auto-replies file is empty or corrupted. Starting fresh.');
+                    console.log('⚠️ Invalid auto-replies data format. Starting fresh.');
                     this.autoReplies = new Map();
                 }
             } else {
@@ -76,7 +86,13 @@ class AutoReplyPlugin {
             }
         } catch (error) {
             console.error('Error loading auto-replies:', error);
-            this.autoReplies = new Map(); // Ensure map is initialized even on error
+            // Create backup of corrupted file if it exists
+            if (await fs.pathExists(this.storageFile)) {
+                const backupFile = `${this.storageFile}.backup.${Date.now()}`;
+                await fs.copy(this.storageFile, backupFile);
+                console.log(`📁 Corrupted file backed up to: ${backupFile}`);
+            }
+            this.autoReplies = new Map();
         }
     }
 
@@ -85,12 +101,17 @@ class AutoReplyPlugin {
      */
     async saveAutoReplies() {
         try {
-            await fs.ensureDir(path.dirname(this.storageFile));
+            // Convert Map to plain object for JSON storage
             const data = Object.fromEntries(this.autoReplies);
+
+            // Ensure the session directory exists
+            await fs.ensureDir(path.dirname(this.storageFile));
+
+            // Write to file with proper formatting
             await fs.writeJson(this.storageFile, data, { spaces: 2 });
+            console.log(`💾 Saved ${this.autoReplies.size} auto-replies`);
         } catch (error) {
             console.error('Error saving auto-replies:', error);
-            throw error;
         }
     }
 
