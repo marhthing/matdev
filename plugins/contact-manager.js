@@ -563,21 +563,13 @@ class ContactManagerPlugin {
             const contact = recentContacts[i];
             const phoneNumber = contact.phoneNumber || contact.jid.split('@')[0];
             const displayName = contact.name || 'No name';
-            const source = contact.source || 'unknown';
             
-            response += `${i + 1}. ${displayName}\n`;
-            response += `   📱 ${phoneNumber}\n`;
-            response += `   📥 Source: ${source}\n\n`;
+            response += `${i + 1}. ${displayName}: 📱 ${phoneNumber}\n`;
         }
 
         if (this.contacts.size > 20) {
-            response += `... and ${this.contacts.size - 20} more contacts\n\n`;
+            response += `\n... and ${this.contacts.size - 20} more contacts`;
         }
-
-        response += `💡 *Sources:*\n`;
-        response += `• auto = Message auto-detection\n`;
-        response += `• manual = Added via command\n`;
-        response += `• csv = Uploaded from CSV file`;
 
         await this.bot.sock.sendMessage(fromJid, { text: response });
     }
