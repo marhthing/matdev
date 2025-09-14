@@ -46,174 +46,144 @@ class MoviePlugin {
     }
 
     /**
-     * Search for movies using OMDB API with free key
+     * Search for movies using OMDB API with multiple fallback keys
      */
     async searchMovie(title) {
-        try {
-            // Using a free public OMDB API key
-            const response = await axios.get('https://www.omdbapi.com/', {
-                params: {
-                    apikey: 'trilogy',  // Free public key
-                    t: title,
-                    type: 'movie',
-                    plot: 'full'
-                },
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
+        const apiKeys = [
+            'trilogy',
+            '8265bd1c', 
+            'b6003d8a',
+            '2dca5df0',
+            'thewdb',
+            '72bc447a',
+            'ac7b6e48',
+            '40e9cece'
+        ];
+
+        for (let i = 0; i < apiKeys.length; i++) {
+            const apiKey = apiKeys[i];
+            try {
+                console.log(`Trying API key ${i + 1}/${apiKeys.length}...`);
+                
+                const response = await axios.get('https://www.omdbapi.com/', {
+                    params: {
+                        apikey: apiKey,
+                        t: title,
+                        type: 'movie',
+                        plot: 'full'
+                    },
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
+                    }
+                });
+
+                // Validate response structure
+                if (!response.data) {
+                    throw new Error('Invalid API response structure');
                 }
-            });
 
-            // Validate response structure
-            if (!response.data) {
-                throw new Error('Invalid API response structure');
-            }
-
-            if (response.data.Response === 'False') {
-                console.log(`Movie not found with primary API: ${response.data.Error || 'Unknown error'}`);
-                // Try alternative free movie API
-                return await this.searchMovieAlternative(title);
-            }
-
-            return response.data;
-        } catch (error) {
-            if (error.code === 'ECONNABORTED') {
-                console.error('Movie search timeout:', error.message);
-                throw new Error('Movie search timed out. Please try again.');
-            } else if (error.response) {
-                console.error('Movie API HTTP error:', error.response.status, error.response.statusText);
-                throw new Error(`Movie API returned error: ${error.response.status}`);
-            } else if (error.request) {
-                console.error('Movie API network error:', error.message);
-                throw new Error('Network error accessing movie database. Please check your connection.');
-            } else {
-                console.error('Movie search error:', error.message);
-            }
-            
-            // Fallback to alternative API on any error
-            console.log('Trying alternative movie API...');
-            return await this.searchMovieAlternative(title);
-        }
-    }
-
-    /**
-     * Alternative movie search using another free API
-     */
-    async searchMovieAlternative(title) {
-        try {
-            // Try with another free key or API
-            const response = await axios.get('https://www.omdbapi.com/', {
-                params: {
-                    apikey: '8265bd1c',  // Another free public key
-                    t: title,
-                    type: 'movie',
-                    plot: 'full'
-                },
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
+                if (response.data.Response === 'False') {
+                    console.log(`Movie not found with API key ${i + 1}: ${response.data.Error || 'Unknown error'}`);
+                    if (i === apiKeys.length - 1) {
+                        throw new Error(`Movie "${title}" not found in database`);
+                    }
+                    continue; // Try next API key
                 }
-            });
 
-            // Validate response structure
-            if (!response.data) {
-                throw new Error('Invalid API response structure');
-            }
+                console.log(`✅ Found movie with API key ${i + 1}`);
+                return response.data;
 
-            if (response.data.Response === 'False') {
-                throw new Error(`Movie not found: ${response.data.Error || 'Unknown error'}`);
-            }
-
-            return response.data;
-        } catch (error) {
-            if (error.code === 'ECONNABORTED') {
-                console.error('Alternative movie search timeout:', error.message);
-                throw new Error('Movie search timed out. Please try again later.');
-            } else if (error.response) {
-                console.error('Alternative movie API HTTP error:', error.response.status);
-                throw new Error(`Movie database is temporarily unavailable (${error.response.status})`);
-            } else if (error.request) {
-                console.error('Alternative movie API network error:', error.message);
-                throw new Error('Network error accessing movie database. Please check your connection.');
-            } else {
-                console.error('Alternative movie search error:', error.message);
-                throw new Error(error.message || 'Unable to fetch movie data from any source');
+            } catch (error) {
+                console.log(`❌ API key ${i + 1} failed:`, error.response?.status || error.message);
+                
+                if (i === apiKeys.length - 1) {
+                    // Last API key failed
+                    if (error.code === 'ECONNABORTED') {
+                        throw new Error('Movie search timed out. Please try again.');
+                    } else if (error.response?.status === 401) {
+                        throw new Error('All movie API keys are unauthorized. Service temporarily unavailable.');
+                    } else if (error.response?.status === 429) {
+                        throw new Error('Movie API rate limit exceeded. Please try again later.');
+                    } else {
+                        throw new Error(`Movie search failed: ${error.message}`);
+                    }
+                }
+                // Continue to next API key
             }
         }
     }
 
     /**
-     * Search for TV shows
+     * Search for TV shows using multiple fallback keys
      */
     async searchTVShow(title) {
-        try {
-            const response = await axios.get('https://www.omdbapi.com/', {
-                params: {
-                    apikey: 'trilogy',
-                    t: title,
-                    type: 'series',
-                    plot: 'full'
-                },
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
-                }
-            });
+        const apiKeys = [
+            'trilogy',
+            '8265bd1c', 
+            'b6003d8a',
+            '2dca5df0',
+            'thewdb',
+            '72bc447a',
+            'ac7b6e48',
+            '40e9cece'
+        ];
 
-            // Validate response structure
-            if (!response.data) {
-                throw new Error('Invalid API response structure');
-            }
-
-            if (response.data.Response === 'False') {
-                console.log(`TV show not found with primary API: ${response.data.Error || 'Unknown error'}`);
-                // Try alternative
-                try {
-                    const altResponse = await axios.get('https://www.omdbapi.com/', {
-                        params: {
-                            apikey: '8265bd1c',
-                            t: title,
-                            type: 'series',
-                            plot: 'full'
-                        },
-                        timeout: 15000,
-                        headers: {
-                            'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
-                        }
-                    });
-
-                    if (!altResponse.data) {
-                        throw new Error('Invalid alternative API response structure');
+        for (let i = 0; i < apiKeys.length; i++) {
+            const apiKey = apiKeys[i];
+            try {
+                console.log(`Trying TV API key ${i + 1}/${apiKeys.length}...`);
+                
+                const response = await axios.get('https://www.omdbapi.com/', {
+                    params: {
+                        apikey: apiKey,
+                        t: title,
+                        type: 'series',
+                        plot: 'full'
+                    },
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'MATDEV-Bot/1.0.0 (WhatsApp Bot)'
                     }
+                });
 
-                    if (altResponse.data.Response === 'False') {
-                        throw new Error(`TV show not found: ${altResponse.data.Error || 'Unknown error'}`);
-                    }
-
-                    return altResponse.data;
-                } catch (altError) {
-                    console.error('Alternative TV show search error:', altError.message);
-                    throw new Error(`TV show "${title}" not found in any database`);
+                // Validate response structure
+                if (!response.data) {
+                    throw new Error('Invalid API response structure');
                 }
-            }
 
-            return response.data;
-        } catch (error) {
-            if (error.code === 'ECONNABORTED') {
-                console.error('TV show search timeout:', error.message);
-                throw new Error('TV show search timed out. Please try again.');
-            } else if (error.response) {
-                console.error('TV show API HTTP error:', error.response.status, error.response.statusText);
-                throw new Error(`TV show database returned error: ${error.response.status}`);
-            } else if (error.request) {
-                console.error('TV show API network error:', error.message);
-                throw new Error('Network error accessing TV show database. Please check your connection.');
-            } else {
-                console.error('TV show search error:', error.message);
-                throw new Error(error.message || 'Unable to fetch TV show data');
+                if (response.data.Response === 'False') {
+                    console.log(`TV show not found with API key ${i + 1}: ${response.data.Error || 'Unknown error'}`);
+                    if (i === apiKeys.length - 1) {
+                        throw new Error(`TV show "${title}" not found in database`);
+                    }
+                    continue; // Try next API key
+                }
+
+                console.log(`✅ Found TV show with API key ${i + 1}`);
+                return response.data;
+
+            } catch (error) {
+                console.log(`❌ TV API key ${i + 1} failed:`, error.response?.status || error.message);
+                
+                if (i === apiKeys.length - 1) {
+                    // Last API key failed
+                    if (error.code === 'ECONNABORTED') {
+                        throw new Error('TV show search timed out. Please try again.');
+                    } else if (error.response?.status === 401) {
+                        throw new Error('All TV API keys are unauthorized. Service temporarily unavailable.');
+                    } else if (error.response?.status === 429) {
+                        throw new Error('TV API rate limit exceeded. Please try again later.');
+                    } else {
+                        throw new Error(`TV show search failed: ${error.message}`);
+                    }
+                }
+                // Continue to next API key
             }
         }
     }
+
+    
 
     /**
      * Format movie/TV info for WhatsApp
