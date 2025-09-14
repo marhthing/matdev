@@ -77,6 +77,26 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Lock group command (admin only)
+        this.bot.messageHandler.registerCommand('lock', this.lockGroup.bind(this), {
+            description: 'Restrict messaging to admins only (admin only)',
+            usage: `${config.PREFIX}lock`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Unlock group command (admin only)
+        this.bot.messageHandler.registerCommand('unlock', this.unlockGroup.bind(this), {
+            description: 'Allow everyone to send messages (admin only)',
+            usage: `${config.PREFIX}unlock`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -1002,6 +1022,140 @@ class GroupPlugin {
 
         } catch (error) {
             console.error('Error sending goodbye message:', error);
+        }
+    }
+
+    /**
+     * Lock group - restrict messaging to admins only (admin only)
+     */
+    async lockGroup(messageInfo) {
+        try {
+            const { chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Check if bot has admin permissions
+            const botParticipant = groupMetadata.participants.find(p => p.id === this.bot.sock.user?.id);
+            if (!botParticipant || (botParticipant.admin !== 'admin' && botParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Bot needs admin permissions to change group settings.'
+                );
+                return;
+            }
+
+            // Check if group is already locked
+            if (groupMetadata.announce) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '⚠️ Group is already locked. Only admins can send messages.'
+                );
+                return;
+            }
+
+            // Lock the group (announcement mode - only admins can send messages)
+            await this.bot.sock.groupSettingUpdate(chat_jid, 'announcement');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🔒 *Group Locked!*\n\nOnly admins can send messages now. Regular members can read but cannot respond.'
+            );
+
+        } catch (error) {
+            console.error('Error in lock group:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to lock group. Please try again or check bot permissions.'
+            );
+        }
+    }
+
+    /**
+     * Unlock group - allow everyone to send messages (admin only)
+     */
+    async unlockGroup(messageInfo) {
+        try {
+            const { chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Check if bot has admin permissions
+            const botParticipant = groupMetadata.participants.find(p => p.id === this.bot.sock.user?.id);
+            if (!botParticipant || (botParticipant.admin !== 'admin' && botParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Bot needs admin permissions to change group settings.'
+                );
+                return;
+            }
+
+            // Check if group is already unlocked
+            if (!groupMetadata.announce) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '⚠️ Group is already unlocked. Everyone can send messages.'
+                );
+                return;
+            }
+
+            // Unlock the group (disable announcement mode - everyone can send messages)
+            await this.bot.sock.groupSettingUpdate(chat_jid, 'not_announcement');
+
+            // Send confirmation message
+            await this.bot.messageHandler.reply(messageInfo, 
+                '🔓 *Group Unlocked!*\n\nEveryone can send messages now. All members can participate in the conversation.'
+            );
+
+        } catch (error) {
+            console.error('Error in unlock group:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to unlock group. Please try again or check bot permissions.'
+            );
         }
     }
 
