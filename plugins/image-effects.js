@@ -134,25 +134,45 @@ class ImageEffectsPlugin {
                 category: 'artistic'
             },
 
-            // Blur and focus effects
+            // Blur and focus effects - 2025 latest methods
             blur: {
-                filter: 'gblur=sigma=5',
-                description: 'Gaussian blur effect',
+                filter: 'gblur=sigma=8:steps=3',
+                description: 'High-quality Gaussian blur with improved performance',
                 category: 'blur'
             },
             motionblur: {
-                filter: 'boxblur=10:10',
-                description: 'Motion blur with directional effect',
+                filter: 'dblur=angle=0:radius=15',
+                description: 'Directional motion blur using 2025 technique',
                 category: 'blur'
             },
-            tiltshift: {
-                filter: 'split[main][blur];[blur]gblur=sigma=8[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
-                description: 'Tilt-shift miniature effect',
+            verticalblur: {
+                filter: 'dblur=angle=90:radius=12',
+                description: 'Vertical motion blur effect',
+                category: 'blur'
+            },
+            diagonalblur: {
+                filter: 'dblur=angle=45:radius=14',
+                description: 'Diagonal motion blur effect',
                 category: 'blur'
             },
             radialblur: {
-                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_mode=normal:all_opacity="if(hypot(X-W/2\\,Y-H/2)<min(W\\,H)/4\\,1\\,0)"',
-                description: 'Radial blur focusing on center',
+                filter: 'dblur=angle=0:radius=8,dblur=angle=90:radius=8,dblur=angle=45:radius=6,dblur=angle=135:radius=6',
+                description: 'Advanced radial blur using multiple directional passes - 2025 method',
+                category: 'blur'
+            },
+            tiltshift: {
+                filter: 'smartblur=luma_radius=1.5:luma_strength=1.0:luma_threshold=0,gblur=sigma=10:enable=\'between(Y,H*0.3,H*0.7)\'',
+                description: 'Professional tilt-shift miniature effect',
+                category: 'blur'
+            },
+            focusblur: {
+                filter: 'smartblur=luma_radius=2.0:luma_strength=0.8:luma_threshold=32:chroma_radius=1.5:chroma_strength=0.6',
+                description: 'Smart focus blur with edge preservation',
+                category: 'blur'
+            },
+            bokehblur: {
+                filter: 'gblur=sigma=15:steps=4',
+                description: 'Professional bokeh depth-of-field effect',
                 category: 'blur'
             },
 
