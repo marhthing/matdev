@@ -76,9 +76,6 @@ class MATDEV {
         try {
             logger.info('🚀 Starting MATDEV WhatsApp Bot...');
 
-            // Start CPU monitor alongside the bot
-            this.startCPUMonitor();
-
             // Display banner
             this.displayBanner();
 
@@ -153,32 +150,7 @@ class MATDEV {
         }
     }
 
-    /**
-     * Start CPU monitor process
-     */
-    startCPUMonitor() {
-        try {
-            console.log('🔍 Starting CPU monitor...');
-            const { spawn } = require('child_process');
-            
-            this.cpuMonitorProcess = spawn('node', ['monitor-cpu.js'], {
-                stdio: 'inherit'
-            });
-
-            // Handle CPU monitor process events
-            this.cpuMonitorProcess.on('exit', (code) => {
-                console.log(`🔍 CPU monitor exited with code ${code}`);
-            });
-
-            this.cpuMonitorProcess.on('error', (error) => {
-                console.error('❌ CPU monitor error:', error.message);
-            });
-
-            logger.info('🔍 CPU monitor started successfully');
-        } catch (error) {
-            logger.error('Failed to start CPU monitor:', error.message);
-        }
-    }
+    
 
     /**
      * Display startup banner
@@ -1557,12 +1529,6 @@ class MATDEV {
         logger.info('🛑 Shutting down MATDEV...');
 
         try {
-            // Stop CPU monitor process
-            if (this.cpuMonitorProcess && !this.cpuMonitorProcess.killed) {
-                logger.info('🔍 Stopping CPU monitor...');
-                this.cpuMonitorProcess.kill('SIGTERM');
-            }
-
             // Close database connection
             if (this.database) {
                 await this.database.close();
