@@ -38,6 +38,14 @@ class MoviePlugin {
                 source: 'movie.js'
             });
 
+            this.bot.messageHandler.registerCommand('anime', this.animeCommand.bind(this), {
+                description: 'Get anime movie information',
+                usage: `${config.PREFIX}anime <anime movie title>`,
+                category: 'entertainment',
+                plugin: 'movie',
+                source: 'movie.js'
+            });
+
             console.log('✅ Movie/TV Info plugin loaded');
             return true;
         } catch (error) {
@@ -421,6 +429,177 @@ class MoviePlugin {
 
         } catch (error) {
             console.error('Error in TV command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your request.');
+        }
+    }
+
+    /**
+     * Search for anime movies with enhanced detection
+     */
+    async searchAnime(title) {
+        // First try searching as a regular movie
+        try {
+            const movieResult = await this.searchMovie(title);
+            
+            // Check if it's actually an anime by looking at genre, country, or keywords
+            if (this.isAnime(movieResult)) {
+                return movieResult;
+            }
+        } catch (error) {
+            // Continue to enhanced search
+        }
+
+        // Enhanced search with anime-specific terms
+        const animeSearchTerms = [
+            title,
+            `${title} anime`,
+            `${title} movie`,
+            `${title} film`
+        ];
+
+        for (const searchTerm of animeSearchTerms) {
+            try {
+                const result = await this.searchMovie(searchTerm);
+                if (this.isAnime(result)) {
+                    return result;
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+
+        throw new Error(`Anime movie "${title}" not found in any database`);
+    }
+
+    /**
+     * Check if movie data represents an anime
+     */
+    isAnime(movieData) {
+        if (!movieData) return false;
+
+        const genre = (movieData.Genre || '').toLowerCase();
+        const country = (movieData.Country || '').toLowerCase();
+        const language = (movieData.Language || '').toLowerCase();
+        
+        // Check for animation genre
+        if (genre.includes('animation')) {
+            // Check for Japanese anime indicators
+            if (country.includes('japan') || 
+                language.includes('japanese') || 
+                country.includes('japanese')) {
+                return true;
+            }
+            
+            // Even non-Japanese animation movies are worth showing for anime command
+            return true;
+        }
+
+        // Check for Japanese origin even without animation genre (live-action anime adaptations)
+        if ((country.includes('japan') || language.includes('japanese')) && 
+            (genre.includes('fantasy') || genre.includes('adventure') || 
+             genre.includes('action') || genre.includes('drama'))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Format anime movie info with anime-specific styling
+     */
+    formatAnimeInfo(data) {
+        if (data.Response === 'False') {
+            return `❌ Anime movie not found. Please check the title and try again.`;
+        }
+
+        const isJapanese = (data.Country || '').toLowerCase().includes('japan') || 
+                          (data.Language || '').toLowerCase().includes('japanese');
+        
+        const emoji = isJapanese ? '🎌' : '🎬';
+        let text = `${emoji} *${data.Title}* (${data.Year})\n`;
+        
+        // Add anime-specific indicator
+        if (isJapanese) {
+            text += `🎌 *Type:* Japanese Anime Movie\n\n`;
+        } else {
+            text += `🎬 *Type:* Animated Movie\n\n`;
+        }
+        
+        if (data.Plot && data.Plot !== 'N/A') {
+            text += `📝 *Plot:*\n${data.Plot}\n\n`;
+        }
+        
+        if (data.Genre && data.Genre !== 'N/A') {
+            text += `🎭 *Genre:* ${data.Genre}\n`;
+        }
+        
+        if (data.Director && data.Director !== 'N/A') {
+            text += `🎥 *Director:* ${data.Director}\n`;
+        }
+        
+        if (data.Actors && data.Actors !== 'N/A') {
+            // For anime, these might be voice actors
+            const actorsLabel = isJapanese ? 'Voice Cast' : 'Cast';
+            text += `🎭 *${actorsLabel}:* ${data.Actors}\n`;
+        }
+        
+        if (data.Runtime && data.Runtime !== 'N/A') {
+            text += `⏱️ *Runtime:* ${data.Runtime}\n`;
+        }
+        
+        if (data.imdbRating && data.imdbRating !== 'N/A') {
+            text += `⭐ *IMDB Rating:* ${data.imdbRating}/10\n`;
+        }
+        
+        if (data.Language && data.Language !== 'N/A') {
+            text += `🌐 *Language:* ${data.Language}\n`;
+        }
+        
+        if (data.Country && data.Country !== 'N/A') {
+            text += `🌍 *Country:* ${data.Country}\n`;
+        }
+        
+        text += `\n_🎌 Anime search by: ${config.BOT_NAME}_`;
+        
+        return text;
+    }
+
+    /**
+     * Handle anime command
+     */
+    async animeCommand(messageInfo) {
+        try {
+            const title = messageInfo.args.join(' ').trim();
+            
+            if (!title) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Please provide an anime movie title.\n\nUsage: ${config.PREFIX}anime <anime movie title>\n\nExamples:\n${config.PREFIX}anime Your Name\n${config.PREFIX}anime Spirited Away\n${config.PREFIX}anime Demon Slayer Movie`);
+                return;
+            }
+
+            // Send searching message
+            const searchingMsg = await this.bot.messageHandler.reply(messageInfo, '🔍 Searching for anime movie...');
+
+            try {
+                const animeData = await this.searchAnime(title);
+                const formattedInfo = this.formatAnimeInfo(animeData);
+
+                // Edit the searching message with results
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: formattedInfo,
+                    edit: searchingMsg.key
+                });
+
+            } catch (apiError) {
+                console.error('Anime API error:', apiError);
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    text: `❌ Could not find anime "${title}". Try:\n• Check spelling (e.g., "Your Name" not "Your name")\n• Use English title (e.g., "Spirited Away" not "Sen to Chihiro")\n• Try Japanese romanized titles\n• Use "${config.PREFIX}movie ${title}" for general movie search\n\n💡 Some anime might be listed as regular movies.`,
+                    edit: searchingMsg.key
+                });
+            }
+
+        } catch (error) {
+            console.error('Error in anime command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your request.');
         }
     }
