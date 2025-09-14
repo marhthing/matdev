@@ -225,7 +225,7 @@ class AutoReplyPlugin {
                         text: processedReply
                     });
 
-                    console.log(`🤖 Auto-reply triggered: "${keyword}" -> "${processedReply}"`);
+                    // console.log(`🤖 Auto-reply triggered: "${keyword}" -> "${processedReply}"`);
                     break; // Only trigger first match
                 }
             }
