@@ -16,7 +16,8 @@ class DomainInfoPlugin {
         
         // Free APIs for domain and website information
         this.apis = {
-            whois: 'https://api.whoisjson.com/v1',
+            whois: 'https://whoisjson.com/api/v1/whois',
+            whoisBackup: 'https://api.whoapi.com/',
             siteInfo: 'https://api.websitecarbon.org/site',
             ssl: 'https://api.ssllabs.com/api/v3/analyze',
             httpStatus: 'https://httpstatus.io/api/v1/status'
@@ -235,33 +236,60 @@ class DomainInfoPlugin {
      * Get WHOIS data for domain
      */
     async getWhoisData(domain) {
-        try {
-            // Try free WHOIS API
-            const response = await axios.get(`${this.apis.whois}/${domain}`, {
-                timeout: 15000,
-                headers: {
-                    'User-Agent': 'MATDEV-Bot/1.0.0'
-                }
-            });
+        // Try multiple WHOIS services in order of reliability
+        const whoisServices = [
+            {
+                name: 'whoisjson.com',
+                url: `https://whoisjson.com/api/v1/whois/${domain}`,
+                format: 'json'
+            },
+            {
+                name: 'whoisfreaks.com',
+                url: `https://api.whoisfreaks.com/v1.0/whois?domainName=${domain}&format=json`,
+                format: 'json'
+            },
+            {
+                name: 'whois.freeapi.app',
+                url: `https://whois.freeapi.app/api/whois/${domain}`,
+                format: 'json'
+            }
+        ];
 
-            return response.data;
-
-        } catch (error) {
-            // Fallback to alternative free WHOIS service
+        for (const service of whoisServices) {
             try {
-                const fallbackResponse = await axios.get(`https://whoisjson.com/api/v1/whois/${domain}`, {
+                console.log(`Trying WHOIS service: ${service.name}`);
+                
+                const response = await axios.get(service.url, {
                     timeout: 15000,
                     headers: {
-                        'User-Agent': 'MATDEV-Bot/1.0.0'
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Accept': 'application/json'
                     }
                 });
-                
-                return fallbackResponse.data;
-            } catch (fallbackError) {
-                console.error('Both WHOIS services failed:', error.message, fallbackError.message);
-                return null;
+
+                if (response.data && typeof response.data === 'object') {
+                    console.log(`✅ WHOIS data retrieved from ${service.name}`);
+                    return this.normalizeWhoisData(response.data, service.name);
+                }
+
+            } catch (error) {
+                console.log(`❌ ${service.name} failed: ${error.message}`);
+                continue;
             }
         }
+
+        // Final fallback: try to get basic domain info
+        try {
+            const basicInfo = await this.getBasicDomainInfo(domain);
+            if (basicInfo) {
+                return basicInfo;
+            }
+        } catch (error) {
+            console.error('Basic domain info failed:', error.message);
+        }
+
+        console.error('All WHOIS services failed for domain:', domain);
+        return null;
     }
 
     /**
@@ -356,43 +384,167 @@ class DomainInfoPlugin {
     }
 
     /**
+     * Normalize WHOIS data from different services
+     */
+    normalizeWhoisData(data, serviceName) {
+        let normalized = {};
+
+        // Handle different API response formats
+        if (serviceName === 'whoisjson.com') {
+            normalized = {
+                domain_name: data.domain_name || data.domainName,
+                registrar: data.registrar,
+                creation_date: data.creation_date || data.createdDate,
+                expiration_date: data.expiration_date || data.expirationDate,
+                updated_date: data.updated_date || data.updatedDate,
+                name_servers: data.name_servers || data.nameServers,
+                status: data.status || data.domainStatus
+            };
+        } else if (serviceName === 'whoisfreaks.com') {
+            normalized = {
+                domain_name: data.domain_name || data.whois_server,
+                registrar: data.registrar_name,
+                creation_date: data.create_date,
+                expiration_date: data.expire_date,
+                updated_date: data.update_date,
+                name_servers: data.name_servers,
+                status: data.domain_status
+            };
+        } else {
+            // Generic normalization for other services
+            normalized = {
+                domain_name: data.domain || data.domainName || data.domain_name,
+                registrar: data.registrar || data.registrar_name,
+                creation_date: data.created || data.creation_date || data.createdDate,
+                expiration_date: data.expires || data.expiration_date || data.expirationDate,
+                updated_date: data.updated || data.updated_date || data.updatedDate,
+                name_servers: data.nameservers || data.name_servers || data.nameServers,
+                status: data.status || data.domain_status || data.domainStatus
+            };
+        }
+
+        // Clean up arrays
+        if (Array.isArray(normalized.name_servers)) {
+            normalized.name_servers = normalized.name_servers.filter(ns => ns && typeof ns === 'string');
+        } else if (typeof normalized.name_servers === 'string') {
+            normalized.name_servers = [normalized.name_servers];
+        }
+
+        if (Array.isArray(normalized.status)) {
+            normalized.status = normalized.status.filter(s => s && typeof s === 'string');
+        } else if (typeof normalized.status === 'string') {
+            normalized.status = [normalized.status];
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Get basic domain info as fallback
+     */
+    async getBasicDomainInfo(domain) {
+        try {
+            // Try to resolve domain and get basic info
+            const response = await axios.get(`https://${domain}`, {
+                timeout: 10000,
+                maxRedirects: 0,
+                validateStatus: () => true,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+
+            return {
+                domain_name: domain,
+                registrar: 'Information not available',
+                creation_date: null,
+                expiration_date: null,
+                updated_date: null,
+                name_servers: [],
+                status: ['Active (accessible)'],
+                fallback: true
+            };
+
+        } catch (error) {
+            return {
+                domain_name: domain,
+                registrar: 'Information not available',
+                creation_date: null,
+                expiration_date: null,
+                updated_date: null,
+                name_servers: [],
+                status: ['Unknown (not accessible)'],
+                fallback: true
+            };
+        }
+    }
+
+    /**
      * Format WHOIS data for display
      */
     formatWhoisData(data, domain) {
         let result = `🔍 *WHOIS Information*\n\n`;
         result += `🌐 *Domain:* ${domain}\n\n`;
 
+        if (data.fallback) {
+            result += `⚠️ *Note:* Limited information available\n\n`;
+        }
+
         if (data.domain_name) {
             result += `📝 *Domain Name:* ${data.domain_name}\n`;
         }
 
-        if (data.registrar) {
+        if (data.registrar && data.registrar !== 'Information not available') {
             result += `🏢 *Registrar:* ${data.registrar}\n`;
         }
 
         if (data.creation_date) {
-            result += `📅 *Created:* ${new Date(data.creation_date).toLocaleDateString()}\n`;
+            try {
+                const createdDate = new Date(data.creation_date);
+                if (!isNaN(createdDate.getTime())) {
+                    result += `📅 *Created:* ${createdDate.toLocaleDateString()}\n`;
+                }
+            } catch (e) {
+                // Skip invalid dates
+            }
         }
 
         if (data.expiration_date) {
-            result += `⏰ *Expires:* ${new Date(data.expiration_date).toLocaleDateString()}\n`;
+            try {
+                const expiresDate = new Date(data.expiration_date);
+                if (!isNaN(expiresDate.getTime())) {
+                    result += `⏰ *Expires:* ${expiresDate.toLocaleDateString()}\n`;
+                }
+            } catch (e) {
+                // Skip invalid dates
+            }
         }
 
         if (data.updated_date) {
-            result += `🔄 *Updated:* ${new Date(data.updated_date).toLocaleDateString()}\n`;
+            try {
+                const updatedDate = new Date(data.updated_date);
+                if (!isNaN(updatedDate.getTime())) {
+                    result += `🔄 *Updated:* ${updatedDate.toLocaleDateString()}\n`;
+                }
+            } catch (e) {
+                // Skip invalid dates
+            }
         }
 
-        if (data.name_servers && data.name_servers.length > 0) {
+        if (data.name_servers && Array.isArray(data.name_servers) && data.name_servers.length > 0) {
             result += `🌐 *Name Servers:*\n`;
             data.name_servers.slice(0, 4).forEach(ns => {
-                result += `   • ${ns}\n`;
+                if (ns && typeof ns === 'string') {
+                    result += `   • ${ns}\n`;
+                }
             });
         }
 
-        if (data.status && data.status.length > 0) {
+        if (data.status && Array.isArray(data.status) && data.status.length > 0) {
             result += `📊 *Status:* ${data.status[0]}\n`;
         }
 
+        result += `📅 *Checked:* ${new Date().toLocaleString()}\n`;
         result += `\n_WHOIS lookup by ${config.BOT_NAME}_`;
 
         return result;
