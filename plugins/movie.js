@@ -79,11 +79,13 @@ class MoviePlugin {
      */
     async searchOMDB(title, type) {
         const workingApiKeys = [
-            'b6003d8a', // This one usually works
+            '8265bd1c', // Updated working key
+            'b6003d8a',
+            'trilogy',
+            'PlzBanMe', 
+            'ed9a5a8b',
             '2dca5df0',
-            'thewdb',
-            '72bc447a',
-            'ac7b6e48'
+            'thewdb'
         ];
 
         for (let i = 0; i < workingApiKeys.length; i++) {
@@ -146,7 +148,7 @@ class MoviePlugin {
             const endpoint = type === 'movie' ? 'movie' : 'tv';
             const response = await axios.get(`https://api.themoviedb.org/3/search/${endpoint}`, {
                 params: {
-                    api_key: '8265bd1c', // Free TMDb API key
+                    api_key: 'a07e22bc18f5cb106bfe4cc1f83ad8ed', // Updated working TMDb API key
                     query: title,
                     language: 'en-US',
                     page: 1
@@ -163,7 +165,7 @@ class MoviePlugin {
                     // Get detailed info
                     const detailResponse = await axios.get(`https://api.themoviedb.org/3/${endpoint}/${bestMatch.id}`, {
                         params: {
-                            api_key: '8265bd1c',
+                            api_key: 'a07e22bc18f5cb106bfe4cc1f83ad8ed',
                             language: 'en-US',
                             append_to_response: 'credits'
                         },
