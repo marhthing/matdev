@@ -1,3 +1,4 @@
+
 /**
  * MATDEV Website Screenshot Plugin
  * Capture screenshots of websites using free APIs
@@ -13,26 +14,19 @@ class ScreenshotPlugin {
         this.version = '1.0.0';
         this.enabled = true;
 
-        // Updated working screenshot APIs
+        // Working free screenshot APIs that don't require keys
         this.apis = [
             {
-                name: 'screenshotmachine',
-                url: 'https://api.screenshotmachine.com/',
-                params: (url) => ({
-                    key: 'demo',
-                    url: url,
-                    dimension: '1280x720',
-                    format: 'png'
-                })
+                name: 's-shot',
+                url: (url) => `https://mini.s-shot.ru/1280x720/PNG/1280/Z100/?${encodeURIComponent(url)}`
             },
             {
-                name: 'urlbox',
-                url: 'https://api.urlbox.io/v1/demo/png',
-                params: (url) => ({
-                    url: url,
-                    width: 1280,
-                    height: 720
-                })
+                name: 'thum-io',
+                url: (url) => `https://image.thum.io/get/width/1280/crop/720/${encodeURIComponent(url)}`
+            },
+            {
+                name: 'webshot',
+                url: (url) => `https://api.webshot.io/v1/screenshot?url=${encodeURIComponent(url)}&width=1280&height=720&format=png`
             }
         ];
     }
@@ -116,34 +110,20 @@ class ScreenshotPlugin {
     }
 
     /**
-     * Capture screenshot using multiple APIs as fallback
+     * Capture screenshot using multiple free APIs as fallback
      */
     async captureScreenshot(url) {
         for (const api of this.apis) {
             try {
-                let response;
+                const response = await axios.get(api.url(url), {
+                    responseType: 'arraybuffer',
+                    timeout: 30000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    }
+                });
 
-                if (api.name === 'screenshotmachine') {
-                    response = await axios.get(api.url, {
-                        params: api.params(url),
-                        responseType: 'arraybuffer',
-                        timeout: 30000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    });
-                } else if (api.name === 'urlbox') {
-                    response = await axios.get(api.url, {
-                        params: api.params(url),
-                        responseType: 'arraybuffer',
-                        timeout: 30000,
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    });
-                }
-
-                if (response && response.data) {
+                if (response && response.data && response.data.byteLength > 1000) {
                     return Buffer.from(response.data);
                 }
 
@@ -152,10 +132,10 @@ class ScreenshotPlugin {
             }
         }
 
-        // Try additional fallback services
+        // Additional fallback services
         const fallbackServices = [
-            `https://mini.s-shot.ru/1280x720/PNG/1280/Z100/?${encodeURIComponent(url)}`,
-            `https://image.thum.io/get/width/1280/crop/720/${encodeURIComponent(url)}`
+            `https://shot.screenshotapi.net/screenshot?token=demo&url=${encodeURIComponent(url)}&width=1280&height=720&output=image&file_type=png&wait_for_event=load`,
+            `https://htmlcsstoimage.com/demo_run?url=${encodeURIComponent(url)}&css=&width=1280&height=720`
         ];
 
         for (const fallbackUrl of fallbackServices) {
@@ -168,7 +148,7 @@ class ScreenshotPlugin {
                     }
                 });
 
-                if (response && response.data) {
+                if (response && response.data && response.data.byteLength > 1000) {
                     return Buffer.from(response.data);
                 }
 
