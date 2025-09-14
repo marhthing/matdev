@@ -145,21 +145,38 @@ class ScheduleStatusPlugin {
         const { type, content, caption, mediaPath } = schedule;
         
         try {
+            // Get status recipients - all contacts or fallback to owner
+            const statusJidList = this.getStatusRecipients();
+            
+            // Check if we have recipients
+            if (statusJidList.length === 0) {
+                console.error('❌ No recipients found for scheduled status. Status will not be visible.');
+                throw new Error('No recipients available for status posting');
+            }
+            
             if (type === 'text') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     text: content
+                }, {
+                    statusJidList
                 });
             } else if (type === 'image') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     image: { url: mediaPath },
                     caption: caption || content
+                }, {
+                    statusJidList
                 });
             } else if (type === 'video') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     video: { url: mediaPath },
                     caption: caption || content
+                }, {
+                    statusJidList
                 });
             }
+            
+            console.log(`✅ Scheduled status posted to ${statusJidList.length} recipients`);
             
             // Clean up media file after successful posting
             if (mediaPath) {
@@ -176,22 +193,38 @@ class ScheduleStatusPlugin {
      */
     async postStatusNow(type, content, mediaPath = null, caption = null) {
         try {
+            // Get status recipients - all contacts or fallback to owner
+            const statusJidList = this.getStatusRecipients();
+            
+            // Check if we have recipients
+            if (statusJidList.length === 0) {
+                console.error('❌ No recipients found for status posting. Status will not be visible.');
+                return false;
+            }
+            
             if (type === 'text') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     text: content
+                }, {
+                    statusJidList
                 });
             } else if (type === 'image') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     image: { url: mediaPath },
                     caption: caption || content
+                }, {
+                    statusJidList
                 });
             } else if (type === 'video') {
                 await this.bot.sock.sendMessage('status@broadcast', {
                     video: { url: mediaPath },
                     caption: caption || content
+                }, {
+                    statusJidList
                 });
             }
             
+            console.log(`✅ Status posted to ${statusJidList.length} recipients`);
             return true;
         } catch (error) {
             console.error('Error posting status:', error);
@@ -595,6 +628,57 @@ class ScheduleStatusPlugin {
             console.error('Error downloading media:', error);
             return null;
         }
+    }
+
+    /**
+     * Get status recipients list for 2025 WhatsApp status posting method
+     */
+    getStatusRecipients() {
+        const statusJidList = [];
+        
+        try {
+            // Method 1: Get all contacts from WhatsApp (preferred for real status behavior)
+            if (this.bot.sock && this.bot.sock.contacts) {
+                const allContacts = Object.keys(this.bot.sock.contacts);
+                
+                // Filter to get only personal contacts (not groups)
+                const personalContacts = allContacts.filter(jid => 
+                    jid.endsWith('@s.whatsapp.net') && 
+                    jid !== this.bot.sock.user?.id // Exclude bot itself
+                );
+                
+                if (personalContacts.length > 0) {
+                    console.log(`📱 Found ${personalContacts.length} contacts for status posting`);
+                    return personalContacts;
+                }
+            }
+            
+            // Method 2: Fallback to owner number if contacts not available
+            if (config.OWNER_NUMBER) {
+                const ownerJid = config.OWNER_NUMBER.includes('@') ? 
+                    config.OWNER_NUMBER : 
+                    `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                statusJidList.push(ownerJid);
+                console.log('📱 Using owner number for status posting');
+                return statusJidList;
+            }
+            
+            // Method 3: Last resort - log warning about empty recipient list
+            console.warn('⚠️ No contacts or owner number found for status posting. Status may not be visible.');
+            
+        } catch (error) {
+            console.error('Error getting status recipients:', error);
+            
+            // Emergency fallback to owner
+            if (config.OWNER_NUMBER) {
+                const ownerJid = config.OWNER_NUMBER.includes('@') ? 
+                    config.OWNER_NUMBER : 
+                    `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                statusJidList.push(ownerJid);
+            }
+        }
+        
+        return statusJidList;
     }
 
     /**
