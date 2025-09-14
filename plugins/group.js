@@ -474,7 +474,7 @@ class GroupPlugin {
                 
                 console.log(`✅ Phone validation passed: ${cleanPhone} (${cleanPhone.length} digits)`);
                 targetJid = `${cleanPhone}@s.whatsapp.net`;
-                console.log(`📱 Final JID: ${targetJid}`);
+                // console.log(`📱 Final JID: ${targetJid}`);
             }
 
             // Check if user is already in the group

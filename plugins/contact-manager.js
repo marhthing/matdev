@@ -89,7 +89,7 @@ class ContactManagerPlugin {
         // Remove all non-numeric characters (including +, -, spaces, parentheses)
         let cleaned = phoneNumber.replace(/[^\d]/g, '');
         
-        console.log(`📱 Raw phone: "${phoneNumber}" -> Cleaned: "${cleaned}"`);
+        // console.log(`📱 Raw phone: "${phoneNumber}" -> Cleaned: "${cleaned}"`);
         
         // Skip if too short after cleaning
         if (cleaned.length < 8) {
@@ -104,7 +104,7 @@ class ContactManagerPlugin {
             console.log(`🇳🇬 Nigerian format: 0${cleaned.substring(3)} -> ${cleaned}`);
         } else if (cleaned.startsWith('234') && cleaned.length === 13) {
             // Already has Nigerian country code
-            console.log(`🇳🇬 Already has country code: ${cleaned}`);
+            // console.log(`🇳🇬 Already has country code: ${cleaned}`);
         } else if (cleaned.length === 10) {
             // 10 digit number without country code, add Nigerian
             cleaned = '234' + cleaned;
@@ -126,7 +126,7 @@ class ContactManagerPlugin {
         }
         
         const finalJid = `${cleaned}@s.whatsapp.net`;
-        console.log(`✅ Final JID: ${finalJid}`);
+        // console.log(`✅ Final JID: ${finalJid}`);
         return finalJid;
     }
 
