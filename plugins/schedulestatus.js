@@ -602,23 +602,22 @@ class ScheduleStatusPlugin {
             
             const filePath = path.join(mediaDir, filename);
             
-            // Create proper message structure for downloadMediaMessage
+            // Create proper message structure for downloadMediaMessage using the original quoted message
             const messageToDownload = {
-                key: {
+                key: messageInfo.message.extendedTextMessage.contextInfo.stanzaId ? {
+                    remoteJid: messageInfo.chat_jid,
+                    fromMe: false,
+                    id: messageInfo.message.extendedTextMessage.contextInfo.stanzaId
+                } : {
                     remoteJid: messageInfo.chat_jid,
                     fromMe: false,
                     id: messageInfo.message_id || 'fake-id-' + Date.now()
                 },
-                message: {
-                    [`${mediaType}Message`]: quotedMessage[`${mediaType}Message`]
-                }
+                message: quotedMessage
             };
             
             // Download using Baileys downloadMediaMessage
-            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
-                logger: console,
-                reuploadRequest: this.bot.sock.updateMediaMessage
-            });
+            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
             
             if (buffer) {
                 await fs.writeFile(filePath, buffer);
