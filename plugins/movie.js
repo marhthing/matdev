@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Movie/TV Info Plugin
  * Get movie and TV show details using multiple free APIs
@@ -82,7 +81,7 @@ class MoviePlugin {
             '8265bd1c', // Updated working key
             'b6003d8a',
             'trilogy',
-            'PlzBanMe', 
+            'PlzBanMe',
             'ed9a5a8b',
             '2dca5df0',
             'thewdb'
@@ -92,7 +91,7 @@ class MoviePlugin {
             const apiKey = workingApiKeys[i];
             try {
                 // console.log(`Trying OMDB API key ${i + 1}/${workingApiKeys.length}...`);
-                
+
                 const response = await axios.get('https://www.omdbapi.com/', {
                     params: {
                         apikey: apiKey,
@@ -144,7 +143,7 @@ class MoviePlugin {
     async searchTMDB(title, type) {
         try {
             // console.log('Trying TMDb API...');
-            
+
             const endpoint = type === 'movie' ? 'movie' : 'tv';
             const response = await axios.get(`https://api.themoviedb.org/3/search/${endpoint}`, {
                 params: {
@@ -191,7 +190,7 @@ class MoviePlugin {
      */
     findBestMatch(searchTitle, results) {
         const normalizedSearch = searchTitle.toLowerCase().replace(/[^\w\s]/g, '');
-        
+
         // Look for exact match first
         for (const result of results) {
             const normalizedTitle = result.Title.toLowerCase().replace(/[^\w\s]/g, '');
@@ -217,7 +216,7 @@ class MoviePlugin {
      */
     findBestTMDBMatch(searchTitle, results) {
         const normalizedSearch = searchTitle.toLowerCase().replace(/[^\w\s]/g, '');
-        
+
         // Look for exact match first
         for (const result of results) {
             const title = result.title || result.name || '';
@@ -244,7 +243,7 @@ class MoviePlugin {
      */
     convertTMDBToOMDB(tmdbData) {
         const isMovie = !!tmdbData.title;
-        
+
         return {
             Title: tmdbData.title || tmdbData.name,
             Year: (tmdbData.release_date || tmdbData.first_air_date || '').split('-')[0],
@@ -252,8 +251,9 @@ class MoviePlugin {
             Director: this.getTMDBDirector(tmdbData.credits),
             Actors: this.getTMDBActor(tmdbData.credits),
             Plot: tmdbData.overview || 'N/A',
+            Rated: tmdbData.content_ratings && tmdbData.content_ratings.results ? tmdbData.content_ratings.results.find(r => r.iso_3166_1 === 'US')?.rating || 'N/A' : 'N/A', // Added for age rating
             Language: tmdbData.original_language ? tmdbData.original_language.toUpperCase() : 'N/A',
-            Country: tmdbData.production_countries ? 
+            Country: tmdbData.production_countries ?
                 tmdbData.production_countries.map(c => c.name).join(', ') : 'N/A',
             imdbRating: tmdbData.vote_average ? tmdbData.vote_average.toFixed(1) : 'N/A',
             Runtime: tmdbData.runtime ? `${tmdbData.runtime} min` : 'N/A',
@@ -267,7 +267,7 @@ class MoviePlugin {
      */
     getTMDBDirector(credits) {
         if (!credits || !credits.crew) return 'N/A';
-        
+
         const director = credits.crew.find(person => person.job === 'Director');
         return director ? director.name : 'N/A';
     }
@@ -277,7 +277,7 @@ class MoviePlugin {
      */
     getTMDBActor(credits) {
         if (!credits || !credits.cast) return 'N/A';
-        
+
         return credits.cast
             .slice(0, 4)
             .map(actor => actor.name)
@@ -297,7 +297,7 @@ class MoviePlugin {
         // Fallback to TMDb
         const tmdbResult = await this.searchTMDB(title, 'tv');
         if (tmdbResult.success) {
-            return this.convertTMDBToOMDB(tmdbResult.data);
+            return this.convertTMDBToOMDB(tmdbData);
         }
 
         throw new Error(`TV show "${title}" not found in any database`);
@@ -313,35 +313,39 @@ class MoviePlugin {
 
         const emoji = type === 'movie' ? '🎬' : '📺';
         let text = `${emoji} *${data.Title}* (${data.Year})\n\n`;
-        
+
         if (data.Plot && data.Plot !== 'N/A') {
             text += `📝 *Plot:*\n${data.Plot}\n\n`;
         }
-        
+
         if (data.Genre && data.Genre !== 'N/A') {
             text += `🎭 *Genre:* ${data.Genre}\n`;
         }
-        
+
         if (data.Director && data.Director !== 'N/A') {
             text += `🎥 *Director:* ${data.Director}\n`;
         }
-        
+
         if (data.Actors && data.Actors !== 'N/A') {
             text += `👥 *Cast:* ${data.Actors}\n`;
         }
-        
+
         if (data.Runtime && data.Runtime !== 'N/A') {
             text += `⏱️ *Runtime:* ${data.Runtime}\n`;
         }
-        
+
         if (data.imdbRating && data.imdbRating !== 'N/A') {
             text += `⭐ *IMDB Rating:* ${data.imdbRating}/10\n`;
         }
-        
+
+        if (data.Rated && data.Rated !== 'N/A') {
+            text += `🔞 *Age Rating:* ${data.Rated}\n`;
+        }
+
         if (data.Language && data.Language !== 'N/A') {
             text += `🌐 *Language:* ${data.Language}\n`;
         }
-        
+
         if (data.Country && data.Country !== 'N/A') {
             text += `🌍 *Country:* ${data.Country}\n`;
         }
@@ -349,9 +353,9 @@ class MoviePlugin {
         if (type === 'series' && data.totalSeasons && data.totalSeasons !== 'N/A') {
             text += `📺 *Total Seasons:* ${data.totalSeasons}\n`;
         }
-        
+
         text += `\n_🔧 Generated by: ${config.BOT_NAME}_`;
-        
+
         return text;
     }
 
@@ -361,9 +365,9 @@ class MoviePlugin {
     async movieCommand(messageInfo) {
         try {
             const title = messageInfo.args.join(' ').trim();
-            
+
             if (!title) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ Please provide a movie title.\n\nUsage: ${config.PREFIX}movie <movie title>\n\nExamples:\n${config.PREFIX}movie Frozen 2\n${config.PREFIX}movie The Matrix\n${config.PREFIX}movie Moana`);
                 return;
             }
@@ -401,9 +405,9 @@ class MoviePlugin {
     async tvCommand(messageInfo) {
         try {
             const title = messageInfo.args.join(' ').trim();
-            
+
             if (!title) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ Please provide a TV show title.\n\nUsage: ${config.PREFIX}tv <show title>\n\nExample: ${config.PREFIX}tv Breaking Bad`);
                 return;
             }
@@ -442,7 +446,7 @@ class MoviePlugin {
         // First try searching as a regular movie
         try {
             const movieResult = await this.searchMovie(title);
-            
+
             // Check if it's actually an anime by looking at genre, country, or keywords
             if (this.isAnime(movieResult)) {
                 return movieResult;
@@ -482,23 +486,23 @@ class MoviePlugin {
         const genre = (movieData.Genre || '').toLowerCase();
         const country = (movieData.Country || '').toLowerCase();
         const language = (movieData.Language || '').toLowerCase();
-        
+
         // Check for animation genre
         if (genre.includes('animation')) {
             // Check for Japanese anime indicators
-            if (country.includes('japan') || 
-                language.includes('japanese') || 
+            if (country.includes('japan') ||
+                language.includes('japanese') ||
                 country.includes('japanese')) {
                 return true;
             }
-            
+
             // Even non-Japanese animation movies are worth showing for anime command
             return true;
         }
 
         // Check for Japanese origin even without animation genre (live-action anime adaptations)
-        if ((country.includes('japan') || language.includes('japanese')) && 
-            (genre.includes('fantasy') || genre.includes('adventure') || 
+        if ((country.includes('japan') || language.includes('japanese')) &&
+            (genre.includes('fantasy') || genre.includes('adventure') ||
              genre.includes('action') || genre.includes('drama'))) {
             return true;
         }
@@ -514,55 +518,59 @@ class MoviePlugin {
             return `❌ Anime movie not found. Please check the title and try again.`;
         }
 
-        const isJapanese = (data.Country || '').toLowerCase().includes('japan') || 
+        const isJapanese = (data.Country || '').toLowerCase().includes('japan') ||
                           (data.Language || '').toLowerCase().includes('japanese');
-        
+
         const emoji = isJapanese ? '🎌' : '🎬';
         let text = `${emoji} *${data.Title}* (${data.Year})\n`;
-        
+
         // Add anime-specific indicator
         if (isJapanese) {
             text += `🎌 *Type:* Japanese Anime Movie\n\n`;
         } else {
             text += `🎬 *Type:* Animated Movie\n\n`;
         }
-        
+
         if (data.Plot && data.Plot !== 'N/A') {
             text += `📝 *Plot:*\n${data.Plot}\n\n`;
         }
-        
+
         if (data.Genre && data.Genre !== 'N/A') {
             text += `🎭 *Genre:* ${data.Genre}\n`;
         }
-        
+
         if (data.Director && data.Director !== 'N/A') {
             text += `🎥 *Director:* ${data.Director}\n`;
         }
-        
+
         if (data.Actors && data.Actors !== 'N/A') {
             // For anime, these might be voice actors
             const actorsLabel = isJapanese ? 'Voice Cast' : 'Cast';
             text += `🎭 *${actorsLabel}:* ${data.Actors}\n`;
         }
-        
+
         if (data.Runtime && data.Runtime !== 'N/A') {
             text += `⏱️ *Runtime:* ${data.Runtime}\n`;
         }
-        
+
         if (data.imdbRating && data.imdbRating !== 'N/A') {
             text += `⭐ *IMDB Rating:* ${data.imdbRating}/10\n`;
         }
-        
+
+        if (data.Rated && data.Rated !== 'N/A') {
+            text += `🔞 *Age Rating:* ${data.Rated}\n`;
+        }
+
         if (data.Language && data.Language !== 'N/A') {
             text += `🌐 *Language:* ${data.Language}\n`;
         }
-        
+
         if (data.Country && data.Country !== 'N/A') {
             text += `🌍 *Country:* ${data.Country}\n`;
         }
-        
+
         text += `\n_🎌 Anime search by: ${config.BOT_NAME}_`;
-        
+
         return text;
     }
 
@@ -572,9 +580,9 @@ class MoviePlugin {
     async animeCommand(messageInfo) {
         try {
             const title = messageInfo.args.join(' ').trim();
-            
+
             if (!title) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     `❌ Please provide an anime movie title.\n\nUsage: ${config.PREFIX}anime <anime movie title>\n\nExamples:\n${config.PREFIX}anime Your Name\n${config.PREFIX}anime Spirited Away\n${config.PREFIX}anime Demon Slayer Movie`);
                 return;
             }
