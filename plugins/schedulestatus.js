@@ -247,14 +247,7 @@ class ScheduleStatusPlugin {
             source: 'schedulestatus.js'
         });
 
-        // Register debug command to check contacts
-        this.bot.messageHandler.registerCommand('checkcontacts', this.checkContactsCommand.bind(this), {
-            description: 'Debug command to check available contacts for status posting',
-            usage: `${config.PREFIX}checkcontacts`,
-            category: 'status',
-            plugin: 'schedulestatus',
-            source: 'schedulestatus.js'
-        });
+        
 
         // Register status scheduling command
         this.bot.messageHandler.registerCommand('schedulestatus', this.scheduleStatusCommand.bind(this), {
@@ -838,77 +831,7 @@ class ScheduleStatusPlugin {
         }
     }
 
-    /**
-     * Debug command to check available contacts
-     */
-    async checkContactsCommand(messageInfo) {
-        const { chat_jid } = messageInfo || {};
-        const fromJid = chat_jid;
-        
-        try {
-            let response = `🔍 *CONTACT DEBUG INFORMATION*\n\n`;
-            
-            // Check bot info
-            const botUser = this.bot.sock?.user;
-            response += `🤖 *Bot Info:*\n`;
-            response += `- ID: ${botUser?.id || 'Not available'}\n`;
-            response += `- Name: ${botUser?.name || 'Not available'}\n`;
-            response += `- Normalized: ${this.normalizeJid(botUser?.id) || 'Not available'}\n\n`;
-            
-            // Check contacts from different sources
-            const sockContacts = this.bot.sock?.contacts || {};
-            const storeContacts = this.bot.store?.contacts || {};
-            const storeChats = this.bot.store?.chats || {};
-            
-            response += `📱 *Contact Sources:*\n`;
-            response += `- sock.contacts: ${Object.keys(sockContacts).length} entries\n`;
-            response += `- store.contacts: ${Object.keys(storeContacts).length} entries\n`;
-            response += `- store.chats: ${Object.keys(storeChats).length} entries\n\n`;
-            
-            // Check contact manager
-            const contactManager = this.getContactManager();
-            if (contactManager) {
-                response += `✅ *Contact Manager:* Active\n`;
-                response += `📱 *Saved Contacts:* ${contactManager.contacts.size}\n\n`;
-            } else {
-                response += `❌ *Contact Manager:* Not found\n\n`;
-            }
-
-            // Test the getStatusRecipients function
-            try {
-                const recipients = await this.getStatusRecipients();
-                response += `✅ *Recipients Found:* ${recipients.length}\n`;
-                if (recipients.length > 0) {
-                    response += `📋 *First 5 Recipients:*\n`;
-                    recipients.slice(0, 5).forEach((jid, index) => {
-                        response += `${index + 1}. ${jid}\n`;
-                    });
-                    if (recipients.length > 5) {
-                        response += `... and ${recipients.length - 5} more\n`;
-                    }
-                } else {
-                    response += `❌ No valid recipients found for status posting\n`;
-                }
-            } catch (error) {
-                response += `❌ *Error getting recipients:* ${error.message}\n`;
-            }
-            
-            response += `\n💡 *Tips:*\n`;
-            response += `- Use .contact help to manage contacts\n`;
-            response += `- Add contacts via .contact add +234XXXXXXXXX\n`;
-            response += `- Upload CSV with .contact upload\n`;
-            response += `- Auto-detection saves contacts from messages\n`;
-            response += `- You cannot see status sent only to yourself`;
-            
-            await this.bot.sock.sendMessage(fromJid, { text: response });
-            
-        } catch (error) {
-            console.error('Error in checkContactsCommand:', error);
-            await this.bot.sock.sendMessage(fromJid, {
-                text: '❌ Error checking contacts: ' + error.message
-            });
-        }
-    }
+    
 
     /**
      * Clean up temporary files
