@@ -523,6 +523,9 @@ class MATDEV {
         try {
             logger.info('🔌 Establishing WhatsApp connection...');
 
+            // Clean up existing socket first to prevent memory leaks
+            await this.cleanupSocket();
+
             // Check if we should validate/clear old session files on startup issues
             if (this.reconnectAttempts > 0 && this.initialConnection) {
                 logger.info('🔍 Validating session files after startup issues...');
@@ -1149,6 +1152,45 @@ class MATDEV {
     }
 
     /**
+     * Clean up existing socket and event listeners
+     */
+    async cleanupSocket() {
+        if (this.sock) {
+            try {
+                logger.debug('🧹 Cleaning up existing socket...');
+                
+                // Remove all event listeners to prevent memory leaks
+                this.sock.ev.removeAllListeners('connection.update');
+                this.sock.ev.removeAllListeners('creds.update');
+                this.sock.ev.removeAllListeners('messages.upsert');
+                this.sock.ev.removeAllListeners('messages.update');
+                this.sock.ev.removeAllListeners('call');
+                this.sock.ev.removeAllListeners('groups.update');
+                
+                // Close the socket connection
+                if (typeof this.sock.end === 'function') {
+                    this.sock.end();
+                }
+                
+                // Clear the socket reference
+                this.sock = null;
+                
+                logger.debug('✅ Socket cleanup completed');
+                
+                // Force garbage collection if available
+                if (global.gc) {
+                    global.gc();
+                }
+                
+            } catch (error) {
+                logger.error('Error during socket cleanup:', error.message);
+                // Force clear the socket reference even if cleanup fails
+                this.sock = null;
+            }
+        }
+    }
+
+    /**
      * Handle reconnection with intelligent session preservation
      */
     async handleReconnection() {
@@ -1176,15 +1218,8 @@ class MATDEV {
 
         logger.warn(`🔄 Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay/1000}s...`);
 
-        // Clear any existing socket before reconnecting
-        if (this.sock) {
-            try {
-                this.sock.end();
-                this.sock = null;
-            } catch (error) {
-                // Ignore cleanup errors
-            }
-        }
+        // Properly clean up existing socket before reconnecting
+        await this.cleanupSocket();
 
         setTimeout(() => {
             this.connect();
@@ -1537,8 +1572,7 @@ class MATDEV {
             // Don't logout, just close the connection to preserve session
             if (this.sock && this.isConnected) {
                 logger.info('🔄 Preserving session during shutdown...');
-                this.sock.end();
-                this.sock = null;
+                await this.cleanupSocket();
                 this.isConnected = false;
 
                 // Give time for cleanup
