@@ -642,9 +642,52 @@ class ScheduleStatusPlugin {
     }
 
     /**
-     * Get status recipients list for 2025 WhatsApp status posting method
+     * Get status recipients using the contact manager
      */
     async getStatusRecipients() {
+        try {
+            // First, try to get contacts from the contact manager
+            const contactManager = this.getContactManager();
+            
+            if (contactManager) {
+                const recipients = contactManager.getStatusRecipients();
+                if (recipients.length > 0) {
+                    console.log(`📱 Using ${recipients.length} contacts from Contact Manager for status posting`);
+                    return recipients.slice(0, 200); // Limit to 200 to prevent issues
+                } else {
+                    console.log('📱 Contact Manager has no saved contacts yet');
+                }
+            }
+            
+            // Fallback to old method if contact manager not available or has no contacts
+            return await this.getFallbackRecipients();
+            
+        } catch (error) {
+            console.error('Error getting status recipients:', error);
+            // Try fallback method
+            return await this.getFallbackRecipients();
+        }
+    }
+    
+    /**
+     * Get contact manager instance
+     */
+    getContactManager() {
+        // Look for the contact manager plugin in the bot's plugins
+        if (this.bot.plugins) {
+            for (const plugin of this.bot.plugins.values()) {
+                if (plugin.name === 'contact-manager') {
+                    return plugin;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Fallback method for getting recipients (old method)
+     */
+    async getFallbackRecipients() {
         const statusJidList = [];
         
         try {
@@ -652,9 +695,9 @@ class ScheduleStatusPlugin {
             const selfJid = this.bot.sock.user?.id;
             const normalizedSelf = selfJid ? this.normalizeJid(selfJid) : null;
             
-            console.log(`🤖 Bot JID: ${selfJid}, normalized: ${normalizedSelf}`);
+            console.log(`🤖 Fallback mode - Bot JID: ${selfJid}, normalized: ${normalizedSelf}`);
             
-            // Method 1: Get contacts from multiple sources
+            // Get contacts from multiple sources
             const allCandidates = new Set();
             
             // From sock.contacts
@@ -698,27 +741,12 @@ class ScheduleStatusPlugin {
             
             console.log(`📋 Total candidates: ${allCandidates.size}, after excluding self: ${filteredContacts.length}`);
             
-            // Validate contacts are real WhatsApp users (optional, can be expensive)
-            if (filteredContacts.length > 0 && filteredContacts.length <= 50) {
-                try {
-                    const validatedContacts = await this.validateContacts(filteredContacts);
-                    if (validatedContacts.length > 0) {
-                        console.log(`✅ Validated ${validatedContacts.length} real WhatsApp contacts for status posting`);
-                        return validatedContacts.slice(0, 200); // Limit to 200 to prevent issues
-                    }
-                } catch (validationError) {
-                    console.warn('⚠️ Contact validation failed, using unvalidated list:', validationError.message);
-                    if (filteredContacts.length > 0) {
-                        console.log(`📱 Using ${filteredContacts.length} unvalidated contacts for status posting`);
-                        return filteredContacts.slice(0, 200);
-                    }
-                }
-            } else if (filteredContacts.length > 0) {
-                console.log(`📱 Using ${filteredContacts.length} contacts for status posting (skipped validation due to large number)`);
+            if (filteredContacts.length > 0) {
+                console.log(`📱 Using ${filteredContacts.length} fallback contacts for status posting`);
                 return filteredContacts.slice(0, 200);
             }
             
-            // Method 2: Check if owner is different from bot
+            // Check if owner is different from bot
             if (config.OWNER_NUMBER) {
                 const ownerJid = config.OWNER_NUMBER.includes('@') ? 
                     config.OWNER_NUMBER : 
@@ -737,11 +765,11 @@ class ScheduleStatusPlugin {
             }
             
             // If we reach here, no valid recipients found
-            console.error('❌ No valid contacts found for status posting. Status will not be visible.');
-            throw new Error('No valid recipients available for status posting. Please ensure the bot has contacts or configure different owner number.');
+            console.error('❌ No valid contacts found for status posting. Use the contact manager to add contacts.');
+            throw new Error('No valid recipients available for status posting. Please add contacts using the contact manager (.contact help).');
             
         } catch (error) {
-            console.error('Error getting status recipients:', error);
+            console.error('Error in fallback recipients:', error);
             throw error;
         }
     }
@@ -822,6 +850,15 @@ class ScheduleStatusPlugin {
             response += `- store.contacts: ${Object.keys(storeContacts).length} entries\n`;
             response += `- store.chats: ${Object.keys(storeChats).length} entries\n\n`;
             
+            // Check contact manager
+            const contactManager = this.getContactManager();
+            if (contactManager) {
+                response += `✅ *Contact Manager:* Active\n`;
+                response += `📱 *Saved Contacts:* ${contactManager.contacts.size}\n\n`;
+            } else {
+                response += `❌ *Contact Manager:* Not found\n\n`;
+            }
+
             // Test the getStatusRecipients function
             try {
                 const recipients = await this.getStatusRecipients();
@@ -842,9 +879,10 @@ class ScheduleStatusPlugin {
             }
             
             response += `\n💡 *Tips:*\n`;
-            response += `- Make sure you have contacts in your WhatsApp\n`;
-            response += `- Try sending messages to contacts first\n`;
-            response += `- Status only works with real contacts\n`;
+            response += `- Use .contact help to manage contacts\n`;
+            response += `- Add contacts via .contact add +234XXXXXXXXX\n`;
+            response += `- Upload CSV with .contact upload\n`;
+            response += `- Auto-detection saves contacts from messages\n`;
             response += `- You cannot see status sent only to yourself`;
             
             await this.bot.sock.sendMessage(fromJid, { text: response });
