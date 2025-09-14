@@ -416,23 +416,23 @@ class ContactManagerPlugin {
         const fromJid = chat_jid;
 
         try {
-            // Check if this is a reply to a document
-            const contextInfo = message?.extendedTextMessage?.contextInfo;
-            const quotedMessage = contextInfo?.quotedMessage;
-
-            if (!quotedMessage || (!quotedMessage.documentMessage && !quotedMessage.extendedTextMessage)) {
+            // Check for quoted message using the same approach as sticker/photo plugins
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                  message?.quotedMessage;
+            
+            if (!quotedMessage) {
                 await this.bot.sock.sendMessage(fromJid, {
-                    text: '❌ Please reply to a file with this command!\n\n' +
-                          'Example: Upload your CSV/text file, then reply to it with:\n' +
+                    text: '❌ Please reply to a CSV file with this command!\n\n' +
+                          'Example: Upload your CSV file, then reply to it with:\n' +
                           `${config.PREFIX}contact upload`
                 });
                 return;
             }
 
-            // Accept both document messages and text files
-            if (!quotedMessage.documentMessage) {
+            // Check for document messages (like CSV files)
+            if (!quotedMessage.documentMessage && !quotedMessage.documentWithCaptionMessage) {
                 await this.bot.sock.sendMessage(fromJid, {
-                    text: '❌ Please reply to a document/file with this command!\n\n' +
+                    text: '❌ Please reply to a document/CSV file with this command!\n\n' +
                           'Example: Upload your CSV file, then reply to it with:\n' +
                           `${config.PREFIX}contact upload`
                 });
@@ -596,24 +596,48 @@ class ContactManagerPlugin {
             const filename = `contacts_${timestamp}.csv`;
             const filePath = path.join(tempDir, filename);
 
-            // Create proper message structure for download
+            // Handle different document message types
+            let documentMessage = quotedMessage.documentMessage;
+            
+            // Check for documentWithCaptionMessage (like your CSV file)
+            if (!documentMessage && quotedMessage.documentWithCaptionMessage) {
+                documentMessage = quotedMessage.documentWithCaptionMessage.message.documentMessage;
+            }
+
+            if (!documentMessage) {
+                console.error('No document message found in quoted message');
+                return null;
+            }
+
+            // Create proper message structure for download - use the same pattern as other plugins
+            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
             const messageToDownload = {
-                key: {
+                key: contextInfo?.stanzaId ? {
+                    id: contextInfo.stanzaId,
+                    remoteJid: messageInfo.chat_jid,
+                    fromMe: contextInfo.participant === this.bot.sock.user?.id,
+                    participant: contextInfo.participant
+                } : {
                     remoteJid: messageInfo.chat_jid,
                     fromMe: false,
-                    id: messageInfo.message.extendedTextMessage.contextInfo.stanzaId || 'fake-id-' + Date.now()
+                    id: 'csv-download-' + Date.now()
                 },
                 message: quotedMessage
             };
 
             // Download using Baileys downloadMediaMessage
-            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
 
-            if (buffer) {
+            if (buffer && buffer.length > 0) {
                 await fs.writeFile(filePath, buffer);
+                console.log(`📥 CSV file downloaded: ${buffer.length} bytes`);
                 return filePath;
             }
 
+            console.error('Downloaded buffer is empty or null');
             return null;
 
         } catch (error) {
