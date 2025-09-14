@@ -8,6 +8,7 @@ const Utils = require('../lib/utils');
 const fs = require('fs-extra');
 const path = require('path');
 const moment = require('moment-timezone');
+const { downloadMediaMessage } = require('baileys');
 
 const utils = new Utils();
 
@@ -568,32 +569,23 @@ class ScheduleStatusPlugin {
             
             const filePath = path.join(mediaDir, filename);
             
-            // Download the media using bot's utils
-            const messageKey = {
-                remoteJid: messageInfo.chat_jid,
-                fromMe: false,
-                id: messageInfo.message_id
-            };
-            
-            // Create a proper message object for download
-            const fullMessage = {
-                key: messageKey,
-                message: { [mediaType + 'Message']: quotedMessage[mediaType + 'Message'] }
-            };
-            
-            // Use the bot's utility to download
-            if (this.bot.utils && this.bot.utils.downloadMedia) {
-                const buffer = await this.bot.utils.downloadMedia(fullMessage);
-                if (buffer) {
-                    await fs.writeFile(filePath, buffer);
-                    return filePath;
+            // Create proper message structure for downloadMediaMessage
+            const messageToDownload = {
+                key: {
+                    remoteJid: messageInfo.chat_jid,
+                    fromMe: false,
+                    id: messageInfo.message_id || 'fake-id-' + Date.now()
+                },
+                message: {
+                    [`${mediaType}Message`]: quotedMessage[`${mediaType}Message`]
                 }
-            }
+            };
             
-            // Fallback: try using sock directly
-            const stream = await this.bot.sock.downloadMediaMessage(fullMessage);
-            if (stream) {
-                await fs.writeFile(filePath, stream);
+            // Download using Baileys downloadMediaMessage
+            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+            
+            if (buffer) {
+                await fs.writeFile(filePath, buffer);
                 return filePath;
             }
             
