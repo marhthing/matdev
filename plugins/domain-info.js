@@ -239,19 +239,25 @@ class DomainInfoPlugin {
         // Try multiple WHOIS services in order of reliability
         const whoisServices = [
             {
-                name: 'whoisjson.com',
-                url: `https://whoisjson.com/api/v1/whois/${domain}`,
+                name: 'who-dat.as93.net',
+                url: `https://who-dat.as93.net/${domain}`,
                 format: 'json'
             },
             {
-                name: 'whoisfreaks.com',
-                url: `https://api.whoisfreaks.com/v1.0/whois?domainName=${domain}&format=json`,
-                format: 'json'
+                name: 'api.apilayer.com',
+                url: `https://api.apilayer.com/whois/query?domain=${domain}`,
+                format: 'json',
+                headers: {
+                    'apikey': process.env.APILAYER_API_KEY || ''
+                }
             },
             {
-                name: 'whois.freeapi.app',
-                url: `https://whois.freeapi.app/api/whois/${domain}`,
-                format: 'json'
+                name: 'api.api-ninjas.com',
+                url: `https://api.api-ninjas.com/v1/whois?domain=${domain}`,
+                format: 'json',
+                headers: {
+                    'X-Api-Key': process.env.API_NINJAS_KEY || ''
+                }
             }
         ];
 
@@ -259,12 +265,20 @@ class DomainInfoPlugin {
             try {
                 console.log(`Trying WHOIS service: ${service.name}`);
                 
+                // Prepare headers
+                const headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/json'
+                };
+                
+                // Add service-specific headers if they exist
+                if (service.headers) {
+                    Object.assign(headers, service.headers);
+                }
+                
                 const response = await axios.get(service.url, {
                     timeout: 15000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Accept': 'application/json'
-                    }
+                    headers: headers
                 });
 
                 if (response.data && typeof response.data === 'object') {
@@ -390,25 +404,38 @@ class DomainInfoPlugin {
         let normalized = {};
 
         // Handle different API response formats
-        if (serviceName === 'whoisjson.com') {
+        if (serviceName === 'who-dat.as93.net') {
+            // who-dat API format
             normalized = {
-                domain_name: data.domain_name || data.domainName,
-                registrar: data.registrar,
-                creation_date: data.creation_date || data.createdDate,
-                expiration_date: data.expiration_date || data.expirationDate,
-                updated_date: data.updated_date || data.updatedDate,
-                name_servers: data.name_servers || data.nameServers,
+                domain_name: data.domain || data.domainName,
+                registrar: data.registrar || data.registrarName,
+                creation_date: data.created || data.creationDate || data.registered,
+                expiration_date: data.expires || data.expirationDate || data.expiry,
+                updated_date: data.updated || data.updatedDate,
+                name_servers: data.nameServers || data.nameservers || data.ns,
                 status: data.status || data.domainStatus
             };
-        } else if (serviceName === 'whoisfreaks.com') {
+        } else if (serviceName === 'api.apilayer.com') {
+            // APILayer WHOIS API format
             normalized = {
-                domain_name: data.domain_name || data.whois_server,
-                registrar: data.registrar_name,
-                creation_date: data.create_date,
-                expiration_date: data.expire_date,
-                updated_date: data.update_date,
+                domain_name: data.domain_name || data.domain,
+                registrar: data.registrar_name || data.registrar,
+                creation_date: data.creation_date || data.created_date,
+                expiration_date: data.expiration_date || data.expiry_date,
+                updated_date: data.updated_date || data.last_updated,
+                name_servers: data.name_servers || data.nameservers,
+                status: data.status || data.domain_status
+            };
+        } else if (serviceName === 'api.api-ninjas.com') {
+            // API Ninjas WHOIS API format
+            normalized = {
+                domain_name: data.domain_name || data.domain,
+                registrar: data.registrar,
+                creation_date: data.creation_date,
+                expiration_date: data.expiration_date,
+                updated_date: data.updated_date,
                 name_servers: data.name_servers,
-                status: data.domain_status
+                status: data.status
             };
         } else {
             // Generic normalization for other services
