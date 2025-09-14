@@ -1021,10 +1021,32 @@ class GroupPlugin {
             // Simplified goodbye message
             const goodbyeMessage = `@${displayName} Goodbye 👋`;
 
-            await this.bot.sock.sendMessage(groupJid, {
-                text: goodbyeMessage,
-                mentions: [participantJid]
-            });
+            try {
+                // Try to get user's profile picture
+                const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
+                
+                if (profilePicUrl) {
+                    // Send profile picture with goodbye message as caption
+                    await this.bot.sock.sendMessage(groupJid, {
+                        image: { url: profilePicUrl },
+                        caption: goodbyeMessage,
+                        mentions: [participantJid]
+                    });
+                } else {
+                    // Fallback to text message if no profile picture
+                    await this.bot.sock.sendMessage(groupJid, {
+                        text: goodbyeMessage,
+                        mentions: [participantJid]
+                    });
+                }
+            } catch (profileError) {
+                console.log('Profile picture not available, using text message');
+                // Fallback to text message if profile picture fails
+                await this.bot.sock.sendMessage(groupJid, {
+                    text: goodbyeMessage,
+                    mentions: [participantJid]
+                });
+            }
 
         } catch (error) {
             console.error('Error sending goodbye message:', error);
