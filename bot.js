@@ -23,6 +23,7 @@ const SecurityManager = require('./lib/security');
 const CacheManager = require('./lib/cache');
 const JSONStorageManager = require('./lib/json-storage');
 const Utils = require('./lib/utils');
+const CleanupManager = require('./lib/cleanup');
 
 // Initialize components
 const logger = new Logger();
@@ -62,6 +63,7 @@ class MATDEV {
         this.database = database;
         this.database.bot = this; // Pass bot instance to database
         this.messageHandler = new MessageHandler(this, cache, security, database);
+        this.cleanupManager = new CleanupManager(this);
 
         // Bind methods
         this.connect = this.connect.bind(this);
@@ -90,6 +92,9 @@ class MATDEV {
 
             // Initialize JSON storage after connection is established
             await this.database.initialize();
+
+            // Initialize centralized cleanup manager
+            await this.cleanupManager.initialize();
 
             // Load plugins only after WhatsApp is fully connected
             await this.loadPlugins();
@@ -1564,6 +1569,11 @@ class MATDEV {
         logger.info('🛑 Shutting down MATDEV...');
 
         try {
+            // Shutdown cleanup manager first
+            if (this.cleanupManager) {
+                await this.cleanupManager.shutdown();
+            }
+
             // Close database connection
             if (this.database) {
                 await this.database.close();
