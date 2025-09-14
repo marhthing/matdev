@@ -62,6 +62,10 @@ class ScreenshotPlugin {
      * Handle screenshot command
      */
     async screenshotCommand(messageInfo) {
+        const fs = require('fs-extra');
+        const path = require('path');
+        let tempFilePath = null;
+
         try {
             let url = messageInfo.args.join(' ').trim();
 
@@ -91,10 +95,25 @@ class ScreenshotPlugin {
                 const screenshotBuffer = await this.captureScreenshot(url);
 
                 if (screenshotBuffer) {
-                    // Send the screenshot without caption
+                    // Create temp file path
+                    const timestamp = Date.now();
+                    tempFilePath = path.join(process.cwd(), 'tmp', `screenshot_${timestamp}.png`);
+
+                    // Ensure tmp directory exists
+                    await fs.ensureDir(path.dirname(tempFilePath));
+
+                    // Save to temp file
+                    await fs.writeFile(tempFilePath, screenshotBuffer);
+
+                    // Send the screenshot from temp file
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        image: screenshotBuffer
+                        image: { url: tempFilePath }
                     });
+
+                    // Clean up temp file after sending
+                    await fs.unlink(tempFilePath).catch(() => {});
+                    tempFilePath = null;
+
                 } else {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Failed to capture screenshot of ${url}.`);
                 }
@@ -106,6 +125,15 @@ class ScreenshotPlugin {
         } catch (error) {
             console.error('Error in screenshot command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error processing your request.');
+        } finally {
+            // Ensure cleanup on any error
+            if (tempFilePath) {
+                try {
+                    await fs.unlink(tempFilePath);
+                } catch (cleanupError) {
+                    // Silent cleanup error
+                }
+            }
         }
     }
 
