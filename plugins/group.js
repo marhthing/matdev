@@ -107,6 +107,56 @@ class GroupPlugin {
             source: 'group.js',
             groupOnly: true
         });
+
+        // Group info command
+        this.bot.messageHandler.registerCommand('groupinfo', this.groupInfoCommand.bind(this), {
+            description: 'Show group information and statistics',
+            usage: `${config.PREFIX}groupinfo`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Set group name command (admin only)
+        this.bot.messageHandler.registerCommand('setname', this.setGroupNameCommand.bind(this), {
+            description: 'Change group name (admin only)',
+            usage: `${config.PREFIX}setname <new name>`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Set group description command (admin only)
+        this.bot.messageHandler.registerCommand('setdesc', this.setGroupDescCommand.bind(this), {
+            description: 'Change group description (admin only)',
+            usage: `${config.PREFIX}setdesc <new description>`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Get group invite link command (admin only)
+        this.bot.messageHandler.registerCommand('grouplink', this.getGroupLinkCommand.bind(this), {
+            description: 'Get group invite link (admin only)',
+            usage: `${config.PREFIX}grouplink`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Revoke group invite link command (admin only)
+        this.bot.messageHandler.registerCommand('revokelink', this.revokeGroupLinkCommand.bind(this), {
+            description: 'Revoke current group invite link (admin only)',
+            usage: `${config.PREFIX}revokelink`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
     }
 
     /**
@@ -1298,6 +1348,307 @@ class GroupPlugin {
             console.error('Error in greeting command:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to update greeting settings. Please try again.'
+            );
+        }
+    }
+
+    /**
+     * Group info command - show group information and statistics
+     */
+    async groupInfoCommand(messageInfo) {
+        try {
+            const { chat_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Count participants by role
+            const participants = groupMetadata.participants || [];
+            const admins = participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin');
+            const superAdmins = participants.filter(p => p.admin === 'superadmin');
+            const members = participants.filter(p => !p.admin);
+
+            // Format creation date
+            const creationTime = groupMetadata.creation ? new Date(groupMetadata.creation * 1000).toLocaleDateString() : 'Unknown';
+            
+            // Build group info message
+            const groupInfo = `📋 *Group Information*\n\n` +
+                `📝 *Name:* ${groupMetadata.subject || 'No name'}\n` +
+                `🆔 *ID:* ${chat_jid.split('@')[0]}\n` +
+                `📅 *Created:* ${creationTime}\n` +
+                `👥 *Total Members:* ${participants.length}\n` +
+                `👑 *Super Admins:* ${superAdmins.length}\n` +
+                `⭐ *Admins:* ${admins.length - superAdmins.length}\n` +
+                `👤 *Members:* ${members.length}\n` +
+                `🔒 *Announcement Mode:* ${groupMetadata.announce ? 'Enabled' : 'Disabled'}\n` +
+                `🔐 *Restricted:* ${groupMetadata.restrict ? 'Yes' : 'No'}\n\n`;
+
+            // Add description if available
+            let fullMessage = groupInfo;
+            if (groupMetadata.desc) {
+                fullMessage += `📄 *Description:*\n${groupMetadata.desc}\n\n`;
+            }
+
+            fullMessage += `_Group info retrieved by MATDEV_`;
+
+            await this.bot.messageHandler.reply(messageInfo, fullMessage);
+
+        } catch (error) {
+            console.error('Error in groupinfo command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to retrieve group information. Please try again.'
+            );
+        }
+    }
+
+    /**
+     * Set group name command (admin only)
+     */
+    async setGroupNameCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Check if new name is provided
+            if (!args || args.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Please provide a new group name.\n\nUsage: \`${config.PREFIX}setname <new name>\``
+                );
+                return;
+            }
+
+            const newName = args.join(' ').trim();
+            
+            if (newName.length > 100) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Group name is too long. Maximum 100 characters allowed.'
+                );
+                return;
+            }
+
+            // Update group name
+            await this.bot.sock.groupUpdateSubject(chat_jid, newName);
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Group name updated successfully!\n\n📝 *New Name:* ${newName}`
+            );
+
+        } catch (error) {
+            console.error('Error in setname command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to update group name. Please try again or check bot permissions.'
+            );
+        }
+    }
+
+    /**
+     * Set group description command (admin only)
+     */
+    async setGroupDescCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Check if new description is provided
+            if (!args || args.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Please provide a new group description.\n\nUsage: \`${config.PREFIX}setdesc <new description>\``
+                );
+                return;
+            }
+
+            const newDesc = args.join(' ').trim();
+            
+            if (newDesc.length > 512) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Group description is too long. Maximum 512 characters allowed.'
+                );
+                return;
+            }
+
+            // Update group description
+            await this.bot.sock.groupUpdateDescription(chat_jid, newDesc);
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Group description updated successfully!\n\n📄 *New Description:*\n${newDesc}`
+            );
+
+        } catch (error) {
+            console.error('Error in setdesc command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to update group description. Please try again or check bot permissions.'
+            );
+        }
+    }
+
+    /**
+     * Get group invite link command (admin only)
+     */
+    async getGroupLinkCommand(messageInfo) {
+        try {
+            const { chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Get group invite code
+            const inviteCode = await this.bot.sock.groupInviteCode(chat_jid);
+            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `🔗 *Group Invite Link*\n\n` +
+                `${inviteLink}\n\n` +
+                `📋 *Group:* ${groupMetadata.subject || 'Unknown'}\n` +
+                `👥 *Members:* ${groupMetadata.participants.length}\n\n` +
+                `⚠️ *Warning:* Keep this link secure. Anyone with this link can join the group.`
+            );
+
+        } catch (error) {
+            console.error('Error in grouplink command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to get group invite link. Please try again or check bot permissions.'
+            );
+        }
+    }
+
+    /**
+     * Revoke group invite link command (admin only)
+     */
+    async revokeGroupLinkCommand(messageInfo) {
+        try {
+            const { chat_jid, sender_jid } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            // Revoke current invite link
+            await this.bot.sock.groupRevokeInvite(chat_jid);
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ *Group Invite Link Revoked*\n\n` +
+                `🔒 The previous invite link has been invalidated and no longer works.\n\n` +
+                `💡 *Tip:* Use \`${config.PREFIX}grouplink\` to generate a new invite link.`
+            );
+
+        } catch (error) {
+            console.error('Error in revokelink command:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to revoke group invite link. Please try again or check bot permissions.'
             );
         }
     }
