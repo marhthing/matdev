@@ -334,9 +334,12 @@ class CompressPlugin {
         // - High profile with modern level
         // - Psychovisual optimizations
         // - Improved GOP structure
+        // - Proper frame rate conversion filter
+        const fpsFilter = `fps=${this.targetFPS}`;
+        const combinedFilter = `${scaleFilter},${fpsFilter}`;
+        
         return `ffmpeg -i "${inputPath}" ` +
-               `-vf "${scaleFilter}" ` +
-               `-r ${this.targetFPS} ` +
+               `-vf "${combinedFilter}" ` +
                `-c:v libx264 ` +
                `-preset ${preset} ` +
                `-crf ${crf} ` +
