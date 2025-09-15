@@ -433,57 +433,34 @@ class CorePlugin {
                 processedCommands.add(cmd.name);
             });
 
-            // Create menu design using the new font style
-            let menuText = `╭═══ MATDEV ═══⊷\n`;
-            menuText += `┃❃╭──────────────\n`;
-            menuText += `┃❃│ Prefix : ${config.PREFIX}\n`;
-            menuText += `┃❃│ User : ${botName}\n`;
-            menuText += `┃❃│ Time : ${currentTime}\n`;
-            menuText += `┃❃│ Day : ${currentDay}\n`;
-            menuText += `┃❃│ Date : ${currentDate}\n`;
-            menuText += `┃❃│ Version : 1.0.0\n`;
-            menuText += `┃❃│ Plugins : ${commands.length}\n`;
-            menuText += `┃❃│ Ram : ${usedMemMB}/${totalMemMB}MB\n`;
-            menuText += `┃❃│ Uptime : ${botUptime}\n`;
-            menuText += `┃❃│ Platform : ${platformName} (${systemInfo.arch})\n`;
-            menuText += `┃❃╰───────────────\n`;
-            menuText += `╰═════════════════⊷\n`;
-
-            // Helper function to convert text to mathematical bold
-            const toBoldMath = (text) => {
-                const boldMap = {
-                    'A': '𝙰', 'B': '𝙱', 'C': '𝙲', 'D': '𝙳', 'E': '𝙴', 'F': '𝙵', 'G': '𝙶', 'H': '𝙷', 'I': '𝙸', 'J': '𝙹',
-                    'K': '𝙺', 'L': '𝙻', 'M': '𝙼', 'N': '𝙽', 'O': '𝙾', 'P': '𝙿', 'Q': '𝚀', 'R': '𝚁', 'S': '𝚂', 'T': '𝚃',
-                    'U': '𝚄', 'V': '𝚅', 'W': '𝚆', 'X': '𝚇', 'Y': '𝚈', 'Z': '𝚉',
-                    '0': '𝟶', '1': '𝟷', '2': '𝟸', '3': '𝟹', '4': '𝟺', '5': '𝟻', '6': '𝟼', '7': '𝟽', '8': '𝟾', '9': '𝟿'
-                };
-                return text.toUpperCase().split('').map(char => boldMap[char] || char).join('');
-            };
-
-            // Helper function to convert category to small caps
-            const toSmallCaps = (text) => {
-                const smallCapsMap = {
-                    'CORE': 'ᴄᴏʀᴇ', 'ADMIN': 'ᴀᴅᴍɪɴ', 'MEDIA': 'ᴍᴇᴅɪᴀ', 'SYSTEM': 'sʏsᴛᴇᴍ', 
-                    'PRIVACY': 'ᴘʀɪᴠᴀᴄʏ', 'STATUS': 'sᴛᴀᴛᴜs', 'UTILITY': 'ᴜᴛɪʟɪᴛʏ', 'AUTOMATION': 'ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ',
-                    'GROUP': 'ɢʀᴏᴜᴘ', 'AI': 'ᴀɪ', 'FUN': 'ғᴜɴ', 'TIME': 'ᴛɪᴍᴇ', 'DOWNLOAD': 'ᴅᴏᴡɴʟᴏᴀᴅ',
-                    'IMAGE EFFECTS': 'ɪᴍᴀɢᴇ ᴇғғᴇᴄᴛs'
-                };
-                return smallCapsMap[text.toUpperCase()] || text.toLowerCase();
-            };
+            // Create unique MATDEV CleanWire style
+            let menuText = `⟫ MATDEV ⟪\n\n`;
+            
+            // System info with clean bullet points
+            menuText += `• Prefix: ${config.PREFIX}\n`;
+            menuText += `• User: ${botName}\n`;
+            menuText += `• Time: ${currentTime}\n`;
+            menuText += `• Day: ${currentDay}\n`;
+            menuText += `• Date: ${currentDate}\n`;
+            menuText += `• Version: 1.0.0\n`;
+            menuText += `• Commands: ${commands.length}\n`;
+            menuText += `• Memory: ${usedMemMB}/${totalMemMB}MB\n`;
+            menuText += `• Uptime: ${botUptime}\n`;
+            menuText += `• Platform: ${platformName} (${systemInfo.arch})\n\n`;
 
             for (const [category, cmds] of Object.entries(categories)) {
-                const categoryName = toSmallCaps(category);
+                const categoryName = category.toLowerCase();
 
-                menuText += ` ╭─❏ ${categoryName} ❏\n`;
+                menuText += `— ${categoryName} —\n`;
                 
                 cmds.forEach(cmd => {
-                    menuText += ` │ ${toBoldMath(cmd.name)}\n`;
+                    menuText += `› ${cmd.name.toUpperCase()}\n`;
                 });
                 
-                menuText += ` ╰─────────────────\n`;
+                menuText += `\n`;
             }
 
-            // Footer
+            // Clean footer
             menuText += `Type ${config.PREFIX}help <command> for details!\n\n`;
             menuText += `*Powered by MATDEV*`;
 
