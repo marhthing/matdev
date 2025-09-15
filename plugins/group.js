@@ -4,6 +4,8 @@
  */
 
 const config = require('../config');
+const fs = require('fs-extra');
+const path = require('path');
 
 class GroupPlugin {
     constructor() {
@@ -17,10 +19,45 @@ class GroupPlugin {
      */
     async init(bot) {
         this.bot = bot;
+        
+        // Initialize storage for new features
+        this.initializeStorage();
+        
         this.registerCommands();
         this.registerGroupEvents();
+        this.registerMessageHandler();
         
         console.log('✅ Group plugin loaded');
+    }
+
+    /**
+     * Initialize storage for group features
+     */
+    initializeStorage() {
+        // Initialize group data storage for filters, warnings, mutes, etc.
+        if (!this.bot.database) {
+            console.warn('⚠️ Database not available for group plugin');
+            return;
+        }
+        
+        // Initialize default data structures
+        this.ensureGroupData('filters', {});
+        this.ensureGroupData('filter_settings', {});
+        this.ensureGroupData('warnings', {});
+        this.ensureGroupData('muted_users', {});
+    }
+
+    /**
+     * Ensure group data structure exists
+     */
+    ensureGroupData(key, defaultValue) {
+        try {
+            if (!this.bot.database.getData(key)) {
+                this.bot.database.setData(key, defaultValue);
+            }
+        } catch (error) {
+            console.error(`Error initializing ${key}:`, error);
+        }
     }
 
     /**
@@ -152,6 +189,55 @@ class GroupPlugin {
         this.bot.messageHandler.registerCommand('revokelink', this.revokeGroupLinkCommand.bind(this), {
             description: 'Revoke current group invite link (admin only)',
             usage: `${config.PREFIX}revokelink`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Filter system commands
+        this.bot.messageHandler.registerCommand('filter', this.filterCommand.bind(this), {
+            description: 'Manage word filters (admin only)',
+            usage: `${config.PREFIX}filter [add/remove <word>] [on/off] [<warn_count>warn] [kick]`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Warning system commands
+        this.bot.messageHandler.registerCommand('warn', this.warnCommand.bind(this), {
+            description: 'Warning system for users (admin only)',
+            usage: `${config.PREFIX}warn [@user] [clear @user] [list @user]`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Anti-link system command
+        this.bot.messageHandler.registerCommand('antilink', this.antilinkCommand.bind(this), {
+            description: 'Toggle anti-link protection (admin only)',
+            usage: `${config.PREFIX}antilink [on/off]`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        // Mute system commands
+        this.bot.messageHandler.registerCommand('mute', this.muteCommand.bind(this), {
+            description: 'Temporarily mute a user (admin only)',
+            usage: `${config.PREFIX}mute @user <duration>`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('unmute', this.unmuteCommand.bind(this), {
+            description: 'Unmute a user (admin only)',
+            usage: `${config.PREFIX}unmute @user`,
             category: 'group',
             plugin: 'group',
             source: 'group.js',
@@ -1676,6 +1762,905 @@ class GroupPlugin {
         } catch (error) {
             console.error(`Failed to update .env setting ${key}:`, error);
         }
+    }
+
+    /**
+     * Register message handler for filtering and moderation
+     */
+    registerMessageHandler() {
+        // Listen to all messages for filtering, antilink, and mute checks
+        this.bot.sock.ev.on('messages.upsert', async (messageUpdate) => {
+            try {
+                await this.handleIncomingMessage(messageUpdate);
+            } catch (error) {
+                console.error('Error handling incoming message for group moderation:', error);
+            }
+        });
+    }
+
+    /**
+     * Handle incoming messages for moderation features
+     */
+    async handleIncomingMessage(messageUpdate) {
+        const { messages } = messageUpdate;
+        
+        for (const message of messages) {
+            // Skip if not a group message or if it's from the bot
+            if (!message.key?.remoteJid?.endsWith('@g.us') || 
+                message.key?.fromMe || 
+                !message.message) {
+                continue;
+            }
+            
+            const chatJid = message.key.remoteJid;
+            const senderJid = message.key.participant || message.key.remoteJid;
+            const messageText = this.extractMessageText(message.message);
+            
+            if (!messageText) continue;
+            
+            // Check if user is muted
+            if (await this.isUserMuted(chatJid, senderJid)) {
+                await this.deleteMessage(chatJid, message.key);
+                continue;
+            }
+            
+            // Check antilink
+            if (await this.isAntilinkEnabled(chatJid) && this.containsLink(messageText)) {
+                await this.handleAntilinkViolation(chatJid, senderJid, message.key);
+                continue;
+            }
+            
+            // Check word filters
+            const filterViolation = await this.checkWordFilters(chatJid, messageText);
+            if (filterViolation) {
+                await this.handleFilterViolation(chatJid, senderJid, message.key, filterViolation);
+            }
+        }
+    }
+
+    /**
+     * Extract text from message
+     */
+    extractMessageText(message) {
+        if (message.conversation) {
+            return message.conversation;
+        }
+        if (message.extendedTextMessage?.text) {
+            return message.extendedTextMessage.text;
+        }
+        if (message.imageMessage?.caption) {
+            return message.imageMessage.caption;
+        }
+        if (message.videoMessage?.caption) {
+            return message.videoMessage.caption;
+        }
+        return null;
+    }
+
+    /**
+     * Filter command implementation
+     */
+    async filterCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check admin permissions
+            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+                return;
+            }
+            
+            if (args.length === 0) {
+                // Show current filters
+                await this.showFilters(messageInfo);
+                return;
+            }
+            
+            const action = args[0].toLowerCase();
+            
+            switch (action) {
+                case 'add':
+                    if (args.length < 2) {
+                        await this.bot.messageHandler.reply(messageInfo, `❌ Usage: ${config.PREFIX}filter add <word>`);
+                        return;
+                    }
+                    await this.addFilter(messageInfo, args.slice(1).join(' '));
+                    break;
+                    
+                case 'remove':
+                    if (args.length < 2) {
+                        await this.bot.messageHandler.reply(messageInfo, `❌ Usage: ${config.PREFIX}filter remove <word>`);
+                        return;
+                    }
+                    await this.removeFilter(messageInfo, args.slice(1).join(' '));
+                    break;
+                    
+                case 'on':
+                    await this.setFilterMode(messageInfo, args.slice(1));
+                    break;
+                    
+                case 'off':
+                    await this.disableFilters(messageInfo);
+                    break;
+                    
+                default:
+                    await this.showFilterUsage(messageInfo);
+            }
+            
+        } catch (error) {
+            console.error('Error in filter command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process filter command.');
+        }
+    }
+
+    /**
+     * Warning command implementation
+     */
+    async warnCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check admin permissions
+            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+                return;
+            }
+            
+            if (args.length === 0) {
+                await this.showWarnUsage(messageInfo);
+                return;
+            }
+            
+            const action = args[0].toLowerCase();
+            
+            switch (action) {
+                case 'clear':
+                    const clearTargetJid = this.getTargetUser(messageInfo);
+                    if (!clearTargetJid) {
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to clear warnings.');
+                        return;
+                    }
+                    await this.clearWarnings(messageInfo, clearTargetJid);
+                    break;
+                    
+                case 'list':
+                    const listTargetJid = this.getTargetUser(messageInfo);
+                    if (!listTargetJid) {
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to view warnings.');
+                        return;
+                    }
+                    await this.listWarnings(messageInfo, listTargetJid);
+                    break;
+                    
+                default:
+                    // Direct warn - first arg might be the user mention
+                    const targetJid = this.getTargetUser(messageInfo);
+                    if (!targetJid) {
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to warn.');
+                        return;
+                    }
+                    await this.warnUser(messageInfo, targetJid);
+            }
+            
+        } catch (error) {
+            console.error('Error in warn command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process warning command.');
+        }
+    }
+
+    /**
+     * Antilink command implementation
+     */
+    async antilinkCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check admin permissions
+            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+                return;
+            }
+            
+            if (args.length === 0) {
+                // Show current status
+                const enabled = await this.isAntilinkEnabled(chat_jid);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `🔗 *Anti-link Status*\n\n` +
+                    `Status: ${enabled ? '✅ Enabled' : '❌ Disabled'}\n\n` +
+                    `Usage: ${config.PREFIX}antilink [on/off]`
+                );
+                return;
+            }
+            
+            const action = args[0].toLowerCase();
+            
+            if (action === 'on' || action === 'off') {
+                const enabled = action === 'on';
+                await this.setAntilinkStatus(chat_jid, enabled);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `🔗 Anti-link protection ${enabled ? 'enabled' : 'disabled'} successfully!`
+                );
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Invalid usage. Use: ${config.PREFIX}antilink [on/off]`
+                );
+            }
+            
+        } catch (error) {
+            console.error('Error in antilink command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process antilink command.');
+        }
+    }
+
+    /**
+     * Mute command implementation
+     */
+    async muteCommand(messageInfo) {
+        try {
+            const { args, chat_jid, sender_jid } = messageInfo;
+            
+            // Check admin permissions
+            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+                return;
+            }
+            
+            const targetJid = this.getTargetUser(messageInfo);
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to mute.');
+                return;
+            }
+            
+            // Parse duration (default 1 hour if not specified)
+            let duration = 60; // minutes
+            if (args.length > 0) {
+                const durationArg = args[args.length - 1];
+                const parsedDuration = this.parseDuration(durationArg);
+                if (parsedDuration > 0) {
+                    duration = parsedDuration;
+                }
+            }
+            
+            await this.muteUser(messageInfo, targetJid, duration);
+            
+        } catch (error) {
+            console.error('Error in mute command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to mute user.');
+        }
+    }
+
+    /**
+     * Unmute command implementation
+     */
+    async unmuteCommand(messageInfo) {
+        try {
+            const { chat_jid, sender_jid } = messageInfo;
+            
+            // Check admin permissions
+            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+                return;
+            }
+            
+            const targetJid = this.getTargetUser(messageInfo);
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to unmute.');
+                return;
+            }
+            
+            await this.unmuteUser(messageInfo, targetJid);
+            
+        } catch (error) {
+            console.error('Error in unmute command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to unmute user.');
+        }
+    }
+
+    // =================================================================
+    // FILTER SYSTEM IMPLEMENTATION
+    // =================================================================
+
+    /**
+     * Show current filters
+     */
+    async showFilters(messageInfo) {
+        const { chat_jid } = messageInfo;
+        const filters = this.getGroupFilters(chat_jid);
+        const settings = this.getGroupFilterSettings(chat_jid);
+        
+        if (filters.length === 0) {
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📝 *Word Filters*\n\n` +
+                `No filters configured.\n\n` +
+                `*Usage:*\n` +
+                `• ${config.PREFIX}filter add <word> - Add filter\n` +
+                `• ${config.PREFIX}filter remove <word> - Remove filter\n` +
+                `• ${config.PREFIX}filter on [3warn] [kick] - Enable filtering\n` +
+                `• ${config.PREFIX}filter off - Disable filtering`
+            );
+            return;
+        }
+        
+        const filterList = filters.map((word, index) => `${index + 1}. ${word}`).join('\n');
+        const status = settings.enabled ? '✅ Enabled' : '❌ Disabled';
+        const mode = settings.enabled ? 
+            (settings.warnCount ? `${settings.warnCount} warnings${settings.kickAfterWarn ? ' + kick' : ''}` : 'Delete only') : 
+            'Disabled';
+        
+        await this.bot.messageHandler.reply(messageInfo, 
+            `📝 *Word Filters*\n\n` +
+            `*Status:* ${status}\n` +
+            `*Mode:* ${mode}\n\n` +
+            `*Filtered Words:*\n${filterList}\n\n` +
+            `*Usage:*\n` +
+            `• ${config.PREFIX}filter add <word>\n` +
+            `• ${config.PREFIX}filter remove <word>\n` +
+            `• ${config.PREFIX}filter on [2warn] [kick]\n` +
+            `• ${config.PREFIX}filter off`
+        );
+    }
+
+    /**
+     * Add word filter
+     */
+    async addFilter(messageInfo, word) {
+        const { chat_jid } = messageInfo;
+        const filters = this.getGroupFilters(chat_jid);
+        
+        const normalizedWord = word.toLowerCase().trim();
+        if (filters.includes(normalizedWord)) {
+            await this.bot.messageHandler.reply(messageInfo, `❌ "${word}" is already in the filter list.`);
+            return;
+        }
+        
+        filters.push(normalizedWord);
+        this.saveGroupFilters(chat_jid, filters);
+        
+        await this.bot.messageHandler.reply(messageInfo, `✅ Added "${word}" to filter list.`);
+    }
+
+    /**
+     * Remove word filter
+     */
+    async removeFilter(messageInfo, word) {
+        const { chat_jid } = messageInfo;
+        const filters = this.getGroupFilters(chat_jid);
+        
+        const normalizedWord = word.toLowerCase().trim();
+        const index = filters.indexOf(normalizedWord);
+        
+        if (index === -1) {
+            await this.bot.messageHandler.reply(messageInfo, `❌ "${word}" is not in the filter list.`);
+            return;
+        }
+        
+        filters.splice(index, 1);
+        this.saveGroupFilters(chat_jid, filters);
+        
+        await this.bot.messageHandler.reply(messageInfo, `✅ Removed "${word}" from filter list.`);
+    }
+
+    /**
+     * Set filter mode
+     */
+    async setFilterMode(messageInfo, args) {
+        const { chat_jid } = messageInfo;
+        
+        let warnCount = 0;
+        let kickAfterWarn = false;
+        
+        // Parse arguments for warn count and kick
+        for (const arg of args) {
+            if (arg.endsWith('warn')) {
+                const count = parseInt(arg.replace('warn', ''));
+                if (count > 0) {
+                    warnCount = count;
+                }
+            } else if (arg.toLowerCase() === 'kick') {
+                kickAfterWarn = true;
+            }
+        }
+        
+        const settings = {
+            enabled: true,
+            warnCount: warnCount,
+            kickAfterWarn: kickAfterWarn
+        };
+        
+        this.saveGroupFilterSettings(chat_jid, settings);
+        
+        let modeDesc = 'Delete messages';
+        if (warnCount > 0) {
+            modeDesc += ` + ${warnCount} warnings`;
+            if (kickAfterWarn) {
+                modeDesc += ' + kick';
+            }
+        }
+        
+        await this.bot.messageHandler.reply(messageInfo, 
+            `✅ Filter system enabled!\n*Mode:* ${modeDesc}`
+        );
+    }
+
+    /**
+     * Disable filters
+     */
+    async disableFilters(messageInfo) {
+        const { chat_jid } = messageInfo;
+        
+        const settings = {
+            enabled: false,
+            warnCount: 0,
+            kickAfterWarn: false
+        };
+        
+        this.saveGroupFilterSettings(chat_jid, settings);
+        
+        await this.bot.messageHandler.reply(messageInfo, '✅ Filter system disabled.');
+    }
+
+    /**
+     * Check word filters in message
+     */
+    async checkWordFilters(chatJid, messageText) {
+        const settings = this.getGroupFilterSettings(chatJid);
+        if (!settings.enabled) return null;
+        
+        const filters = this.getGroupFilters(chatJid);
+        if (filters.length === 0) return null;
+        
+        const lowerText = messageText.toLowerCase();
+        for (const filter of filters) {
+            if (lowerText.includes(filter)) {
+                return filter;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Handle filter violation
+     */
+    async handleFilterViolation(chatJid, senderJid, messageKey, violatedWord) {
+        try {
+            // Delete the message
+            await this.deleteMessage(chatJid, messageKey);
+            
+            const settings = this.getGroupFilterSettings(chatJid);
+            if (!settings.warnCount) return;
+            
+            // Add warning
+            const warningCount = await this.addWarningToUser(chatJid, senderJid, `Used filtered word: ${violatedWord}`);
+            
+            // Send warning message
+            const displayName = this.getDisplayName(senderJid);
+            let warningMessage = `⚠️ @${displayName} received a warning for using filtered word.\n`;
+            warningMessage += `Warnings: ${warningCount}/${settings.warnCount}`;
+            
+            await this.bot.sock.sendMessage(chatJid, {
+                text: warningMessage,
+                mentions: [senderJid]
+            });
+            
+            // Check if user should be kicked
+            if (settings.kickAfterWarn && warningCount >= settings.warnCount) {
+                await this.kickUserAfterWarnings(chatJid, senderJid);
+            }
+            
+        } catch (error) {
+            console.error('Error handling filter violation:', error);
+        }
+    }
+
+    // =================================================================
+    // WARNING SYSTEM IMPLEMENTATION
+    // =================================================================
+
+    /**
+     * Warn a user
+     */
+    async warnUser(messageInfo, targetJid) {
+        const { chat_jid } = messageInfo;
+        const warningCount = await this.addWarningToUser(chat_jid, targetJid, 'Manual warning by admin');
+        
+        const displayName = this.getDisplayName(targetJid);
+        await this.bot.sock.sendMessage(chat_jid, {
+            text: `⚠️ @${displayName} has been warned.\nTotal warnings: ${warningCount}`,
+            mentions: [targetJid]
+        });
+    }
+
+    /**
+     * Clear warnings for user
+     */
+    async clearWarnings(messageInfo, targetJid) {
+        const { chat_jid } = messageInfo;
+        this.clearUserWarnings(chat_jid, targetJid);
+        
+        const displayName = this.getDisplayName(targetJid);
+        await this.bot.sock.sendMessage(chat_jid, {
+            text: `✅ Cleared all warnings for @${displayName}`,
+            mentions: [targetJid]
+        });
+    }
+
+    /**
+     * List user warnings
+     */
+    async listWarnings(messageInfo, targetJid) {
+        const { chat_jid } = messageInfo;
+        const warnings = this.getUserWarnings(chat_jid, targetJid);
+        
+        const displayName = this.getDisplayName(targetJid);
+        
+        if (warnings.length === 0) {
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: `📄 @${displayName} has no warnings.`,
+                mentions: [targetJid]
+            });
+            return;
+        }
+        
+        let warningList = `📄 *Warnings for @${displayName}*\n\n`;
+        warnings.forEach((warning, index) => {
+            const date = new Date(warning.timestamp).toLocaleDateString();
+            warningList += `${index + 1}. ${warning.reason} (${date})\n`;
+        });
+        
+        await this.bot.sock.sendMessage(chat_jid, {
+            text: warningList,
+            mentions: [targetJid]
+        });
+    }
+
+    /**
+     * Show warning usage
+     */
+    async showWarnUsage(messageInfo) {
+        await this.bot.messageHandler.reply(messageInfo, 
+            `⚠️ *Warning System*\n\n` +
+            `*Usage:*\n` +
+            `• ${config.PREFIX}warn @user - Warn a user\n` +
+            `• ${config.PREFIX}warn clear @user - Clear warnings\n` +
+            `• ${config.PREFIX}warn list @user - View warnings`
+        );
+    }
+
+    // =================================================================
+    // ANTILINK SYSTEM IMPLEMENTATION
+    // =================================================================
+
+    /**
+     * Check if antilink is enabled for group
+     */
+    async isAntilinkEnabled(chatJid) {
+        const groupData = this.bot.database.getData('antilink_settings') || {};
+        return groupData[chatJid] || false;
+    }
+
+    /**
+     * Set antilink status for group
+     */
+    async setAntilinkStatus(chatJid, enabled) {
+        const groupData = this.bot.database.getData('antilink_settings') || {};
+        groupData[chatJid] = enabled;
+        this.bot.database.setData('antilink_settings', groupData);
+        
+        // Also update global .env setting
+        await this.updateEnvSetting('ANTILINK_ENABLED', enabled.toString());
+    }
+
+    /**
+     * Check if message contains links
+     */
+    containsLink(messageText) {
+        const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
+        return linkRegex.test(messageText);
+    }
+
+    /**
+     * Handle antilink violation
+     */
+    async handleAntilinkViolation(chatJid, senderJid, messageKey) {
+        try {
+            // Delete the message
+            await this.deleteMessage(chatJid, messageKey);
+            
+            // Send warning
+            const displayName = this.getDisplayName(senderJid);
+            await this.bot.sock.sendMessage(chatJid, {
+                text: `🚫 @${displayName} Links are not allowed in this group!`,
+                mentions: [senderJid]
+            });
+            
+        } catch (error) {
+            console.error('Error handling antilink violation:', error);
+        }
+    }
+
+    // =================================================================
+    // MUTE SYSTEM IMPLEMENTATION
+    // =================================================================
+
+    /**
+     * Check if user is muted
+     */
+    async isUserMuted(chatJid, userJid) {
+        const mutedUsers = this.bot.database.getData('muted_users') || {};
+        const groupMutes = mutedUsers[chatJid] || {};
+        const muteData = groupMutes[userJid];
+        
+        if (!muteData) return false;
+        
+        // Check if mute has expired
+        if (Date.now() > muteData.expiresAt) {
+            // Remove expired mute
+            delete groupMutes[userJid];
+            this.bot.database.setData('muted_users', mutedUsers);
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Mute a user
+     */
+    async muteUser(messageInfo, targetJid, durationMinutes) {
+        const { chat_jid } = messageInfo;
+        
+        const mutedUsers = this.bot.database.getData('muted_users') || {};
+        if (!mutedUsers[chat_jid]) mutedUsers[chat_jid] = {};
+        
+        const expiresAt = Date.now() + (durationMinutes * 60 * 1000);
+        mutedUsers[chat_jid][targetJid] = {
+            mutedAt: Date.now(),
+            expiresAt: expiresAt,
+            duration: durationMinutes
+        };
+        
+        this.bot.database.setData('muted_users', mutedUsers);
+        
+        const displayName = this.getDisplayName(targetJid);
+        const durationText = this.formatDuration(durationMinutes);
+        
+        await this.bot.sock.sendMessage(chat_jid, {
+            text: `🔇 @${displayName} has been muted for ${durationText}.`,
+            mentions: [targetJid]
+        });
+    }
+
+    /**
+     * Unmute a user
+     */
+    async unmuteUser(messageInfo, targetJid) {
+        const { chat_jid } = messageInfo;
+        
+        const mutedUsers = this.bot.database.getData('muted_users') || {};
+        if (!mutedUsers[chat_jid] || !mutedUsers[chat_jid][targetJid]) {
+            const displayName = this.getDisplayName(targetJid);
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: `❌ @${displayName} is not muted.`,
+                mentions: [targetJid]
+            });
+            return;
+        }
+        
+        delete mutedUsers[chat_jid][targetJid];
+        this.bot.database.setData('muted_users', mutedUsers);
+        
+        const displayName = this.getDisplayName(targetJid);
+        await this.bot.sock.sendMessage(chat_jid, {
+            text: `🔊 @${displayName} has been unmuted.`,
+            mentions: [targetJid]
+        });
+    }
+
+    /**
+     * Parse duration string
+     */
+    parseDuration(durationStr) {
+        const match = durationStr.match(/(\d+)([smhd]?)/i);
+        if (!match) return 60; // default 1 hour
+        
+        const value = parseInt(match[1]);
+        const unit = (match[2] || 'm').toLowerCase();
+        
+        switch (unit) {
+            case 's': return Math.max(1, Math.floor(value / 60)); // convert seconds to minutes, min 1
+            case 'm': return value;
+            case 'h': return value * 60;
+            case 'd': return value * 60 * 24;
+            default: return value;
+        }
+    }
+
+    /**
+     * Format duration for display
+     */
+    formatDuration(minutes) {
+        if (minutes < 60) {
+            return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+        } else if (minutes < 1440) {
+            const hours = Math.floor(minutes / 60);
+            return `${hours} hour${hours !== 1 ? 's' : ''}`;
+        } else {
+            const days = Math.floor(minutes / 1440);
+            return `${days} day${days !== 1 ? 's' : ''}`;
+        }
+    }
+
+    // =================================================================
+    // UTILITY METHODS
+    // =================================================================
+
+    /**
+     * Check if user is admin
+     */
+    async isUserAdmin(chatJid, userJid) {
+        try {
+            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
+            const participant = groupMetadata.participants.find(p => p.id === userJid);
+            return participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Get target user from message
+     */
+    getTargetUser(messageInfo) {
+        const { message } = messageInfo;
+        
+        // Check for quoted message first
+        const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        if (quotedMessage) {
+            const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+            if (quotedParticipant) {
+                return quotedParticipant;
+            }
+        }
+        
+        // Check for mentions
+        if (message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+            return message.extendedTextMessage.contextInfo.mentionedJid[0];
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get display name for user
+     */
+    getDisplayName(userJid) {
+        let displayName = userJid;
+        if (displayName.includes('@lid')) {
+            displayName = displayName.split('@')[0];
+        } else if (displayName.includes('@s.whatsapp.net')) {
+            displayName = displayName.replace('@s.whatsapp.net', '');
+        }
+        return displayName;
+    }
+
+    /**
+     * Delete a message
+     */
+    async deleteMessage(chatJid, messageKey) {
+        try {
+            await this.bot.sock.sendMessage(chatJid, { delete: messageKey });
+        } catch (error) {
+            console.error('Error deleting message:', error);
+        }
+    }
+
+    /**
+     * Get group filters
+     */
+    getGroupFilters(chatJid) {
+        const allFilters = this.bot.database.getData('filters') || {};
+        return allFilters[chatJid] || [];
+    }
+
+    /**
+     * Save group filters
+     */
+    saveGroupFilters(chatJid, filters) {
+        const allFilters = this.bot.database.getData('filters') || {};
+        allFilters[chatJid] = filters;
+        this.bot.database.setData('filters', allFilters);
+    }
+
+    /**
+     * Get group filter settings
+     */
+    getGroupFilterSettings(chatJid) {
+        const allSettings = this.bot.database.getData('filter_settings') || {};
+        return allSettings[chatJid] || { enabled: false, warnCount: 0, kickAfterWarn: false };
+    }
+
+    /**
+     * Save group filter settings
+     */
+    saveGroupFilterSettings(chatJid, settings) {
+        const allSettings = this.bot.database.getData('filter_settings') || {};
+        allSettings[chatJid] = settings;
+        this.bot.database.setData('filter_settings', allSettings);
+    }
+
+    /**
+     * Add warning to user
+     */
+    async addWarningToUser(chatJid, userJid, reason) {
+        const allWarnings = this.bot.database.getData('warnings') || {};
+        if (!allWarnings[chatJid]) allWarnings[chatJid] = {};
+        if (!allWarnings[chatJid][userJid]) allWarnings[chatJid][userJid] = [];
+        
+        allWarnings[chatJid][userJid].push({
+            reason: reason,
+            timestamp: Date.now()
+        });
+        
+        this.bot.database.setData('warnings', allWarnings);
+        return allWarnings[chatJid][userJid].length;
+    }
+
+    /**
+     * Get user warnings
+     */
+    getUserWarnings(chatJid, userJid) {
+        const allWarnings = this.bot.database.getData('warnings') || {};
+        return allWarnings[chatJid]?.[userJid] || [];
+    }
+
+    /**
+     * Clear user warnings
+     */
+    clearUserWarnings(chatJid, userJid) {
+        const allWarnings = this.bot.database.getData('warnings') || {};
+        if (allWarnings[chatJid]) {
+            delete allWarnings[chatJid][userJid];
+            this.bot.database.setData('warnings', allWarnings);
+        }
+    }
+
+    /**
+     * Kick user after reaching warning limit
+     */
+    async kickUserAfterWarnings(chatJid, userJid) {
+        try {
+            await this.bot.sock.groupParticipantsUpdate(chatJid, [userJid], 'remove');
+            
+            const displayName = this.getDisplayName(userJid);
+            await this.bot.sock.sendMessage(chatJid, {
+                text: `🚫 @${displayName} has been kicked for exceeding warning limits.`,
+                mentions: [userJid]
+            });
+            
+            // Clear warnings after kick
+            this.clearUserWarnings(chatJid, userJid);
+            
+        } catch (error) {
+            console.error('Error kicking user after warnings:', error);
+        }
+    }
+
+    /**
+     * Show filter usage
+     */
+    async showFilterUsage(messageInfo) {
+        await this.bot.messageHandler.reply(messageInfo, 
+            `📝 *Filter System Usage*\n\n` +
+            `*Commands:*\n` +
+            `• ${config.PREFIX}filter - Show current filters\n` +
+            `• ${config.PREFIX}filter add <word> - Add word filter\n` +
+            `• ${config.PREFIX}filter remove <word> - Remove filter\n` +
+            `• ${config.PREFIX}filter on - Enable delete only\n` +
+            `• ${config.PREFIX}filter on 3warn - Enable with 3 warnings\n` +
+            `• ${config.PREFIX}filter on 3warn kick - Enable with warnings + kick\n` +
+            `• ${config.PREFIX}filter off - Disable filtering`
+        );
     }
 
     /**
