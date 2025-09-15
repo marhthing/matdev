@@ -5,8 +5,10 @@
 
 const config = require('../config');
 const Utils = require('../lib/utils');
+const Typography = require('../lib/typography');
 
 const utils = new Utils();
+const typography = new Typography();
 
 class CorePlugin {
     constructor() {
@@ -159,6 +161,15 @@ class CorePlugin {
             usage: `${config.PREFIX}pp [tag an image or add to image caption]`,
             category: 'admin',
             ownerOnly: true
+        });
+
+        // Style command for theme switching
+        this.bot.messageHandler.registerCommand('style', this.styleCommand.bind(this), {
+            description: 'Change menu theme style',
+            usage: `${config.PREFIX}style [theme]`,
+            category: 'utility',
+            plugin: 'core',
+            source: 'core.js'
         });
     }
 
@@ -433,10 +444,14 @@ class CorePlugin {
                 processedCommands.add(cmd.name);
             });
 
-            // Create unique MATDEV CleanWire style
-            let menuText = `⟫ MATDEV ⟪\n\n`;
+            // Get current theme (default to neosans)
+            const currentTheme = this.bot.currentMenuTheme || 'neosans';
+            const theme = typography.getTheme(currentTheme);
             
-            // System info with clean bullet points
+            // Create styled menu using typography system
+            let menuText = typography.formatHeader('MATDEV', theme) + '\n\n';
+            
+            // System info with themed styling
             menuText += `• Prefix: ${config.PREFIX}\n`;
             menuText += `• User: ${botName}\n`;
             menuText += `• Time: ${currentTime}\n`;
@@ -451,17 +466,18 @@ class CorePlugin {
             for (const [category, cmds] of Object.entries(categories)) {
                 const categoryName = category.toLowerCase();
 
-                menuText += `— ${categoryName} —\n`;
+                menuText += typography.formatCategory(categoryName, theme) + '\n';
                 
                 cmds.forEach(cmd => {
-                    menuText += `› ${cmd.name.toUpperCase()}\n`;
+                    menuText += typography.formatCommand(cmd.name.toUpperCase(), theme) + '\n';
                 });
                 
                 menuText += `\n`;
             }
 
             // Clean footer
-            menuText += `Type ${config.PREFIX}help <command> for details!\n\n`;
+            menuText += `Type ${config.PREFIX}help <command> for details!\n`;
+            menuText += `Current theme: ${theme.name}\n\n`;
             menuText += `*Powered by MATDEV*`;
 
             await this.bot.messageHandler.reply(messageInfo, menuText);
@@ -469,6 +485,60 @@ class CorePlugin {
         } catch (error) {
             console.error('Error in menu command:', error);
             await this.bot.messageHandler.reply(messageInfo, 'Failed to generate menu');
+        }
+    }
+
+    /**
+     * Style command handler - switch menu themes
+     */
+    async styleCommand(messageInfo) {
+        try {
+            const { args } = messageInfo;
+
+            if (args.length === 0) {
+                // Show available themes
+                const themes = typography.getAvailableThemes();
+                const currentTheme = this.bot.currentMenuTheme || 'neosans';
+                
+                let response = `*Available Menu Themes:*\n\n`;
+                
+                themes.forEach(themeName => {
+                    const theme = typography.getTheme(themeName);
+                    const indicator = themeName === currentTheme ? '→ ' : '  ';
+                    response += `${indicator}*${theme.name}* - ${theme.description}\n`;
+                });
+                
+                response += `\nCurrent: *${typography.getTheme(currentTheme).name}*\n`;
+                response += `\nUse: ${config.PREFIX}style <theme> to switch`;
+                
+                await this.bot.messageHandler.reply(messageInfo, response);
+                return;
+            }
+
+            const requestedTheme = args[0].toLowerCase();
+            const availableThemes = typography.getAvailableThemes();
+            
+            if (!availableThemes.includes(requestedTheme)) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Unknown theme: *${requestedTheme}*\n\n` +
+                    `Available themes: ${availableThemes.join(', ')}`
+                );
+                return;
+            }
+
+            // Set the new theme
+            this.bot.currentMenuTheme = requestedTheme;
+            const theme = typography.getTheme(requestedTheme);
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Menu theme changed to *${theme.name}*\n\n` +
+                `${theme.description}\n\n` +
+                `Use ${config.PREFIX}menu to see the new style!`
+            );
+
+        } catch (error) {
+            console.error('Error in style command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error changing theme.');
         }
     }
 
