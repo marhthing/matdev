@@ -1307,10 +1307,10 @@ class CorePlugin {
                 // Set the bot's bio/status
                 await this.bot.sock.updateProfileStatus(bioText);
                 
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `✅ *Bot bio updated successfully!*\n\n` +
-                    `📝 *New Bio:* ${bioText}`
-                );
+                // await this.bot.messageHandler.reply(messageInfo, 
+                //     `✅ *Bot bio updated successfully!*\n\n` +
+                //     `📝 *New Bio:* ${bioText}`
+                // );
 
             } catch (error) {
                 console.error('Error setting bot bio:', error);
