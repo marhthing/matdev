@@ -1,16 +1,15 @@
 /**
- * MATDEV World Time Plugin
- * Extended time functionality with support for multiple countries and timezones
+ * MATDEV Time Plugin
+ * Consolidated time functionality with subcommands
  */
 
 const config = require('../config');
-const axios = require('axios');
 const moment = require('moment-timezone');
 
-class WorldTimePlugin {
+class TimePlugin {
     constructor() {
-        this.name = 'worldtime';
-        this.description = 'World time and timezone information';
+        this.name = 'time';
+        this.description = 'Time and timezone commands';
         this.version = '1.0.0';
         
         // Country code to timezone mapping
@@ -154,88 +153,108 @@ class WorldTimePlugin {
         this.bot = bot;
         this.registerCommands();
 
-        console.log('✅ World Time plugin loaded');
+        console.log('✅ Time plugin loaded');
     }
 
     /**
      * Register commands
      */
     registerCommands() {
-        // Override the existing time command with extended functionality
-        this.bot.messageHandler.registerCommand('time', this.worldTimeCommand.bind(this), {
-            description: 'Show world time for any country/city',
-            usage: `${config.PREFIX}time [country/city code]`,
+        // Main time command with subcommands
+        this.bot.messageHandler.registerCommand('time', this.timeCommand.bind(this), {
+            description: 'Time commands - .time, .time world, .time zones',
+            usage: `${config.PREFIX}time [world|zones|country]`,
             category: 'time',
-            plugin: 'worldtime',
-            source: 'worldtime.js'
+            plugin: 'time',
+            source: 'time.js'
         });
-
-        // World clock command
-        this.bot.messageHandler.registerCommand('worldclock', this.worldClockCommand.bind(this), {
-            description: 'Show multiple world times at once',
-            usage: `${config.PREFIX}worldclock`,
-            category: 'time',
-            plugin: 'worldtime',
-            source: 'worldtime.js'
-        });
-
-
-        // Timezones command
-        this.bot.messageHandler.registerCommand('timezones', this.timezonesCommand.bind(this), {
-            description: 'List all available timezone codes',
-            usage: `${config.PREFIX}timezones`,
-            category: 'time',
-            plugin: 'worldtime',
-            source: 'worldtime.js'
-        });
-
-
-        
     }
 
     /**
-     * Extended world time command
+     * Main time command handler
      */
-    async worldTimeCommand(messageInfo) {
+    async timeCommand(messageInfo) {
         try {
-            // If no arguments, show bot's default time (existing behavior)
-            if (!messageInfo.args.length) {
+            const { args } = messageInfo;
+
+            // No arguments - show Lagos time
+            if (args.length === 0) {
                 return await this.showBotTime(messageInfo);
             }
 
-            const location = messageInfo.args[0].toUpperCase();
-            const timezone = this.getTimezone(location);
+            const subcommand = args[0].toLowerCase();
 
-            if (!timezone) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Unknown location: *${location}*\n\n` +
-                    `💡 Try using:\n` +
-                    `• Country codes: US, UK, IN, JP, etc.\n` +
-                    `• City names: LONDON, TOKYO, DUBAI, etc.\n\n` +
-                    `Use *${config.PREFIX}timezones* to see all available codes.`
-                );
-                return;
+            // Handle subcommands
+            if (subcommand === 'world') {
+                return await this.worldClockCommand(messageInfo);
+            } else if (subcommand === 'zones') {
+                return await this.timezonesCommand(messageInfo);
+            } else {
+                // Try to interpret as country/city code
+                const location = args[0].toUpperCase();
+                const timezone = this.getTimezone(location);
+
+                if (!timezone) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Unknown location: *${location}*\n\n` +
+                        `💡 Available commands:\n` +
+                        `• ${config.PREFIX}time - Current Lagos time\n` +
+                        `• ${config.PREFIX}time world - World clock\n` +
+                        `• ${config.PREFIX}time zones - Available timezone codes\n` +
+                        `• ${config.PREFIX}time <country> - Specific country time\n\n` +
+                        `Example: ${config.PREFIX}time UK`
+                    );
+                    return;
+                }
+
+                const timeData = await this.getTimeForTimezone(timezone, location);
+                await this.bot.messageHandler.reply(messageInfo, timeData);
             }
 
-            const timeData = await this.getTimeForTimezone(timezone, location);
-            await this.bot.messageHandler.reply(messageInfo, timeData);
-
         } catch (error) {
-            console.error('Error in worldTimeCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error getting time information: ' + error.message);
+            console.error('Error in timeCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving time information.');
         }
     }
 
     /**
-     * Show bot's default time (original functionality)
+     * Show bot's default time (Lagos time)
      */
     async showBotTime(messageInfo) {
         const lagosTime = moment().tz(config.TIMEZONE);
-        const utcTime = moment().utc();
-
         const timeInfo = `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}`;
-
         await this.bot.messageHandler.reply(messageInfo, timeInfo);
+    }
+
+    /**
+     * World clock command - show multiple times
+     */
+    async worldClockCommand(messageInfo) {
+        try {
+            const majorTimezones = [
+                { name: 'Lagos 🇳🇬', zone: 'Africa/Lagos' },
+                { name: 'London 🇬🇧', zone: 'Europe/London' },
+                { name: 'New York 🇺🇸', zone: 'America/New_York' },
+                { name: 'Tokyo 🇯🇵', zone: 'Asia/Tokyo' },
+                { name: 'Dubai 🇦🇪', zone: 'Asia/Dubai' },
+                { name: 'Sydney 🇦🇺', zone: 'Australia/Sydney' }
+            ];
+
+            let response = `🌍 *WORLD CLOCK*\n\n`;
+            
+            for (const tz of majorTimezones) {
+                const time = moment().tz(tz.zone);
+                response += `${tz.name}: ${time.format('HH:mm')} (${time.format('DD/MM')})\n`;
+            }
+
+            response += `\n🕐 *Updated:* ${moment().tz(config.TIMEZONE).format('HH:mm DD/MM/YYYY')}\n`;
+            response += `💡 Use *${config.PREFIX}time <country>* for specific locations`;
+
+            await this.bot.messageHandler.reply(messageInfo, response);
+        } catch (error) {
+            console.error('Error in worldClockCommand:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying world clock: ' + error.message);
+        }
     }
 
     /**
@@ -279,39 +298,6 @@ class WorldTimePlugin {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error listing timezones: ' + error.message);
         }
     }
-
-    /**
-     * World clock command - show multiple times
-     */
-    async worldClockCommand(messageInfo) {
-        try {
-            const majorTimezones = [
-                { name: 'Lagos 🇳🇬', zone: 'Africa/Lagos' },
-                { name: 'London 🇬🇧', zone: 'Europe/London' },
-                { name: 'New York 🇺🇸', zone: 'America/New_York' },
-                { name: 'Tokyo 🇯🇵', zone: 'Asia/Tokyo' },
-                { name: 'Dubai 🇦🇪', zone: 'Asia/Dubai' },
-                { name: 'Sydney 🇦🇺', zone: 'Australia/Sydney' }
-            ];
-
-            let response = `🌍 *WORLD CLOCK*\n\n`;
-            
-            for (const tz of majorTimezones) {
-                const time = moment().tz(tz.zone);
-                response += `${tz.name}: ${time.format('HH:mm')} (${time.format('DD/MM')})\n`;
-            }
-
-            response += `\n🕐 *Updated:* ${moment().tz(config.TIMEZONE).format('HH:mm DD/MM/YYYY')}\n`;
-            response += `💡 Use *${config.PREFIX}time <country>* for specific locations`;
-
-            await this.bot.messageHandler.reply(messageInfo, response);
-        } catch (error) {
-            console.error('Error in worldClockCommand:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying world clock: ' + error.message);
-        }
-    }
-
-    
 
     /**
      * Get timezone for location
@@ -376,24 +362,12 @@ class WorldTimePlugin {
 
         return flags[location] || '🌍';
     }
-
-    /**
-     * Calculate time difference between two moments
-     */
-    getTimeDifference(time1, time2) {
-        const diff = Math.abs(time1.diff(time2, 'hours', true));
-        if (diff < 1) {
-            const minutes = Math.abs(time1.diff(time2, 'minutes'));
-            return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-        }
-        return `${Math.round(diff)} hour${Math.round(diff) !== 1 ? 's' : ''}`;
-    }
 }
 
 // Export function for plugin initialization
 module.exports = {
     init: async (bot) => {
-        const plugin = new WorldTimePlugin();
+        const plugin = new TimePlugin();
         await plugin.init(bot);
         return plugin;
     }
