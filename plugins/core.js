@@ -433,67 +433,51 @@ class CorePlugin {
                 processedCommands.add(cmd.name);
             });
 
-            // Create modern menu design with better styling
-            let menuText = `╭─────────────────────────────────────╮\n`;
-            menuText += `│    🤖 *MATDEV BOT MENU* 🤖         │\n`;
+            // Create menu design with monospace font and no emojis
+            let menuText = `\`\`\``;
+            menuText += `╭─────────────────────────────────────╮\n`;
+            menuText += `│         *MATDEV BOT MENU*           │\n`;
             menuText += `╰─────────────────────────────────────╯\n\n`;
 
-            // System info section with modern boxes
-            menuText += `┌─ 📊 *SYSTEM STATUS* ─┐\n`;
-            menuText += `├─ ⚡ Prefix: ${config.PREFIX}\n`;
-            menuText += `├─ 👤 Owner: ${botName}\n`;
-            menuText += `├─ 🕐 Time: ${currentTime}\n`;
-            menuText += `├─ 📅 Day: ${currentDay}\n`;
-            menuText += `├─ 📆 Date: ${currentDate}\n`;
-            menuText += `├─ 🔧 Version: 1.0.0\n`;
-            menuText += `├─ 🧩 Commands: ${commands.length}\n`;
-            menuText += `├─ 🧠 Memory: ${usedMemMB}/${totalMemMB}MB\n`;
-            menuText += `├─ ⏰ Uptime: ${botUptime}\n`;
-            menuText += `└─ 💻 Platform: ${platformName} (${systemInfo.arch})\n`;
+            // System info section
+            menuText += `┌─ *SYSTEM STATUS* ─┐\n`;
+            menuText += `├─ Prefix: ${config.PREFIX}\n`;
+            menuText += `├─ Owner: ${botName}\n`;
+            menuText += `├─ Time: ${currentTime}\n`;
+            menuText += `├─ Day: ${currentDay}\n`;
+            menuText += `├─ Date: ${currentDate}\n`;
+            menuText += `├─ Version: 1.0.0\n`;
+            menuText += `├─ Commands: ${commands.length}\n`;
+            menuText += `├─ Memory: ${usedMemMB}/${totalMemMB}MB\n`;
+            menuText += `├─ Uptime: ${botUptime}\n`;
+            menuText += `└─ Platform: ${platformName} (${systemInfo.arch})\n`;
             menuText += `└─────────────────────────────────┘\n\n`;
 
-            // Command categories with icons
-            const categoryIcons = {
-                'core': '🔥',
-                'admin': '👑',
-                'media': '📸',
-                'system': '⚙️',
-                'privacy': '🛡️',
-                'status': '📱',
-                'utility': '🔧',
-                'automation': '🤖',
-                'group': '👥',
-                'ai': '🧠',
-                'fun': '🎮',
-                'time': '🕐',
-                'download': '⬇️'
-            };
-
             for (const [category, cmds] of Object.entries(categories)) {
-                const icon = categoryIcons[category] || '📋';
                 const categoryName = category.toUpperCase();
 
-                menuText += `${icon} *${categoryName} COMMANDS:*\n`;
+                menuText += `*${categoryName} COMMANDS:*\n`;
                 
                 cmds.forEach(cmd => {
-                    menuText += `▸ ${cmd.name}\n`;
+                    menuText += `> ${cmd.name}\n`;
                 });
                 
                 menuText += `\n`;
             }
 
-            // Footer with modern styling
+            // Footer
             menuText += `╭─────────────────────────────────────╮\n`;
             menuText += `│  Type ${config.PREFIX}help <command> for details!  │\n`;
             menuText += `│                                     │\n`;
-            menuText += `│    *Powered by MATDEV* ⚡           │\n`;
+            menuText += `│        *Powered by MATDEV*          │\n`;
             menuText += `╰─────────────────────────────────────╯`;
+            menuText += `\`\`\``;
 
             await this.bot.messageHandler.reply(messageInfo, menuText);
 
         } catch (error) {
             console.error('Error in menu command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to generate menu');
+            await this.bot.messageHandler.reply(messageInfo, 'Failed to generate menu');
         }
     }
 
