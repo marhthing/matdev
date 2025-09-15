@@ -251,30 +251,14 @@ class ScheduleStatusPlugin {
 
         // Register status scheduling command
         this.bot.messageHandler.registerCommand('scstatus', this.scheduleStatusCommand.bind(this), {
-            description: 'Schedule a status update or list pending status schedules',
-            usage: `${config.PREFIX}scstatus [dd:mm:yyyy hh:mm <text>] or reply to media`,
+            description: 'Schedule a status update, list pending schedules, or cancel schedules',
+            usage: `${config.PREFIX}scstatus [dd:mm:yyyy hh:mm <text>] | ${config.PREFIX}scstatus cancel <id>`,
             category: 'status',
             plugin: 'schedulestatus',
             source: 'schedulestatus.js'
         });
 
-        // Register cancel status schedule command
-        this.bot.messageHandler.registerCommand('cancelstatus', this.cancelStatusSchedule.bind(this), {
-            description: 'Cancel a scheduled status',
-            usage: `${config.PREFIX}cancelstatus <schedule_id>`,
-            category: 'status',
-            plugin: 'schedulestatus',
-            source: 'schedulestatus.js'
-        });
-
-        // Register list status schedules command
-        this.bot.messageHandler.registerCommand('statusschedules', this.listStatusSchedules.bind(this), {
-            description: 'List all pending status schedules',
-            usage: `${config.PREFIX}statusschedules`,
-            category: 'status',
-            plugin: 'schedulestatus',
-            source: 'schedulestatus.js'
-        });
+        
     }
 
     /**
@@ -363,10 +347,16 @@ class ScheduleStatusPlugin {
             return;
         }
         
+        // Check if first argument is "cancel"
+        if (args[0].toLowerCase() === 'cancel') {
+            await this.cancelStatusSchedule(messageInfo, args.slice(1));
+            return;
+        }
+        
         // Ensure args has minimum required length for scheduling
         if (args.length < 2) {
             await this.bot.sock.sendMessage(fromJid, { 
-                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm <text>\n\n*Or reply to media:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm [caption]\n\n*Example:*\n${config.PREFIX}scstatus 25:12:2024 15:30 Happy New Year!\n\n*List schedules:*\n${config.PREFIX}statusschedules` 
+                text: `❌ Invalid format!\n\n*Usage:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm <text>\n${config.PREFIX}scstatus cancel <id>\n\n*Or reply to media:*\n${config.PREFIX}scstatus dd:mm:yyyy hh:mm [caption]\n\n*Example:*\n${config.PREFIX}scstatus 25:12:2024 15:30 Happy New Year!\n\n*List schedules:*\n${config.PREFIX}scstatus` 
             });
             return;
         }
@@ -522,7 +512,7 @@ class ScheduleStatusPlugin {
         }
         
         response += `\n💡 *Commands:*\n`;
-        response += `${config.PREFIX}cancelstatus <id> - Cancel schedule\n`;
+        response += `${config.PREFIX}scstatus cancel <id> - Cancel schedule\n`;
         response += `${config.PREFIX}setstatus <text> - Post status now`;
         
         await this.bot.sock.sendMessage(fromJid, { text: response });
@@ -531,18 +521,18 @@ class ScheduleStatusPlugin {
     /**
      * Cancel a scheduled status
      */
-    async cancelStatusSchedule(messageInfo) {
-        const { args, chat_jid } = messageInfo || {};
+    async cancelStatusSchedule(messageInfo, cancelArgs) {
+        const { chat_jid } = messageInfo || {};
         const fromJid = chat_jid;
         
-        if (!args || args.length === 0) {
+        if (!cancelArgs || cancelArgs.length === 0) {
             await this.bot.sock.sendMessage(fromJid, { 
-                text: `❌ Please provide a schedule ID!\n\nUsage: ${config.PREFIX}cancelstatus <schedule_id>` 
+                text: `❌ Please provide a schedule ID!\n\nUsage: ${config.PREFIX}scstatus cancel <schedule_id>` 
             });
             return;
         }
         
-        const scheduleId = args[0];
+        const scheduleId = cancelArgs[0];
         
         if (this.statusSchedules.has(scheduleId)) {
             const schedule = this.statusSchedules.get(scheduleId);
@@ -567,7 +557,7 @@ class ScheduleStatusPlugin {
             console.log(`🗑️  Status schedule cancelled: ${scheduleId}`);
         } else {
             await this.bot.sock.sendMessage(fromJid, { 
-                text: `❌ Schedule ID not found: ${scheduleId}\n\nUse ${config.PREFIX}statusschedules to see all pending schedules.` 
+                text: `❌ Schedule ID not found: ${scheduleId}\n\nUse ${config.PREFIX}scstatus to see all pending schedules.` 
             });
         }
     }
