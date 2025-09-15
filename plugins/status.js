@@ -553,11 +553,9 @@ class StatusPlugin {
                     `⏰ Delayed (${this.statusSettings.statusReactionDelay.min/1000}s-${this.statusSettings.statusReactionDelay.max/60000}min)` : 
                     '⚡ Instant';
                 
-                const response = `*👁️ STATUS AUTO REACT STATUS*\n\n` +
+                const response = `*STATUS AUTO REACT STATUS*\n\n` +
                     `*Status:* ${this.statusSettings.statusReactEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
-                    `*Timing:* ${delayStatus}\n` +
-                    `*Reactions:* ${this.statusReactions.join('')}\n` +
-                    `*Cache:* ${this.reactedStatuses.size} statuses\n\n` +
+                    `*Timing:* ${delayStatus}\n\n` +
                     `*Commands:*\n` +
                     `${config.PREFIX}reactstatus on/off/delay/nodelay`;
                 
