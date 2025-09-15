@@ -102,25 +102,53 @@ class CompressPlugin {
                 return;
             }
 
-            // Check for quoted video message
+            // Check for quoted video message or MP4 document
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
 
-            if (!quotedMessage || !quotedMessage.videoMessage) {
+            if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a video message to compress it.'
+                    '❌ Please reply to a video message or MP4 document to compress it.'
                 );
                 return;
             }
 
-            // Send processing message
+            // Detect media type - video message or MP4 document
+            let mediaType = null;
+            let isDocument = false;
+            
+            if (quotedMessage.videoMessage) {
+                mediaType = 'videoMessage';
+            } else if (quotedMessage.documentMessage) {
+                const mimeType = quotedMessage.documentMessage.mimetype || '';
+                const fileName = quotedMessage.documentMessage.fileName || '';
+                
+                // Check if document is MP4 video
+                if (mimeType.includes('video/mp4') || fileName.toLowerCase().endsWith('.mp4')) {
+                    mediaType = 'documentMessage';
+                    isDocument = true;
+                } else {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Document must be an MP4 video file. Please reply to a video message or MP4 document.'
+                    );
+                    return;
+                }
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a video message or MP4 document to compress it.'
+                );
+                return;
+            }
+
+            // Send processing message with document detection info
+            const sourceInfo = isDocument ? 'MP4 document (quality preserved)' : 'video message';
             await this.bot.messageHandler.reply(messageInfo, 
-                `🔄 Compressing video to ${this.resolutions[requestedResolution].name}...\n` +
-                `⚙️ Settings: 30 FPS, optimized bitrate, size optimized`
+                `🔄 Compressing ${sourceInfo} to ${this.resolutions[requestedResolution].name}...\n` +
+                `⚙️ Settings: 30 FPS, smart compression, size optimized`
             );
 
-            // Download video
-            const buffer = await this.downloadMediaRobust(messageInfo, quotedMessage, 'videoMessage');
+            // Download video or document
+            const buffer = await this.downloadMediaRobust(messageInfo, quotedMessage, mediaType);
 
             if (!buffer) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -179,24 +207,48 @@ class CompressPlugin {
             const compressionRatio = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
             const sizeMB = (compressedSize / (1024 * 1024)).toFixed(2);
 
-            // Prepare caption with potential size warning
-            let caption = `✅ Video compressed to ${this.resolutions[requestedResolution].name}\n` +
+            // Prepare caption with compression info
+            const sourceType = isDocument ? 'document' : 'video';
+            const compressionModeInfo = {
+                'aggressive': '🔥 Aggressive compression for size',
+                'balanced': '⚖️ Balanced size/quality',
+                'quality': '🎯 Quality-focused compression', 
+                'high-quality': '✨ High-quality compression',
+                'preset': '📐 Standard compression'
+            };
+            
+            let caption = `✅ ${sourceType.charAt(0).toUpperCase() + sourceType.slice(1)} compressed to ${this.resolutions[requestedResolution].name}\n` +
                          `📊 Original: ${(originalSize / (1024 * 1024)).toFixed(2)} MB\n` +
                          `📊 Compressed: ${sizeMB} MB\n` +
                          `📈 Savings: ${compressionRatio}%\n` +
-                         `⚙️ Settings: 30 FPS, ${optimalBitrate.video}k video bitrate`;
+                         `⚙️ Settings: 30 FPS, ${optimalBitrate.video}k video, ${optimalBitrate.audio}k audio\n` +
+                         `🎛️ Mode: ${compressionModeInfo[optimalBitrate.compressionMode] || 'Standard'}`;
 
-            // Add warning if backend bitrate range was prioritized over file size target
-            if (optimalBitrate.sizeWarning) {
-                caption += `\n\n⚠️ Note: Used minimum backend bitrate (${optimalBitrate.video}k) - file may exceed target size for quality preservation.`;
+            // Add specific warnings based on compression mode
+            if (optimalBitrate.sizeWarning || optimalBitrate.compressionMode === 'aggressive') {
+                caption += `\n\n⚠️ Note: Aggressive compression applied to meet size target - some quality loss expected.`;
+            }
+            
+            if (isDocument) {
+                caption += `\n\n📄 Original was sent as document - quality preserved in compression.`;
             }
 
-            // Send compressed video with statistics
-            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                video: { url: outputPath },
-                mimetype: 'video/mp4',
-                caption: caption
-            });
+            // Send compressed video as document to preserve quality (like original if it was document)
+            if (isDocument || compressedSize > 15 * 1024 * 1024) { // Send as document if >15MB or original was document
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    document: { url: outputPath },
+                    mimetype: 'video/mp4',
+                    fileName: `compressed_${requestedResolution}_${timestamp}.mp4`,
+                    caption: caption + `\n\n📄 Sent as document to preserve quality`
+                });
+            } else {
+                // Send as regular video message
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    video: { url: outputPath },
+                    mimetype: 'video/mp4',
+                    caption: caption
+                });
+            }
 
         } catch (error) {
             console.error('Video compression error:', error);
@@ -262,38 +314,63 @@ class CompressPlugin {
     calculateOptimalBitrate(resolution, durationSeconds) {
         const baseBitrate = this.bitrateConfig[resolution];
         
-        // For 1-1.5 minute videos, calculate target file size (8-10 MB total)
-        if (durationSeconds > 0 && durationSeconds >= 60 && durationSeconds <= 90) {
-            // Linear interpolation: 60s → 8MB, 90s → 10MB
-            const targetFileSizeMB = 8 + ((durationSeconds - 60) / 30) * 2;
-            const targetBitrateBitsPerSecond = (targetFileSizeMB * 8 * 1024 * 1024) / durationSeconds;
-            const targetBitrateKbps = Math.floor(targetBitrateBitsPerSecond / 1000);
+        // Smart balancing: Prioritize file size but maintain reasonable quality
+        if (durationSeconds > 0) {
+            let targetFileSizeMB;
             
-            // Reserve audio bitrate
-            const availableForVideo = targetBitrateKbps - baseBitrate.audio;
-            
-            // Check if file size target conflicts with backend bitrate minimum
-            if (availableForVideo < 5000) {
-                // Conflict: Cannot meet both 5,000 kbps minimum and file size target
-                // Use backend minimum and notify user
-                return {
-                    video: baseBitrate.video,
-                    audio: baseBitrate.audio,
-                    sizeWarning: true
-                };
+            // Calculate target file size based on duration
+            if (durationSeconds <= 90) {
+                // For videos ≤ 1.5 min: 8-10 MB target (prioritize file size)
+                targetFileSizeMB = Math.min(10, Math.max(8, 6 + (durationSeconds / 60) * 2));
+            } else {
+                // For longer videos: allow larger size but still optimize
+                const minutes = durationSeconds / 60;
+                targetFileSizeMB = Math.min(50, 8 + (minutes - 1.5) * 4); // ~12MB per additional minute
             }
             
-            // Use file size optimized bitrate within backend range
-            const optimalVideoBitrate = Math.max(5000, Math.min(baseBitrate.video, availableForVideo));
+            const targetBitrateBitsPerSecond = (targetFileSizeMB * 8 * 1024 * 1024) / durationSeconds;
+            const targetBitrateKbps = Math.floor(targetBitrateBitsPerSecond / 1000);
+            const availableForVideo = targetBitrateKbps - baseBitrate.audio;
             
-            return {
-                video: optimalVideoBitrate,
-                audio: baseBitrate.audio
-            };
+            // Smart balancing logic
+            if (availableForVideo < 1000) {
+                // Very aggressive compression needed - use minimum viable quality
+                return {
+                    video: Math.max(500, availableForVideo),
+                    audio: 64, // Reduce audio bitrate for extreme compression
+                    sizeWarning: true,
+                    compressionMode: 'aggressive'
+                };
+            } else if (availableForVideo < 3000) {
+                // Moderate compression - balance size and quality
+                return {
+                    video: Math.max(1000, availableForVideo),
+                    audio: 96, // Reduced audio for balance
+                    compressionMode: 'balanced'
+                };
+            } else if (availableForVideo < 5000) {
+                // Good compression with decent quality
+                return {
+                    video: Math.max(2000, availableForVideo),
+                    audio: baseBitrate.audio,
+                    compressionMode: 'quality'
+                };
+            } else {
+                // High quality mode - use backend range but respect file size
+                const optimalVideoBitrate = Math.min(baseBitrate.video, availableForVideo);
+                return {
+                    video: optimalVideoBitrate,
+                    audio: baseBitrate.audio,
+                    compressionMode: 'high-quality'
+                };
+            }
         }
         
-        // For videos outside 1-1.5 minute range, use backend-controlled bitrates
-        return baseBitrate;
+        // Fallback to preset bitrates with balanced mode
+        return {
+            ...baseBitrate,
+            compressionMode: 'preset'
+        };
     }
 
     async getVideoDuration(videoPath) {
