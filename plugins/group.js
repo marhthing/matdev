@@ -2286,15 +2286,8 @@ class GroupPlugin {
      */
     async handleAntilinkViolation(chatJid, senderJid, messageKey) {
         try {
-            // Delete the message
+            // Delete the message silently - no notification
             await this.deleteMessage(chatJid, messageKey);
-            
-            // Send warning
-            const displayName = this.getDisplayName(senderJid);
-            await this.bot.sock.sendMessage(chatJid, {
-                text: `🚫 @${displayName} Links are not allowed in this group!`,
-                mentions: [senderJid]
-            });
             
         } catch (error) {
             console.error('Error handling antilink violation:', error);
