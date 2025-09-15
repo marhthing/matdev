@@ -204,10 +204,11 @@ class CorePlugin {
                     await this.bot.messageHandler.reply(messageInfo, `❌ Command "${commandName}" not found.`);
                 }
             } else {
-                // Show all commands grouped by category
+                // Show all commands with their descriptions
                 const commands = this.bot.messageHandler.getCommands();
                 const categories = {};
 
+                // Group commands by category
                 commands.forEach(cmd => {
                     if (!categories[cmd.category]) {
                         categories[cmd.category] = [];
@@ -217,46 +218,53 @@ class CorePlugin {
 
                 let helpText = `*🤖 MATDEV COMMAND MENU*\n\n`;
 
-                // Group commands by handler function to auto-detect aliases
-                const handlerGroups = new Map();
-                commands.forEach(cmd => {
-                    const handlerKey = cmd.handler.toString();
-                    if (!handlerGroups.has(handlerKey)) {
-                        handlerGroups.set(handlerKey, []);
-                    }
-                    handlerGroups.get(handlerKey).push(cmd);
-                });
-
+                // List all commands with descriptions by category
                 for (const [category, cmds] of Object.entries(categories)) {
                     helpText += `*${category.toUpperCase()}*\n`;
 
-                    // Group commands with their auto-detected aliases
-                    const processedCommands = new Set();
+                    // Sort commands alphabetically within each category
+                    cmds.sort((a, b) => a.name.localeCompare(b.name));
 
                     cmds.forEach(cmd => {
-                        if (processedCommands.has(cmd.name)) return;
-
-                        // Find all commands with the same handler (aliases)
-                        const aliasGroup = handlerGroups.get(cmd.handler.toString());
-                        const mainCommand = aliasGroup.find(c => !c.description.includes('alias for')) || aliasGroup[0];
-                        const aliases = aliasGroup.filter(c => c !== mainCommand && cmds.includes(c)).map(c => c.name);
-
-                        // Mark all commands in this group as processed
-                        aliasGroup.forEach(c => processedCommands.add(c.name));
-
-                        // Display command with auto-detected aliases
-                        if (aliases.length > 0) {
-                            helpText += `• ${config.PREFIX}${mainCommand.name} ~ ${aliases.map(a => config.PREFIX + a).join(' ~ ')} - ${mainCommand.description}\n`;
-                        } else {
-                            helpText += `• ${config.PREFIX}${mainCommand.name} - ${mainCommand.description}\n`;
+                        // Check for subcommands in the description or usage
+                        let commandDisplay = `${config.PREFIX}${cmd.name}`;
+                        
+                        // Extract subcommands from usage if they exist
+                        if (cmd.usage && cmd.usage.includes('[') && cmd.usage.includes('|')) {
+                            // Handle commands like .time [world|zones|country]
+                            const subcommandMatch = cmd.usage.match(/\[([^\]]+)\]/);
+                            if (subcommandMatch) {
+                                const subcommands = subcommandMatch[1].split('|');
+                                if (subcommands.length > 1) {
+                                    commandDisplay += ` [${subcommands.join('|')}]`;
+                                }
+                            }
                         }
+                        
+                        // Special handling for known subcommand patterns
+                        if (cmd.name === 'schedule' && cmd.description.includes('cancel')) {
+                            commandDisplay = `${config.PREFIX}schedule [cancel]`;
+                        } else if (cmd.name === 'permissions' && cmd.description.includes('allow/disallow')) {
+                            commandDisplay = `${config.PREFIX}permissions [allow|disallow]`;
+                        } else if (cmd.name === 'scstatus' && cmd.description.includes('cancel')) {
+                            commandDisplay = `${config.PREFIX}scstatus [cancel]`;
+                        } else if (cmd.name === 'autostatusview' && cmd.description.includes('on/off')) {
+                            commandDisplay = `${config.PREFIX}autostatusview [on|off]`;
+                        } else if (cmd.name === 'br' && cmd.description.includes('on/off')) {
+                            commandDisplay = `${config.PREFIX}br [on|off]`;
+                        } else if (cmd.name === 'greeting' && cmd.description.includes('on/off')) {
+                            commandDisplay = `${config.PREFIX}greeting [on|off]`;
+                        }
+
+                        // Display command with description
+                        helpText += `• ${commandDisplay} - ${cmd.description}\n`;
                     });
 
                     helpText += '\n';
                 }
 
                 helpText += `_Total Commands: ${commands.length}_\n`;
-                helpText += `_Type ${config.PREFIX}help <command> for detailed info_`;
+                helpText += `_Type ${config.PREFIX}help <command> for detailed usage_`;
 
                 await this.bot.messageHandler.reply(messageInfo, helpText);
             }
