@@ -13,7 +13,7 @@ class CompressPlugin {
     constructor() {
         this.name = 'compress';
         this.description = 'Enhanced video compression with resolution control and optimization';
-        this.version = '3.0.0';
+        this.version = '3.1.0'; // Updated version
 
         // Resolution presets with dimensions
         this.resolutions = {
@@ -44,7 +44,7 @@ class CompressPlugin {
         this.registerCommands();
 
         await fs.ensureDir(path.join(process.cwd(), 'tmp'));
-
+        
         // Check if FFmpeg and FFprobe are available
         try {
             await new Promise((resolve, reject) => {
@@ -90,7 +90,7 @@ class CompressPlugin {
             const args = messageInfo.text.split(' ').slice(1);
             let compressionMode = 'balanced'; // default mode
             let requestedResolution = '720p'; // default resolution
-
+            
             // Parse arguments: [mode] [resolution] or just [resolution]
             if (args.length === 1) {
                 // Single argument - could be mode or resolution
@@ -105,7 +105,7 @@ class CompressPlugin {
                 compressionMode = args[0].toLowerCase();
                 requestedResolution = args[1].toLowerCase();
             }
-
+            
             // Validate mode
             if (!['balanced', 'size', 'br'].includes(compressionMode)) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -144,13 +144,13 @@ class CompressPlugin {
             // Detect media type - video message or MP4 document
             let mediaType = null;
             let isDocument = false;
-
+            
             if (quotedMessage.videoMessage) {
                 mediaType = 'videoMessage';
             } else if (quotedMessage.documentMessage) {
                 const mimeType = quotedMessage.documentMessage.mimetype || '';
                 const fileName = quotedMessage.documentMessage.fileName || '';
-
+                
                 // Check if document is MP4 video
                 if (mimeType.includes('video/mp4') || fileName.toLowerCase().endsWith('.mp4')) {
                     mediaType = 'documentMessage';
@@ -177,7 +177,7 @@ class CompressPlugin {
             };
             await this.bot.messageHandler.reply(messageInfo, 
                 `🔄 Compressing ${sourceInfo} to ${this.resolutions[requestedResolution].name}...\n` +
-                `⚙️ Settings: 25 FPS, ${modeInfo[compressionMode]}, optimized scaling`
+                `⚙️ Settings: Smart FPS conversion, ${modeInfo[compressionMode]}, optimized scaling`
             );
 
             // Download video or document
@@ -198,18 +198,19 @@ class CompressPlugin {
             // Write input file
             await fs.writeFile(inputPath, buffer.buffer);
 
-            // Get video duration for file size calculation
-            const duration = await this.getVideoDuration(inputPath);
-
+            // Get video info including duration and FPS
+            const videoInfo = await this.getVideoInfo(inputPath);
+            
             // Calculate optimal bitrate based on duration, target file size, and user preference
-            const optimalBitrate = this.calculateOptimalBitrate(requestedResolution, duration, compressionMode);
+            const optimalBitrate = this.calculateOptimalBitrate(requestedResolution, videoInfo.duration, compressionMode);
 
-            // Build enhanced FFmpeg command
+            // Build enhanced FFmpeg command with smart FPS conversion
             const command = await this.buildSmartFFmpegCommand(
                 inputPath, 
                 outputPath, 
                 requestedResolution, 
-                optimalBitrate
+                optimalBitrate,
+                videoInfo
             );
 
             console.log(`🔧 FFmpeg command: ${command}`);
@@ -247,21 +248,21 @@ class CompressPlugin {
                 'balanced': '⚖️ Balanced size/quality',
                 'quality': '🎯 Quality-focused compression', 
                 'high-quality': '✨ High-quality compression',
-                'preset': '📐 Standard compression'
+                'preset': '📝 Standard compression'
             };
-
+            
             let caption = `✅ ${sourceType.charAt(0).toUpperCase() + sourceType.slice(1)} compressed to ${this.resolutions[requestedResolution].name}\n` +
                          `📊 Original: ${(originalSize / (1024 * 1024)).toFixed(2)} MB\n` +
                          `📊 Compressed: ${sizeMB} MB\n` +
                          `📈 Savings: ${compressionRatio}%\n` +
-                         `⚙️ Settings: 25 FPS, CRF quality, ${optimalBitrate.audio}k audio\n` +
+                         `⚙️ Settings: ${videoInfo.fps}→25 FPS (smart conversion), CRF quality, ${optimalBitrate.audio}k audio\n` +
                          `🎛️ Mode: ${compressionModeInfo[optimalBitrate.compressionMode] || 'Standard'}`;
 
             // Add specific warnings based on compression mode
             if (optimalBitrate.sizeWarning || optimalBitrate.compressionMode === 'aggressive') {
                 caption += `\n\n⚠️ Note: Aggressive compression applied to meet size target - some quality loss expected.`;
             }
-
+            
             if (isDocument) {
                 caption += `\n\n📄 Original was sent as document - quality preserved in compression.`;
             }
@@ -291,13 +292,14 @@ class CompressPlugin {
 
     async infoCommand(messageInfo) {
         const infoText = `📹 **Enhanced Video Compression Settings**\n\n` +
-            `🎯 **Fixed Frame Rate:** 25 FPS (optimized for WhatsApp)\n\n` +
-            `📐 **Available Resolutions:**\n` +
+            `🎯 **Smart Frame Rate:** Adaptive FPS conversion (preserves smooth motion)\n\n` +
+            `📏 **Available Resolutions:**\n` +
             Object.entries(this.resolutions).map(([key, res]) => 
                 `• **${key}** - ${res.name} (${this.bitrateConfig[key].video}k bitrate)`
             ).join('\n') +
             `\n\n🎛️ **Features:**\n` +
             `• Modern 2025 FFmpeg encoding (CRF-based quality)\n` +
+            `• Smart FPS conversion without frame skipping\n` +
             `• File size optimization (up to 16 MB max)\n` +
             `• Content-aware compression modes\n` +
             `• WhatsApp optimized output\n` +
@@ -308,49 +310,99 @@ class CompressPlugin {
         await this.bot.messageHandler.reply(messageInfo, infoText);
     }
 
-    // 🔧 UPDATED: Enhanced buildFFmpegCommand with source FPS awareness
-    async buildSmartFFmpegCommand(inputPath, outputPath, resolution, bitrates) {
-        const resConfig = this.resolutions[resolution];
+    // 🚀 NEW: Get comprehensive video information
+    async getVideoInfo(videoPath) {
+        return new Promise((resolve, reject) => {
+            const command = `ffprobe -v quiet -select_streams v:0 -show_entries stream=r_frame_rate,duration -of csv=p=0 "${videoPath}"`;
+            
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('Error getting video info:', error);
+                    resolve({ fps: 30, duration: 0 }); // Fallback values
+                } else {
+                    const lines = stdout.trim().split('\n');
+                    const [fpsStr, durationStr] = lines[0].split(',');
+                    
+                    // Parse frame rate (handle fractional rates like 30000/1001)
+                    let fps = 30; // default
+                    if (fpsStr && fpsStr.includes('/')) {
+                        const [num, den] = fpsStr.split('/').map(Number);
+                        fps = Math.round(num / den);
+                    } else if (fpsStr) {
+                        fps = Math.round(parseFloat(fpsStr));
+                    }
+                    
+                    const duration = parseFloat(durationStr) || 0;
+                    
+                    resolve({ fps, duration });
+                }
+            });
+        });
+    }
 
-        // Get source video information
-        const videoInfo = await this.getVideoInfo(inputPath);
+    // 🎯 FIXED: 2025 Best Practice FFmpeg FPS Conversion - NO FRAME SKIPPING
+    async buildSmartFFmpegCommand(inputPath, outputPath, resolution, bitrates, videoInfo) {
+        const resConfig = this.resolutions[resolution];
         const sourceFPS = videoInfo.fps;
 
-        // Modern 2025 FFmpeg: Better aspect ratio handling
+        // Modern 2025 FFmpeg: Better aspect ratio handling with even dimensions for libx264
         let scaleFilter;
         if (bitrates.compressionMode === 'aggressive') {
+            // For aggressive mode, allow slight stretching for size optimization
             scaleFilter = `scale=${resConfig.width}:${resConfig.height}`;
         } else {
+            // For other modes, preserve aspect ratio but ensure even dimensions for libx264
             scaleFilter = `scale='min(${resConfig.width},iw)':'min(${resConfig.height},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`;
         }
 
-        // 🎯 SMART FPS CONVERSION - No frame skipping approach
+        // 🎯 FIXED: SMART FPS CONVERSION - 2025 Best Practices (NO FRAME SKIPPING)
         let fpsFilter = '';
 
         if (Math.abs(sourceFPS - this.targetFPS) > 2) {
             // Significant FPS difference - need conversion
             if (sourceFPS > this.targetFPS) {
-                // Reducing FPS - use frame blending for smooth motion
-                // This prevents jerky motion from simple frame dropping
-                fpsFilter = `,tblend=average,fps=${this.targetFPS}:round=down`;
+                // ✅ FIXED: Reducing FPS with proper frame blending
+                // Method 1: Use minterpolate for high-quality motion-compensated blending
+                // This is the 2025 gold standard for FPS reduction without judder
+                if (bitrates.compressionMode === 'high-quality' || bitrates.compressionMode === 'quality') {
+                    fpsFilter = `,minterpolate=fps=${this.targetFPS}:mi_mode=blend:mc_mode=aobmc:me_mode=bidir:vsbmc=1`;
+                    console.log(`🔉 Reducing FPS from ${sourceFPS} to ${this.targetFPS} with motion-compensated blending (high quality)`);
+                } else {
+                    // Method 2: Use framerate filter for good quality with less processing
+                    // This creates natural motion blur when reducing frame rates
+                    fpsFilter = `,framerate=fps=${this.targetFPS}`;
+                    console.log(`🔉 Reducing FPS from ${sourceFPS} to ${this.targetFPS} with framerate filter (balanced)`);
+                }
             } else {
-                // Increasing FPS - simple duplication (no interpolation artifacts)
-                fpsFilter = `,fps=${this.targetFPS}`;
+                // Increasing FPS - use minterpolate for smooth interpolation
+                if (bitrates.compressionMode === 'high-quality') {
+                    // Best quality interpolation with motion estimation
+                    fpsFilter = `,minterpolate=fps=${this.targetFPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1`;
+                    console.log(`📈 Increasing FPS from ${sourceFPS} to ${this.targetFPS} with motion interpolation (high quality)`);
+                } else {
+                    // Simple frame duplication (fast, no artifacts)
+                    fpsFilter = `,fps=${this.targetFPS}`;
+                    console.log(`📈 Increasing FPS from ${sourceFPS} to ${this.targetFPS} with frame duplication`);
+                }
             }
-        } else if (sourceFPS !== this.targetFPS) {
-            // Small difference - gentle conversion
-            fpsFilter = `,fps=${this.targetFPS}:round=near`;
+        } else if (Math.abs(sourceFPS - this.targetFPS) > 0.5) {
+            // Small difference - use simple fps filter for minor adjustments
+            fpsFilter = `,fps=${this.targetFPS}`;
+            console.log(`🔄 Minor FPS adjustment from ${sourceFPS} to ${this.targetFPS} with fps filter`);
+        } else {
+            // Source is already close to target - no FPS filter needed
+            console.log(`✅ Source FPS (${sourceFPS}) is already optimal, no conversion needed`);
         }
-        // If source is already 25 FPS (or very close), no FPS filter needed
 
         const combinedFilter = fpsFilter ? `${scaleFilter}${fpsFilter}` : scaleFilter;
 
-        // Enhanced encoding parameters
+        // Modern 2025 FFmpeg encoding parameters
         const crf = this.getCRFForBitrate(bitrates.video, resolution);
         const preset = bitrates.compressionMode === 'aggressive' ? 'faster' : 
                       bitrates.compressionMode === 'high-quality' ? 'slow' : 'medium';
         const tune = bitrates.compressionMode === 'aggressive' ? 'fastdecode' : 'film';
 
+        // 2025 optimized FFmpeg command with FIXED frame rate conversion
         return `ffmpeg -i "${inputPath}" ` +
                `-vf "${combinedFilter}" ` +
                `-c:v libx264 ` +
@@ -386,24 +438,24 @@ class CompressPlugin {
             '720p': { 1500: 28, 2500: 26, 4000: 24, 6000: 22, 8000: 20 },
             '1080p': { 2000: 26, 4000: 24, 6000: 22, 8000: 20, 12000: 18 }
         };
-
+        
         const mapping = crfMappings[resolution] || crfMappings['720p'];
         const bitrates = Object.keys(mapping).map(Number).sort((a, b) => a - b);
-
+        
         // Find the closest bitrate and return corresponding CRF
         for (let i = 0; i < bitrates.length; i++) {
             if (targetBitrate <= bitrates[i]) {
                 return mapping[bitrates[i]];
             }
         }
-
+        
         // If higher than max mapped bitrate, use the best quality CRF
         return mapping[bitrates[bitrates.length - 1]];
     }
 
     calculateOptimalBitrate(resolution, durationSeconds, mode = 'balanced') {
         const baseBitrate = this.bitrateConfig[resolution];
-
+        
         // Handle different compression modes
         if (mode === 'br') {
             // Bitrate priority mode - use backend range with minimal size constraints
@@ -412,11 +464,11 @@ class CompressPlugin {
                 compressionMode: 'high-quality'
             };
         }
-
+        
         // Smart balancing for 'balanced' and 'size' modes
         if (durationSeconds > 0) {
             let targetFileSizeMB;
-
+            
             // Calculate target file size based on duration and mode (16MB max)
             if (mode === 'size') {
                 // Size priority - more aggressive targets but allow up to 16MB
@@ -435,11 +487,11 @@ class CompressPlugin {
                     targetFileSizeMB = Math.min(16, 10 + (minutes - 1.5) * 3);
                 }
             }
-
+            
             const targetBitrateBitsPerSecond = (targetFileSizeMB * 8 * 1024 * 1024) / durationSeconds;
             const targetBitrateKbps = Math.floor(targetBitrateBitsPerSecond / 1000);
             const availableForVideo = targetBitrateKbps - baseBitrate.audio;
-
+            
             // Smart balancing logic
             if (availableForVideo < 1000) {
                 // Very aggressive compression needed - use minimum viable quality
@@ -473,7 +525,7 @@ class CompressPlugin {
                 };
             }
         }
-
+        
         // Fallback to preset bitrates with balanced mode
         return {
             ...baseBitrate,
@@ -481,53 +533,11 @@ class CompressPlugin {
         };
     }
 
+    // DEPRECATED: Use getVideoInfo() instead
     async getVideoDuration(videoPath) {
-        return new Promise((resolve, reject) => {
-            const command = `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${videoPath}"`;
-
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    console.error('Error getting video duration:', error);
-                    resolve(0); // Fallback to 0 if duration cannot be determined
-                } else {
-                    const duration = parseFloat(stdout.trim());
-                    resolve(isNaN(duration) ? 0 : duration);
-                }
-            });
-        });
+        const info = await this.getVideoInfo(videoPath);
+        return info.duration;
     }
-
-    async getVideoInfo(videoPath) {
-        return new Promise((resolve, reject) => {
-            const command = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate,codec_name -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`;
-
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    console.error('Error getting video info:', error);
-                    resolve({ width: 0, height: 0, fps: 0, codec: 'N/A' });
-                } else {
-                    const lines = stdout.trim().split('\n');
-                    if (lines.length >= 4) {
-                        const width = parseInt(lines[0], 10);
-                        const height = parseInt(lines[1], 10);
-                        const frameRateStr = lines[2];
-                        let fps = 0;
-                        if (frameRateStr.includes('/')) {
-                            const [numerator, denominator] = frameRateStr.split('/').map(Number);
-                            if (denominator > 0) fps = numerator / denominator;
-                        } else {
-                            fps = parseFloat(frameRateStr);
-                        }
-                        const codec = lines[3];
-                        resolve({ width, height, fps: isNaN(fps) ? 0 : fps, codec });
-                    } else {
-                        resolve({ width: 0, height: 0, fps: 0, codec: 'N/A' });
-                    }
-                }
-            });
-        });
-    }
-
 
     async downloadMediaRobust(messageInfo, quoted, mediaType) {
         try {
