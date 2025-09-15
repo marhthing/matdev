@@ -34,16 +34,13 @@ class GroupPlugin {
      * Initialize storage for group features
      */
     initializeStorage() {
-        // Initialize group data storage for filters, warnings, mutes, etc.
+        // Initialize group data storage for activity stats, etc.
         if (!this.bot.database) {
             console.warn('⚠️ Database not available for group plugin');
             return;
         }
         
         // Initialize default data structures
-        this.ensureGroupData('filters', {});
-        this.ensureGroupData('filter_settings', {});
-        this.ensureGroupData('warnings', {});
         this.ensureGroupData('activity_stats', {});
     }
 
