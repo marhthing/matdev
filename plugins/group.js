@@ -1578,13 +1578,7 @@ class GroupPlugin {
             const inviteCode = await this.bot.sock.groupInviteCode(chat_jid);
             const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `🔗 *Group Invite Link*\n\n` +
-                `${inviteLink}\n\n` +
-                `📋 *Group:* ${groupMetadata.subject || 'Unknown'}\n` +
-                `👥 *Members:* ${groupMetadata.participants.length}\n\n` +
-                `⚠️ *Warning:* Keep this link secure. Anyone with this link can join the group.`
-            );
+            await this.bot.messageHandler.reply(messageInfo, inviteLink);
 
         } catch (error) {
             console.error('Error in grouplink command:', error);
