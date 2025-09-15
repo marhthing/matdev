@@ -1470,10 +1470,6 @@ class GroupPlugin {
             // Update group name
             await this.bot.sock.groupUpdateSubject(chat_jid, newName);
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Group name updated successfully!\n\n📝 *New Name:* ${newName}`
-            );
-
         } catch (error) {
             console.error('Error in setname command:', error);
             await this.bot.messageHandler.reply(messageInfo, 
