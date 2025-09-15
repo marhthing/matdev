@@ -173,9 +173,9 @@ class StatusPlugin {
      */
     registerCommands() {
         // Register comprehensive status command
-        this.bot.messageHandler.registerCommand('status', this.handleStatusCommand.bind(this), {
+        this.bot.messageHandler.registerCommand('autostatusview', this.handleStatusCommand.bind(this), {
             description: 'Manage automatic status viewing, downloading, and forwarding',
-            usage: `${config.PREFIX}status <jid>|on|off [no-dl] [except-view|only-view <jid,...>]`,
+            usage: `${config.PREFIX}autostatusview <jid>|on|off [no-dl] [except-view|only-view <jid,...>]`,
             category: 'status'
         });
         
@@ -236,8 +236,8 @@ class StatusPlugin {
             // Invalid action
             return await this.bot.messageHandler.reply(messageInfo, 
                 `❌ Invalid action. Use:\n` +
-                `${config.PREFIX}status <jid> - Set forwarding destination\n` +
-                `${config.PREFIX}status on|off [no-dl] [except-view|only-view <jid,...>]`);
+                `${config.PREFIX}autostatusview <jid> - Set forwarding destination\n` +
+                `${config.PREFIX}autostatusview on|off [no-dl] [except-view|only-view <jid,...>]`);
 
         } catch (error) {
             console.error('Status command error:', error);
@@ -421,8 +421,8 @@ class StatusPlugin {
             }
 
             info += `\n💡 Usage:\n`;
-            info += `${config.PREFIX}status <jid> - Set forwarding destination\n`;
-            info += `${config.PREFIX}status on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
+            info += `${config.PREFIX}autostatusview <jid> - Set forwarding destination\n`;
+            info += `${config.PREFIX}autostatusview on | off | no-dl | except-view <jid,...> | only-view <jid,...>`;
 
             return await this.bot.messageHandler.reply(messageInfo, info);
         } catch (error) {
