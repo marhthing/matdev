@@ -17,49 +17,11 @@ class AudioEffectsPlugin {
         this.version = '2.0.0';
         
         this.effects = {
-            // Voice effects - greatly improved with modern techniques
-            robot: {
-                filter: 'aecho=0.8:0.88:6:0.4,acrusher=bits=8:mode=log:aa=1,bandpass=f=800:width_type=h:w=400,volume=1.5',
-                description: 'Metallic robot voice with digital processing',
-                category: 'voice'
-            },
-            chipmunk: {
-                filter: 'asetrate=44100*2,atempo=0.5,dynaudnorm=p=0.9:s=3,volume=1.2',
-                description: 'Classic high-pitched chipmunk voice',
-                category: 'voice'
-            },
             deep: {
                 filter: 'asetrate=44100*0.75,atempo=1.3333,dynaudnorm=p=0.9:s=5,lowpass=f=2000,volume=1.3',
                 description: 'Deep bass voice with enhanced low frequencies',
                 category: 'voice'
             },
-            echo: {
-                filter: 'aecho=0.8:0.9:1000:0.5,aecho=0.8:0.7:1500:0.3,dynaudnorm=p=0.8:s=7',
-                description: 'Multi-layer echo with dynamic processing',
-                category: 'voice'
-            },
-            reverb: {
-                filter: 'aecho=0.8:0.88:60:0.4,aecho=0.7:0.82:180:0.3,aecho=0.6:0.75:400:0.2,dynaudnorm=p=0.85:s=6',
-                description: 'Professional cathedral reverb effect',
-                category: 'voice'
-            },
-            whisper: {
-                filter: 'volume=0.4,highpass=f=400,dynaudnorm=p=0.95:s=2,compand=attacks=0:points=-60/-60|-30/-20|-10/-10|0/-5:gain=3',
-                description: 'Enhanced whisper with compression',
-                category: 'voice'
-            },
-            demon: {
-                filter: 'asetrate=44100*0.5,atempo=2.0,dynaudnorm=p=0.9:s=5,lowpass=f=1500,acrusher=bits=6:mode=log:aa=1,volume=1.4',
-                description: 'Terrifying demonic voice with distortion',
-                category: 'voice'
-            },
-            alien: {
-                filter: 'asetrate=44100*0.85,aresample=44100,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=3:d=0.3,aphaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4',
-                description: 'Advanced alien voice with phaser and modulation',
-                category: 'voice'
-            },
-            
-            // Speed effects - enhanced with dynamic processing
             slow: {
                 filter: 'atempo=0.5,dynaudnorm=p=0.9:s=10,compand=attacks=0.1:points=-90/-90|-60/-40|-30/-20|-10/-10|0/-5:gain=2',
                 description: 'Slow motion with enhanced clarity',
@@ -70,49 +32,10 @@ class AudioEffectsPlugin {
                 description: 'Fast playback with clarity enhancement',
                 category: 'speed'
             },
-            nightcore: {
-                filter: 'asetrate=44100*1.3,aresample=44100,dynaudnorm=p=0.9:s=5,highpass=f=1500,volume=1.2',
-                description: 'Professional nightcore with vocal enhancement',
-                category: 'speed'
-            },
-            
-            // EQ effects - professional grade processing
             bass: {
                 filter: 'dynaudnorm=p=0.9:s=5,lowpass=f=150,highpass=f=20,volume=1.4,compand=attacks=0.1:points=-60/-40|-30/-20|-10/-10|0/-5:gain=3',
                 description: 'Professional bass boost with dynamic processing',
                 category: 'eq'
-            },
-            treble: {
-                filter: 'dynaudnorm=p=0.9:s=5,highpass=f=2000,lowpass=f=12000,volume=1.3,compand=attacks=0.05:points=-50/-30|-20/-15|-5/-5:gain=2',
-                description: 'Enhanced treble with presence boost',
-                category: 'eq'
-            },
-            
-            // FX effects - advanced processing chains
-            distortion: {
-                filter: 'acrusher=bits=4:mode=log:aa=1,highpass=f=500,lowpass=f=3000,dynaudnorm=p=0.8:s=7,volume=0.8',
-                description: 'Heavy distortion with frequency shaping',
-                category: 'fx'
-            },
-            underwater: {
-                filter: 'lowpass=f=800,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=2:d=0.4,volume=0.7',
-                description: 'Realistic underwater effect with modulation',
-                category: 'fx'
-            },
-            telephone: {
-                filter: 'bandpass=f=1500:width_type=h:w=2000,dynaudnorm=p=0.9:s=5,compand=attacks=0:points=-45/-15|-27/-9|-5/-5:gain=3,volume=1.3',
-                description: 'Authentic telephone/radio effect with compression',
-                category: 'fx'
-            },
-            psychedelic: {
-                filter: 'aphaser=in_gain=0.4:out_gain=0.74:delay=3:speed=0.5:decay=0.4,chorus=0.5:0.9:50:0.4:0.25:2,tremolo=f=4:d=0.5',
-                description: 'Trippy psychedelic effect with multiple modulations',
-                category: 'fx'
-            },
-            vintage: {
-                filter: 'highpass=f=100,lowpass=f=5000,dynaudnorm=p=0.85:s=8,compand=attacks=0.1:points=-50/-40|-30/-25|-15/-15|0/-10:gain=2,volume=1.1',
-                description: 'Vintage analog sound with warmth',
-                category: 'fx'
             }
         };
     }
