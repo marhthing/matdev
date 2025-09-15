@@ -11,7 +11,7 @@ class TimePlugin {
         this.name = 'time';
         this.description = 'Time and timezone commands';
         this.version = '1.0.0';
-        
+
         // Country code to timezone mapping
         this.countryTimezones = {
             // Major Countries
@@ -37,7 +37,7 @@ class TimePlugin {
             'AUSTRALIA': 'Australia/Sydney',
             'BR': 'America/Sao_Paulo',
             'BRAZIL': 'America/Sao_Paulo',
-            
+
             // African Countries
             'NG': 'Africa/Lagos',
             'NIGERIA': 'Africa/Lagos',
@@ -51,7 +51,9 @@ class TimePlugin {
             'GHANA': 'Africa/Accra',
             'MA': 'Africa/Casablanca',
             'MOROCCO': 'Africa/Casablanca',
-            
+            'MU': 'Indian/Mauritius',
+            'MAURITIUS': 'Indian/Mauritius',
+
             // Middle Eastern Countries
             'SA': 'Asia/Riyadh',
             'SAUDI': 'Asia/Riyadh',
@@ -61,7 +63,7 @@ class TimePlugin {
             'TURKEY': 'Europe/Istanbul',
             'IL': 'Asia/Jerusalem',
             'ISRAEL': 'Asia/Jerusalem',
-            
+
             // Asian Countries
             'KR': 'Asia/Seoul',
             'KOREA': 'Asia/Seoul',
@@ -77,7 +79,7 @@ class TimePlugin {
             'PHILIPPINES': 'Asia/Manila',
             'VN': 'Asia/Ho_Chi_Minh',
             'VIETNAM': 'Asia/Ho_Chi_Minh',
-            
+
             // European Countries
             'IT': 'Europe/Rome',
             'ITALY': 'Europe/Rome',
@@ -97,7 +99,17 @@ class TimePlugin {
             'NORWAY': 'Europe/Oslo',
             'DK': 'Europe/Copenhagen',
             'DENMARK': 'Europe/Copenhagen',
-            
+            'PT': 'Europe/Lisbon',
+            'PORTUGAL': 'Europe/Lisbon',
+            'GR': 'Europe/Athens',
+            'GREECE': 'Europe/Athens',
+            'IE': 'Europe/Dublin',
+            'IRELAND': 'Europe/Dublin',
+            'PL': 'Europe/Warsaw',
+            'POLAND': 'Europe/Warsaw',
+            'FI': 'Europe/Helsinki',
+            'FINLAND': 'Europe/Helsinki',
+
             // American Countries
             'MX': 'America/Mexico_City',
             'MEXICO': 'America/Mexico_City',
@@ -109,14 +121,14 @@ class TimePlugin {
             'COLOMBIA': 'America/Bogota',
             'PE': 'America/Lima',
             'PERU': 'America/Lima',
-            
+
             // Oceania
             'NZ': 'Pacific/Auckland',
             'NEW_ZEALAND': 'Pacific/Auckland',
             'FJ': 'Pacific/Fiji',
             'FIJI': 'Pacific/Fiji'
         };
-        
+
         // Alternative city names
         this.cityTimezones = {
             'LONDON': 'Europe/London',
@@ -142,7 +154,12 @@ class TimePlugin {
             'CHICAGO': 'America/Chicago',
             'TORONTO': 'America/Toronto',
             'SAO_PAULO': 'America/Sao_Paulo',
-            'MEXICO_CITY': 'America/Mexico_City'
+            'MEXICO_CITY': 'America/Mexico_City',
+            'LISBON': 'Europe/Lisbon',
+            'ATHENS': 'Europe/Athens',
+            'DUBLIN': 'Europe/Dublin',
+            'WARSAW': 'Europe/Warsaw',
+            'HELSINKI': 'Europe/Helsinki'
         };
     }
 
@@ -162,7 +179,7 @@ class TimePlugin {
     registerCommands() {
         // Main time command with subcommands
         this.bot.messageHandler.registerCommand('time', this.timeCommand.bind(this), {
-            description: 'Time commands - .time, .time world, .time zones',
+            description: 'Time and timezone commands',
             usage: `${config.PREFIX}time [world|zones|country]`,
             category: 'time',
             plugin: 'time',
@@ -245,7 +262,7 @@ class TimePlugin {
             ];
 
             let response = `🌍 *WORLD CLOCK*\n\n`;
-            
+
             for (const tz of majorTimezones) {
                 const time = moment().tz(tz.zone);
                 response += `${tz.name}: ${time.format('HH:mm')} (${time.format('DD/MM')})\n`;
@@ -267,7 +284,7 @@ class TimePlugin {
     async timezonesCommand(messageInfo) {
         try {
             let response = `🌍 *AVAILABLE TIMEZONE CODES*\n\n`;
-            
+
             // Country codes section
             response += `📍 *Country Codes:*\n`;
             const countryEntries = Object.entries(this.countryTimezones);
@@ -280,7 +297,7 @@ class TimePlugin {
                     response += `• ${code1}\n`;
                 }
             }
-            
+
             response += `\n🏙️ *City Names:*\n`;
             const cityEntries = Object.entries(this.cityTimezones);
             for (let i = 0; i < cityEntries.length; i += 2) {
@@ -292,11 +309,11 @@ class TimePlugin {
                     response += `• ${city1}\n`;
                 }
             }
-            
+
             response += `\n💡 Usage: *${config.PREFIX}time <code>*\nExample: *${config.PREFIX}time UK*`;
-            
+
             await this.bot.messageHandler.reply(messageInfo, response);
-            
+
         } catch (error) {
             console.error('Error in timezonesCommand:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error listing timezones: ' + error.message);
@@ -361,7 +378,13 @@ class TimePlugin {
             'SA': '🇸🇦', 'SAUDI': '🇸🇦',
             'KR': '🇰🇷', 'KOREA': '🇰🇷',
             'SG': '🇸🇬', 'SINGAPORE': '🇸🇬',
-            'MY': '🇲🇾', 'MALAYSIA': '🇲🇾'
+            'MY': '🇲🇾', 'MALAYSIA': '🇲🇾',
+            'MU': '🇲🇺', 'MAURITIUS': '🇲🇺',
+            'PT': '🇵🇹', 'PORTUGAL': '🇵🇹',
+            'GR': '🇬🇷', 'GREECE': '🇬🇷',
+            'IE': '🇮🇪', 'IRELAND': '🇮🇪',
+            'PL': '🇵🇱', 'POLAND': '🇵🇱',
+            'FI': '🇫🇮', 'FINLAND': '🇫🇮',
         };
 
         return flags[location] || '🌍';
