@@ -58,9 +58,8 @@ class ImageEffectsPlugin {
 
     registerCommands() {
         // Register individual effect commands with "image editing" category
-        // Prefix with 'i' to avoid collisions with other plugins
         Object.keys(this.effects).forEach(effect => {
-            const commandName = `i${effect}`;
+            const commandName = effect;
             this.bot.messageHandler.registerCommand(commandName, 
                 (messageInfo) => this.applyEffect(messageInfo, effect), {
                 description: this.effects[effect].description,
