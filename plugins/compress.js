@@ -254,7 +254,7 @@ class CompressPlugin {
                          `📊 Original: ${(originalSize / (1024 * 1024)).toFixed(2)} MB\n` +
                          `📊 Compressed: ${sizeMB} MB\n` +
                          `📈 Savings: ${compressionRatio}%\n` +
-                         `⚙️ Settings: 30 FPS, ${optimalBitrate.video}k video, ${optimalBitrate.audio}k audio\n` +
+                         `⚙️ Settings: 30 FPS, CRF quality, ${optimalBitrate.audio}k audio\n` +
                          `🎛️ Mode: ${compressionModeInfo[optimalBitrate.compressionMode] || 'Standard'}`;
 
             // Add specific warnings based on compression mode
@@ -267,7 +267,7 @@ class CompressPlugin {
             }
 
             // Send compressed video as document to preserve quality (like original if it was document)
-            if (isDocument || compressedSize > 15 * 1024 * 1024) { // Send as document if >15MB or original was document
+            if (isDocument || compressedSize > 16 * 1024 * 1024) { // Send as document if >16MB or original was document
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     document: { url: outputPath },
                     mimetype: 'video/mp4',
@@ -307,11 +307,11 @@ class CompressPlugin {
                 `• **${key}** - ${res.name} (${this.bitrateConfig[key].video}k bitrate)`
             ).join('\n') +
             `\n\n🎛️ **Features:**\n` +
-            `• Backend-controlled bitrate (5,000-8,000 kbps)\n` +
-            `• File size optimization (8-10 MB total for 1-1.5 min videos)\n` +
-            `• Quality preservation\n` +
-            `• WhatsApp optimized output\n\n` +
-            `⚠️ **Note:** High bitrate range and small file targets may conflict for longer videos.\n\n` +
+            `• Modern 2025 FFmpeg encoding (CRF-based quality)\n` +
+            `• File size optimization (up to 16 MB max)\n` +
+            `• Content-aware compression modes\n` +
+            `• WhatsApp optimized output\n` +
+            `• MP4 document detection\n\n` +
             `📝 **Usage:** ${config.PREFIX}compress [resolution]\n` +
             `**Example:** ${config.PREFIX}compress 720p`;
 
@@ -321,8 +321,7 @@ class CompressPlugin {
     buildEnhancedFFmpegCommand(inputPath, outputPath, resolution, bitrates) {
         const resConfig = this.resolutions[resolution];
         
-        // Fixed: Better aspect ratio handling to prevent small videos
-        // Using scale with proper aspect ratio preservation
+        // Modern 2025 FFmpeg: Better aspect ratio handling to prevent small videos
         let scaleFilter;
         if (bitrates.compressionMode === 'aggressive') {
             // For aggressive mode, allow slight stretching for size optimization
@@ -332,27 +331,68 @@ class CompressPlugin {
             scaleFilter = `scale='if(gt(a,${resConfig.width}/${resConfig.height}),${resConfig.width},-1)':'if(gt(a,${resConfig.width}/${resConfig.height}),-1,${resConfig.height})'`;
         }
         
-        // Enhanced FFmpeg command with:
-        // - Fixed 30 FPS output
-        // - Improved resolution scaling (no more tiny videos)
-        // - Optimized encoding settings
-        // - Audio quality optimization
+        // Modern 2025 FFmpeg encoding parameters
+        // Use CRF for quality control and modern optimizations
+        const crf = this.getCRFForBitrate(bitrates.video, resolution);
+        const preset = bitrates.compressionMode === 'aggressive' ? 'faster' : 
+                      bitrates.compressionMode === 'high-quality' ? 'slow' : 'medium';
+        const tune = bitrates.compressionMode === 'aggressive' ? 'fastdecode' : 'film';
+        
+        // 2025 optimized FFmpeg command with:
+        // - CRF-based quality control (modern approach)
+        // - Content-aware tuning
+        // - High profile with modern level
+        // - Psychovisual optimizations
+        // - Improved GOP structure
         return `ffmpeg -i "${inputPath}" ` +
                `-vf "${scaleFilter}" ` +
                `-r ${this.targetFPS} ` +
                `-c:v libx264 ` +
-               `-b:v ${bitrates.video}k ` +
-               `-maxrate ${Math.floor(bitrates.video * 1.2)}k ` +
-               `-bufsize ${Math.floor(bitrates.video * 2)}k ` +
-               `-preset medium ` +
-               `-profile:v main ` +
-               `-level 3.1 ` +
+               `-preset ${preset} ` +
+               `-crf ${crf} ` +
+               `-tune ${tune} ` +
+               `-profile:v high ` +
+               `-level 4.1 ` +
+               `-pix_fmt yuv420p ` +
+               `-g 60 ` +
+               `-bf 3 ` +
+               `-b_strategy 2 ` +
+               `-refs 3 ` +
+               `-aq-mode 1 ` +
+               `-psy-rd 1.0:0.15 ` +
+               `-maxrate ${Math.floor(bitrates.video * 1.5)}k ` +
+               `-bufsize ${Math.floor(bitrates.video * 3)}k ` +
                `-c:a aac ` +
                `-b:a ${bitrates.audio}k ` +
+               `-profile:a aac_low ` +
                `-ac 2 ` +
                `-ar 44100 ` +
                `-movflags +faststart ` +
                `"${outputPath}"`;
+    }
+
+    // Convert bitrate target to appropriate CRF value (2025 best practices)
+    getCRFForBitrate(targetBitrate, resolution) {
+        // Modern CRF mapping based on 2025 benchmarks
+        const crfMappings = {
+            '144p': { 500: 32, 1000: 30, 2000: 28, 3000: 26, 5000: 24 },
+            '480p': { 1000: 30, 1500: 28, 2500: 26, 4000: 24, 6000: 22 },
+            '720p': { 1500: 28, 2500: 26, 4000: 24, 6000: 22, 8000: 20 },
+            '1080p': { 2000: 26, 4000: 24, 6000: 22, 8000: 20, 12000: 18 }
+        };
+        
+        const mapping = crfMappings[resolution] || crfMappings['720p'];
+        const bitrates = Object.keys(mapping).map(Number).sort((a, b) => a - b);
+        
+        // Find the closest bitrate and return corresponding CRF
+        for (let i = 0; i < bitrates.length; i++) {
+            if (targetBitrate <= bitrates[i]) {
+                return mapping[bitrates[i]];
+            }
+        }
+        
+        // If higher than max mapped bitrate, use the best quality CRF
+        return mapping[bitrates[bitrates.length - 1]];
     }
 
     calculateOptimalBitrate(resolution, durationSeconds, mode = 'balanced') {
@@ -371,22 +411,22 @@ class CompressPlugin {
         if (durationSeconds > 0) {
             let targetFileSizeMB;
             
-            // Calculate target file size based on duration and mode
+            // Calculate target file size based on duration and mode (16MB max)
             if (mode === 'size') {
-                // Size priority - more aggressive targets
+                // Size priority - more aggressive targets but allow up to 16MB
                 if (durationSeconds <= 90) {
-                    targetFileSizeMB = Math.min(8, Math.max(5, 4 + (durationSeconds / 60) * 2));
+                    targetFileSizeMB = Math.min(12, Math.max(8, 6 + (durationSeconds / 60) * 3));
                 } else {
                     const minutes = durationSeconds / 60;
-                    targetFileSizeMB = Math.min(25, 6 + (minutes - 1.5) * 3);
+                    targetFileSizeMB = Math.min(16, 8 + (minutes - 1.5) * 4);
                 }
             } else {
-                // Balanced mode - original targets
+                // Balanced mode - higher targets up to 16MB
                 if (durationSeconds <= 90) {
-                    targetFileSizeMB = Math.min(10, Math.max(8, 6 + (durationSeconds / 60) * 2));
+                    targetFileSizeMB = Math.min(16, Math.max(10, 8 + (durationSeconds / 60) * 4));
                 } else {
                     const minutes = durationSeconds / 60;
-                    targetFileSizeMB = Math.min(50, 8 + (minutes - 1.5) * 4);
+                    targetFileSizeMB = Math.min(16, 10 + (minutes - 1.5) * 3);
                 }
             }
             
