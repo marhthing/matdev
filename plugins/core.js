@@ -160,6 +160,14 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Set bot bio command (owner only)
+        this.bot.messageHandler.registerCommand('bio', this.setBotBio.bind(this), {
+            description: 'Set bot bio/status (owner only)',
+            usage: `${config.PREFIX}bio <text> or reply to message with ${config.PREFIX}bio`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -1249,6 +1257,66 @@ class CorePlugin {
         }
 
         return identifiers;
+    }
+
+    /**
+     * Set bot bio command (owner only)
+     */
+    async setBotBio(messageInfo) {
+        try {
+            const { args } = messageInfo;
+            let bioText = '';
+
+            // Check if this is a reply to a message
+            const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+            if (quotedMessage) {
+                // Extract text from quoted message
+                if (quotedMessage.conversation) {
+                    bioText = quotedMessage.conversation;
+                } else if (quotedMessage.extendedTextMessage?.text) {
+                    bioText = quotedMessage.extendedTextMessage.text;
+                } else if (quotedMessage.imageMessage?.caption) {
+                    bioText = quotedMessage.imageMessage.caption;
+                } else if (quotedMessage.videoMessage?.caption) {
+                    bioText = quotedMessage.videoMessage.caption;
+                }
+            } else if (args.length > 0) {
+                // Use the provided text arguments
+                bioText = args.join(' ');
+            }
+
+            if (!bioText || bioText.trim().length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please provide bio text or reply to a message.\n\n' +
+                    `Usage: ${config.PREFIX}bio <your bio text>\n` +
+                    `Or reply to any message with ${config.PREFIX}bio`
+                );
+                return;
+            }
+
+            try {
+                // Set the bot's bio/status
+                await this.bot.sock.updateProfileStatus(bioText);
+                
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ *Bot bio updated successfully!*\n\n` +
+                    `📝 *New Bio:* ${bioText}`
+                );
+
+            } catch (error) {
+                console.error('Error setting bot bio:', error);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to update bot bio. Please try again.'
+                );
+            }
+
+        } catch (error) {
+            console.error('Error in setBotBio:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while updating the bot bio.'
+            );
+        }
     }
 
     /**
