@@ -11,30 +11,10 @@ class ImageEffectsPlugin {
         this.description = 'Advanced image effects using modern processing techniques';
         this.version = '2.0.0';
         this.effects = {
-            // Color grading effects
-            vintage: {
-                filter: 'eq=gamma=1.3:saturation=0.8:brightness=0.1:contrast=1.1,noise=c0s=5:allf=t',
-                description: 'Vintage film look with warm tones and grain',
-                category: 'color'
-            },
-            sepia: {
-                filter: 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131,eq=gamma=1.2:contrast=1.1',
-                description: 'Classic sepia tone effect for timeless look',
-                category: 'color'
-            },
-            cinematic: {
-                filter: 'eq=gamma=1.1:saturation=1.3:brightness=0.05:contrast=1.2,colorbalance=rs=0.1:bs=-0.1',
-                description: 'Professional cinematic color grading',
-                category: 'color'
-            },
-            noir: {
-                filter: 'eq=gamma=1.4:saturation=0:brightness=0.1:contrast=1.4',
-                description: 'Dramatic black and white film noir style',
-                category: 'color'
-            },
-            cyberpunk: {
-                filter: 'eq=gamma=0.9:saturation=1.8:brightness=0.1:contrast=1.3,colorbalance=rs=0.2:gs=-0.1:bs=0.3',
-                description: 'Futuristic cyberpunk color palette',
+            // Color temperature effects
+            cool: {
+                filter: 'eq=gamma=1.05:saturation=1.1:brightness=0.02,colorbalance=rs=-0.1:gs=0.02:bs=0.15',
+                description: 'Cool blue color temperature',
                 category: 'color'
             },
             warm: {
@@ -42,177 +22,12 @@ class ImageEffectsPlugin {
                 description: 'Warm sunset color temperature',
                 category: 'color'
             },
-            cool: {
-                filter: 'eq=gamma=1.05:saturation=1.1:brightness=0.02,colorbalance=rs=-0.1:gs=0.02:bs=0.15',
-                description: 'Cool blue color temperature',
-                category: 'color'
-            },
-
-            // Visual effects
-            glitch: {
-                filter: 'rgbashift=rh=-6:gh=6:bv=4,noise=c0s=15:allf=t+u,eq=gamma=0.9:saturation=1.4',
-                description: 'Digital glitch effect with RGB channel shift',
-                category: 'fx'
-            },
-            vhs: {
-                filter: 'rgbashift=rh=-3:gh=3,noise=c0s=8:allf=t,eq=gamma=1.1:saturation=0.9:contrast=0.9',
-                description: 'Authentic VHS tape aesthetic with tracking errors',
-                category: 'fx'
-            },
-            neon: {
-                filter: 'eq=gamma=0.8:saturation=2.0:brightness=0.2:contrast=1.4,gblur=sigma=3,eq=saturation=2.5',
-                description: 'Vibrant neon glow effect for modern aesthetics',
-                category: 'fx'
-            },
-            mirror: {
-                filter: 'crop=iw/2:ih:0:0,split[left][tmp];[tmp]hflip[right];[left][right]hstack',
-                description: 'Mirror effect splitting image in half',
-                category: 'fx'
-            },
-            kaleidoscope: {
-                filter: 'crop=iw/3:ih/3:0:0,split=6[s0][s1][s2][s3][s4][s5];[s1]hflip[s1h];[s2]vflip[s2v];[s3]hflip,vflip[s3hv];[s4]transpose=1[s4t];[s5]transpose=2[s5t];[s0][s1h][s2v]hstack=3[top];[s3hv][s4t][s5t]hstack=3[bottom];[top][bottom]vstack',
-                description: 'Psychedelic kaleidoscope pattern effect',
-                category: 'fx'
-            },
-            prism: {
-                filter: 'split=3[r][g][b];[r]lutrgb=r=val:g=0:b=0,pad=iw+20:ih:10:0:red[rshift];[g]lutrgb=r=0:g=val:b=0,pad=iw+20:ih:0:0:green[gshift];[b]lutrgb=r=0:g=0:b=val,pad=iw+20:ih:-10:0:blue[bshift];[rshift][gshift]blend=all_mode=screen[rg];[rg][bshift]blend=all_mode=screen',
-                description: 'Chromatic prism color separation',
-                category: 'fx'
-            },
 
             // Enhancement effects
             sharpen: {
                 filter: 'unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.2:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.8',
                 description: 'Professional sharpening with luma and chroma control',
                 category: 'enhance'
-            },
-            denoise: {
-                filter: 'nlmeans=s=10:r=5:p=3,unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.3',
-                description: 'AI-powered noise reduction with detail preservation',
-                category: 'enhance'
-            },
-            dramatic: {
-                filter: 'eq=gamma=1.3:saturation=1.4:brightness=0.1:contrast=1.5,unsharp=luma_msize_x=7:luma_msize_y=7:luma_amount=0.8',
-                description: 'Dramatic enhancement for impactful visuals',
-                category: 'enhance'
-            },
-            hdr: {
-                filter: 'eq=gamma=1.2:saturation=1.3:contrast=1.4,unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.6',
-                description: 'HDR-style high dynamic range effect',
-                category: 'enhance'
-            },
-            vibrant: {
-                filter: 'eq=saturation=1.5:contrast=1.2:brightness=0.05,unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.4',
-                description: 'Enhanced vibrancy and color pop',
-                category: 'enhance'
-            },
-
-            // Artistic effects
-            oilpainting: {
-                filter: 'median=radius=3,unsharp=luma_msize_x=7:luma_msize_y=7:luma_amount=0.4,eq=saturation=1.3',
-                description: 'Oil painting artistic effect with texture',
-                category: 'artistic'
-            },
-            watercolor: {
-                filter: 'boxblur=2:2,eq=saturation=1.4:gamma=1.1,unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.3',
-                description: 'Soft watercolor painting style',
-                category: 'artistic'
-            },
-            sketch: {
-                filter: 'eq=saturation=0,edgedetect=mode=canny:low=0.1:high=0.4,negate',
-                description: 'Pencil sketch effect with edge detection',
-                category: 'artistic'
-            },
-            cartoon: {
-                filter: 'bilateral=sigmaS=80:sigmaR=0.8,eq=saturation=1.6:contrast=1.3,unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.5',
-                description: 'Cartoon-style smoothing and color enhancement',
-                category: 'artistic'
-            },
-            pop: {
-                filter: 'eq=saturation=2.0:contrast=1.5:brightness=0.1,unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=1.0',
-                description: 'Pop art style with bold colors and contrast',
-                category: 'artistic'
-            },
-
-            // Blur and focus effects - 2025 latest methods
-            blur: {
-                filter: 'gblur=sigma=8:steps=3',
-                description: 'High-quality Gaussian blur with improved performance',
-                category: 'blur'
-            },
-            motionblur: {
-                filter: 'boxblur=15:15',
-                description: 'Directional motion blur effect',
-                category: 'blur'
-            },
-            verticalblur: {
-                filter: 'boxblur=1:15',
-                description: 'Vertical motion blur effect',
-                category: 'blur'
-            },
-            diagonalblur: {
-                filter: 'convolution=\'0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0:0 -1 0 -1 5 -1 0 -1 0\'',
-                description: 'Diagonal blur effect using convolution',
-                category: 'blur'
-            },
-            radialblur: {
-                filter: 'split[main][blur];[blur]gblur=sigma=15[blurred];[main][blurred]blend=all_mode=multiply:all_opacity=0.7',
-                description: 'Radial-style blur effect with center focus',
-                category: 'blur'
-            },
-            tiltshift: {
-                filter: 'split[main][blur];[blur]gblur=sigma=12[blurred];[main][blurred]blend=all_expr=\'if(between(Y,H*0.3,H*0.7),A,B)\'',
-                description: 'Tilt-shift miniature effect',
-                category: 'blur'
-            },
-            focusblur: {
-                filter: 'smartblur=luma_radius=2.0:luma_strength=0.8:luma_threshold=32:chroma_radius=1.5:chroma_strength=0.6',
-                description: 'Smart focus blur with edge preservation',
-                category: 'blur'
-            },
-            bokehblur: {
-                filter: 'gblur=sigma=15:steps=4',
-                description: 'Professional bokeh depth-of-field effect',
-                category: 'blur'
-            },
-
-            // Vintage and retro effects
-            film: {
-                filter: 'noise=c0s=3:allf=t,eq=gamma=1.2:saturation=0.9:contrast=1.1',
-                description: 'Classic film grain and color',
-                category: 'vintage'
-            },
-            polaroid: {
-                filter: 'eq=gamma=1.15:saturation=1.1:brightness=0.08:contrast=1.05,pad=iw+40:ih+60:20:20:white',
-                description: 'Polaroid instant photo style with border',
-                category: 'vintage'
-            },
-            faded: {
-                filter: 'eq=gamma=1.3:saturation=0.7:brightness=0.15:contrast=0.9',
-                description: 'Faded vintage photo look',
-                category: 'vintage'
-            },
-
-            // Special transformations
-            fisheye: {
-                filter: 'lenscorrection=cx=0.5:cy=0.5:k1=-0.227:k2=-0.022',
-                description: 'Fisheye lens distortion effect',
-                category: 'transform'
-            },
-            swirl: {
-                filter: 'rotate=a=\'t*PI/180\':fillcolor=black:bilinear=0',
-                description: 'Swirl rotation effect',
-                category: 'transform'
-            },
-            flip: {
-                filter: 'hflip',
-                description: 'Horizontal flip/mirror',
-                category: 'transform'
-            },
-            flop: {
-                filter: 'vflip',
-                description: 'Vertical flip',
-                category: 'transform'
             }
         };
     }
