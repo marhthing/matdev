@@ -159,6 +159,14 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+
+        // Set bot profile picture command (owner only)
+        this.bot.messageHandler.registerCommand('pp', this.setBotProfilePicture.bind(this), {
+            description: 'Set bot profile picture (owner only)',
+            usage: `${config.PREFIX}pp [tag an image or add to image caption]`,
+            category: 'admin',
+            ownerOnly: true
+        });
     }
 
     /**
@@ -1264,6 +1272,75 @@ class CorePlugin {
         }
 
         return identifiers;
+    }
+
+    /**
+     * Set bot profile picture command (owner only)
+     */
+    async setBotProfilePicture(messageInfo) {
+        try {
+            const { downloadMediaMessage } = require('baileys');
+
+            let imageMessage = null;
+            let messageToDownload = null;
+
+            // Check if this is an image with .pp as caption
+            const directImage = messageInfo.message?.imageMessage;
+
+            if (directImage) {
+                // Direct image with .pp caption
+                imageMessage = directImage;
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check for quoted message
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
+
+                if (!quotedMessage || !quotedMessage.imageMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Please reply to an image or send an image with .pp as caption.'
+                    );
+                    return;
+                }
+
+                imageMessage = quotedMessage.imageMessage;
+                messageToDownload = {
+                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || 
+                         messageInfo.key,
+                    message: quotedMessage
+                };
+            }
+
+            try {
+                // Download the image
+                const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+
+                if (!imageBuffer || imageBuffer.length === 0) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Failed to download image. Please try again.'
+                    );
+                    return;
+                }
+
+                // Set the bot profile picture
+                await this.bot.sock.updateProfilePicture(this.bot.sock.user.id, imageBuffer);
+
+            } catch (error) {
+                console.error('Error downloading image for bot profile:', error);
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to update bot profile picture. Please ensure the image is valid and try again.'
+                );
+            }
+
+        } catch (error) {
+            console.error('Error in setBotProfilePicture:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while updating the bot profile picture.'
+            );
+        }
     }
 
     

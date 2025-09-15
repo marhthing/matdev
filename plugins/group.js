@@ -221,6 +221,11 @@ class GroupPlugin {
      * Unified tag command - handles both everyone and admin tagging
      */
     async tagCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         const { args } = messageInfo;
 
         // Check if first argument is "admin"
@@ -384,16 +389,13 @@ class GroupPlugin {
      * Kick user from group (admin only)
      */
     async kickUser(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -507,16 +509,13 @@ class GroupPlugin {
      * Add user to group (admin only)
      */
     async addUser(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid, args, message } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -802,16 +801,13 @@ class GroupPlugin {
      * Promote user to admin (admin only)
      */
     async promoteUser(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -918,16 +914,13 @@ class GroupPlugin {
      * Demote user from admin (admin only)
      */
     async demoteUser(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1185,16 +1178,13 @@ class GroupPlugin {
      * Lock group - restrict messaging to admins only (admin only)
      */
     async lockGroup(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1238,16 +1228,13 @@ class GroupPlugin {
      * Unlock group - allow everyone to send messages (admin only)
      */
     async unlockGroup(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1300,16 +1287,13 @@ class GroupPlugin {
      * Greeting control command
      */
     async greetingCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1414,16 +1398,13 @@ class GroupPlugin {
      * Group info command - show group information and statistics
      */
     async groupInfoCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1478,16 +1459,13 @@ class GroupPlugin {
      * Set group name command (admin only)
      */
     async setGroupNameCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1540,16 +1518,13 @@ class GroupPlugin {
      * Set group description command (admin only)
      */
     async setGroupDescCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1602,16 +1577,13 @@ class GroupPlugin {
      * Get group invite link command (admin only)
      */
     async getGroupLinkCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1650,16 +1622,13 @@ class GroupPlugin {
      * Revoke group invite link command (admin only)
      */
     async revokeGroupLinkCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1699,17 +1668,14 @@ class GroupPlugin {
      * Set group profile picture command (admin only)
      */
     async setGroupProfilePicture(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { downloadMediaMessage } = require('baileys');
             const { chat_jid, sender_jid } = messageInfo;
-
-            // Check if this is a group chat
-            if (!chat_jid.endsWith('@g.us')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ This command can only be used in group chats.'
-                );
-                return;
-            }
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
@@ -1910,6 +1876,11 @@ class GroupPlugin {
      * Antilink command implementation
      */
     async antilinkCommand(messageInfo) {
+        // Check if this is a group chat
+        if (!messageInfo.is_group) {
+            return; // Silently ignore if not in group
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
 
