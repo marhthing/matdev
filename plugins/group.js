@@ -1765,7 +1765,7 @@ class GroupPlugin {
 
             try {
                 // Download the image
-                console.log('📥 Downloading image for group profile picture...');
+                // console.log('📥 Downloading image for group profile picture...');
                 const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                 if (!imageBuffer || imageBuffer.length === 0) {
@@ -1778,9 +1778,9 @@ class GroupPlugin {
                 // Set the group profile picture
                 await this.bot.sock.updateProfilePicture(chat_jid, imageBuffer);
 
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '✅ Group profile picture updated successfully!'
-                );
+                // await this.bot.messageHandler.reply(messageInfo, 
+                //     '✅ Group profile picture updated successfully!'
+                // );
 
             } catch (error) {
                 console.error('Error downloading quoted image:', error);
