@@ -1625,9 +1625,9 @@ class GroupPlugin {
             // Revoke current invite link
             await this.bot.sock.groupRevokeInvite(chat_jid);
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Group Invite Link Revoked`
-            );
+            // await this.bot.messageHandler.reply(messageInfo, 
+            //     `✅ Group Invite Link Revoked`
+            // );
 
         } catch (error) {
             console.error('Error in revokelink command:', error);
