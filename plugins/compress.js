@@ -321,14 +321,14 @@ class CompressPlugin {
     buildEnhancedFFmpegCommand(inputPath, outputPath, resolution, bitrates) {
         const resConfig = this.resolutions[resolution];
         
-        // Modern 2025 FFmpeg: Better aspect ratio handling to prevent small videos
+        // Modern 2025 FFmpeg: Better aspect ratio handling with even dimensions for libx264
         let scaleFilter;
         if (bitrates.compressionMode === 'aggressive') {
             // For aggressive mode, allow slight stretching for size optimization
             scaleFilter = `scale=${resConfig.width}:${resConfig.height}`;
         } else {
-            // For other modes, preserve aspect ratio but fill the frame better
-            scaleFilter = `scale='if(gt(a,${resConfig.width}/${resConfig.height}),${resConfig.width},-1)':'if(gt(a,${resConfig.width}/${resConfig.height}),-1,${resConfig.height})'`;
+            // For other modes, preserve aspect ratio but ensure even dimensions for libx264
+            scaleFilter = `scale='if(gt(a,${resConfig.width}/${resConfig.height}),${resConfig.width},-2)':'if(gt(a,${resConfig.width}/${resConfig.height}),-2,${resConfig.height})'`;
         }
         
         // Modern 2025 FFmpeg encoding parameters
