@@ -35,13 +35,6 @@ class VideoEditorPlugin {
             source: 'video-editor.js'
         });
 
-        this.bot.messageHandler.registerCommand('compress', this.compressCommand.bind(this), {
-            description: 'Compress video to reduce file size',
-            usage: `${config.PREFIX}compress [quality] (reply to video)\nQuality: low, medium, high (default: medium)`,
-            category: 'video editing',
-            plugin: 'video-editor',
-            source: 'video-editor.js'
-        });
 
         this.bot.messageHandler.registerCommand('speed', this.speedCommand.bind(this), {
             description: 'Change video playback speed',
@@ -142,17 +135,6 @@ class VideoEditorPlugin {
         await this.processVideo(messageInfo, 'trim', { startTime, duration });
     }
 
-    async compressCommand(messageInfo) {
-        const args = messageInfo.text.split(' ').slice(1);
-        const quality = args[0]?.toLowerCase() || 'medium';
-
-        const validQualities = ['low', 'medium', 'high'];
-        if (!validQualities.includes(quality)) {
-            return;
-        }
-
-        await this.processVideo(messageInfo, 'compress', { quality });
-    }
 
     async speedCommand(messageInfo) {
         const args = messageInfo.text.split(' ').slice(1);
@@ -378,9 +360,6 @@ class VideoEditorPlugin {
             case 'trim':
                 return `ffmpeg -i "${inputPath}" -ss ${params.startTime} -t ${params.duration} -c copy "${outputPath}"`;
 
-            case 'compress':
-                const crf = params.quality === 'low' ? '35' : params.quality === 'high' ? '20' : '28';
-                return `ffmpeg -i "${inputPath}" -c:v libx264 -crf ${crf} -preset fast -c:a aac -b:a 128k "${outputPath}"`;
 
             case 'speed':
                 if (params.speed >= 1) {
