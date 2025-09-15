@@ -66,7 +66,7 @@ class CompressPlugin {
     registerCommands() {
         this.bot.messageHandler.registerCommand('compress', this.compressCommand.bind(this), {
             description: 'Enhanced video compression with resolution and quality control',
-            usage: `${config.PREFIX}compress [resolution] (reply to video)\nResolutions: 144p, 480p, 720p, 1080p (default: 720p)\nExample: ${config.PREFIX}compress 480p`,
+            usage: `${config.PREFIX}compress [mode] [resolution] (reply to video)\nModes: size (prioritize file size), br (prioritize quality/bitrate)\nResolutions: 144p, 480p, 720p, 1080p (default: 720p)\nExamples:\n${config.PREFIX}compress 720p (balanced)\n${config.PREFIX}compress size 720p (prioritize size)\n${config.PREFIX}compress br 720p (prioritize quality)`,
             category: 'video editing',
             plugin: 'compress',
             source: 'compress.js'
@@ -88,7 +88,35 @@ class CompressPlugin {
 
         try {
             const args = messageInfo.text.split(' ').slice(1);
-            const requestedResolution = args[0]?.toLowerCase() || '720p';
+            let compressionMode = 'balanced'; // default mode
+            let requestedResolution = '720p'; // default resolution
+            
+            // Parse arguments: [mode] [resolution] or just [resolution]
+            if (args.length === 1) {
+                // Single argument - could be mode or resolution
+                if (['size', 'br'].includes(args[0].toLowerCase())) {
+                    compressionMode = args[0].toLowerCase();
+                    requestedResolution = '720p'; // default
+                } else {
+                    requestedResolution = args[0].toLowerCase();
+                }
+            } else if (args.length === 2) {
+                // Two arguments: mode and resolution
+                compressionMode = args[0].toLowerCase();
+                requestedResolution = args[1].toLowerCase();
+            }
+            
+            // Validate mode
+            if (!['balanced', 'size', 'br'].includes(compressionMode)) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `❌ Invalid mode. Available modes:\n` +
+                    `• **balanced** - Smart size/quality balance (default)\n` +
+                    `• **size** - Prioritize file size (smaller files)\n` +
+                    `• **br** - Prioritize bitrate/quality (better quality)\n\n` +
+                    `Examples:\n${config.PREFIX}compress 720p\n${config.PREFIX}compress size 480p\n${config.PREFIX}compress br 1080p`
+                );
+                return;
+            }
 
             // Validate resolution
             if (!this.resolutions[requestedResolution]) {
@@ -97,7 +125,7 @@ class CompressPlugin {
                     Object.keys(this.resolutions).map(res => 
                         `• ${res} - ${this.resolutions[res].name}`
                     ).join('\n') +
-                    `\n\nExample: ${config.PREFIX}compress 480p`
+                    `\n\nExample: ${config.PREFIX}compress size 480p`
                 );
                 return;
             }
@@ -142,9 +170,14 @@ class CompressPlugin {
 
             // Send processing message with document detection info
             const sourceInfo = isDocument ? 'MP4 document (quality preserved)' : 'video message';
+            const modeInfo = {
+                'balanced': 'smart balance',
+                'size': 'size priority', 
+                'br': 'quality priority'
+            };
             await this.bot.messageHandler.reply(messageInfo, 
                 `🔄 Compressing ${sourceInfo} to ${this.resolutions[requestedResolution].name}...\n` +
-                `⚙️ Settings: 30 FPS, smart compression, size optimized`
+                `⚙️ Settings: 30 FPS, ${modeInfo[compressionMode]}, optimized scaling`
             );
 
             // Download video or document
@@ -168,8 +201,8 @@ class CompressPlugin {
             // Get video duration for file size calculation
             const duration = await this.getVideoDuration(inputPath);
             
-            // Calculate optimal bitrate based on duration and target file size
-            const optimalBitrate = this.calculateOptimalBitrate(requestedResolution, duration);
+            // Calculate optimal bitrate based on duration, target file size, and user preference
+            const optimalBitrate = this.calculateOptimalBitrate(requestedResolution, duration, compressionMode);
 
             // Build enhanced FFmpeg command
             const command = this.buildEnhancedFFmpegCommand(
@@ -288,13 +321,24 @@ class CompressPlugin {
     buildEnhancedFFmpegCommand(inputPath, outputPath, resolution, bitrates) {
         const resConfig = this.resolutions[resolution];
         
+        // Fixed: Better aspect ratio handling to prevent small videos
+        // Using scale with proper aspect ratio preservation
+        let scaleFilter;
+        if (bitrates.compressionMode === 'aggressive') {
+            // For aggressive mode, allow slight stretching for size optimization
+            scaleFilter = `scale=${resConfig.width}:${resConfig.height}`;
+        } else {
+            // For other modes, preserve aspect ratio but fill the frame better
+            scaleFilter = `scale='if(gt(a,${resConfig.width}/${resConfig.height}),${resConfig.width},-1)':'if(gt(a,${resConfig.width}/${resConfig.height}),-1,${resConfig.height})'`;
+        }
+        
         // Enhanced FFmpeg command with:
         // - Fixed 30 FPS output
-        // - Resolution scaling with aspect ratio preservation
+        // - Improved resolution scaling (no more tiny videos)
         // - Optimized encoding settings
         // - Audio quality optimization
         return `ffmpeg -i "${inputPath}" ` +
-               `-vf "scale=${resConfig.width}:${resConfig.height}:force_original_aspect_ratio=decrease,pad=${resConfig.width}:${resConfig.height}:(ow-iw)/2:(oh-ih)/2" ` +
+               `-vf "${scaleFilter}" ` +
                `-r ${this.targetFPS} ` +
                `-c:v libx264 ` +
                `-b:v ${bitrates.video}k ` +
@@ -311,21 +355,39 @@ class CompressPlugin {
                `"${outputPath}"`;
     }
 
-    calculateOptimalBitrate(resolution, durationSeconds) {
+    calculateOptimalBitrate(resolution, durationSeconds, mode = 'balanced') {
         const baseBitrate = this.bitrateConfig[resolution];
         
-        // Smart balancing: Prioritize file size but maintain reasonable quality
+        // Handle different compression modes
+        if (mode === 'br') {
+            // Bitrate priority mode - use backend range with minimal size constraints
+            return {
+                ...baseBitrate,
+                compressionMode: 'high-quality'
+            };
+        }
+        
+        // Smart balancing for 'balanced' and 'size' modes
         if (durationSeconds > 0) {
             let targetFileSizeMB;
             
-            // Calculate target file size based on duration
-            if (durationSeconds <= 90) {
-                // For videos ≤ 1.5 min: 8-10 MB target (prioritize file size)
-                targetFileSizeMB = Math.min(10, Math.max(8, 6 + (durationSeconds / 60) * 2));
+            // Calculate target file size based on duration and mode
+            if (mode === 'size') {
+                // Size priority - more aggressive targets
+                if (durationSeconds <= 90) {
+                    targetFileSizeMB = Math.min(8, Math.max(5, 4 + (durationSeconds / 60) * 2));
+                } else {
+                    const minutes = durationSeconds / 60;
+                    targetFileSizeMB = Math.min(25, 6 + (minutes - 1.5) * 3);
+                }
             } else {
-                // For longer videos: allow larger size but still optimize
-                const minutes = durationSeconds / 60;
-                targetFileSizeMB = Math.min(50, 8 + (minutes - 1.5) * 4); // ~12MB per additional minute
+                // Balanced mode - original targets
+                if (durationSeconds <= 90) {
+                    targetFileSizeMB = Math.min(10, Math.max(8, 6 + (durationSeconds / 60) * 2));
+                } else {
+                    const minutes = durationSeconds / 60;
+                    targetFileSizeMB = Math.min(50, 8 + (minutes - 1.5) * 4);
+                }
             }
             
             const targetBitrateBitsPerSecond = (targetFileSizeMB * 8 * 1024 * 1024) / durationSeconds;
