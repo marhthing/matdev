@@ -435,18 +435,18 @@ class CorePlugin {
 
             // Create menu design using the new font style
             let menuText = `╭═══ MATDEV ═══⊷\n`;
-            menuText += `┃❃╭──────────────\n`;
-            menuText += `┃❃│ Prefix : ${config.PREFIX}\n`;
-            menuText += `┃❃│ User : ${botName}\n`;
-            menuText += `┃❃│ Time : ${currentTime}\n`;
-            menuText += `┃❃│ Day : ${currentDay}\n`;
-            menuText += `┃❃│ Date : ${currentDate}\n`;
-            menuText += `┃❃│ Version : 1.0.0\n`;
-            menuText += `┃❃│ Plugins : ${commands.length}\n`;
-            menuText += `┃❃│ Ram : ${usedMemMB}/${totalMemMB}MB\n`;
-            menuText += `┃❃│ Uptime : ${botUptime}\n`;
-            menuText += `┃❃│ Platform : ${platformName} (${systemInfo.arch})\n`;
-            menuText += `┃❃╰───────────────\n`;
+            menuText += `┃¶╭──────────────\n`;
+            menuText += `┃¶│ Prefix : ${config.PREFIX}\n`;
+            menuText += `┃¶│ User : ${botName}\n`;
+            menuText += `┃¶│ Time : ${currentTime}\n`;
+            menuText += `┃¶│ Day : ${currentDay}\n`;
+            menuText += `┃¶│ Date : ${currentDate}\n`;
+            menuText += `┃¶│ Version : 1.0.0\n`;
+            menuText += `┃¶│ Plugins : ${commands.length}\n`;
+            menuText += `┃¶│ Ram : ${usedMemMB}/${totalMemMB}MB\n`;
+            menuText += `┃¶│ Uptime : ${botUptime}\n`;
+            menuText += `┃¶│ Platform : ${platformName} (${systemInfo.arch})\n`;
+            menuText += `┃¶╰───────────────\n`;
             menuText += `╰═════════════════⊷\n`;
 
             // Helper function to convert text to mathematical bold
@@ -474,7 +474,7 @@ class CorePlugin {
             for (const [category, cmds] of Object.entries(categories)) {
                 const categoryName = toSmallCaps(category);
 
-                menuText += ` ╭─❏ ${categoryName} ❏\n`;
+                menuText += ` ╭─ʕ ${categoryName} ʔ\n`;
                 
                 cmds.forEach(cmd => {
                     menuText += ` │ ${toBoldMath(cmd.name)}\n`;
