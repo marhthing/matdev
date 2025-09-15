@@ -433,9 +433,8 @@ class CorePlugin {
                 processedCommands.add(cmd.name);
             });
 
-            // Create menu design with monospace font and no emojis
-            let menuText = `\`\`\``;
-            menuText += `╭─────────────────────────────────────╮\n`;
+            // Create menu design with small font
+            let menuText = `╭─────────────────────────────────────╮\n`;
             menuText += `│         *MATDEV BOT MENU*           │\n`;
             menuText += `╰─────────────────────────────────────╯\n\n`;
 
@@ -465,13 +464,9 @@ class CorePlugin {
                 menuText += `\n`;
             }
 
-            // Footer
-            menuText += `╭─────────────────────────────────────╮\n`;
-            menuText += `│  Type ${config.PREFIX}help <command> for details!  │\n`;
-            menuText += `│                                     │\n`;
-            menuText += `│        *Powered by MATDEV*          │\n`;
-            menuText += `╰─────────────────────────────────────╯`;
-            menuText += `\`\`\``;
+            // Footer - no lines
+            menuText += `Type ${config.PREFIX}help <command> for details!\n\n`;
+            menuText += `*Powered by MATDEV*`;
 
             await this.bot.messageHandler.reply(messageInfo, menuText);
 
