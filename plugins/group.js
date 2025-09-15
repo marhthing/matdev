@@ -19,14 +19,14 @@ class GroupPlugin {
      */
     async init(bot) {
         this.bot = bot;
-        
+
         // Initialize storage for new features
         this.initializeStorage();
-        
+
         this.registerCommands();
         this.registerGroupEvents();
         this.registerMessageHandler();
-        
+
         console.log('✅ Group plugin loaded');
     }
 
@@ -39,7 +39,7 @@ class GroupPlugin {
             console.warn('⚠️ Database not available for group plugin');
             return;
         }
-        
+
         // Initialize default data structures
         this.ensureGroupData('activity_stats', {});
     }
@@ -192,7 +192,7 @@ class GroupPlugin {
             groupOnly: true
         });
 
-        
+
 
         // Anti-link system command
         this.bot.messageHandler.registerCommand('antilink', this.antilinkCommand.bind(this), {
@@ -214,7 +214,7 @@ class GroupPlugin {
             groupOnly: true
         });
 
-        
+
     }
 
     /**
@@ -222,7 +222,7 @@ class GroupPlugin {
      */
     async tagCommand(messageInfo) {
         const { args } = messageInfo;
-        
+
         // Check if first argument is "admin"
         if (args.length > 0 && args[0].toLowerCase() === 'admin') {
             return this.tagAdmins(messageInfo);
@@ -238,7 +238,7 @@ class GroupPlugin {
     async tagEveryone(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -249,7 +249,7 @@ class GroupPlugin {
 
             // Get group metadata to get participants
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -272,14 +272,14 @@ class GroupPlugin {
 
             // Build mentions array
             const mentions = participants.map(participant => participant.id);
-            
+
             // Build message
             let messageText = `👥 *Tagging Everyone* (${participants.length} members)\n\n`;
-            
+
             // Add mentions in numbered list format
             for (let i = 0; i < participants.length; i++) {
                 let displayName = participants[i].id;
-                
+
                 // Clean up display for different account types
                 if (displayName.includes('@lid')) {
                     // For business accounts, try to get a cleaner display
@@ -288,7 +288,7 @@ class GroupPlugin {
                     // For regular accounts, show phone number
                     displayName = displayName.replace('@s.whatsapp.net', '');
                 }
-                
+
                 messageText += `${i + 1}. @${displayName}\n`;
             }
 
@@ -312,7 +312,7 @@ class GroupPlugin {
     async tagAdmins(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -323,7 +323,7 @@ class GroupPlugin {
 
             // Get group metadata to get participants and their roles
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -345,14 +345,14 @@ class GroupPlugin {
 
             // Build mentions array
             const mentions = admins.map(admin => admin.id);
-            
+
             // Build message
             let messageText = `👑 *Tagging Admins* (${admins.length} admins)\n\n`;
-            
+
             // Add mentions in numbered list format
             for (let i = 0; i < admins.length; i++) {
                 let displayName = admins[i].id;
-                
+
                 // Clean up display for different account types
                 if (displayName.includes('@lid')) {
                     // For business accounts, try to get a cleaner display
@@ -361,7 +361,7 @@ class GroupPlugin {
                     // For regular accounts, show phone number
                     displayName = displayName.replace('@s.whatsapp.net', '');
                 }
-                
+
                 const adminLevel = admins[i].admin === 'superadmin' ? '👑' : '⭐';
                 messageText += `${i + 1}. ${adminLevel} @${displayName}\n`;
             }
@@ -386,7 +386,7 @@ class GroupPlugin {
     async kickUser(messageInfo) {
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -397,7 +397,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -509,7 +509,7 @@ class GroupPlugin {
     async addUser(messageInfo) {
         try {
             const { chat_jid, sender_jid, args, message } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -520,7 +520,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -545,7 +545,7 @@ class GroupPlugin {
             if (quotedMessage) {
                 // Try to extract phone number from quoted message
                 targetInput = await this.extractPhoneFromMessage(quotedMessage);
-                
+
                 if (targetInput) {
                     console.log(`📱 Extracted phone number from tagged message: ${targetInput}`);
                 }
@@ -555,7 +555,7 @@ class GroupPlugin {
             if (!targetInput && args && args.length > 0) {
                 // First try the first argument
                 targetInput = args[0];
-                
+
                 // If first argument looks incomplete (too short after cleaning), try joining all args
                 const testClean = targetInput.replace(/\D/g, '');
                 if (testClean.length < 8 && args.length > 1) {
@@ -588,13 +588,13 @@ class GroupPlugin {
                 console.log(`📱 Raw input received: "${targetInput}"`);
                 console.log(`📱 Input length: ${targetInput.length}`);
                 console.log(`📱 Input characters: ${targetInput.split('').map(c => `'${c}'`).join(', ')}`);
-                
-                // Remove any non-digit characters (spaces, +, -, etc.)
+
+                // Remove any non-digit characters (spaces, +, etc.)
                 let cleanPhone = targetInput.replace(/\D/g, '');
-                
+
                 console.log(`📱 After cleaning: "${cleanPhone}"`);
                 console.log(`📱 Clean phone length: ${cleanPhone.length}`);
-                
+
                 // Handle various international formats
                 if (cleanPhone.length < 8) {
                     console.log(`❌ Phone validation failed: ${cleanPhone.length} digits (minimum 8 required)`);
@@ -609,7 +609,7 @@ class GroupPlugin {
                     );
                     return;
                 }
-                
+
                 console.log(`✅ Phone validation passed: ${cleanPhone} (${cleanPhone.length} digits)`);
                 targetJid = `${cleanPhone}@s.whatsapp.net`;
                 // console.log(`📱 Final JID: ${targetJid}`);
@@ -635,7 +635,7 @@ class GroupPlugin {
             try {
                 // Attempt to add the user directly
                 const addResult = await this.bot.sock.groupParticipantsUpdate(chat_jid, [targetJid], 'add');
-                
+
                 // Check if the add was successful
                 if (addResult && addResult[0] && addResult[0].status === '200') {
                     await this.bot.messageHandler.reply(messageInfo, 
@@ -653,7 +653,7 @@ class GroupPlugin {
             }
 
         } catch (error) {
-            console.error('Error in add user:', error);
+            console.error('Error in addUser:', error);
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to add user. Please try again or check if I have admin permissions.'
             );
@@ -668,11 +668,11 @@ class GroupPlugin {
             // Handle contact messages
             if (quotedMessage.contactMessage) {
                 const contact = quotedMessage.contactMessage;
-                
+
                 // Try to extract from vCard
                 if (contact.vcard) {
                     const vcard = contact.vcard;
-                    
+
                     // Look for phone numbers in vCard format
                     const phoneMatch = vcard.match(/TEL[^:]*:[\+]?([0-9\s\-\(\)]+)/i);
                     if (phoneMatch) {
@@ -681,7 +681,7 @@ class GroupPlugin {
                         return phone;
                     }
                 }
-                
+
                 // Try display name if it contains numbers
                 if (contact.displayName) {
                     const nameMatch = contact.displayName.match(/[\+]?([0-9]{10,15})/);
@@ -709,7 +709,7 @@ class GroupPlugin {
 
             // Handle regular text messages with phone numbers
             let messageText = '';
-            
+
             if (quotedMessage.conversation) {
                 messageText = quotedMessage.conversation;
             } else if (quotedMessage.extendedTextMessage?.text) {
@@ -739,7 +739,7 @@ class GroupPlugin {
                         // Get the longest match (most likely to be complete)
                         const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
                         const cleanPhone = longestMatch.replace(/[\s\-\+]/g, '');
-                        
+
                         if (cleanPhone.length >= 10) {
                             console.log(`📱 Extracted phone from message text: ${cleanPhone}`);
                             return cleanPhone;
@@ -781,7 +781,7 @@ class GroupPlugin {
 
             } catch (sendError) {
                 console.error('Failed to send invitation privately:', sendError);
-                
+
                 // If we can't send privately, just show the link in the group
                 await this.bot.messageHandler.reply(messageInfo, 
                     `📩 Could not add @${displayName} directly or send invitation privately.\n\n` +
@@ -804,7 +804,7 @@ class GroupPlugin {
     async promoteUser(messageInfo) {
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -815,7 +815,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -920,7 +920,7 @@ class GroupPlugin {
     async demoteUser(messageInfo) {
         try {
             const { chat_jid, sender_jid, message } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -931,7 +931,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1104,7 +1104,7 @@ class GroupPlugin {
             try {
                 // Try to get user's profile picture
                 const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
-                
+
                 if (profilePicUrl) {
                     // Send profile picture with welcome message as caption
                     await this.bot.sock.sendMessage(groupJid, {
@@ -1152,7 +1152,7 @@ class GroupPlugin {
             try {
                 // Try to get user's profile picture
                 const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
-                
+
                 if (profilePicUrl) {
                     // Send profile picture with goodbye message as caption
                     await this.bot.sock.sendMessage(groupJid, {
@@ -1187,7 +1187,7 @@ class GroupPlugin {
     async lockGroup(messageInfo) {
         try {
             const { chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1198,7 +1198,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1240,7 +1240,7 @@ class GroupPlugin {
     async unlockGroup(messageInfo) {
         try {
             const { chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1251,7 +1251,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1302,7 +1302,7 @@ class GroupPlugin {
     async greetingCommand(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1313,7 +1313,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1378,9 +1378,9 @@ class GroupPlugin {
 
                 const enabled = action === 'on';
                 const envKey = command === 'welcome' ? 'GREETING_WELCOME' : 'GREETING_GOODBYE';
-                
+
                 await this.updateEnvSetting(envKey, enabled.toString());
-                
+
                 if (command === 'welcome') {
                     config.GREETING_WELCOME = enabled;
                 } else {
@@ -1416,7 +1416,7 @@ class GroupPlugin {
     async groupInfoCommand(messageInfo) {
         try {
             const { chat_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1427,7 +1427,7 @@ class GroupPlugin {
 
             // Get group metadata
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1443,7 +1443,7 @@ class GroupPlugin {
 
             // Format creation date
             const creationTime = groupMetadata.creation ? new Date(groupMetadata.creation * 1000).toLocaleDateString() : 'Unknown';
-            
+
             // Build group info message
             const groupInfo = `📋 *Group Information*\n\n` +
                 `📝 *Name:* ${groupMetadata.subject || 'No name'}\n` +
@@ -1480,7 +1480,7 @@ class GroupPlugin {
     async setGroupNameCommand(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1491,7 +1491,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1517,7 +1517,7 @@ class GroupPlugin {
             }
 
             const newName = args.join(' ').trim();
-            
+
             if (newName.length > 100) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Group name is too long. Maximum 100 characters allowed.'
@@ -1542,7 +1542,7 @@ class GroupPlugin {
     async setGroupDescCommand(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1553,7 +1553,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1579,7 +1579,7 @@ class GroupPlugin {
             }
 
             const newDesc = args.join(' ').trim();
-            
+
             if (newDesc.length > 512) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Group description is too long. Maximum 512 characters allowed.'
@@ -1604,7 +1604,7 @@ class GroupPlugin {
     async getGroupLinkCommand(messageInfo) {
         try {
             const { chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1615,7 +1615,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1652,7 +1652,7 @@ class GroupPlugin {
     async revokeGroupLinkCommand(messageInfo) {
         try {
             const { chat_jid, sender_jid } = messageInfo;
-            
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1663,7 +1663,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1700,8 +1700,9 @@ class GroupPlugin {
      */
     async setGroupProfilePicture(messageInfo) {
         try {
-            const { chat_jid, sender_jid, message } = messageInfo;
-            
+            const { downloadMediaMessage } = require('baileys');
+            const { chat_jid, sender_jid } = messageInfo;
+
             // Check if this is a group chat
             if (!chat_jid.endsWith('@g.us')) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1712,7 +1713,7 @@ class GroupPlugin {
 
             // Get group metadata to check admin status
             const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-            
+
             if (!groupMetadata || !groupMetadata.participants) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Failed to get group information.'
@@ -1729,103 +1730,70 @@ class GroupPlugin {
                 return;
             }
 
-            let imageBuffer = null;
-            let imageSource = '';
+            let imageMessage = null;
+            let messageToDownload = null;
 
-            // Method 1: Check for quoted/replied image message
-            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
-            if (quotedMessage?.imageMessage) {
-                try {
-                    // Download the quoted image
-                    const stream = await this.bot.sock.downloadMediaMessage({
-                        key: message.extendedTextMessage.contextInfo.stanzaId ? {
-                            id: message.extendedTextMessage.contextInfo.stanzaId,
-                            remoteJid: chat_jid,
-                            participant: message.extendedTextMessage.contextInfo.participant
-                        } : null,
-                        message: { imageMessage: quotedMessage.imageMessage }
-                    });
-                    
-                    if (stream) {
-                        const chunks = [];
-                        for await (const chunk of stream) {
-                            chunks.push(chunk);
-                        }
-                        imageBuffer = Buffer.concat(chunks);
-                        imageSource = 'quoted image';
-                    }
-                } catch (downloadError) {
-                    console.error('Error downloading quoted image:', downloadError);
+            // Check if this is an image with .setpp as caption
+            const directImage = messageInfo.message?.imageMessage;
+
+            if (directImage) {
+                // Direct image with .setpp caption
+                imageMessage = directImage;
+                messageToDownload = {
+                    key: messageInfo.key,
+                    message: messageInfo.message
+                };
+            } else {
+                // Check for quoted message
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                    messageInfo.message?.quotedMessage;
+
+                if (!quotedMessage || !quotedMessage.imageMessage) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Please reply to an image or send an image with .setpp as caption.'
+                    );
+                    return;
                 }
+
+                imageMessage = quotedMessage.imageMessage;
+                messageToDownload = {
+                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || 
+                         messageInfo.key,
+                    message: quotedMessage
+                };
             }
 
-            // Method 2: Check if current message is an image with .setpp in caption
-            if (!imageBuffer && message?.imageMessage) {
-                try {
-                    const stream = await this.bot.sock.downloadMediaMessage({
-                        key: messageInfo.key,
-                        message: message
-                    });
-                    
-                    if (stream) {
-                        const chunks = [];
-                        for await (const chunk of stream) {
-                            chunks.push(chunk);
-                        }
-                        imageBuffer = Buffer.concat(chunks);
-                        imageSource = 'current image';
-                    }
-                } catch (downloadError) {
-                    console.error('Error downloading current image:', downloadError);
+            try {
+                // Download the image
+                console.log('📥 Downloading image for group profile picture...');
+                const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
+
+                if (!imageBuffer || imageBuffer.length === 0) {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        '❌ Failed to download image. Please try again.'
+                    );
+                    return;
                 }
-            }
 
-            // If no image found, show usage instructions
-            if (!imageBuffer) {
+                // Set the group profile picture
+                await this.bot.sock.updateProfilePicture(chat_jid, imageBuffer);
+
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ No image found. Please either:\n\n' +
-                    '• Reply to an image with `.setpp`\n' +
-                    '• Send an image with `.setpp` in the caption\n\n' +
-                    '_Only admins can change the group profile picture._'
+                    '✅ Group profile picture updated successfully!'
                 );
-                return;
-            }
 
-            // Validate image size (WhatsApp has limits)
-            if (imageBuffer.length > 5 * 1024 * 1024) { // 5MB limit
+            } catch (error) {
+                console.error('Error downloading quoted image:', error);
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Image is too large. Please use an image smaller than 5MB.'
+                    '❌ Failed to update group profile picture. Please ensure the image is valid and try again.'
                 );
-                return;
             }
-
-            // Set the group profile picture
-            await this.bot.sock.updateProfilePicture(chat_jid, imageBuffer);
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Group profile picture updated successfully!\n\n` +
-                `📸 Source: ${imageSource}\n` +
-                `👤 Updated by: Admin\n` +
-                `🕐 Time: ${new Date().toLocaleString()}`
-            );
 
         } catch (error) {
-            console.error('Error in setpp command:', error);
-            
-            // Handle specific WhatsApp API errors
-            if (error.message?.includes('forbidden')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to update profile picture. The bot may not have admin permissions or the group settings may restrict profile picture changes.'
-                );
-            } else if (error.message?.includes('invalid-media')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Invalid image format. Please use a valid image file (JPG, PNG, WebP).'
-                );
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to update group profile picture. Please try again or check bot permissions.'
-                );
-            }
+            console.error('Error in setGroupProfilePicture:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ An error occurred while updating the group profile picture.'
+            );
         }
     }
 
@@ -1841,7 +1809,7 @@ class GroupPlugin {
             const path = require('path');
             const fs = require('fs-extra');
             const envPath = path.join(__dirname, '../.env');
-            
+
             let envContent = '';
             if (await fs.pathExists(envPath)) {
                 envContent = await fs.readFile(envPath, 'utf8');
@@ -1889,7 +1857,7 @@ class GroupPlugin {
      */
     async handleIncomingMessage(messageUpdate) {
         const { messages } = messageUpdate;
-        
+
         for (const message of messages) {
             // Skip if not a group message or if it's from the bot
             if (!message.key?.remoteJid?.endsWith('@g.us') || 
@@ -1897,23 +1865,23 @@ class GroupPlugin {
                 !message.message) {
                 continue;
             }
-            
+
             const chatJid = message.key.remoteJid;
             const senderJid = message.key.participant || message.key.remoteJid;
             const messageText = this.extractMessageText(message.message);
-            
+
             if (!messageText) continue;
-            
+
             // Track message activity for statistics
             await this.trackUserActivity(chatJid, senderJid, messageText);
-            
+
             // Check antilink
             if (await this.isAntilinkEnabled(chatJid) && this.containsLink(messageText)) {
                 await this.handleAntilinkViolation(chatJid, senderJid, message.key);
                 continue;
             }
-            
-            
+
+
         }
     }
 
@@ -1936,7 +1904,7 @@ class GroupPlugin {
         return null;
     }
 
-    
+
 
     /**
      * Antilink command implementation
@@ -1944,13 +1912,13 @@ class GroupPlugin {
     async antilinkCommand(messageInfo) {
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
-            
+
             // Check admin permissions
             if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
                 return;
             }
-            
+
             if (args.length === 0) {
                 // Show current status
                 const enabled = await this.isAntilinkEnabled(chat_jid);
@@ -1961,9 +1929,9 @@ class GroupPlugin {
                 );
                 return;
             }
-            
+
             const action = args[0].toLowerCase();
-            
+
             if (action === 'on' || action === 'off') {
                 const enabled = action === 'on';
                 await this.setAntilinkStatus(chat_jid, enabled);
@@ -1975,20 +1943,20 @@ class GroupPlugin {
                     `❌ Invalid usage. Use: ${config.PREFIX}antilink [on/off]`
                 );
             }
-            
+
         } catch (error) {
             console.error('Error in antilink command:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process antilink command.');
         }
     }
 
-    
 
-    
 
-    
 
-    
+
+
+
+
 
     // =================================================================
     // ANTILINK SYSTEM IMPLEMENTATION
@@ -2009,7 +1977,7 @@ class GroupPlugin {
         const groupData = this.bot.database.getData('antilink_settings') || {};
         groupData[chatJid] = enabled;
         this.bot.database.setData('antilink_settings', groupData);
-        
+
         // Also update global .env setting
         await this.updateEnvSetting('ANTILINK_ENABLED', enabled.toString());
     }
@@ -2029,7 +1997,7 @@ class GroupPlugin {
         try {
             // Delete the message silently - no notification
             await this.deleteMessage(chatJid, messageKey);
-            
+
         } catch (error) {
             console.error('Error handling antilink violation:', error);
         }
@@ -2048,7 +2016,7 @@ class GroupPlugin {
             if (!activityData[chatJid]) {
                 activityData[chatJid] = {};
             }
-            
+
             const now = Date.now();
             if (!activityData[chatJid][userJid]) {
                 activityData[chatJid][userJid] = {
@@ -2058,12 +2026,12 @@ class GroupPlugin {
                     totalCharacters: 0
                 };
             }
-            
+
             // Update activity data
             activityData[chatJid][userJid].messageCount++;
             activityData[chatJid][userJid].lastActivity = now;
             activityData[chatJid][userJid].totalCharacters += messageText.length;
-            
+
             this.bot.database.setData('activity_stats', activityData);
         } catch (error) {
             console.error('Error tracking user activity:', error);
@@ -2077,18 +2045,18 @@ class GroupPlugin {
         try {
             const activityData = this.bot.database.getData('activity_stats') || {};
             const groupData = activityData[chatJid] || {};
-            
+
             const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
             const totalMembers = groupMetadata.participants.length;
-            
+
             const activeMembers = Object.keys(groupData).length;
             const totalMessages = Object.values(groupData).reduce((sum, user) => sum + user.messageCount, 0);
-            
+
             // Calculate period (from first activity to now)
             const firstActivities = Object.values(groupData)
                 .map(user => user.firstActivity)
                 .filter(time => time);
-            
+
             let period = 'Today';
             if (firstActivities.length > 0) {
                 const firstActivity = Math.min(...firstActivities);
@@ -2097,7 +2065,7 @@ class GroupPlugin {
                         daysSinceFirst === 1 ? 'Yesterday' : 
                         `${daysSinceFirst} days`;
             }
-            
+
             return {
                 totalMessages,
                 totalMembers,
@@ -2117,7 +2085,7 @@ class GroupPlugin {
         try {
             const activityData = this.bot.database.getData('activity_stats') || {};
             const groupData = activityData[chatJid] || {};
-            
+
             const leaderboard = Object.entries(groupData)
                 .map(([jid, data]) => ({
                     jid,
@@ -2125,7 +2093,7 @@ class GroupPlugin {
                     lastActivity: data.lastActivity
                 }))
                 .sort((a, b) => b.messageCount - a.messageCount);
-            
+
             return leaderboard;
         } catch (error) {
             console.error('Error getting leaderboard:', error);
@@ -2141,17 +2109,17 @@ class GroupPlugin {
             const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
             const activityData = this.bot.database.getData('activity_stats') || {};
             const groupData = activityData[chatJid] || {};
-            
+
             const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
             const inactiveMembers = [];
-            
+
             for (const participant of groupMetadata.participants) {
                 const userJid = participant.id;
                 const userData = groupData[userJid];
-                
+
                 // Skip bot
                 if (userJid === this.bot.sock.user?.id) continue;
-                
+
                 if (!userData || userData.lastActivity < cutoffTime) {
                     inactiveMembers.push({
                         jid: userJid,
@@ -2159,7 +2127,7 @@ class GroupPlugin {
                     });
                 }
             }
-            
+
             return inactiveMembers.sort((a, b) => {
                 if (!a.lastActivity && !b.lastActivity) return 0;
                 if (!a.lastActivity) return 1;
@@ -2181,7 +2149,7 @@ class GroupPlugin {
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor(diff / (1000 * 60));
-        
+
         if (days > 0) {
             return `${days} day${days !== 1 ? 's' : ''} ago`;
         } else if (hours > 0) {
@@ -2215,7 +2183,7 @@ class GroupPlugin {
      */
     getTargetUser(messageInfo) {
         const { message } = messageInfo;
-        
+
         // Method 1: Check for quoted/replied message first (like promote/demote)
         const contextInfo = message?.extendedTextMessage?.contextInfo || message?.contextInfo;
         if (contextInfo?.quotedMessage) {
@@ -2224,22 +2192,22 @@ class GroupPlugin {
                 return quotedParticipant;
             }
         }
-        
+
         // Method 2: Check for mentions in the current message
         if (contextInfo?.mentionedJid?.length > 0) {
             return contextInfo.mentionedJid[0];
         }
-        
+
         // Method 3: Check for mentions in regular text message
         if (message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
             return message.extendedTextMessage.contextInfo.mentionedJid[0];
         }
-        
+
         // Method 4: Check for mentions in conversation message
         if (message?.conversation && messageInfo.mentionedJid?.length > 0) {
             return messageInfo.mentionedJid[0];
         }
-        
+
         return null;
     }
 
@@ -2267,7 +2235,7 @@ class GroupPlugin {
         }
     }
 
-    
+
 
     /**
      * Cleanup method
