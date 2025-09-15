@@ -480,7 +480,7 @@ class CorePlugin {
                     menuText += ` │ ${toBoldMath(cmd.name)}\n`;
                 });
                 
-                menuText += ` ╰─────────────────\n`;
+                menuText += `\n`;
             }
 
             // Footer
