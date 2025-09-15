@@ -334,8 +334,8 @@ class CompressPlugin {
         // - High profile with modern level
         // - Psychovisual optimizations
         // - Improved GOP structure
-        // - Proper frame rate conversion filter
-        const fpsFilter = `fps=${this.targetFPS}`;
+        // - Better frame rate conversion with interpolation
+        const fpsFilter = `minterpolate=fps=${this.targetFPS}:mi_mode=mci`;
         const combinedFilter = `${scaleFilter},${fpsFilter}`;
         
         return `ffmpeg -i "${inputPath}" ` +
