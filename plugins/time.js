@@ -222,7 +222,11 @@ class TimePlugin {
      */
     async showBotTime(messageInfo) {
         const lagosTime = moment().tz(config.TIMEZONE);
-        const timeInfo = `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}`;
+        const timeInfo = `🇳🇬 *Lagos Time:* ${lagosTime.format('DD/MM/YYYY HH:mm:ss')}\n\n` +
+                        `💡 *Quick Tools:*\n` +
+                        `• ${config.PREFIX}time world - World clock\n` +
+                        `• ${config.PREFIX}time zones - Available codes\n` +
+                        `• ${config.PREFIX}time <country> - Specific time`;
         await this.bot.messageHandler.reply(messageInfo, timeInfo);
     }
 
