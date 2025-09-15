@@ -266,22 +266,12 @@ class CompressPlugin {
                 caption += `\n\n📄 Original was sent as document - quality preserved in compression.`;
             }
 
-            // Send compressed video as document to preserve quality (like original if it was document)
-            if (isDocument || compressedSize > 16 * 1024 * 1024) { // Send as document if >16MB or original was document
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    document: { url: outputPath },
-                    mimetype: 'video/mp4',
-                    fileName: `compressed_${requestedResolution}_${timestamp}.mp4`,
-                    caption: caption + `\n\n📄 Sent as document to preserve quality`
-                });
-            } else {
-                // Send as regular video message
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    video: { url: outputPath },
-                    mimetype: 'video/mp4',
-                    caption: caption
-                });
-            }
+            // Always send as regular WhatsApp video message
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                video: { url: outputPath },
+                mimetype: 'video/mp4',
+                caption: caption
+            });
 
         } catch (error) {
             console.error('Video compression error:', error);
@@ -328,7 +318,7 @@ class CompressPlugin {
             scaleFilter = `scale=${resConfig.width}:${resConfig.height}`;
         } else {
             // For other modes, preserve aspect ratio but ensure even dimensions for libx264
-            scaleFilter = `scale='if(gt(a,${resConfig.width}/${resConfig.height}),${resConfig.width},-2)':'if(gt(a,${resConfig.width}/${resConfig.height}),-2,${resConfig.height})'`;
+            scaleFilter = `scale='min(${resConfig.width},iw)':'min(${resConfig.height},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`;
         }
         
         // Modern 2025 FFmpeg encoding parameters
