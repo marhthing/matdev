@@ -48,11 +48,46 @@ class GeminiPlugin {
                 return;
             }
 
-            // Get the prompt from the message
-            const prompt = messageInfo.args.join(' ').trim();
+            // Get the prompt from the message args
+            let prompt = messageInfo.args.join(' ').trim();
+            
+            // If no prompt provided, check if this is a reply to a message
+            if (!prompt) {
+                // Check for quoted message in context
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                
+                if (quotedMessage) {
+                    // Extract text from the quoted message
+                    const messageTypes = Object.keys(quotedMessage);
+                    let quotedText = '';
+                    
+                    for (const type of messageTypes) {
+                        const content = quotedMessage[type];
+                        if (typeof content === 'string') {
+                            quotedText = content;
+                            break;
+                        } else if (content?.text) {
+                            quotedText = content.text;
+                            break;
+                        } else if (content?.caption) {
+                            quotedText = content.caption;
+                            break;
+                        } else if (type === 'conversation') {
+                            quotedText = content;
+                            break;
+                        }
+                    }
+                    
+                    if (quotedText) {
+                        prompt = quotedText;
+                    }
+                }
+            }
+            
+            // If still no prompt found, show usage message
             if (!prompt) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please provide a question or prompt.\nUsage: .gemini <your question>');
+                    '❌ Please provide a question or prompt.\nUsage: \n• `.gemini <your question>`\n• Reply to a message with `.gemini`');
                 return;
             }
 
