@@ -204,6 +204,16 @@ class GroupPlugin {
             groupOnly: true
         });
 
+        // Set group profile picture command (admin only)
+        this.bot.messageHandler.registerCommand('setpp', this.setGroupProfilePicture.bind(this), {
+            description: 'Set group profile picture (admin only)',
+            usage: `${config.PREFIX}setpp [tag an image or add to image caption]`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
         
     }
 
@@ -1682,6 +1692,140 @@ class GroupPlugin {
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Failed to revoke group invite link. Please try again or check bot permissions.'
             );
+        }
+    }
+
+    /**
+     * Set group profile picture command (admin only)
+     */
+    async setGroupProfilePicture(messageInfo) {
+        try {
+            const { chat_jid, sender_jid, message } = messageInfo;
+            
+            // Check if this is a group chat
+            if (!chat_jid.endsWith('@g.us')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ This command can only be used in group chats.'
+                );
+                return;
+            }
+
+            // Get group metadata to check admin status
+            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+            
+            if (!groupMetadata || !groupMetadata.participants) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to get group information.'
+                );
+                return;
+            }
+
+            // Check if the command sender is an admin
+            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Only group admins can use this command.'
+                );
+                return;
+            }
+
+            let imageBuffer = null;
+            let imageSource = '';
+
+            // Method 1: Check for quoted/replied image message
+            const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
+            if (quotedMessage?.imageMessage) {
+                try {
+                    // Download the quoted image
+                    const stream = await this.bot.sock.downloadMediaMessage({
+                        key: message.extendedTextMessage.contextInfo.stanzaId ? {
+                            id: message.extendedTextMessage.contextInfo.stanzaId,
+                            remoteJid: chat_jid,
+                            participant: message.extendedTextMessage.contextInfo.participant
+                        } : null,
+                        message: { imageMessage: quotedMessage.imageMessage }
+                    });
+                    
+                    if (stream) {
+                        const chunks = [];
+                        for await (const chunk of stream) {
+                            chunks.push(chunk);
+                        }
+                        imageBuffer = Buffer.concat(chunks);
+                        imageSource = 'quoted image';
+                    }
+                } catch (downloadError) {
+                    console.error('Error downloading quoted image:', downloadError);
+                }
+            }
+
+            // Method 2: Check if current message is an image with .setpp in caption
+            if (!imageBuffer && message?.imageMessage) {
+                try {
+                    const stream = await this.bot.sock.downloadMediaMessage({
+                        key: messageInfo.key,
+                        message: message
+                    });
+                    
+                    if (stream) {
+                        const chunks = [];
+                        for await (const chunk of stream) {
+                            chunks.push(chunk);
+                        }
+                        imageBuffer = Buffer.concat(chunks);
+                        imageSource = 'current image';
+                    }
+                } catch (downloadError) {
+                    console.error('Error downloading current image:', downloadError);
+                }
+            }
+
+            // If no image found, show usage instructions
+            if (!imageBuffer) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ No image found. Please either:\n\n' +
+                    '• Reply to an image with `.setpp`\n' +
+                    '• Send an image with `.setpp` in the caption\n\n' +
+                    '_Only admins can change the group profile picture._'
+                );
+                return;
+            }
+
+            // Validate image size (WhatsApp has limits)
+            if (imageBuffer.length > 5 * 1024 * 1024) { // 5MB limit
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Image is too large. Please use an image smaller than 5MB.'
+                );
+                return;
+            }
+
+            // Set the group profile picture
+            await this.bot.sock.updateProfilePicture(chat_jid, imageBuffer);
+
+            await this.bot.messageHandler.reply(messageInfo, 
+                `✅ Group profile picture updated successfully!\n\n` +
+                `📸 Source: ${imageSource}\n` +
+                `👤 Updated by: Admin\n` +
+                `🕐 Time: ${new Date().toLocaleString()}`
+            );
+
+        } catch (error) {
+            console.error('Error in setpp command:', error);
+            
+            // Handle specific WhatsApp API errors
+            if (error.message?.includes('forbidden')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to update profile picture. The bot may not have admin permissions or the group settings may restrict profile picture changes.'
+                );
+            } else if (error.message?.includes('invalid-media')) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Invalid image format. Please use a valid image file (JPG, PNG, WebP).'
+                );
+            } else {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Failed to update group profile picture. Please try again or check bot permissions.'
+                );
+            }
         }
     }
 
