@@ -32,7 +32,7 @@ class ContactManagerPlugin {
         await this.loadContacts();
         this.registerCommands();
         this.setupAutoDetection();
-        
+
         console.log('✅ Contact Manager plugin loaded');
     }
 
@@ -43,12 +43,12 @@ class ContactManagerPlugin {
         try {
             if (await fs.pathExists(this.contactsStoragePath)) {
                 const data = await fs.readJson(this.contactsStoragePath);
-                
+
                 // Convert array back to Map
                 for (const contact of data) {
                     this.contacts.set(contact.jid, contact);
                 }
-                
+
                 console.log(`📱 Loaded ${this.contacts.size} saved contacts`);
             } else {
                 // Create empty contacts file
@@ -80,23 +80,23 @@ class ContactManagerPlugin {
      */
     normalizePhoneToJid(phoneNumber) {
         if (!phoneNumber) return null;
-        
+
         // If it's already a JID, return as-is to preserve device suffixes
         if (phoneNumber.includes('@')) {
             return phoneNumber;
         }
-        
+
         // Remove all non-numeric characters (including +, -, spaces, parentheses)
         let cleaned = phoneNumber.replace(/[^\d]/g, '');
-        
+
         // console.log(`📱 Raw phone: "${phoneNumber}" -> Cleaned: "${cleaned}"`);
-        
+
         // Skip if too short after cleaning
         if (cleaned.length < 8) {
             // console.warn(`❌ Phone too short after cleaning: ${cleaned} (${cleaned.length} digits)`);
             return null;
         }
-        
+
         // Handle Nigerian numbers (default country code 234)
         if (cleaned.startsWith('0') && cleaned.length === 11) {
             // Remove leading 0 and add Nigerian country code
@@ -112,7 +112,7 @@ class ContactManagerPlugin {
         } else if (cleaned.length === 11 && !cleaned.startsWith('0') && !cleaned.startsWith('234')) {
             // 11 digit number without country code, might be Nigerian without leading 0
             cleaned = '234' + cleaned.substring(1);
-            console.log(`🇳🇬 11-digit converted: ${cleaned}`);
+            // console.log(`🇳🇬 11-digit converted: ${cleaned}`);
         }
         // For other country codes, use as-is if they look valid
         else if (cleaned.length >= 10 && cleaned.length <= 15) {
@@ -124,7 +124,7 @@ class ContactManagerPlugin {
                 return null;
             }
         }
-        
+
         const finalJid = `${cleaned}@s.whatsapp.net`;
         // console.log(`✅ Final JID: ${finalJid}`);
         return finalJid;
@@ -135,7 +135,7 @@ class ContactManagerPlugin {
      */
     safeNormalizeJid(jid) {
         if (!jid) return null;
-        
+
         // Use the proper JIDUtils for JID normalization
         return this.jidUtils.normalizeJid(jid);
     }
@@ -145,7 +145,7 @@ class ContactManagerPlugin {
      */
     getBaseJidFromUser(userJid) {
         if (!userJid) return null;
-        
+
         // Extract base phone number from user JID (removes device suffix)
         const phoneNumber = userJid.split(':')[0];
         return `${phoneNumber}@s.whatsapp.net`;
@@ -258,7 +258,7 @@ class ContactManagerPlugin {
                     const parts = line.split(',').map(part => {
                         // Clean up quotes and decode HTML entities
                         let cleaned = part.trim().replace(/^["']|["']$/g, '');
-                        
+
                         // Decode common HTML entities (like =42=6F=6C=61 format)
                         if (cleaned.includes('=')) {
                             try {
@@ -270,21 +270,21 @@ class ContactManagerPlugin {
                                 // Keep original if decoding fails
                             }
                         }
-                        
+
                         return cleaned;
                     });
-                    
+
                     // Find phone number in any column
                     for (let j = 0; j < parts.length; j++) {
                         const part = parts[j];
-                        
+
                         // Enhanced phone number detection
                         const phoneRegex = /[\d\+\-\s\(\)\.]{8,}/;
                         const hasEnoughDigits = (part.match(/\d/g) || []).length >= 8;
-                        
+
                         if (phoneRegex.test(part) && hasEnoughDigits) {
                             phoneNumber = part;
-                            
+
                             // Try to find a name in other columns
                             if (!name) {
                                 for (let k = 0; k < parts.length; k++) {
@@ -300,7 +300,7 @@ class ContactManagerPlugin {
                             break;
                         }
                     }
-                    
+
                     // If still no phone found, check first column specifically
                     if (!phoneNumber && parts[0]) {
                         const digitCount = (parts[0].match(/\d/g) || []).length;
@@ -318,10 +318,10 @@ class ContactManagerPlugin {
                 if (phoneNumber) {
                     // Remove extra quotes and whitespace
                     phoneNumber = phoneNumber.trim().replace(/^["']|["']$/g, '');
-                    
+
                     // Count digits to ensure it's likely a phone number
                     const digitCount = (phoneNumber.match(/\d/g) || []).length;
-                    
+
                     if (digitCount >= 8) {
                         // Clean name
                         if (name) {
@@ -331,7 +331,7 @@ class ContactManagerPlugin {
                                 name = null;
                             }
                         }
-                        
+
                         contacts.push({ name, phoneNumber });
                         console.log(`📱 Extracted: ${name || 'No name'} - ${phoneNumber}`);
                     } else {
@@ -364,20 +364,20 @@ class ContactManagerPlugin {
             // Fallback: Check if we can safely monkey-patch
             if (this.bot.messageHandler && !this.bot.messageHandler._contactManagerPatched) {
                 const originalProcess = this.bot.messageHandler.process.bind(this.bot.messageHandler);
-                
+
                 this.bot.messageHandler.process = async (message) => {
                     // Auto-detect contact first
                     await this.autoDetectContact(message);
-                    
+
                     // Then proceed with normal message processing
                     return await originalProcess(message);
                 };
-                
+
                 // Mark as patched to prevent duplicate patching
                 this.bot.messageHandler._contactManagerPatched = true;
             }
         }
-        
+
         this.autoDetectionSetup = true;
     }
 
@@ -391,7 +391,7 @@ class ContactManagerPlugin {
             }
 
             const senderJid = message.key.participant || message.key.remoteJid;
-            
+
             // Only save personal contacts (not groups)
             if (!senderJid || !senderJid.endsWith('@s.whatsapp.net')) {
                 return;
@@ -400,7 +400,7 @@ class ContactManagerPlugin {
             // Use proper JID normalization (preserves device suffixes)
             const normalizedJid = this.safeNormalizeJid(senderJid);
             const baseJid = this.getBaseJidFromUser(senderJid); // For storage key
-            
+
             // Update existing contact or add new one
             if (this.contacts.has(baseJid)) {
                 // Update last seen
@@ -470,15 +470,15 @@ class ContactManagerPlugin {
                 case 'upload':
                     await this.handleContactUpload(messageInfo);
                     break;
-                
+
                 case 'add':
                     await this.handleContactAdd(messageInfo);
                     break;
-                
+
                 case 'list':
                     await this.handleContactList(messageInfo);
                     break;
-                
+
                 default:
                     await this.showContactHelp(fromJid);
                     break;
@@ -527,7 +527,7 @@ class ContactManagerPlugin {
             // Check for quoted message using the same approach as sticker/photo plugins
             const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                   message?.quotedMessage;
-            
+
             if (!quotedMessage) {
                 await this.bot.sock.sendMessage(fromJid, {
                     text: '❌ Please reply to a CSV file with this command!\n\n' +
@@ -549,7 +549,7 @@ class ContactManagerPlugin {
 
             // Download the CSV file
             const csvPath = await this.downloadCSVFile(messageInfo, quotedMessage);
-            
+
             if (!csvPath) {
                 await this.bot.sock.sendMessage(fromJid, {
                     text: '❌ Failed to download CSV file. Please try again.'
@@ -582,7 +582,7 @@ class ContactManagerPlugin {
 
             for (const contactData of parsedContacts) {
                 const result = await this.addContact(contactData.phoneNumber, contactData.name, 'csv');
-                
+
                 if (result.success) {
                     successCount++;
                 } else if (result.message.includes('already exists')) {
@@ -688,7 +688,7 @@ class ContactManagerPlugin {
             const contact = recentContacts[i];
             const phoneNumber = contact.phoneNumber || contact.jid.split('@')[0];
             const displayName = contact.name || 'No name';
-            
+
             response += `${i + 1}. ${displayName}: 📱 ${phoneNumber}\n`;
         }
 
@@ -713,7 +713,7 @@ class ContactManagerPlugin {
 
             // Handle different document message types
             let documentMessage = quotedMessage.documentMessage;
-            
+
             // Check for documentWithCaptionMessage (like your CSV file)
             if (!documentMessage && quotedMessage.documentWithCaptionMessage) {
                 documentMessage = quotedMessage.documentWithCaptionMessage.message.documentMessage;
@@ -783,10 +783,10 @@ class ContactManagerPlugin {
         if (this.bot.messageHandler && this.bot.messageHandler.removeListener) {
             this.bot.messageHandler.removeListener('message', this.autoDetectContact.bind(this));
         }
-        
+
         // Reset auto-detection setup flag
         this.autoDetectionSetup = false;
-        
+
         console.log('🛑 Contact Manager stopped and cleaned up');
     }
 
