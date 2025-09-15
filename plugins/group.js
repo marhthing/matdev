@@ -225,33 +225,7 @@ class GroupPlugin {
             groupOnly: true
         });
 
-        // Statistics commands
-        this.bot.messageHandler.registerCommand('stats', this.statsCommand.bind(this), {
-            description: 'Group activity statistics',
-            usage: `${config.PREFIX}stats`,
-            category: 'group',
-            plugin: 'group',
-            source: 'group.js',
-            groupOnly: true
-        });
-
-        this.bot.messageHandler.registerCommand('leaderboard', this.leaderboardCommand.bind(this), {
-            description: 'Most active members',
-            usage: `${config.PREFIX}leaderboard`,
-            category: 'group',
-            plugin: 'group',
-            source: 'group.js',
-            groupOnly: true
-        });
-
-        this.bot.messageHandler.registerCommand('inactive', this.inactiveCommand.bind(this), {
-            description: 'List inactive members',
-            usage: `${config.PREFIX}inactive [days]`,
-            category: 'group',
-            plugin: 'group',
-            source: 'group.js',
-            groupOnly: true
-        });
+        
     }
 
     /**
@@ -1998,127 +1972,11 @@ class GroupPlugin {
         }
     }
 
-    /**
-     * Statistics command implementation
-     */
-    async statsCommand(messageInfo) {
-        try {
-            const { chat_jid } = messageInfo;
-            const stats = await this.getGroupStats(chat_jid);
-            
-            if (!stats || stats.totalMessages === 0) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '📊 *Group Statistics*\n\n' +
-                    'No activity data available yet. Send some messages to build statistics!'
-                );
-                return;
-            }
-            
-            const { totalMessages, totalMembers, activeMembers, period } = stats;
-            const avgMessagesPerMember = activeMembers > 0 ? Math.round(totalMessages / activeMembers) : 0;
-            
-            await this.bot.messageHandler.reply(messageInfo, 
-                `📊 *Group Activity Statistics*\n\n` +
-                `📈 Total Messages: ${totalMessages}\n` +
-                `👥 Total Members: ${totalMembers}\n` +
-                `✅ Active Members: ${activeMembers}\n` +
-                `💬 Avg Messages/Member: ${avgMessagesPerMember}\n` +
-                `📅 Period: ${period}\n\n` +
-                `Use ${config.PREFIX}leaderboard to see top active members!`
-            );
-            
-        } catch (error) {
-            console.error('Error in stats command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group statistics.');
-        }
-    }
+    
 
-    /**
-     * Leaderboard command implementation
-     */
-    async leaderboardCommand(messageInfo) {
-        try {
-            const { chat_jid } = messageInfo;
-            const leaderboard = await this.getLeaderboard(chat_jid);
-            
-            if (!leaderboard || leaderboard.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '🏆 *Activity Leaderboard*\n\n' +
-                    'No activity data available yet. Send some messages to build the leaderboard!'
-                );
-                return;
-            }
-            
-            let leaderboardText = '🏆 *Most Active Members*\n\n';
-            
-            leaderboard.slice(0, 10).forEach((user, index) => {
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-                const displayName = this.getDisplayName(user.jid);
-                leaderboardText += `${medal} @${displayName} - ${user.messageCount} messages\n`;
-            });
-            
-            const mentions = leaderboard.slice(0, 10).map(user => user.jid);
-            
-            await this.bot.sock.sendMessage(chat_jid, {
-                text: leaderboardText,
-                mentions: mentions
-            });
-            
-        } catch (error) {
-            console.error('Error in leaderboard command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get leaderboard.');
-        }
-    }
+    
 
-    /**
-     * Inactive members command implementation
-     */
-    async inactiveCommand(messageInfo) {
-        try {
-            const { args, chat_jid } = messageInfo;
-            
-            const days = args.length > 0 ? parseInt(args[0]) || 7 : 7;
-            if (days > 30) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Maximum inactive period is 30 days.');
-                return;
-            }
-            
-            const inactiveMembers = await this.getInactiveMembers(chat_jid, days);
-            
-            if (!inactiveMembers || inactiveMembers.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `😊 *Inactive Members (${days} days)*\n\n` +
-                    'All members have been active recently!'
-                );
-                return;
-            }
-            
-            let inactiveText = `😴 *Inactive Members (${days} days)*\n\n`;
-            inactiveText += `Found ${inactiveMembers.length} inactive members:\n\n`;
-            
-            inactiveMembers.slice(0, 20).forEach((member, index) => {
-                const displayName = this.getDisplayName(member.jid);
-                const lastSeen = member.lastActivity ? 
-                    this.formatTimeAgo(member.lastActivity) : 'Never';
-                inactiveText += `${index + 1}. @${displayName} - Last seen: ${lastSeen}\n`;
-            });
-            
-            if (inactiveMembers.length > 20) {
-                inactiveText += `\n... and ${inactiveMembers.length - 20} more`;
-            }
-            
-            const mentions = inactiveMembers.slice(0, 20).map(member => member.jid);
-            
-            await this.bot.sock.sendMessage(chat_jid, {
-                text: inactiveText,
-                mentions: mentions
-            });
-            
-        } catch (error) {
-            console.error('Error in inactive command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get inactive members.');
-        }
-    }
+    
 
     // =================================================================
     // FILTER SYSTEM IMPLEMENTATION
