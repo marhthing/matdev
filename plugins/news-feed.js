@@ -41,13 +41,7 @@ class NewsFeedPlugin {
                 source: 'news-feed.js'
             });
 
-            this.bot.messageHandler.registerCommand('topnews', this.topNewsCommand.bind(this), {
-                description: 'Get top headlines',
-                usage: `${config.PREFIX}topnews`,
-                category: 'information',
-                plugin: 'news-feed',
-                source: 'news-feed.js'
-            });
+            
 
             console.log('✅ News Feed plugin loaded');
             return true;
@@ -122,7 +116,7 @@ class NewsFeedPlugin {
     async handleNewsRequest(category, messageInfo) {
         const news = await this.getNews(category);
         if (news.success) {
-            let message = `📰 **${category.toUpperCase()} NEWS**\n\n`;
+            let message = `🔥 **TOP ${category.toUpperCase()} NEWS**\n\n`;
             
             news.articles.slice(0, 5).forEach((article, index) => {
                 message += `**${index + 1}.** ${article.title}\n`;
@@ -138,75 +132,44 @@ class NewsFeedPlugin {
         }
     }
 
-    async topNewsCommand(messageInfo) {
-        try {
-            const news = await this.getTopHeadlines();
-            if (news.success) {
-                let message = `🔥 **TOP HEADLINES**\n\n`;
-                
-                news.articles.slice(0, 5).forEach((article, index) => {
-                    message += `**${index + 1}.** ${article.title}\n`;
-                    message += `📰 ${article.source}\n`;
-                    message += `🔗 ${article.url}\n\n`;
-                });
-
-                message += `📅 Last updated: ${new Date().toLocaleTimeString()}`;
-                
-                await this.bot.messageHandler.reply(messageInfo, message);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${news.error}`);
-            }
-
-        } catch (error) {
-            console.error('Error in topnews command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error fetching top news.');
-        }
-    }
+    
 
     async getNews(category) {
         try {
-            // Using NewsAPI free tier (limited requests)
-            const response = await axios.get('https://newsapi.org/v2/top-headlines', {
-                params: {
-                    category: category,
-                    country: 'us',
-                    pageSize: 10,
-                    apiKey: 'demo' // This won't work, but shows structure
-                },
-                timeout: 10000
-            });
-
-            if (response.data && response.data.articles) {
-                return {
-                    success: true,
-                    articles: response.data.articles.map(article => ({
-                        title: article.title,
-                        description: this.truncateText(article.description || 'No description available', 100),
-                        url: article.url,
-                        source: article.source.name
-                    }))
-                };
-            }
-
-            throw new Error('No articles found');
+            // Always get top headlines - fallback to RSS feeds for reliability
+            return await this.getTopHeadlines(category);
 
         } catch (error) {
-            console.error('News API error:', error.message);
-            
-            // Fallback to RSS feed or free news source
-            return await this.getNewsFallback(category);
+            console.error('News error:', error.message);
+            return {
+                success: false,
+                error: 'News service temporarily unavailable. Please try again later.'
+            };
         }
     }
 
-    async getTopHeadlines() {
+    async getTopHeadlines(category = 'general') {
         try {
-            // Try BBC RSS feed as fallback
-            const response = await axios.get('https://feeds.bbci.co.uk/news/rss.xml', {
+            // Use category-specific RSS feeds for top headlines
+            let rssUrl = 'https://feeds.bbci.co.uk/news/rss.xml'; // Default to general
+            
+            if (category === 'technology') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/technology/rss.xml';
+            } else if (category === 'business') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/business/rss.xml';
+            } else if (category === 'sports') {
+                rssUrl = 'https://feeds.bbci.co.uk/sport/rss.xml';
+            } else if (category === 'health') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/health/rss.xml';
+            } else if (category === 'entertainment') {
+                rssUrl = 'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml';
+            }
+
+            const response = await axios.get(rssUrl, {
                 timeout: 10000
             });
 
             if (response.data) {
-                // Simple RSS parsing (basic implementation)
                 const articles = this.parseRSSBasic(response.data);
                 return {
                     success: true,
