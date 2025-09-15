@@ -33,7 +33,7 @@ class CompressPlugin {
         };
 
         // Fixed FPS for all outputs (WhatsApp optimization)
-        this.targetFPS = 30;
+        this.targetFPS = 25;
 
         // File size constraints for 1-1.5 minute videos
         this.targetFileSize = { min: 8, max: 10 }; // Target: 8-10 MB total for 1-1.5 min videos
@@ -177,7 +177,7 @@ class CompressPlugin {
             };
             await this.bot.messageHandler.reply(messageInfo, 
                 `🔄 Compressing ${sourceInfo} to ${this.resolutions[requestedResolution].name}...\n` +
-                `⚙️ Settings: 30 FPS, ${modeInfo[compressionMode]}, optimized scaling`
+                `⚙️ Settings: 25 FPS, ${modeInfo[compressionMode]}, optimized scaling`
             );
 
             // Download video or document
@@ -254,7 +254,7 @@ class CompressPlugin {
                          `📊 Original: ${(originalSize / (1024 * 1024)).toFixed(2)} MB\n` +
                          `📊 Compressed: ${sizeMB} MB\n` +
                          `📈 Savings: ${compressionRatio}%\n` +
-                         `⚙️ Settings: 30 FPS, CRF quality, ${optimalBitrate.audio}k audio\n` +
+                         `⚙️ Settings: 25 FPS, CRF quality, ${optimalBitrate.audio}k audio\n` +
                          `🎛️ Mode: ${compressionModeInfo[optimalBitrate.compressionMode] || 'Standard'}`;
 
             // Add specific warnings based on compression mode
@@ -291,7 +291,7 @@ class CompressPlugin {
 
     async infoCommand(messageInfo) {
         const infoText = `📹 **Enhanced Video Compression Settings**\n\n` +
-            `🎯 **Fixed Frame Rate:** 30 FPS (optimized for WhatsApp)\n\n` +
+            `🎯 **Fixed Frame Rate:** 25 FPS (optimized for WhatsApp)\n\n` +
             `📐 **Available Resolutions:**\n` +
             Object.entries(this.resolutions).map(([key, res]) => 
                 `• **${key}** - ${res.name} (${this.bitrateConfig[key].video}k bitrate)`
