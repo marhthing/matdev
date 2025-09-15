@@ -1532,10 +1532,6 @@ class GroupPlugin {
             // Update group description
             await this.bot.sock.groupUpdateDescription(chat_jid, newDesc);
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Group description updated successfully!\n\n📄 *New Description:*\n${newDesc}`
-            );
-
         } catch (error) {
             console.error('Error in setdesc command:', error);
             await this.bot.messageHandler.reply(messageInfo, 
