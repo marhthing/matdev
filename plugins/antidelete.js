@@ -101,7 +101,7 @@ class AntiDeletePlugin {
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 const retryMessage = await this.bot.database.getArchivedMessage(messageId);
                 // console.log(`🔍 ANTI-DELETE: Retry search result:`, retryMessage ? 'FOUND' : 'NOT FOUND');
-                
+
                 if (retryMessage) {
                     // Process the found message
                     // console.log('📋 ANTI-DELETE: Original message found on retry:', {
@@ -176,11 +176,11 @@ class AntiDeletePlugin {
             // Get the actual sender JID from the archived message
             const senderJid = archivedMessage.participant_jid || archivedMessage.sender_jid;
             const senderNumber = senderJid.split('@')[0];
-            
+
             // Get chat name/info
             const isGroup = chatJid.includes('@g.us');
             let groupName = '';
-            
+
             if (isGroup) {
                 try {
                     // Try to get group metadata
@@ -191,7 +191,7 @@ class AntiDeletePlugin {
                     groupName = 'Group Chat';
                 }
             }
-            
+
             // Check if it's a media message first
             if (archivedMessage.media_url) {
                 const mediaData = await this.bot.database.getArchivedMedia(archivedMessage.id);
@@ -200,7 +200,7 @@ class AntiDeletePlugin {
                     // Create media message with tagged format
                     // Tag area shows "deletedMessage" and group name if applicable
                     const tagText = isGroup ? `deletedMessage • ${groupName}` : 'deletedMessage';
-                    
+
                     const mediaMessage = {
                         caption: archivedMessage.content || '',
                         contextInfo: {
@@ -242,14 +242,14 @@ class AntiDeletePlugin {
                     // Ensure we send to owner private chat, not the chat where deletion occurred
                     const config = require('../config');
                     const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                    console.log(`📤 ANTI-DELETE: Sending text alert to: ${targetJid}`);
+                    // console.log(`📤 ANTI-DELETE: Sending text alert to: ${targetJid}`);
 
                     await this.bot.sock.sendMessage(targetJid, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
                 } else {
                     // If media couldn't be recovered, send text notification
                     const tagText = isGroup ? `Deleted Media • ${groupName}` : 'Deleted Media';
-                    
+
                     const alertMessage = {
                         text: `❌ Deleted ${(archivedMessage.message_type || 'media').replace('Message', '')} could not be recovered`,
                         contextInfo: {
@@ -268,7 +268,7 @@ class AntiDeletePlugin {
                 // For text messages, use the previous styling with contextInfo tagging
                 const config = require('../config');
                 const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                console.log(`📤 ANTI-DELETE: Sending styled deleted text to: ${targetJid}`);
+                // console.log(`📤 ANTI-DELETE: Sending styled deleted text to: ${targetJid}`);
 
                 // Restore original message tagging format
                 const alertText = archivedMessage.content || 'deletedMessage';
@@ -290,7 +290,7 @@ class AntiDeletePlugin {
                 await this.bot.sock.sendMessage(targetJid, alertMessage);
             }
 
-            console.log(`🗑️ Detected deleted message from ${senderNumber}`);
+            // console.log(`🗑️ Detected deleted message from ${senderNumber}`);
 
         } catch (error) {
             console.error('❌ ANTI-DELETE: Error sending deleted message alert:', error);
@@ -305,17 +305,17 @@ class AntiDeletePlugin {
         if (chatJid === 'status@broadcast' || chatJid.includes('status@broadcast')) {
             return true;
         }
-        
+
         // Ignore newsletters and channels
         if (chatJid.includes('@newsletter') || chatJid.includes('@broadcast') || chatJid.includes('channel')) {
             return true;
         }
-        
+
         // Monitor groups (@g.us), private chats (@s.whatsapp.net), and lid chats (@lid)
         const isGroup = chatJid.endsWith('@g.us');
         const isPrivateChat = chatJid.endsWith('@s.whatsapp.net');
         const isLidChat = chatJid.endsWith('@lid');
-        
+
         return !(isGroup || isPrivateChat || isLidChat);
     }
 
@@ -346,7 +346,7 @@ class AntiDeletePlugin {
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
                 const currentDestination = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
                 const destinationNumber = currentDestination.split('@')[0];
-                
+
                 await this.bot.messageHandler.reply(messageInfo,
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n` +
                     `📤 *Default Destination:* ${destinationNumber}\n\n` +
@@ -355,12 +355,12 @@ class AntiDeletePlugin {
             } else {
                 // This is setting the default destination
                 let newDefaultJid = args[0];
-                
+
                 // Normalize JID format
                 if (!newDefaultJid.includes('@')) {
                     newDefaultJid = `${newDefaultJid}@s.whatsapp.net`;
                 }
-                
+
                 // Save the new default destination
                 this.bot.database.setData('antiDeleteDefaultDestination', newDefaultJid);
                 console.log(`✅ Default anti-delete destination set to: ${newDefaultJid}`);
