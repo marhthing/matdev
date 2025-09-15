@@ -44,7 +44,7 @@ class GroupPlugin {
         this.ensureGroupData('filters', {});
         this.ensureGroupData('filter_settings', {});
         this.ensureGroupData('warnings', {});
-        this.ensureGroupData('muted_users', {});
+        this.ensureGroupData('activity_stats', {});
     }
 
     /**
@@ -225,19 +225,28 @@ class GroupPlugin {
             groupOnly: true
         });
 
-        // Mute system commands
-        this.bot.messageHandler.registerCommand('mute', this.muteCommand.bind(this), {
-            description: 'Temporarily mute a user (admin only)',
-            usage: `${config.PREFIX}mute @user <duration>`,
+        // Statistics commands
+        this.bot.messageHandler.registerCommand('stats', this.statsCommand.bind(this), {
+            description: 'Group activity statistics',
+            usage: `${config.PREFIX}stats`,
             category: 'group',
             plugin: 'group',
             source: 'group.js',
             groupOnly: true
         });
 
-        this.bot.messageHandler.registerCommand('unmute', this.unmuteCommand.bind(this), {
-            description: 'Unmute a user (admin only)',
-            usage: `${config.PREFIX}unmute @user`,
+        this.bot.messageHandler.registerCommand('leaderboard', this.leaderboardCommand.bind(this), {
+            description: 'Most active members',
+            usage: `${config.PREFIX}leaderboard`,
+            category: 'group',
+            plugin: 'group',
+            source: 'group.js',
+            groupOnly: true
+        });
+
+        this.bot.messageHandler.registerCommand('inactive', this.inactiveCommand.bind(this), {
+            description: 'List inactive members',
+            usage: `${config.PREFIX}inactive [days]`,
             category: 'group',
             plugin: 'group',
             source: 'group.js',
@@ -1798,11 +1807,8 @@ class GroupPlugin {
             
             if (!messageText) continue;
             
-            // Check if user is muted
-            if (await this.isUserMuted(chatJid, senderJid)) {
-                await this.deleteMessage(chatJid, message.key);
-                continue;
-            }
+            // Track message activity for statistics
+            await this.trackUserActivity(chatJid, senderJid, messageText);
             
             // Check antilink
             if (await this.isAntilinkEnabled(chatJid) && this.containsLink(messageText)) {
@@ -1993,66 +1999,124 @@ class GroupPlugin {
     }
 
     /**
-     * Mute command implementation
+     * Statistics command implementation
      */
-    async muteCommand(messageInfo) {
+    async statsCommand(messageInfo) {
         try {
-            const { args, chat_jid, sender_jid } = messageInfo;
+            const { chat_jid } = messageInfo;
+            const stats = await this.getGroupStats(chat_jid);
             
-            // Check admin permissions
-            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            if (!stats || stats.totalMessages === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '📊 *Group Statistics*\n\n' +
+                    'No activity data available yet. Send some messages to build statistics!'
+                );
                 return;
             }
             
-            const targetJid = this.getTargetUser(messageInfo);
-            if (!targetJid) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to mute.');
-                return;
-            }
+            const { totalMessages, totalMembers, activeMembers, period } = stats;
+            const avgMessagesPerMember = activeMembers > 0 ? Math.round(totalMessages / activeMembers) : 0;
             
-            // Parse duration (default 1 hour if not specified)
-            let duration = 60; // minutes
-            if (args.length > 0) {
-                const durationArg = args[args.length - 1];
-                const parsedDuration = this.parseDuration(durationArg);
-                if (parsedDuration > 0) {
-                    duration = parsedDuration;
-                }
-            }
-            
-            await this.muteUser(messageInfo, targetJid, duration);
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📊 *Group Activity Statistics*\n\n` +
+                `📈 Total Messages: ${totalMessages}\n` +
+                `👥 Total Members: ${totalMembers}\n` +
+                `✅ Active Members: ${activeMembers}\n` +
+                `💬 Avg Messages/Member: ${avgMessagesPerMember}\n` +
+                `📅 Period: ${period}\n\n` +
+                `Use ${config.PREFIX}leaderboard to see top active members!`
+            );
             
         } catch (error) {
-            console.error('Error in mute command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to mute user.');
+            console.error('Error in stats command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group statistics.');
         }
     }
 
     /**
-     * Unmute command implementation
+     * Leaderboard command implementation
      */
-    async unmuteCommand(messageInfo) {
+    async leaderboardCommand(messageInfo) {
         try {
-            const { chat_jid, sender_jid } = messageInfo;
+            const { chat_jid } = messageInfo;
+            const leaderboard = await this.getLeaderboard(chat_jid);
             
-            // Check admin permissions
-            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            if (!leaderboard || leaderboard.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '🏆 *Activity Leaderboard*\n\n' +
+                    'No activity data available yet. Send some messages to build the leaderboard!'
+                );
                 return;
             }
             
-            const targetJid = this.getTargetUser(messageInfo);
-            if (!targetJid) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please mention or reply to a user to unmute.');
-                return;
-            }
+            let leaderboardText = '🏆 *Most Active Members*\n\n';
             
-            await this.unmuteUser(messageInfo, targetJid);
+            leaderboard.slice(0, 10).forEach((user, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                const displayName = this.getDisplayName(user.jid);
+                leaderboardText += `${medal} @${displayName} - ${user.messageCount} messages\n`;
+            });
+            
+            const mentions = leaderboard.slice(0, 10).map(user => user.jid);
+            
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: leaderboardText,
+                mentions: mentions
+            });
             
         } catch (error) {
-            console.error('Error in unmute command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to unmute user.');
+            console.error('Error in leaderboard command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get leaderboard.');
+        }
+    }
+
+    /**
+     * Inactive members command implementation
+     */
+    async inactiveCommand(messageInfo) {
+        try {
+            const { args, chat_jid } = messageInfo;
+            
+            const days = args.length > 0 ? parseInt(args[0]) || 7 : 7;
+            if (days > 30) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Maximum inactive period is 30 days.');
+                return;
+            }
+            
+            const inactiveMembers = await this.getInactiveMembers(chat_jid, days);
+            
+            if (!inactiveMembers || inactiveMembers.length === 0) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `😊 *Inactive Members (${days} days)*\n\n` +
+                    'All members have been active recently!'
+                );
+                return;
+            }
+            
+            let inactiveText = `😴 *Inactive Members (${days} days)*\n\n`;
+            inactiveText += `Found ${inactiveMembers.length} inactive members:\n\n`;
+            
+            inactiveMembers.slice(0, 20).forEach((member, index) => {
+                const displayName = this.getDisplayName(member.jid);
+                const lastSeen = member.lastActivity ? 
+                    this.formatTimeAgo(member.lastActivity) : 'Never';
+                inactiveText += `${index + 1}. @${displayName} - Last seen: ${lastSeen}\n`;
+            });
+            
+            if (inactiveMembers.length > 20) {
+                inactiveText += `\n... and ${inactiveMembers.length - 20} more`;
+            }
+            
+            const mentions = inactiveMembers.slice(0, 20).map(member => member.jid);
+            
+            await this.bot.sock.sendMessage(chat_jid, {
+                text: inactiveText,
+                mentions: mentions
+            });
+            
+        } catch (error) {
+            console.error('Error in inactive command:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get inactive members.');
         }
     }
 
@@ -2380,114 +2444,160 @@ class GroupPlugin {
     }
 
     // =================================================================
-    // MUTE SYSTEM IMPLEMENTATION
+    // STATISTICS SYSTEM IMPLEMENTATION
     // =================================================================
 
     /**
-     * Check if user is muted
+     * Track user activity for statistics
      */
-    async isUserMuted(chatJid, userJid) {
-        const mutedUsers = this.bot.database.getData('muted_users') || {};
-        const groupMutes = mutedUsers[chatJid] || {};
-        const muteData = groupMutes[userJid];
-        
-        if (!muteData) return false;
-        
-        // Check if mute has expired
-        if (Date.now() > muteData.expiresAt) {
-            // Remove expired mute
-            delete groupMutes[userJid];
-            this.bot.database.setData('muted_users', mutedUsers);
-            return false;
+    async trackUserActivity(chatJid, userJid, messageText) {
+        try {
+            const activityData = this.bot.database.getData('activity_stats') || {};
+            if (!activityData[chatJid]) {
+                activityData[chatJid] = {};
+            }
+            
+            const now = Date.now();
+            if (!activityData[chatJid][userJid]) {
+                activityData[chatJid][userJid] = {
+                    messageCount: 0,
+                    firstActivity: now,
+                    lastActivity: now,
+                    totalCharacters: 0
+                };
+            }
+            
+            // Update activity data
+            activityData[chatJid][userJid].messageCount++;
+            activityData[chatJid][userJid].lastActivity = now;
+            activityData[chatJid][userJid].totalCharacters += messageText.length;
+            
+            this.bot.database.setData('activity_stats', activityData);
+        } catch (error) {
+            console.error('Error tracking user activity:', error);
         }
-        
-        return true;
     }
 
     /**
-     * Mute a user
+     * Get group statistics
      */
-    async muteUser(messageInfo, targetJid, durationMinutes) {
-        const { chat_jid } = messageInfo;
-        
-        const mutedUsers = this.bot.database.getData('muted_users') || {};
-        if (!mutedUsers[chat_jid]) mutedUsers[chat_jid] = {};
-        
-        const expiresAt = Date.now() + (durationMinutes * 60 * 1000);
-        mutedUsers[chat_jid][targetJid] = {
-            mutedAt: Date.now(),
-            expiresAt: expiresAt,
-            duration: durationMinutes
-        };
-        
-        this.bot.database.setData('muted_users', mutedUsers);
-        
-        const displayName = this.getDisplayName(targetJid);
-        const durationText = this.formatDuration(durationMinutes);
-        
-        await this.bot.sock.sendMessage(chat_jid, {
-            text: `🔇 @${displayName} has been muted for ${durationText}.`,
-            mentions: [targetJid]
-        });
+    async getGroupStats(chatJid) {
+        try {
+            const activityData = this.bot.database.getData('activity_stats') || {};
+            const groupData = activityData[chatJid] || {};
+            
+            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
+            const totalMembers = groupMetadata.participants.length;
+            
+            const activeMembers = Object.keys(groupData).length;
+            const totalMessages = Object.values(groupData).reduce((sum, user) => sum + user.messageCount, 0);
+            
+            // Calculate period (from first activity to now)
+            const firstActivities = Object.values(groupData)
+                .map(user => user.firstActivity)
+                .filter(time => time);
+            
+            let period = 'Today';
+            if (firstActivities.length > 0) {
+                const firstActivity = Math.min(...firstActivities);
+                const daysSinceFirst = Math.floor((Date.now() - firstActivity) / (1000 * 60 * 60 * 24));
+                period = daysSinceFirst === 0 ? 'Today' : 
+                        daysSinceFirst === 1 ? 'Yesterday' : 
+                        `${daysSinceFirst} days`;
+            }
+            
+            return {
+                totalMessages,
+                totalMembers,
+                activeMembers,
+                period
+            };
+        } catch (error) {
+            console.error('Error getting group stats:', error);
+            return null;
+        }
     }
 
     /**
-     * Unmute a user
+     * Get activity leaderboard
      */
-    async unmuteUser(messageInfo, targetJid) {
-        const { chat_jid } = messageInfo;
-        
-        const mutedUsers = this.bot.database.getData('muted_users') || {};
-        if (!mutedUsers[chat_jid] || !mutedUsers[chat_jid][targetJid]) {
-            const displayName = this.getDisplayName(targetJid);
-            await this.bot.sock.sendMessage(chat_jid, {
-                text: `❌ @${displayName} is not muted.`,
-                mentions: [targetJid]
+    async getLeaderboard(chatJid) {
+        try {
+            const activityData = this.bot.database.getData('activity_stats') || {};
+            const groupData = activityData[chatJid] || {};
+            
+            const leaderboard = Object.entries(groupData)
+                .map(([jid, data]) => ({
+                    jid,
+                    messageCount: data.messageCount,
+                    lastActivity: data.lastActivity
+                }))
+                .sort((a, b) => b.messageCount - a.messageCount);
+            
+            return leaderboard;
+        } catch (error) {
+            console.error('Error getting leaderboard:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get inactive members
+     */
+    async getInactiveMembers(chatJid, days) {
+        try {
+            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
+            const activityData = this.bot.database.getData('activity_stats') || {};
+            const groupData = activityData[chatJid] || {};
+            
+            const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+            const inactiveMembers = [];
+            
+            for (const participant of groupMetadata.participants) {
+                const userJid = participant.id;
+                const userData = groupData[userJid];
+                
+                // Skip bot
+                if (userJid === this.bot.sock.user?.id) continue;
+                
+                if (!userData || userData.lastActivity < cutoffTime) {
+                    inactiveMembers.push({
+                        jid: userJid,
+                        lastActivity: userData?.lastActivity || null
+                    });
+                }
+            }
+            
+            return inactiveMembers.sort((a, b) => {
+                if (!a.lastActivity && !b.lastActivity) return 0;
+                if (!a.lastActivity) return 1;
+                if (!b.lastActivity) return -1;
+                return a.lastActivity - b.lastActivity;
             });
-            return;
-        }
-        
-        delete mutedUsers[chat_jid][targetJid];
-        this.bot.database.setData('muted_users', mutedUsers);
-        
-        const displayName = this.getDisplayName(targetJid);
-        await this.bot.sock.sendMessage(chat_jid, {
-            text: `🔊 @${displayName} has been unmuted.`,
-            mentions: [targetJid]
-        });
-    }
-
-    /**
-     * Parse duration string
-     */
-    parseDuration(durationStr) {
-        const match = durationStr.match(/(\d+)([smhd]?)/i);
-        if (!match) return 60; // default 1 hour
-        
-        const value = parseInt(match[1]);
-        const unit = (match[2] || 'm').toLowerCase();
-        
-        switch (unit) {
-            case 's': return Math.max(1, Math.floor(value / 60)); // convert seconds to minutes, min 1
-            case 'm': return value;
-            case 'h': return value * 60;
-            case 'd': return value * 60 * 24;
-            default: return value;
+        } catch (error) {
+            console.error('Error getting inactive members:', error);
+            return [];
         }
     }
 
     /**
-     * Format duration for display
+     * Format time ago
      */
-    formatDuration(minutes) {
-        if (minutes < 60) {
-            return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
-        } else if (minutes < 1440) {
-            const hours = Math.floor(minutes / 60);
-            return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    formatTimeAgo(timestamp) {
+        const now = Date.now();
+        const diff = now - timestamp;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor(diff / (1000 * 60));
+        
+        if (days > 0) {
+            return `${days} day${days !== 1 ? 's' : ''} ago`;
+        } else if (hours > 0) {
+            return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+        } else if (minutes > 0) {
+            return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
         } else {
-            const days = Math.floor(minutes / 1440);
-            return `${days} day${days !== 1 ? 's' : ''}`;
+            return 'Just now';
         }
     }
 
@@ -2509,23 +2619,33 @@ class GroupPlugin {
     }
 
     /**
-     * Get target user from message
+     * Get target user from message (supports both @mentions and message replies)
      */
     getTargetUser(messageInfo) {
         const { message } = messageInfo;
         
-        // Check for quoted message first
-        const quotedMessage = message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        if (quotedMessage) {
-            const quotedParticipant = message?.extendedTextMessage?.contextInfo?.participant;
+        // Method 1: Check for quoted/replied message first (like promote/demote)
+        const contextInfo = message?.extendedTextMessage?.contextInfo || message?.contextInfo;
+        if (contextInfo?.quotedMessage) {
+            const quotedParticipant = contextInfo.participant;
             if (quotedParticipant) {
                 return quotedParticipant;
             }
         }
         
-        // Check for mentions
+        // Method 2: Check for mentions in the current message
+        if (contextInfo?.mentionedJid?.length > 0) {
+            return contextInfo.mentionedJid[0];
+        }
+        
+        // Method 3: Check for mentions in regular text message
         if (message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
             return message.extendedTextMessage.contextInfo.mentionedJid[0];
+        }
+        
+        // Method 4: Check for mentions in conversation message
+        if (message?.conversation && messageInfo.mentionedJid?.length > 0) {
+            return messageInfo.mentionedJid[0];
         }
         
         return null;
