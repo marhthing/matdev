@@ -303,6 +303,9 @@ Just tag any document/text and use the target format command!
                     return await this.convertPdfToDoc(filePath, fileMessage?.fileName);
                 } else if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'pdf') {
                     return await this.convertDocToPdf(filePath, fileMessage?.fileName);
+                } else if ((inputFormat === 'doc' || inputFormat === 'docx') && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
+                    // Convert DOC/DOCX to image via PDF intermediate step
+                    return await this.convertDocToImageViaPdf(filePath, fileMessage?.fileName, targetFormat);
                 } else if (inputFormat === 'image' && targetFormat === 'pdf') {
                     return await this.convertImageToPdf(filePath);
                 } else if (inputFormat === 'image' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
@@ -1430,6 +1433,55 @@ ${displayLines.map((line, i) => {
                     error: 'Failed to convert PDF to DOC'
                 };
             }
+        }
+    }
+
+    async convertDocToImageViaPdf(docPath, originalFileName = '', targetFormat = 'png') {
+        try {
+            console.log(`🔄 Converting DOC to ${targetFormat.toUpperCase()} via PDF intermediate step...`);
+            
+            // Step 1: Convert DOC/DOCX to PDF
+            const pdfResult = await this.convertDocToPdf(docPath, originalFileName);
+            
+            if (!pdfResult.success) {
+                return {
+                    success: false,
+                    error: 'Failed to convert document to PDF in intermediate step'
+                };
+            }
+
+            // Step 2: Convert the generated PDF to image
+            const pageNumber = 1; // Default to first page
+            const imageResult = await this.convertPdfToImageSimple(pdfResult.filePath, pageNumber);
+            
+            // Clean up the intermediate PDF file
+            await fs.unlink(pdfResult.filePath).catch(() => {});
+            
+            if (!imageResult.success) {
+                return {
+                    success: false,
+                    error: 'Failed to convert PDF to image in final step'
+                };
+            }
+
+            // If target format is different from PNG, convert it
+            if (targetFormat !== 'png') {
+                const finalResult = await this.convertImageFormat(imageResult.filePath, targetFormat);
+                
+                // Clean up the intermediate PNG file
+                await fs.unlink(imageResult.filePath).catch(() => {});
+                
+                return finalResult;
+            }
+
+            return imageResult;
+
+        } catch (error) {
+            console.error('DOC to image via PDF conversion error:', error);
+            return {
+                success: false,
+                error: 'Failed to convert document to image'
+            };
         }
     }
 
