@@ -93,22 +93,20 @@ Just tag any document/text and use the target format command!
             // If user provided args after command, use as custom title
             if (messageInfo.args.length > 0) {
                 customTitle = messageInfo.args.join(' ').trim();
-                textContent = customTitle; // Also use as content for text conversions
             }
             
-            // Check quoted message for additional text content
+            // Check quoted message for text content (this takes priority for conversion)
             if (quotedMessage) {
                 if (quotedMessage.conversation) {
-                    // If no custom title from args, use quoted text as content
-                    if (!customTitle) {
-                        textContent = quotedMessage.conversation;
-                    }
+                    textContent = quotedMessage.conversation;
                 } else if (quotedMessage.extendedTextMessage?.text) {
-                    // If no custom title from args, use quoted text as content
-                    if (!customTitle) {
-                        textContent = quotedMessage.extendedTextMessage.text;
-                    }
+                    textContent = quotedMessage.extendedTextMessage.text;
                 }
+            }
+            
+            // If no quoted text but have custom title, use title as content (text-only conversion)
+            if (!textContent && customTitle) {
+                textContent = customTitle;
             }
 
             // Auto-detect input type and process
