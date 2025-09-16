@@ -224,7 +224,7 @@ class DOCConverterPlugin {
                 cleanTitle = cleanTitle.replace(/\.(docx?|pdf|txt|html|doc)$/i, '');
                 // Remove any trailing numbers that might be timestamps
                 cleanTitle = cleanTitle.replace(/_\d+$/i, '');
-                // Sanitize the filename
+                // Sanitize the filename - ensure no dots that could cause extension issues
                 cleanTitle = this.sanitizeFileName(cleanTitle);
             }
             const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `document_${Date.now()}.docx`;
@@ -658,7 +658,7 @@ class DOCConverterPlugin {
                 cleanTitle = cleanTitle.replace(/\.(docx?|pdf|txt|html|doc)$/i, '');
                 // Remove any trailing numbers that might be timestamps
                 cleanTitle = cleanTitle.replace(/_\d+$/i, '');
-                // Sanitize the filename
+                // Sanitize the filename - ensure no dots that could cause extension issues
                 cleanTitle = this.sanitizeFileName(cleanTitle);
             }
             const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `converted_${Date.now()}.docx`;
