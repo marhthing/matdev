@@ -502,7 +502,7 @@ class PDFConverterPlugin {
 
     sanitizeFileName(fileName) {
         return fileName
-            .replace(/[^a-zA-Z0-9\s\-_.]/g, '')
+            .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Removed dot to prevent extension issues
             .replace(/\s+/g, '_')
             .substring(0, 50);
     }
