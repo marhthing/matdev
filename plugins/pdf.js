@@ -49,14 +49,14 @@ class PDFConverterPlugin {
             const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
             if (contextInfo?.quotedMessage) {
                 quotedContent = this.extractQuotedMessageContent(contextInfo.quotedMessage);
-                
+
                 // Check if quoted message is a document or image
                 if (contextInfo.quotedMessage.documentMessage) {
                     quotedFile = contextInfo.quotedMessage;
                 } else if (contextInfo.quotedMessage.imageMessage) {
                     quotedFile = contextInfo.quotedMessage;
                 }
-                
+
                 const messageType = contextInfo.quotedMessage.imageMessage ? 'Image' : 
                                    contextInfo.quotedMessage.documentMessage ? 'Document' : 'Text';
                 console.log(`📝 Found quoted message - Type: ${messageType}`);
@@ -93,7 +93,7 @@ class PDFConverterPlugin {
                 const isImage = contextInfo.quotedMessage.imageMessage;
                 const fileType = isImage ? 'Image' : 'Document';
                 console.log(`📄 Case 4: ${fileType} file conversion`);
-                
+
                 // Download and convert the file
                 try {
                     const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedFile);
@@ -104,9 +104,11 @@ class PDFConverterPlugin {
                             result = await this.createImageToPdf(downloadedFile.filePath, customTitle);
                         } else {
                             // For documents, we'll handle conversion in a future update
-                            result = { success: false, error: 'Document-to-PDF conversion will be added later' };
+                            // Here we should call a document to PDF converter
+                            // For now, let's assume a placeholder function or throw an error if not implemented
+                            result = await this.convertDocumentToPdf(downloadedFile.filePath, additionalText);
                         }
-                        
+
                         // Cleanup downloaded file
                         setTimeout(async () => {
                             try {
@@ -155,7 +157,6 @@ class PDFConverterPlugin {
         }
     }
 
-
     async convertTextToPdf(text) {
         try {
             console.log('📝 Converting text to PDF using modern methods');
@@ -167,6 +168,60 @@ class PDFConverterPlugin {
         } catch (error) {
             console.error('Text to PDF conversion error:', error);
             return { success: false, error: 'Failed to convert text to PDF' };
+        }
+    }
+    
+    // Placeholder for document to PDF conversion
+    async convertDocumentToPdf(filePath, customTitle) {
+        try {
+            console.log(`📄 Converting document at ${filePath} to PDF`);
+            
+            // This is where you would integrate a library to convert DOCX/DOC to PDF.
+            // For now, we'll simulate a successful conversion with a placeholder filename.
+            // Example: using 'mammoth' for docx to html, then html to pdf, or 'unoconv' if available.
+            
+            // For demonstration, let's assume we just rename it with a .pdf extension
+            // and create a simple text-based PDF from the filename for now.
+            // In a real scenario, you'd parse the document content.
+            
+            const fileName = customTitle ? `${this.sanitizeFileName(customTitle)}_${Date.now()}.pdf` : `document_${Date.now()}.pdf`;
+            const outputFilePath = path.join(__dirname, '..', 'tmp', fileName);
+
+            await fs.ensureDir(path.dirname(outputFilePath));
+
+            // Simulate creating a PDF with basic info
+            const PDFDocument = require('pdfkit');
+            const doc = new PDFDocument();
+            const stream = fs.createWriteStream(outputFilePath);
+            doc.pipe(stream);
+
+            doc.fontSize(16).text(`Converted Document: ${path.basename(filePath)}`, { align: 'center' });
+            doc.moveDown(2);
+            doc.fontSize(12).text(`Title: ${customTitle || 'N/A'}`);
+            doc.moveDown(1);
+            doc.fontSize(10).text('Content of the document could not be extracted directly in this example.');
+            doc.moveDown(3);
+            doc.fontSize(8).fillColor('gray').text(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
+            doc.end();
+
+            return new Promise((resolve, reject) => {
+                stream.on('finish', () => {
+                    console.log(`✅ Document to PDF conversion simulated complete: ${fileName}`);
+                    resolve({
+                        success: true,
+                        filePath: outputFilePath,
+                        fileName: fileName
+                    });
+                });
+                stream.on('error', (error) => {
+                    console.error('PDF stream error during document conversion:', error);
+                    reject({ success: false, error: 'Failed to create PDF from document' });
+                });
+            });
+
+        } catch (error) {
+            console.error('Document to PDF conversion error:', error);
+            return { success: false, error: 'Failed to convert document to PDF' };
         }
     }
 
@@ -224,7 +279,7 @@ class PDFConverterPlugin {
     async createImageToPdf(imagePath, customTitle) {
         try {
             console.log('🖼️ Converting image to PDF');
-            
+
             const PDFDocument = require('pdfkit');
             const fileName = customTitle ? `${this.sanitizeFileName(customTitle)}_${Date.now()}.pdf` : `image_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);

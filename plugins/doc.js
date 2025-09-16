@@ -217,7 +217,9 @@ class DOCConverterPlugin {
                 font_face: 'Segoe UI'
             });
 
-            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.docx` : `document_${Date.now()}.docx`;
+            // Clean title of any existing extensions before creating filename
+            const cleanTitle = title ? this.sanitizeFileName(title).replace(/\.(docx?|pdf|txt|html)$/i, '') : null;
+            const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `document_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
@@ -453,9 +455,14 @@ class DOCConverterPlugin {
         try {
             console.log('📄 Copying DOCX file');
             
-            const fileName = customTitle ? 
-                `${this.sanitizeFileName(customTitle)}_${Date.now()}.docx` : 
-                `${path.basename(originalFileName, path.extname(originalFileName))}_${Date.now()}.docx`;
+            let fileName;
+            if (customTitle) {
+                const cleanTitle = this.sanitizeFileName(customTitle).replace(/\.(docx?|pdf|txt|html)$/i, '');
+                fileName = `${cleanTitle}_${Date.now()}.docx`;
+            } else {
+                const baseName = path.basename(originalFileName, path.extname(originalFileName));
+                fileName = `${baseName}_${Date.now()}.docx`;
+            }
             
             const outputPath = path.join(__dirname, '..', 'tmp', fileName);
             
@@ -478,9 +485,14 @@ class DOCConverterPlugin {
         try {
             console.log('📄 Copying DOC file');
             
-            const fileName = customTitle ? 
-                `${this.sanitizeFileName(customTitle)}_${Date.now()}.doc` : 
-                `${path.basename(originalFileName, path.extname(originalFileName))}_${Date.now()}.doc`;
+            let fileName;
+            if (customTitle) {
+                const cleanTitle = this.sanitizeFileName(customTitle).replace(/\.(docx?|pdf|txt|html)$/i, '');
+                fileName = `${cleanTitle}_${Date.now()}.doc`;
+            } else {
+                const baseName = path.basename(originalFileName, path.extname(originalFileName));
+                fileName = `${baseName}_${Date.now()}.doc`;
+            }
             
             const outputPath = path.join(__dirname, '..', 'tmp', fileName);
             
@@ -581,7 +593,9 @@ class DOCConverterPlugin {
                 font_face: 'Segoe UI'
             });
 
-            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.docx` : `converted_${Date.now()}.docx`;
+            // Clean title of any existing extensions before creating filename
+            const cleanTitle = title ? this.sanitizeFileName(title).replace(/\.(docx?|pdf|txt|html)$/i, '') : null;
+            const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `converted_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
