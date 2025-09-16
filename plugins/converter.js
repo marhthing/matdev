@@ -109,36 +109,28 @@ Just tag any document/text and use the target format command!
                 // Detect file format from mimetype or filename
                 inputFormat = this.detectFileFormat(fileMessage);
                 if (inputFormat === 'unknown') {
-                    await this.bot.messageHandler.reply(messageInfo, 
-                        `❌ Unsupported file format. Supported: PDF, DOC, DOCX, Images, HTML`);
+                    // Silent failure for unsupported formats
                     return;
                 }
                 filePath = await this.downloadFile(fileMessage);
             } else if (textContent) {
                 inputFormat = 'text';
             } else {
-                await this.bot.messageHandler.reply(messageInfo,
-                    `📁 **Convert to ${targetFormat.toUpperCase()}**\n\n` +
-                    `Send a file or text, or reply to a message/file with \`${config.PREFIX}${targetFormat}\`\n\n` +
-                    'Supported inputs: Text, PDF, DOC, DOCX, Images, HTML');
+                // Silent - no usage message shown
                 return;
             }
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `🔄 Converting ${inputFormat.toUpperCase()} to ${targetFormat.toUpperCase()}...`);
-
-            // Convert based on input and target formats
+            // Convert based on input and target formats (silent)
             const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo);
             
             if (result.success) {
                 if (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg') {
-                    // Send as image
+                    // Send as image (no caption)
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                        image: { url: result.filePath },
-                        caption: `✅ Converted to ${targetFormat.toUpperCase()}`
+                        image: { url: result.filePath }
                     });
                 } else {
-                    // Send as document
+                    // Send as document (no caption)
                     const mimeTypes = {
                         'pdf': 'application/pdf',
                         'doc': 'application/msword',
@@ -150,8 +142,7 @@ Just tag any document/text and use the target format command!
                     await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                         document: { url: result.filePath },
                         fileName: result.fileName,
-                        mimetype: mimeTypes[targetFormat] || 'application/octet-stream',
-                        caption: `✅ Converted to ${targetFormat.toUpperCase()}`
+                        mimetype: mimeTypes[targetFormat] || 'application/octet-stream'
                     });
                 }
                 
@@ -159,12 +150,13 @@ Just tag any document/text and use the target format command!
                 await fs.unlink(result.filePath).catch(() => {});
                 if (filePath) await fs.unlink(filePath).catch(() => {});
             } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${result.error}`);
+                // Silent failure - no error message to user
+                console.error(`Conversion failed: ${result.error}`);
             }
 
         } catch (error) {
+            // Silent failure - only log error, no user message
             console.error(`Error in ${targetFormat} conversion:`, error);
-            await this.bot.messageHandler.reply(messageInfo, `❌ Error converting to ${targetFormat.toUpperCase()}.`);
         }
     }
 
