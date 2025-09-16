@@ -88,34 +88,80 @@ class PDFConverterPlugin {
 
             let result = null;
             let quotedContent = null;
+            let quotedFile = null;
+            let customTitle = null;
+            let bodyContent = null;
 
             // Check if there's a quoted/tagged message
             const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
             if (contextInfo?.quotedMessage) {
                 quotedContent = this.extractQuotedMessageContent(contextInfo.quotedMessage);
-                console.log(`📝 Found quoted message content: "${quotedContent?.substring(0, 100)}..."`);
+                
+                // Check if quoted message is a document
+                if (contextInfo.quotedMessage.documentMessage) {
+                    quotedFile = contextInfo.quotedMessage;
+                }
+                
+                console.log(`📝 Found quoted message - Type: ${quotedFile ? 'Document' : 'Text'}`);
             }
 
-            // Priority 1: Handle quoted message content as text input
-            if (quotedContent) {
-                console.log('📝 Processing quoted message content');
-                result = await this.convertTextToPdf(quotedContent);
-            }
-            // Priority 2: Handle current message text input (excluding the command)
-            else if (messageInfo.text) {
-                const commandPrefix = require('../config').PREFIX;
-                const textContent = messageInfo.text.replace(new RegExp(`^${commandPrefix}pdf\\s*`, 'i'), '').trim();
+            // Extract any additional text after the .pdf command
+            const commandPrefix = require('../config').PREFIX;
+            const additionalText = messageInfo.text ? 
+                messageInfo.text.replace(new RegExp(`^${commandPrefix}pdf\\s*`, 'i'), '').trim() : '';
 
-                if (textContent) {
-                    console.log('📝 Processing current message text');
-                    result = await this.convertTextToPdf(textContent);
+            // LOGIC IMPLEMENTATION:
+            if (quotedContent && additionalText) {
+                // Case 1: Tagged text/document + additional text = quoted content is body, additional text is title
+                console.log('📝 Case 1: Quoted content as body, additional text as title');
+                bodyContent = quotedContent;
+                customTitle = additionalText;
+                result = await this.createModernPDF(customTitle, bodyContent);
+            }
+            else if (quotedContent && !additionalText) {
+                // Case 2: Tagged text/document + no additional text = quoted content is body, no custom title
+                console.log('📝 Case 2: Quoted content as body, no custom title');
+                bodyContent = quotedContent;
+                customTitle = null; // Let the system auto-extract title from content if available
+                result = await this.convertTextToPdf(bodyContent);
+            }
+            else if (!quotedContent && additionalText) {
+                // Case 3: No tagged content + text after .pdf = that text becomes the body
+                console.log('📝 Case 3: Additional text as body');
+                bodyContent = additionalText;
+                result = await this.convertTextToPdf(bodyContent);
+            }
+            else if (quotedFile && !quotedContent) {
+                // Case 4: Document file without text content
+                console.log('📄 Case 4: Document file conversion');
+                
+                // Download and convert the document
+                try {
+                    const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedFile);
+                    if (downloadedFile) {
+                        // For now, we'll handle document conversion in a future update
+                        // This would require document-to-PDF conversion logic
+                        result = { success: false, error: 'Document-to-PDF conversion will be added in doc.js plugin' };
+                        
+                        // Cleanup downloaded file
+                        setTimeout(async () => {
+                            try {
+                                await fs.unlink(downloadedFile.filePath);
+                            } catch (e) {
+                                console.warn(`⚠️ Cleanup warning: ${e.message}`);
+                            }
+                        }, 10000);
+                    }
+                } catch (downloadError) {
+                    console.error('Failed to download quoted document:', downloadError);
+                    result = { success: false, error: 'Failed to download document' };
                 }
             }
 
             // No valid input found
             if (!result) {
                 return await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ No content found to convert to PDF.\n\n**Usage options:**\n• Reply to a message with \`.pdf\`\n• Send text with \`.pdf your text here\``);
+                    `❌ No content found to convert to PDF.\n\n**Usage examples:**\n• Reply to text with \`.pdf\` (text becomes body)\n• Reply to text with \`.pdf My Title\` (text becomes body, "My Title" becomes title)\n• Send \`.pdf Hello World\` ("Hello World" becomes body)`);
             }
 
             if (result && result.success) {
