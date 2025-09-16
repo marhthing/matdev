@@ -104,7 +104,7 @@ class PDFConverterPlugin {
                             result = await this.createImageToPdf(downloadedFile.filePath, customTitle);
                         } else {
                             // For documents, we'll handle conversion in a future update
-                            result = { success: false, error: 'Document-to-PDF conversion will be added in doc.js plugin' };
+                            result = { success: false, error: 'Document-to-PDF conversion will be added later' };
                         }
                         
                         // Cleanup downloaded file
