@@ -501,10 +501,28 @@ class PDFConverterPlugin {
     }
 
     sanitizeFileName(fileName) {
-        return fileName
-            .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Removed dot to prevent extension issues
+        let cleanName = fileName || 'document';
+        
+        // Remove ALL existing extensions (anywhere in filename, not just at end)
+        cleanName = cleanName.replace(/\.(docx?|pdf|txt|html)/gi, '');
+        
+        // Remove ALL timestamp patterns (not just at end)
+        cleanName = cleanName.replace(/_\d+/g, '');
+        
+        // Sanitize filename - only allow safe characters
+        cleanName = cleanName
+            .replace(/[^a-zA-Z0-9\s\-_]/g, '')
             .replace(/\s+/g, '_')
-            .substring(0, 50);
+            .replace(/_+/g, '_') // Replace multiple underscores with single
+            .substring(0, 50)
+            .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+        
+        // Ensure we have a valid name
+        if (!cleanName || cleanName.length < 1) {
+            cleanName = 'document';
+        }
+        
+        return cleanName;
     }
 
     escapeHtml(text) {
