@@ -33,6 +33,7 @@
     "moment-timezone": "^0.6.0",
     "node-cache": "^5.1.2",
     "officegen": "^0.6.5",
+    "pdf-img-convert": "^2.0.0",
     "pdf-parse": "^1.1.1",
     "pdf-to-img": "^5.0.0",
     "pdfkit": "^0.17.2",
