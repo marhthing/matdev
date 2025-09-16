@@ -803,13 +803,23 @@ class ModernConverterPlugin {
             const pdfResult = await this.createSimpleTextPDF(title, textContent);
             
             if (pdfResult.success && fileName) {
-                // Rename the file to match original
-                const newFileName = fileName.replace(/\.(docx?|doc)$/i, '.pdf');
-                const newPath = path.join(path.dirname(pdfResult.filePath), newFileName);
-                
-                await fs.rename(pdfResult.filePath, newPath);
-                pdfResult.filePath = newPath;
-                pdfResult.fileName = newFileName;
+                // Check if the source file actually exists before renaming
+                if (await fs.pathExists(pdfResult.filePath)) {
+                    // Rename the file to match original
+                    const newFileName = fileName.replace(/\.(docx?|doc)$/i, '.pdf');
+                    const newPath = path.join(path.dirname(pdfResult.filePath), newFileName);
+                    
+                    try {
+                        await fs.rename(pdfResult.filePath, newPath);
+                        pdfResult.filePath = newPath;
+                        pdfResult.fileName = newFileName;
+                    } catch (renameError) {
+                        console.error('Error renaming PDF file:', renameError);
+                        // Keep original file path and name if rename fails
+                    }
+                } else {
+                    console.error('PDF file does not exist at:', pdfResult.filePath);
+                }
             }
 
             return pdfResult;
