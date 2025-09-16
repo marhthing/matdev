@@ -113,23 +113,77 @@ class ModernConverterPlugin {
         try {
             console.log(`🔄 Modern conversion request: target format = ${targetFormat}`);
             
-            const fileMessage = messageInfo.quotedMessage || messageInfo.message;
             let result = null;
+            let quotedContent = null;
 
-            // Handle text input
-            if (messageInfo.text && !fileMessage?.filePath) {
-                console.log('📝 Processing text input with modern engine');
-                result = await this.convertTextToFormat(messageInfo.text, targetFormat);
-            } 
-            // Handle file input
-            else if (fileMessage?.filePath) {
-                console.log(`📄 Processing file: ${fileMessage.fileName}`);
-                result = await this.convertFileToFormat(fileMessage.filePath, fileMessage.fileName, targetFormat, messageInfo);
-            } 
-            // No valid input
-            else {
+            // Check if there's a quoted/tagged message
+            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
+            if (contextInfo?.quotedMessage) {
+                quotedContent = this.extractQuotedMessageContent(contextInfo.quotedMessage);
+                console.log(`📝 Found quoted message content: "${quotedContent?.substring(0, 100)}..."`);
+            }
+
+            // Priority 1: Handle quoted message content as text input
+            if (quotedContent) {
+                console.log('📝 Processing quoted message content with modern engine');
+                result = await this.convertTextToFormat(quotedContent, targetFormat);
+            }
+            // Priority 2: Handle file input (from current message or quoted message)
+            else if (contextInfo?.quotedMessage?.documentMessage || 
+                     contextInfo?.quotedMessage?.imageMessage ||
+                     contextInfo?.quotedMessage?.videoMessage) {
+                
+                const quotedMessage = contextInfo.quotedMessage;
+                const fileMessage = quotedMessage.documentMessage || quotedMessage.imageMessage || quotedMessage.videoMessage;
+                
+                if (fileMessage) {
+                    console.log(`📄 Processing quoted file: ${fileMessage.fileName || 'media file'}`);
+                    
+                    // Download the quoted file
+                    const tempDir = path.join(__dirname, '..', 'tmp');
+                    await fs.ensureDir(tempDir);
+                    
+                    try {
+                        const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedMessage);
+                        if (downloadedFile) {
+                            result = await this.convertFileToFormat(
+                                downloadedFile.filePath, 
+                                downloadedFile.fileName, 
+                                targetFormat, 
+                                messageInfo
+                            );
+                            
+                            // Cleanup downloaded file
+                            setTimeout(async () => {
+                                try {
+                                    await fs.unlink(downloadedFile.filePath);
+                                } catch (e) {
+                                    console.warn(`⚠️ Cleanup warning: ${e.message}`);
+                                }
+                            }, 10000);
+                        }
+                    } catch (downloadError) {
+                        console.error('Failed to download quoted media:', downloadError);
+                        return await this.bot.messageHandler.reply(messageInfo, 
+                            `❌ Failed to download quoted file: ${downloadError.message}`);
+                    }
+                }
+            }
+            // Priority 3: Handle current message text input (excluding the command)
+            else if (messageInfo.text) {
+                const commandPrefix = require('../config').PREFIX;
+                const textContent = messageInfo.text.replace(new RegExp(`^${commandPrefix}${targetFormat}\\s*`, 'i'), '').trim();
+                
+                if (textContent) {
+                    console.log('📝 Processing current message text with modern engine');
+                    result = await this.convertTextToFormat(textContent, targetFormat);
+                }
+            }
+
+            // No valid input found
+            if (!result) {
                 return await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ No file or text provided. Send a file or reply to a message with \`.${targetFormat}\``);
+                    `❌ No content found to convert.\n\n**Usage options:**\n• Reply to a message with \`.${targetFormat}\`\n• Send text with \`.${targetFormat} your text here\`\n• Send/reply to a file with \`.${targetFormat}\``);
             }
 
             if (result && result.success) {
@@ -1118,6 +1172,138 @@ class ModernConverterPlugin {
             console.error('Modern PDF to text error:', error);
             return { success: false, error: 'Failed to extract text from PDF' };
         }
+    }
+
+    /**
+     * Extract text content from quoted message
+     */
+    extractQuotedMessageContent(quotedMessage) {
+        try {
+            // Handle different message types
+            if (quotedMessage.conversation) {
+                return quotedMessage.conversation;
+            }
+            
+            if (quotedMessage.extendedTextMessage?.text) {
+                return quotedMessage.extendedTextMessage.text;
+            }
+            
+            if (quotedMessage.imageMessage?.caption) {
+                return quotedMessage.imageMessage.caption;
+            }
+            
+            if (quotedMessage.videoMessage?.caption) {
+                return quotedMessage.videoMessage.caption;
+            }
+            
+            if (quotedMessage.documentMessage?.caption) {
+                return quotedMessage.documentMessage.caption;
+            }
+            
+            // Handle list messages
+            if (quotedMessage.listMessage?.description) {
+                return quotedMessage.listMessage.description;
+            }
+            
+            // Handle template messages
+            if (quotedMessage.templateMessage?.hydratedTemplate?.hydratedContentText) {
+                return quotedMessage.templateMessage.hydratedTemplate.hydratedContentText;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error extracting quoted message content:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Download media from quoted message
+     */
+    async downloadQuotedMedia(messageInfo, quotedMessage) {
+        try {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            
+            // Create a message object for download
+            const messageToDownload = {
+                key: {
+                    id: messageInfo.message.extendedTextMessage.contextInfo.stanzaId,
+                    remoteJid: messageInfo.chat_jid,
+                    fromMe: false,
+                    participant: messageInfo.message.extendedTextMessage.contextInfo.participant
+                },
+                message: quotedMessage
+            };
+
+            const stream = await downloadMediaMessage(messageToDownload, 'stream', {}, {
+                logger: console,
+                reuploadRequest: this.bot.sock.updateMediaMessage
+            });
+
+            const chunks = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+            const buffer = Buffer.concat(chunks);
+
+            // Determine file extension and name
+            let fileName = 'downloaded_file';
+            let extension = '';
+
+            if (quotedMessage.documentMessage) {
+                fileName = quotedMessage.documentMessage.fileName || 'document';
+                extension = path.extname(fileName) || this.getExtensionFromMimetype(quotedMessage.documentMessage.mimetype);
+            } else if (quotedMessage.imageMessage) {
+                extension = this.getExtensionFromMimetype(quotedMessage.imageMessage.mimetype) || '.jpg';
+                fileName = `image_${Date.now()}${extension}`;
+            } else if (quotedMessage.videoMessage) {
+                extension = this.getExtensionFromMimetype(quotedMessage.videoMessage.mimetype) || '.mp4';
+                fileName = `video_${Date.now()}${extension}`;
+            }
+
+            // Ensure fileName has extension
+            if (!path.extname(fileName)) {
+                fileName += extension;
+            }
+
+            const tempDir = path.join(__dirname, '..', 'tmp');
+            const filePath = path.join(tempDir, fileName);
+            
+            await fs.writeFile(filePath, buffer);
+
+            return {
+                filePath: filePath,
+                fileName: fileName,
+                buffer: buffer
+            };
+
+        } catch (error) {
+            console.error('Error downloading quoted media:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get file extension from mimetype
+     */
+    getExtensionFromMimetype(mimetype) {
+        const mimetypeMap = {
+            'application/pdf': '.pdf',
+            'application/msword': '.doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+            'text/plain': '.txt',
+            'text/html': '.html',
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp',
+            'video/mp4': '.mp4',
+            'video/avi': '.avi',
+            'audio/mpeg': '.mp3',
+            'audio/wav': '.wav'
+        };
+
+        return mimetypeMap[mimetype] || '';
     }
 
     async cleanup() {
