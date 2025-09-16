@@ -1,14 +1,16 @@
+
 /**
  * File Converter Plugin - 2025 Latest Methods
  * Convert between PDF, DOCX, DOC, and image formats
  * Supports WhatsApp media messages and quoted messages
  * 
  * Commands:
- * - .pdftoimg - Convert PDF to images
- * - .imgtopdf - Convert images to PDF
- * - .pdftodoc - Convert PDF to DOCX
- * - .doctopdf - Convert DOCX/DOC to PDF
- * - .convert - Universal converter
+ * - .pdf - Convert any document/image to PDF
+ * - .doc - Convert any document to DOCX
+ * - .png - Convert any file to PNG
+ * - .jpg - Convert any file to JPG
+ * - .html - Convert any document to HTML
+ * - .txt - Convert any document to text
  */
 
 const config = require('../config');
@@ -30,53 +32,62 @@ class ConverterPlugin {
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
-        console.log('✅ File Converter plugin loaded (working commands: pdftoimg, imgtopdf, pdftodoc, doctopdf, convert)');
+        console.log('✅ File Converter plugin loaded (working commands: pdf, doc, png, jpg, html, txt)');
     }
 
     /**
      * Register all converter commands
      */
     registerCommands() {
-        // PDF to Images command
-        this.bot.messageHandler.registerCommand('pdftoimg', this.pdfToImagesCommand.bind(this), {
-            description: 'Convert PDF to images (PNG/JPG)',
-            usage: `${config.PREFIX}pdftoimg [png|jpg] (reply to PDF or send PDF with caption)`,
+        // PDF converter command
+        this.bot.messageHandler.registerCommand('pdf', this.convertToPdfCommand.bind(this), {
+            description: 'Convert any document or image to PDF',
+            usage: `${config.PREFIX}pdf (reply to file or send file with caption)`,
             category: 'converter',
             plugin: 'converter',
             source: 'converter.js'
         });
 
-        // Images to PDF command
-        this.bot.messageHandler.registerCommand('imgtopdf', this.imagesToPdfCommand.bind(this), {
-            description: 'Convert images to PDF',
-            usage: `${config.PREFIX}imgtopdf (reply to image or send image with caption)`,
+        // DOCX converter command
+        this.bot.messageHandler.registerCommand('doc', this.convertToDocxCommand.bind(this), {
+            description: 'Convert any document to DOCX',
+            usage: `${config.PREFIX}doc (reply to document or send document with caption)`,
             category: 'converter',
             plugin: 'converter',
             source: 'converter.js'
         });
 
-        // PDF to DOCX command
-        this.bot.messageHandler.registerCommand('pdftodoc', this.pdfToDocxCommand.bind(this), {
-            description: 'Convert PDF to DOCX document',
-            usage: `${config.PREFIX}pdftodoc (reply to PDF or send PDF with caption)`,
+        // PNG converter command
+        this.bot.messageHandler.registerCommand('png', this.convertToPngCommand.bind(this), {
+            description: 'Convert any file to PNG image',
+            usage: `${config.PREFIX}png (reply to file or send file with caption)`,
             category: 'converter',
             plugin: 'converter',
             source: 'converter.js'
         });
 
-        // DOCX/DOC to PDF command
-        this.bot.messageHandler.registerCommand('doctopdf', this.docToPdfCommand.bind(this), {
-            description: 'Convert DOCX/DOC to PDF',
-            usage: `${config.PREFIX}doctopdf (reply to document or send document with caption)`,
+        // JPG converter command
+        this.bot.messageHandler.registerCommand('jpg', this.convertToJpgCommand.bind(this), {
+            description: 'Convert any file to JPG image',
+            usage: `${config.PREFIX}jpg (reply to file or send file with caption)`,
             category: 'converter',
             plugin: 'converter',
             source: 'converter.js'
         });
 
-        // Universal converter command
-        this.bot.messageHandler.registerCommand('convert', this.universalConvertCommand.bind(this), {
-            description: 'Universal file converter (auto-detect format)',
-            usage: `${config.PREFIX}convert <format> (reply to file or send file with caption)`,
+        // HTML converter command
+        this.bot.messageHandler.registerCommand('html', this.convertToHtmlCommand.bind(this), {
+            description: 'Convert any document to HTML',
+            usage: `${config.PREFIX}html (reply to document or send document with caption)`,
+            category: 'converter',
+            plugin: 'converter',
+            source: 'converter.js'
+        });
+
+        // TXT converter command
+        this.bot.messageHandler.registerCommand('txt', this.convertToTxtCommand.bind(this), {
+            description: 'Convert any document to text',
+            usage: `${config.PREFIX}txt (reply to document or send document with caption)`,
             category: 'converter',
             plugin: 'converter',
             source: 'converter.js'
@@ -176,332 +187,284 @@ class ConverterPlugin {
     }
 
     /**
-     * PDF to Images command
+     * Convert to PDF command
      */
-    async pdfToImagesCommand(messageInfo) {
+    async convertToPdfCommand(messageInfo) {
         try {
-            const mediaData = await this.downloadMedia(messageInfo);
-            
-            if (!mediaData) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file or send a PDF with the command as caption.\n\n' +
-                    `Usage: ${config.PREFIX}pdftoimg [png|jpg]`
-                );
-                return;
-            }
-
-            // Check if it's a PDF
-            if (!mediaData.filename.toLowerCase().includes('.pdf') && 
-                !mediaData.mimetype.includes('pdf') && 
-                !mediaData.buffer.toString('ascii', 0, 4).includes('%PDF')) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please send a PDF file.');
-                return;
-            }
-
-            // Get output format from args
-            const args = messageInfo.args || [];
-            const format = args[0]?.toLowerCase() === 'jpg' ? 'jpg' : 'png';
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                `🔄 Converting PDF to ${format.toUpperCase()} images... Please wait.`
-            );
-
-            // Convert PDF to images
-            const images = await this.converter.pdfToImages(mediaData.buffer, { 
-                format: format,
-                scale: 1.5,
-                quality: 90 
-            });
-
-            if (!images || images.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert PDF. Please try again.');
-                return;
-            }
-
-            // Send images
-            for (let i = 0; i < images.length; i++) {
-                const image = images[i];
-                await this.bot.sock.sendMessage(messageInfo.sender, {
-                    image: image.buffer,
-                    caption: `📄 Page ${image.page} of ${images.length}\n🔄 PDF to ${format.toUpperCase()} conversion`
-                });
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                `✅ Successfully converted PDF to ${images.length} ${format.toUpperCase()} image(s)!`
-            );
-
-        } catch (error) {
-            console.log('PDF to images error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Failed to convert PDF to images. Please ensure the file is a valid PDF.'
-            );
-        }
-    }
-
-    /**
-     * Images to PDF command
-     */
-    async imagesToPdfCommand(messageInfo) {
-        try {
-            const mediaData = await this.downloadMedia(messageInfo);
-            
-            if (!mediaData) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to an image or send an image with the command as caption.\n\n' +
-                    `Usage: ${config.PREFIX}imgtopdf`
-                );
-                return;
-            }
-
-            // Check if it's an image
-            if (!mediaData.mimetype.includes('image')) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please send an image file.');
-                return;
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting image to PDF... Please wait.');
-
-            // Convert image to PDF
-            const pdfBuffer = await this.converter.imagesToPdf([mediaData.buffer], null, {
-                pageSize: 'A4',
-                quality: 85
-            });
-
-            if (!pdfBuffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert image to PDF.');
-                return;
-            }
-
-            // Send PDF
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                document: pdfBuffer,
-                fileName: `converted_${Date.now()}.pdf`,
-                mimetype: 'application/pdf',
-                caption: '📄 Image converted to PDF'
-            });
-
-            await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted image to PDF!');
-
-        } catch (error) {
-            console.log('Image to PDF error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Failed to convert image to PDF. Please ensure the file is a valid image.'
-            );
-        }
-    }
-
-    /**
-     * PDF to DOCX command
-     */
-    async pdfToDocxCommand(messageInfo) {
-        try {
-            const mediaData = await this.downloadMedia(messageInfo);
-            
-            if (!mediaData) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file or send a PDF with the command as caption.\n\n' +
-                    `Usage: ${config.PREFIX}pdftodoc`
-                );
-                return;
-            }
-
-            // Check if it's a PDF
-            if (!mediaData.filename.toLowerCase().includes('.pdf') && 
-                !mediaData.mimetype.includes('pdf') && 
-                !mediaData.buffer.toString('ascii', 0, 4).includes('%PDF')) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please send a PDF file.');
-                return;
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 Converting PDF to DOCX document... Please wait (this may take a moment).'
-            );
-
-            // Convert PDF to DOCX
-            const docxBuffer = await this.converter.pdfToDocx(mediaData.buffer);
-
-            if (!docxBuffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert PDF to DOCX.');
-                return;
-            }
-
-            // Send DOCX
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                document: docxBuffer,
-                fileName: `converted_${Date.now()}.docx`,
-                mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                caption: '📄 PDF converted to DOCX'
-            });
-
-            await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted PDF to DOCX document!');
-
-        } catch (error) {
-            console.log('PDF to DOCX error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Failed to convert PDF to DOCX. Please ensure the file is a valid PDF and try again.'
-            );
-        }
-    }
-
-    /**
-     * DOCX/DOC to PDF command
-     */
-    async docToPdfCommand(messageInfo) {
-        try {
-            const mediaData = await this.downloadMedia(messageInfo);
-            
-            if (!mediaData) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a DOCX/DOC file or send a document with the command as caption.\n\n' +
-                    `Usage: ${config.PREFIX}doctopdf`
-                );
-                return;
-            }
-
-            // Check if it's a document
-            const isDoc = mediaData.filename.toLowerCase().includes('.doc') || 
-                         mediaData.mimetype.includes('word') ||
-                         mediaData.mimetype.includes('document');
-
-            if (!isDoc) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Please send a DOCX or DOC file.');
-                return;
-            }
-
-            await this.bot.messageHandler.reply(messageInfo, 
-                '🔄 Converting document to PDF... Please wait (this may take a moment).'
-            );
-
-            // Convert based on file type
-            let pdfBuffer;
-            if (mediaData.filename.toLowerCase().includes('.docx') || 
-                mediaData.mimetype.includes('openxml')) {
-                pdfBuffer = await this.converter.docxToPdf(mediaData.buffer);
-            } else {
-                pdfBuffer = await this.converter.docToPdf(mediaData.buffer);
-            }
-
-            if (!pdfBuffer) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert document to PDF.');
-                return;
-            }
-
-            // Send PDF
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                document: pdfBuffer,
-                fileName: `converted_${Date.now()}.pdf`,
-                mimetype: 'application/pdf',
-                caption: '📄 Document converted to PDF'
-            });
-
-            await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted document to PDF!');
-
-        } catch (error) {
-            console.log('Document to PDF error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Failed to convert document to PDF. Please ensure the file is a valid DOCX/DOC file.'
-            );
-        }
-    }
-
-    /**
-     * Universal converter command
-     */
-    async universalConvertCommand(messageInfo) {
-        try {
-            const args = messageInfo.args || [];
-            const targetFormat = args[0]?.toLowerCase();
-
-            if (!targetFormat) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please specify target format.\n\n' +
-                    `Usage: ${config.PREFIX}convert <format>\n` +
-                    'Supported formats: pdf, docx, doc, png, jpg, jpeg, html, txt\n\n' +
-                    'Example: `.convert pdf` (reply to image/doc)\n' +
-                    'Example: `.convert png` (reply to PDF)'
-                );
-                return;
-            }
-
             const mediaData = await this.downloadMedia(messageInfo);
             
             if (!mediaData) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Please reply to a file or send a file with the command as caption.\n\n' +
-                    `Usage: ${config.PREFIX}convert ${targetFormat}`
+                    `Usage: ${config.PREFIX}pdf`
                 );
                 return;
             }
 
-            await this.bot.messageHandler.reply(messageInfo, 
-                `🔄 Converting file to ${targetFormat.toUpperCase()}... Please wait.`
-            );
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to PDF... Please wait.');
 
             // Use universal converter
-            const result = await this.converter.convert(mediaData.buffer, targetFormat, null, {
+            const result = await this.converter.convert(mediaData.buffer, 'pdf', null, {
                 quality: 85,
-                scale: 1.5
+                pageSize: 'A4'
             });
 
             if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to PDF.');
+                return;
+            }
+
+            // Send PDF
+            await this.bot.sock.sendMessage(messageInfo.sender, {
+                document: result,
+                fileName: `converted_${Date.now()}.pdf`,
+                mimetype: 'application/pdf',
+                caption: '📄 Converted to PDF'
+            });
+
+            await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted to PDF!');
+
+        } catch (error) {
+            console.log('Convert to PDF error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to convert file to PDF. Please ensure the file is valid.'
+            );
+        }
+    }
+
+    /**
+     * Convert to DOCX command
+     */
+    async convertToDocxCommand(messageInfo) {
+        try {
+            const mediaData = await this.downloadMedia(messageInfo);
+            
+            if (!mediaData) {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Failed to convert file to ${targetFormat.toUpperCase()}.`
+                    '❌ Please reply to a document or send a document with the command as caption.\n\n' +
+                    `Usage: ${config.PREFIX}doc`
                 );
                 return;
             }
 
-            // Handle different result types
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to DOCX... Please wait.');
+
+            // Use universal converter
+            const result = await this.converter.convert(mediaData.buffer, 'docx', null);
+
+            if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to DOCX.');
+                return;
+            }
+
+            // Send DOCX
+            await this.bot.sock.sendMessage(messageInfo.sender, {
+                document: result,
+                fileName: `converted_${Date.now()}.docx`,
+                mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                caption: '📄 Converted to DOCX'
+            });
+
+            await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted to DOCX!');
+
+        } catch (error) {
+            console.log('Convert to DOCX error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to convert file to DOCX. Please ensure the file is a valid document.'
+            );
+        }
+    }
+
+    /**
+     * Convert to PNG command
+     */
+    async convertToPngCommand(messageInfo) {
+        try {
+            const mediaData = await this.downloadMedia(messageInfo);
+            
+            if (!mediaData) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a file or send a file with the command as caption.\n\n' +
+                    `Usage: ${config.PREFIX}png`
+                );
+                return;
+            }
+
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to PNG... Please wait.');
+
+            // Use universal converter
+            const result = await this.converter.convert(mediaData.buffer, 'png', null, {
+                quality: 100
+            });
+
+            if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to PNG.');
+                return;
+            }
+
+            // Handle multiple images from PDF
             if (Array.isArray(result)) {
-                // Multiple images from PDF
                 for (let i = 0; i < result.length; i++) {
                     const image = result[i];
                     await this.bot.sock.sendMessage(messageInfo.sender, {
                         image: image.buffer,
-                        caption: `📄 Page ${i + 1} of ${result.length}\n🔄 Converted to ${targetFormat.toUpperCase()}`
+                        caption: `📄 Page ${i + 1} of ${result.length} - Converted to PNG`
                     });
                 }
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `✅ Successfully converted to ${result.length} ${targetFormat.toUpperCase()} file(s)!`
-                );
-            } else if (typeof result === 'string') {
-                // Text/HTML result
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `📄 *Converted to ${targetFormat.toUpperCase()}:*\n\n${result.substring(0, 4000)}`
+                    `✅ Successfully converted to ${result.length} PNG image(s)!`
                 );
             } else {
-                // Buffer result (PDF, DOCX, etc.)
-                const mimeTypes = {
-                    pdf: 'application/pdf',
-                    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    doc: 'application/msword',
-                    png: 'image/png',
-                    jpg: 'image/jpeg',
-                    jpeg: 'image/jpeg'
-                };
-
-                if (['png', 'jpg', 'jpeg'].includes(targetFormat)) {
-                    await this.bot.sock.sendMessage(messageInfo.sender, {
-                        image: result,
-                        caption: `🔄 Converted to ${targetFormat.toUpperCase()}`
-                    });
-                } else {
-                    await this.bot.sock.sendMessage(messageInfo.sender, {
-                        document: result,
-                        fileName: `converted_${Date.now()}.${targetFormat}`,
-                        mimetype: mimeTypes[targetFormat] || 'application/octet-stream',
-                        caption: `📄 Converted to ${targetFormat.toUpperCase()}`
-                    });
-                }
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `✅ Successfully converted to ${targetFormat.toUpperCase()}!`
-                );
+                // Single image
+                await this.bot.sock.sendMessage(messageInfo.sender, {
+                    image: result,
+                    caption: '🖼️ Converted to PNG'
+                });
+                await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted to PNG!');
             }
 
         } catch (error) {
-            console.log('Universal convert error:', error);
+            console.log('Convert to PNG error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Conversion failed. Please check the file format and try again.'
+                '❌ Failed to convert file to PNG. Please ensure the file is valid.'
+            );
+        }
+    }
+
+    /**
+     * Convert to JPG command
+     */
+    async convertToJpgCommand(messageInfo) {
+        try {
+            const mediaData = await this.downloadMedia(messageInfo);
+            
+            if (!mediaData) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a file or send a file with the command as caption.\n\n' +
+                    `Usage: ${config.PREFIX}jpg`
+                );
+                return;
+            }
+
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to JPG... Please wait.');
+
+            // Use universal converter
+            const result = await this.converter.convert(mediaData.buffer, 'jpg', null, {
+                quality: 85
+            });
+
+            if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to JPG.');
+                return;
+            }
+
+            // Handle multiple images from PDF
+            if (Array.isArray(result)) {
+                for (let i = 0; i < result.length; i++) {
+                    const image = result[i];
+                    await this.bot.sock.sendMessage(messageInfo.sender, {
+                        image: image.buffer,
+                        caption: `📄 Page ${i + 1} of ${result.length} - Converted to JPG`
+                    });
+                }
+                await this.bot.messageHandler.reply(messageInfo, 
+                    `✅ Successfully converted to ${result.length} JPG image(s)!`
+                );
+            } else {
+                // Single image
+                await this.bot.sock.sendMessage(messageInfo.sender, {
+                    image: result,
+                    caption: '🖼️ Converted to JPG'
+                });
+                await this.bot.messageHandler.reply(messageInfo, '✅ Successfully converted to JPG!');
+            }
+
+        } catch (error) {
+            console.log('Convert to JPG error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to convert file to JPG. Please ensure the file is valid.'
+            );
+        }
+    }
+
+    /**
+     * Convert to HTML command
+     */
+    async convertToHtmlCommand(messageInfo) {
+        try {
+            const mediaData = await this.downloadMedia(messageInfo);
+            
+            if (!mediaData) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a document or send a document with the command as caption.\n\n' +
+                    `Usage: ${config.PREFIX}html`
+                );
+                return;
+            }
+
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to HTML... Please wait.');
+
+            // Use universal converter
+            const result = await this.converter.convert(mediaData.buffer, 'html', null);
+
+            if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to HTML.');
+                return;
+            }
+
+            // Send HTML content as text (truncated if too long)
+            const htmlContent = typeof result === 'string' ? result : result.toString();
+            const truncatedHtml = htmlContent.length > 4000 ? htmlContent.substring(0, 4000) + '...' : htmlContent;
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📄 *Converted to HTML:*\n\n\`\`\`html\n${truncatedHtml}\n\`\`\``
+            );
+
+        } catch (error) {
+            console.log('Convert to HTML error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to convert file to HTML. Please ensure the file is a valid document.'
+            );
+        }
+    }
+
+    /**
+     * Convert to TXT command
+     */
+    async convertToTxtCommand(messageInfo) {
+        try {
+            const mediaData = await this.downloadMedia(messageInfo);
+            
+            if (!mediaData) {
+                await this.bot.messageHandler.reply(messageInfo, 
+                    '❌ Please reply to a document or send a document with the command as caption.\n\n' +
+                    `Usage: ${config.PREFIX}txt`
+                );
+                return;
+            }
+
+            await this.bot.messageHandler.reply(messageInfo, '🔄 Converting to text... Please wait.');
+
+            // Use universal converter
+            const result = await this.converter.convert(mediaData.buffer, 'txt', null);
+
+            if (!result) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to convert file to text.');
+                return;
+            }
+
+            // Send text content (truncated if too long)
+            const textContent = typeof result === 'string' ? result : result.toString();
+            const truncatedText = textContent.length > 4000 ? textContent.substring(0, 4000) + '...' : textContent;
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📄 *Converted to Text:*\n\n${truncatedText}`
+            );
+
+        } catch (error) {
+            console.log('Convert to TXT error:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to convert file to text. Please ensure the file is a valid document.'
             );
         }
     }
@@ -521,11 +484,12 @@ class ConverterPlugin {
         }
 
         message += '🔧 *AVAILABLE COMMANDS:*\n\n';
-        message += `• \`${config.PREFIX}pdftoimg [png|jpg]\` - PDF to images\n`;
-        message += `• \`${config.PREFIX}imgtopdf\` - Images to PDF\n`;
-        message += `• \`${config.PREFIX}pdftodoc\` - PDF to DOCX\n`;
-        message += `• \`${config.PREFIX}doctopdf\` - DOCX/DOC to PDF\n`;
-        message += `• \`${config.PREFIX}convert <format>\` - Universal converter\n\n`;
+        message += `• \`${config.PREFIX}pdf\` - Convert any file to PDF\n`;
+        message += `• \`${config.PREFIX}doc\` - Convert any document to DOCX\n`;
+        message += `• \`${config.PREFIX}png\` - Convert any file to PNG\n`;
+        message += `• \`${config.PREFIX}jpg\` - Convert any file to JPG\n`;
+        message += `• \`${config.PREFIX}html\` - Convert any document to HTML\n`;
+        message += `• \`${config.PREFIX}txt\` - Convert any document to text\n\n`;
         message += '💡 *Usage:* Reply to a file with the command or send file with command as caption';
 
         await this.bot.messageHandler.reply(messageInfo, message);
