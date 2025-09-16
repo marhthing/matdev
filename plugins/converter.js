@@ -88,14 +88,27 @@ Just tag any document/text and use the target format command!
 
             // Check for text content (either command args or quoted message)
             let textContent = '';
+            let customTitle = '';
+            
+            // If user provided args after command, use as custom title
+            if (messageInfo.args.length > 0) {
+                customTitle = messageInfo.args.join(' ').trim();
+                textContent = customTitle; // Also use as content for text conversions
+            }
+            
+            // Check quoted message for additional text content
             if (quotedMessage) {
                 if (quotedMessage.conversation) {
-                    textContent = quotedMessage.conversation;
+                    // If no custom title from args, use quoted text as content
+                    if (!customTitle) {
+                        textContent = quotedMessage.conversation;
+                    }
                 } else if (quotedMessage.extendedTextMessage?.text) {
-                    textContent = quotedMessage.extendedTextMessage.text;
+                    // If no custom title from args, use quoted text as content
+                    if (!customTitle) {
+                        textContent = quotedMessage.extendedTextMessage.text;
+                    }
                 }
-            } else if (messageInfo.args.length > 0) {
-                textContent = messageInfo.args.join(' ').trim();
             }
 
             // Auto-detect input type and process
@@ -190,7 +203,7 @@ Just tag any document/text and use the target format command!
             }
 
             // Convert based on input and target formats (silent)
-            const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo);
+            const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle);
 
             if (result.success) {
                 if (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg') {
@@ -263,18 +276,23 @@ Just tag any document/text and use the target format command!
         return 'unknown';
     }
 
-    async performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo) {
+    async performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle = '') {
         try {
             // Handle text input conversions
             if (inputFormat === 'text') {
                 if (targetFormat === 'pdf') {
-                    return await this.createPDF('Generated Document', textContent);
+                    const title = customTitle || 'Generated Document';
+                    return await this.createPDF(title, textContent, customTitle);
                 } else if (targetFormat === 'txt') {
                     // Remove emojis from text files too
                     const cleanedText = this.removeEmojis(textContent);
-                    return await this.createTextFile(cleanedText);
+                    return await this.createTextFile(cleanedText, customTitle);
                 } else if (targetFormat === 'html') {
-                    return await this.createHTMLFile('Generated HTML', textContent);
+                    const title = customTitle || 'Generated HTML';
+                    return await this.createHTMLFile(title, textContent, customTitle);
+                } else if (targetFormat === 'doc' || targetFormat === 'docx') {
+                    const title = customTitle || 'Generated Document';
+                    return await this.createDocFile(title, textContent, targetFormat, customTitle);
                 }
             }
 
@@ -308,9 +326,15 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async createTextFile(content) {
+    async createTextFile(content, customTitle = '') {
         try {
-            const fileName = `text_${Date.now()}.txt`;
+            let fileName;
+            if (customTitle) {
+                const safeTitle = customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.txt`;
+            } else {
+                fileName = `text_${Date.now()}.txt`;
+            }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
@@ -330,9 +354,15 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async createHTMLFile(title, content) {
+    async createHTMLFile(title, content, customTitle = '') {
         try {
-            const fileName = `html_${Date.now()}.html`;
+            let fileName;
+            if (customTitle) {
+                const safeTitle = customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.html`;
+            } else {
+                fileName = `html_${Date.now()}.html`;
+            }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             const html = `<!DOCTYPE html>
@@ -479,15 +509,15 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async createPDF(title, content) {
+    async createPDF(title, content, customTitle = '') {
         try {
             // Clean content and extract title if needed
             const cleanedContent = this.removeEmojis(content);
             let finalTitle = title;
             let finalContent = cleanedContent;
 
-            // If title is generic, try to extract from content
-            if (title === 'Generated Document') {
+            // If title is generic and no custom title provided, try to extract from content
+            if (title === 'Generated Document' && !customTitle) {
                 const extractedTitle = this.extractTitleFromText(cleanedContent);
                 if (extractedTitle) {
                     finalTitle = extractedTitle.title;
@@ -499,14 +529,14 @@ Just tag any document/text and use the target format command!
             const html = this.generateHTML(finalTitle, finalContent);
 
             // Try to use free HTML to PDF service (placeholder for now)
-            const pdfResult = await this.htmlToPDF(html, finalTitle);
+            const pdfResult = await this.htmlToPDF(html, finalTitle, customTitle);
 
             if (pdfResult.success) {
                 return pdfResult;
             }
 
             // Fallback: Create a simple text-based PDF using basic formatting
-            return await this.createTextPDF(finalTitle, finalContent);
+            return await this.createTextPDF(finalTitle, finalContent, customTitle);
 
         } catch (error) {
             console.error('PDF creation error:', error);
@@ -544,7 +574,7 @@ Just tag any document/text and use the target format command!
         </html>`;
     }
 
-    async htmlToPDF(html, title) {
+    async htmlToPDF(html, title, customTitle = '') {
         try {
             // Try HTML-PDF conversion API
             const response = await axios.post('https://api.html-pdf-api.com/v1/generate', {
@@ -567,7 +597,12 @@ Just tag any document/text and use the target format command!
             });
 
             if (response.data) {
-                const fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+                let fileName;
+                if (customTitle) {
+                    fileName = `${customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+                } else {
+                    fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+                }
                 const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
                 await fs.ensureDir(path.dirname(filePath));
@@ -585,11 +620,11 @@ Just tag any document/text and use the target format command!
         } catch (error) {
             console.error('HTML to PDF error:', error);
             // Try alternative API
-            return await this.tryAlternativePDFAPI(html, title);
+            return await this.tryAlternativePDFAPI(html, title, customTitle);
         }
     }
 
-    async tryAlternativePDFAPI(html, title) {
+    async tryAlternativePDFAPI(html, title, customTitle = '') {
         try {
             // Try a different PDF generation approach using PDFShift API
             const response = await axios.post('https://api.pdfshift.io/v3/convert/pdf', {
@@ -606,7 +641,12 @@ Just tag any document/text and use the target format command!
             });
 
             if (response.data) {
-                const fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+                let fileName;
+                if (customTitle) {
+                    fileName = `${customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+                } else {
+                    fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.pdf`;
+                }
                 const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
                 await fs.ensureDir(path.dirname(filePath));
@@ -627,11 +667,17 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async createTextPDF(title, content) {
+    async createTextPDF(title, content, customTitle = '') {
         try {
             // Create a simple PDF using a basic PDF structure
-            const safeTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-            const fileName = `${safeTitle}_${Date.now()}.pdf`;
+            let fileName;
+            if (customTitle) {
+                const safeTitle = customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.pdf`;
+            } else {
+                const safeTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.pdf`;
+            }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
@@ -1372,6 +1418,88 @@ ${displayLines.map((line, i) => {
                     error: 'Failed to convert PDF to DOC'
                 };
             }
+        }
+    }
+
+    async createDocFile(title, content, format, customTitle = '') {
+        try {
+            let fileName;
+            if (customTitle) {
+                const safeTitle = customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.${format}`;
+            } else {
+                const safeTitle = title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+                fileName = `${safeTitle}_${Date.now()}.${format}`;
+            }
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+
+            // Clean content
+            const cleanedContent = this.removeEmojis(content);
+
+            // Create DOCX using officegen
+            const officegen = require('officegen');
+            const docx = officegen('docx');
+
+            // Set document properties
+            docx.creator = 'MATDEV Bot';
+            docx.title = title;
+            docx.subject = 'Text to DOCX Conversion';
+
+            // Create title paragraph
+            const titleParagraph = docx.createP({ align: 'center' });
+            titleParagraph.addText(title, { 
+                font_size: 16, 
+                bold: true, 
+                color: '333333' 
+            });
+
+            // Add spacing
+            docx.createP();
+
+            // Split content into paragraphs and add them
+            const paragraphs = cleanedContent.split('\n\n');
+            
+            for (const paragraph of paragraphs) {
+                if (paragraph.trim()) {
+                    const p = docx.createP();
+                    p.addText(paragraph.trim(), { 
+                        font_size: 12,
+                        font_face: 'Arial'
+                    });
+                }
+            }
+
+            // Add footer
+            docx.createP();
+            const footerParagraph = docx.createP({ align: 'center' });
+            footerParagraph.addText(`Generated by MATDEV Bot on ${new Date().toLocaleString()}`, {
+                font_size: 10,
+                color: '666666',
+                italic: true
+            });
+
+            // Save the document
+            await new Promise((resolve, reject) => {
+                const out = fs.createWriteStream(filePath);
+
+                out.on('error', reject);
+                out.on('close', resolve);
+
+                docx.generate(out);
+            });
+
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+
+        } catch (error) {
+            console.error('Text to DOC creation error:', error);
+            return {
+                success: false,
+                error: 'Failed to create document file'
+            };
         }
     }
 
