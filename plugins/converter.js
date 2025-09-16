@@ -21,7 +21,7 @@ class ConverterPlugin {
         try {
             // Register simple format-based commands that auto-detect input
             const outputFormats = ['pdf', 'doc', 'docx', 'txt', 'html', 'png', 'jpg', 'jpeg', 'img'];
-            
+
             for (const format of outputFormats) {
                 this.bot.messageHandler.registerCommand(format, (messageInfo) => this.autoConvertCommand(format, messageInfo), {
                     description: `Convert any file/text to ${format.toUpperCase()}`,
@@ -79,7 +79,7 @@ Just tag any document/text and use the target format command!
         try {
             // Normalize target format
             if (targetFormat === 'img') targetFormat = 'png';
-            
+
             // Clean converter - no debug logging needed
 
             // Check for quoted message first (like compress.js does)
@@ -117,10 +117,10 @@ Just tag any document/text and use the target format command!
                 inputFormat = 'video';
                 console.log('🔍 Found direct video');
             }
-            
+
             // If no direct attachment, check for quoted message
             if (!fileMessage && quotedMessage) {
-                
+
                 if (quotedMessage.documentMessage) {
                     fileMessage = quotedMessage.documentMessage;
                     inputFormat = this.detectFileFormat(fileMessage);
@@ -145,7 +145,7 @@ Just tag any document/text and use the target format command!
             // Check if this is a document sent with caption in context (different structure)
             if (!fileMessage && messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
                 const contextQuoted = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
-                
+
                 if (contextQuoted.documentMessage) {
                     fileMessage = contextQuoted.documentMessage;
                     inputFormat = this.detectFileFormat(fileMessage);
@@ -191,7 +191,7 @@ Just tag any document/text and use the target format command!
 
             // Convert based on input and target formats (silent)
             const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo);
-            
+
             if (result.success) {
                 if (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg') {
                     // Send as image (no caption)
@@ -214,7 +214,7 @@ Just tag any document/text and use the target format command!
                         mimetype: mimeTypes[targetFormat] || 'application/octet-stream'
                     });
                 }
-                
+
                 // Clean up temp files
                 await fs.unlink(result.filePath).catch(() => {});
                 if (filePath) await fs.unlink(filePath).catch(() => {});
@@ -232,34 +232,34 @@ Just tag any document/text and use the target format command!
     detectFileFormat(fileMessage) {
         const mimetype = fileMessage.mimetype || '';
         const fileName = fileMessage.fileName || '';
-        
+
         // PDF files
         if (mimetype.includes('pdf') || fileName.toLowerCase().endsWith('.pdf')) {
             return 'pdf';
         }
-        
+
         // Word documents
         if (mimetype.includes('msword') || mimetype.includes('wordprocessingml') ||
             fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) {
             return fileName.toLowerCase().endsWith('.docx') ? 'docx' : 'doc';
         }
-        
+
         // Images
         if (mimetype.startsWith('image/') || 
             /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)) {
             return 'image';
         }
-        
+
         // HTML files
         if (mimetype.includes('html') || fileName.toLowerCase().endsWith('.html')) {
             return 'html';
         }
-        
+
         // Text files
         if (mimetype.includes('text') || fileName.toLowerCase().endsWith('.txt')) {
             return 'text';
         }
-        
+
         return 'unknown';
     }
 
@@ -275,7 +275,7 @@ Just tag any document/text and use the target format command!
                     return await this.createHTMLFile('Generated HTML', textContent);
                 }
             }
-            
+
             // Handle file-based conversions
             if (filePath) {
                 if (inputFormat === 'pdf' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
@@ -310,10 +310,10 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = `text_${Date.now()}.txt`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, content, 'utf8');
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -332,7 +332,7 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = `html_${Date.now()}.html`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -349,10 +349,10 @@ Just tag any document/text and use the target format command!
     <div>${content.replace(/\n/g, '<br>')}</div>
 </body>
 </html>`;
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, html, 'utf8');
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -371,28 +371,28 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = `image_to_pdf_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             // Use PDFKit to create PDF from image
             const PDFDocument = require('pdfkit');
             const doc = new PDFDocument();
             const stream = fs.createWriteStream(filePath);
             doc.pipe(stream);
-            
+
             // Add image to PDF
             doc.image(imagePath, 50, 50, {
                 fit: [500, 700],
                 align: 'center',
                 valign: 'center'
             });
-            
+
             doc.end();
-            
+
             // Wait for the stream to finish
             await new Promise((resolve, reject) => {
                 stream.on('finish', resolve);
                 stream.on('error', reject);
             });
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -411,14 +411,14 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = `converted_${Date.now()}.${targetFormat}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
-            
+
             // Use sharp to convert image format
             await sharp(imagePath)
                 .toFormat(targetFormat)
                 .toFile(filePath);
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -437,13 +437,13 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = `pdf_page_${pageNumber}_${Date.now()}.png`;
             const outputDir = path.join(__dirname, '..', 'tmp');
-            
+
             await fs.ensureDir(outputDir);
-            
+
             // Check if pdf-poppler is supported on this platform
             try {
                 const poppler = require('pdf-poppler');
-                
+
                 const options = {
                     format: 'png',
                     out_dir: outputDir,
@@ -452,10 +452,10 @@ Just tag any document/text and use the target format command!
                 };
 
                 const outputFiles = await poppler.convert(pdfPath, options);
-                
+
                 if (outputFiles && outputFiles.length > 0) {
                     const generatedFile = outputFiles[0];
-                    
+
                     return {
                         success: true,
                         filePath: generatedFile,
@@ -668,23 +668,23 @@ Just tag any document/text and use the target format command!
                 margin: 50,
                 font: 'Helvetica'
             });
-            
+
             // Create write stream
             const stream = fs.createWriteStream(filePath);
             doc.pipe(stream);
-            
+
             // Add title
             doc.fontSize(20)
                .fillColor('#333333')
                .text(title, 50, 50);
-            
+
             // Add underline
             doc.moveTo(50, 80)
                .lineTo(550, 80)
                .strokeColor('#007acc')
                .lineWidth(2)
                .stroke();
-            
+
             // Add content
             doc.fontSize(12)
                .fillColor('#000000')
@@ -693,7 +693,7 @@ Just tag any document/text and use the target format command!
                    align: 'justify',
                    lineGap: 5
                });
-            
+
             // Add footer
             const pageHeight = doc.page.height;
             doc.fontSize(10)
@@ -701,16 +701,16 @@ Just tag any document/text and use the target format command!
                .text(`Generated by MATDEV Bot on ${new Date().toLocaleString()}`, 50, pageHeight - 50, {
                    align: 'center'
                });
-            
+
             // Finalize the PDF
             doc.end();
-            
+
             // Wait for the stream to finish
             await new Promise((resolve, reject) => {
                 stream.on('finish', resolve);
                 stream.on('error', reject);
             });
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -729,11 +729,11 @@ Just tag any document/text and use the target format command!
     async pdfToImageCommand(messageInfo) {
         try {
             const pageNumber = messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1;
-            
+
             // Check for file in message or quoted message
             const fileMessage = messageInfo.message?.documentMessage || 
                               messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.documentMessage;
-            
+
             if (!fileMessage || fileMessage.mimetype !== 'application/pdf') {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '📄 Please send a PDF file or reply to a PDF with this command.\n\n' +
@@ -745,13 +745,13 @@ Just tag any document/text and use the target format command!
             await this.bot.messageHandler.reply(messageInfo, '🔄 Converting PDF to image...');
 
             const result = await this.convertPdfToImage(fileMessage, pageNumber);
-            
+
             if (result.success) {
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     image: { url: result.filePath },
                     caption: `📸 PDF Page ${pageNumber} converted to image`
                 });
-                
+
                 // Clean up temp file
                 await fs.unlink(result.filePath).catch(() => {});
             } else {
@@ -811,10 +811,10 @@ Just tag any document/text and use the target format command!
         try {
             // Download PDF file
             const pdfPath = await this.downloadFile(fileMessage);
-            
+
             // Use API to convert PDF to image
             const imageResult = await this.pdfToImageAPI(pdfPath, pageNumber);
-            
+
             if (imageResult.success) {
                 // Clean up PDF file
                 await fs.unlink(pdfPath).catch(() => {});
@@ -852,7 +852,7 @@ Just tag any document/text and use the target format command!
             if (response.data) {
                 const fileName = `pdf_page_${pageNumber}_${Date.now()}.png`;
                 const filePath = path.join(__dirname, '..', 'tmp', fileName);
-                
+
                 await fs.ensureDir(path.dirname(filePath));
                 await fs.writeFile(filePath, response.data);
 
@@ -873,14 +873,13 @@ Just tag any document/text and use the target format command!
 
     async pdfToImageFallback(pdfPath, pageNumber) {
         try {
-            // Try using pdf-parse to extract text and create an image representation
             const fileName = `fallback_pdf_page_${pageNumber}_${Date.now()}.png`;
             const outputDir = path.join(__dirname, '..', 'tmp');
             const filePath = path.join(outputDir, fileName);
-            
+
             await fs.ensureDir(outputDir);
-            
-            // First, try to extract text from the PDF
+
+            // Try to extract text from the PDF and create a text-based image
             let pdfText = '';
             try {
                 const pdfParse = require('pdf-parse');
@@ -891,15 +890,15 @@ Just tag any document/text and use the target format command!
                 console.warn('PDF text extraction failed:', parseError.message);
                 pdfText = 'PDF content could not be extracted (may contain images or be encrypted)';
             }
-            
+
             // Create a text-based image representation using Sharp
             const sharp = require('sharp');
-            
+
             // Create a simple text image as fallback
             const width = 800;
             const height = 1000;
             const textLines = this.wrapText(pdfText.substring(0, 2000), 80); // Limit text and wrap
-            
+
             // Create SVG with text content
             const svgContent = `
                 <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -914,12 +913,12 @@ Just tag any document/text and use the target format command!
                     </text>
                 </svg>
             `;
-            
+
             // Convert SVG to PNG using Sharp
             const imageBuffer = await sharp(Buffer.from(svgContent))
                 .png()
                 .toBuffer();
-                
+
             await fs.writeFile(filePath, imageBuffer);
 
             return {
@@ -930,13 +929,13 @@ Just tag any document/text and use the target format command!
 
         } catch (error) {
             console.error('PDF to image fallback error:', error);
-            
+
             // Final fallback - create a simple error image
             try {
                 const fileName = `error_pdf_${Date.now()}.png`;
                 const outputDir = path.join(__dirname, '..', 'tmp');
                 const filePath = path.join(outputDir, fileName);
-                
+
                 const sharp = require('sharp');
                 const errorSvg = `
                     <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
@@ -952,13 +951,13 @@ Just tag any document/text and use the target format command!
                         </text>
                     </svg>
                 `;
-                
+
                 const errorBuffer = await sharp(Buffer.from(errorSvg))
                     .png()
                     .toBuffer();
-                    
+
                 await fs.writeFile(filePath, errorBuffer);
-                
+
                 return {
                     success: true,
                     filePath: filePath,
@@ -978,7 +977,7 @@ Just tag any document/text and use the target format command!
         const words = text.split(' ');
         const lines = [];
         let currentLine = '';
-        
+
         for (const word of words) {
             if ((currentLine + word).length <= lineLength) {
                 currentLine += (currentLine ? ' ' : '') + word;
@@ -988,7 +987,7 @@ Just tag any document/text and use the target format command!
             }
         }
         if (currentLine) lines.push(currentLine);
-        
+
         return lines;
     }
 
@@ -1006,21 +1005,21 @@ Just tag any document/text and use the target format command!
         try {
             const fileName = fileMessage.fileName || `temp_file_${Date.now()}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
-            
+
             let buffer;
-            
+
             if (type === 'quoted' && fullMessage) {
                 // For quoted messages with full structure (like documentWithCaptionMessage)
                 const { downloadMediaMessage } = require('baileys');
-                
+
                 // Create proper message structure for download
                 const messageToDownload = {
                     key: {}, // Will be filled by Baileys
                     message: fullMessage
                 };
-                
+
                 buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
                     logger: console,
                     reuploadRequest: this.bot.sock.updateMediaMessage
@@ -1036,7 +1035,7 @@ Just tag any document/text and use the target format command!
                 // For direct messages, use the simple method
                 buffer = await this.bot.sock.downloadMediaMessage(fileMessage);
             }
-            
+
             await fs.writeFile(filePath, buffer);
             return filePath;
 
@@ -1056,39 +1055,39 @@ Just tag any document/text and use the target format command!
             // Use PDFKit to create PDF from DOC content
             const fileName = `converted_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             // Read DOC content (simplified - extract text)
             const docContent = await fs.readFile(docPath, 'utf8').catch(() => 'Document content could not be extracted');
-            
+
             // Create PDF using PDFKit
             const PDFDocument = require('pdfkit');
             const doc = new PDFDocument({
                 margin: 50,
                 font: 'Helvetica'
             });
-            
+
             const stream = fs.createWriteStream(filePath);
             doc.pipe(stream);
-            
+
             // Add title
             doc.fontSize(16)
                .text('Converted Document', 50, 50);
-            
+
             // Add content
             doc.fontSize(12)
                .text(docContent, 50, 100, {
                    width: 500,
                    align: 'left'
                });
-            
+
             doc.end();
-            
+
             // Wait for stream to finish
             await new Promise((resolve, reject) => {
                 stream.on('finish', resolve);
                 stream.on('error', reject);
             });
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -1109,7 +1108,7 @@ Just tag any document/text and use the target format command!
             // Use pdf2pic to extract text and create DOC
             const fileName = `converted_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             // Try to extract PDF text using pdf-parse
             let pdfText = '';
             try {
@@ -1121,26 +1120,26 @@ Just tag any document/text and use the target format command!
                 console.error('PDF parsing error:', parseError);
                 pdfText = 'PDF text extraction failed - content may contain images or be encrypted';
             }
-            
+
             // Create DOCX using a simple approach
             const officegen = require('officegen');
             const docx = officegen('docx');
-            
+
             // Add extracted text to document
             const paragraph = docx.createP();
             paragraph.addText('Converted from PDF\n\n');
             paragraph.addText(pdfText);
-            
+
             // Save the document
             await new Promise((resolve, reject) => {
                 const out = fs.createWriteStream(filePath);
-                
+
                 out.on('error', reject);
                 out.on('close', resolve);
-                
+
                 docx.generate(out);
             });
-            
+
             return {
                 success: true,
                 filePath: filePath,
@@ -1149,19 +1148,19 @@ Just tag any document/text and use the target format command!
 
         } catch (error) {
             console.error('PDF to DOC conversion error:', error);
-            
+
             // Fallback: Create a simple text-based DOC
             try {
                 const fallbackFileName = `converted_${Date.now()}.txt`;
                 const fallbackPath = path.join(__dirname, '..', 'tmp', fallbackFileName);
-                
+
                 await fs.writeFile(fallbackPath, 
                     'PDF to DOC Conversion\n\n' +
                     'The original PDF could not be fully converted.\n' +
                     'This is a fallback text file.\n\n' +
                     'Reason: ' + error.message
                 );
-                
+
                 return {
                     success: true,
                     filePath: fallbackPath,
