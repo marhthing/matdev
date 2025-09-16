@@ -80,16 +80,11 @@ Just tag any document/text and use the target format command!
             // Normalize target format
             if (targetFormat === 'img') targetFormat = 'png';
             
-            // Check for file in message or quoted message
-            const fileMessage = messageInfo.message?.documentMessage || 
-                              messageInfo.message?.imageMessage ||
-                              messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.documentMessage ||
-                              messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
-
-            // Check for text content (either command args or quoted message)
+            // Check for quoted message first (like compress.js does)
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-            
+
+            // Check for text content (either command args or quoted message)
             let textContent = '';
             if (quotedMessage) {
                 if (quotedMessage.conversation) {
@@ -104,19 +99,52 @@ Just tag any document/text and use the target format command!
             // Auto-detect input type and process
             let inputFormat = 'unknown';
             let filePath = null;
+            let fileMessage = null;
+
+            // Check for documents, images, videos in quoted message
+            if (quotedMessage) {
+                if (quotedMessage.documentMessage) {
+                    fileMessage = quotedMessage.documentMessage;
+                    inputFormat = this.detectFileFormat(fileMessage);
+                } else if (quotedMessage.imageMessage) {
+                    fileMessage = quotedMessage.imageMessage;
+                    inputFormat = 'image';
+                } else if (quotedMessage.videoMessage) {
+                    fileMessage = quotedMessage.videoMessage;
+                    inputFormat = 'video';
+                }
+            } 
+            
+            // Check for direct file attachments
+            if (!fileMessage) {
+                if (messageInfo.message?.documentMessage) {
+                    fileMessage = messageInfo.message.documentMessage;
+                    inputFormat = this.detectFileFormat(fileMessage);
+                } else if (messageInfo.message?.imageMessage) {
+                    fileMessage = messageInfo.message.imageMessage;
+                    inputFormat = 'image';
+                } else if (messageInfo.message?.videoMessage) {
+                    fileMessage = messageInfo.message.videoMessage;
+                    inputFormat = 'video';
+                }
+            }
 
             if (fileMessage) {
-                // Detect file format from mimetype or filename
-                inputFormat = this.detectFileFormat(fileMessage);
                 if (inputFormat === 'unknown') {
-                    // Silent failure for unsupported formats
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Unsupported file format for ${targetFormat.toUpperCase()} conversion.\n\n` +
+                        `📁 **Supported formats:** PDF, DOC, DOCX, Images, HTML, Text`);
                     return;
                 }
-                filePath = await this.downloadFile(fileMessage);
+                filePath = await this.downloadFileRobust(fileMessage, quotedMessage ? 'quoted' : 'direct');
             } else if (textContent) {
                 inputFormat = 'text';
             } else {
-                // Silent - no usage message shown
+                // Show helpful usage message
+                await this.bot.messageHandler.reply(messageInfo,
+                    `📁 **Convert to ${targetFormat.toUpperCase()}**\n\n` +
+                    `Send a file or text, or reply to a message/file with \`${config.PREFIX}${targetFormat}\`\n\n` +
+                    `**Supported inputs:** Text, PDF, DOC, DOCX, Images, HTML`);
                 return;
             }
 
@@ -842,23 +870,39 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async downloadFile(fileMessage) {
+    async downloadFileRobust(fileMessage, type = 'direct') {
         try {
             const fileName = fileMessage.fileName || `temp_file_${Date.now()}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
             
             await fs.ensureDir(path.dirname(filePath));
             
-            // Download file using WhatsApp's download mechanism
-            const buffer = await this.bot.sock.downloadMediaMessage(fileMessage);
-            await fs.writeFile(filePath, buffer);
+            let buffer;
             
+            if (type === 'quoted') {
+                // For quoted messages, use the more complex download method
+                const { downloadMediaMessage } = require('baileys');
+                buffer = await downloadMediaMessage(fileMessage, 'buffer', {}, {
+                    logger: console,
+                    reuploadRequest: this.bot.sock.updateMediaMessage
+                });
+            } else {
+                // For direct messages, use the simple method
+                buffer = await this.bot.sock.downloadMediaMessage(fileMessage);
+            }
+            
+            await fs.writeFile(filePath, buffer);
             return filePath;
 
         } catch (error) {
             console.error('File download error:', error);
             throw new Error('Failed to download file');
         }
+    }
+
+    // Keep old method for backward compatibility
+    async downloadFile(fileMessage) {
+        return await this.downloadFileRobust(fileMessage, 'direct');
     }
 
     async convertDocToPdf(docPath) {
