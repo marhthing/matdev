@@ -6,7 +6,7 @@ integrations = ["javascript_mem_db==1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["ffmpeg", "python3", "yt-dlp"]
+packages = ["ffmpeg", "python3", "yt-dlp", "libreoffice"]
 
 [workflows]
 runButton = "Project"
