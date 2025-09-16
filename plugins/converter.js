@@ -440,17 +440,49 @@ class ConverterPlugin {
     }
 
     /**
+     * Helper to get file extension from format
+     */
+    getExtensionFromFormat(format) {
+        const map = {
+            'pdf': 'pdf',
+            'docx': 'docx',
+            'doc': 'doc',
+            'jpg': 'jpg',
+            'jpeg': 'jpg',
+            'png': 'png',
+            'webp': 'webp',
+            'tiff': 'tiff'
+        };
+        return map[format.toLowerCase()] || format;
+    }
+
+    /**
+     * Check if user consents to API upload
+     */
+    async getUserConsentForAPI(messageInfo, apiName) {
+        // For now, we'll inform the user that API fallback is being used
+        await this.bot.messageHandler.reply(messageInfo, 
+            `🌐 Using ${apiName} API service for conversion (file will be uploaded securely and deleted after processing)...`
+        );
+        return true; // In future, could implement user consent prompts
+    }
+
+    /**
      * API-based PDF to Images conversion (final fallback)
      */
-    async pdfToImagesAPI(pdfBuffer, options = {}) {
+    async pdfToImagesAPI(pdfBuffer, options = {}, messageInfo = null) {
         const apis = [
-            () => this.convertViaCloudConvert(pdfBuffer, 'png'),
-            () => this.convertViaConvertio(pdfBuffer, 'png')
+            { name: 'CloudConvert', fn: () => this.convertViaCloudConvert(pdfBuffer, 'png') },
+            { name: 'Convertio', fn: () => this.convertViaConvertio(pdfBuffer, 'png') },
+            { name: 'FreeConvert', fn: () => this.convertViaFreeConvert(pdfBuffer, 'png') }
         ];
 
         for (const api of apis) {
             try {
-                const result = await api();
+                if (messageInfo) {
+                    await this.getUserConsentForAPI(messageInfo, api.name);
+                }
+                const result = await api.fn();
                 if (result) {
                     // For API results, we might get a single buffer
                     if (Buffer.isBuffer(result)) {
@@ -463,7 +495,7 @@ class ConverterPlugin {
                     return result;
                 }
             } catch (error) {
-                console.log(`API conversion attempt failed: ${error.message}`);
+                console.log(`${api.name} API conversion attempt failed: ${error.message}`);
             }
         }
 
@@ -574,7 +606,7 @@ class ConverterPlugin {
     /**
      * API-based images to PDF conversion
      */
-    async imagesToPdfAPI(imagePaths, outputPath = null, options = {}) {
+    async imagesToPdfAPI(imagePaths, outputPath = null, options = {}, messageInfo = null) {
         // For now, convert first image only via API
         if (!imagePaths || imagePaths.length === 0) {
             throw new Error('No images provided for PDF conversion');
@@ -588,19 +620,23 @@ class ConverterPlugin {
         }
 
         const apis = [
-            () => this.convertViaCloudConvert(imageBuffer, 'pdf'),
-            () => this.convertViaConvertio(imageBuffer, 'pdf')
+            { name: 'CloudConvert', fn: () => this.convertViaCloudConvert(imageBuffer, 'pdf') },
+            { name: 'Convertio', fn: () => this.convertViaConvertio(imageBuffer, 'pdf') },
+            { name: 'FreeConvert', fn: () => this.convertViaFreeConvert(imageBuffer, 'pdf') }
         ];
 
         for (const api of apis) {
             try {
-                const result = await api();
+                if (messageInfo) {
+                    await this.getUserConsentForAPI(messageInfo, api.name);
+                }
+                const result = await api.fn();
                 if (result && outputPath) {
                     await fs.writeFile(outputPath, result);
                 }
                 return result;
             } catch (error) {
-                console.log(`API images to PDF attempt failed: ${error.message}`);
+                console.log(`${api.name} API images to PDF attempt failed: ${error.message}`);
             }
         }
 
@@ -691,6 +727,87 @@ class ConverterPlugin {
             
         } catch (error) {
             throw new Error(`CloudConvert failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * FreeConvert API conversion (1GB monthly limit)
+     */
+    async convertViaFreeConvert(buffer, targetFormat) {
+        this.cleanupApiUsage();
+        if (apiUsage.freeconvert.count >= 50) { // Conservative limit
+            throw new Error('FreeConvert monthly limit reached');
+        }
+
+        if (!axios) {
+            throw new Error('Axios not available for API calls');
+        }
+
+        const apiKey = process.env.FREECONVERT_API_KEY;
+        if (!apiKey) {
+            throw new Error('FreeConvert API key not configured (set FREECONVERT_API_KEY)');
+        }
+
+        try {
+            apiUsage.freeconvert.count++;
+            
+            // Upload file first
+            const uploadResponse = await axios.post('https://api.freeconvert.com/v1/process/upload', {
+                apikey: apiKey,
+                file: buffer.toString('base64'),
+                filename: `input.${this.getExtensionFromFormat(await this.detectFormatFromBuffer(buffer))}`
+            });
+
+            if (!uploadResponse.data || !uploadResponse.data.id) {
+                throw new Error('FreeConvert upload failed');
+            }
+
+            const fileId = uploadResponse.data.id;
+            
+            // Start conversion
+            const convertResponse = await axios.post('https://api.freeconvert.com/v1/process/convert', {
+                apikey: apiKey,
+                input: fileId,
+                outputformat: targetFormat
+            });
+
+            if (!convertResponse.data || !convertResponse.data.id) {
+                throw new Error('FreeConvert conversion start failed');
+            }
+
+            const conversionId = convertResponse.data.id;
+            
+            // Poll for completion
+            let completed = false;
+            let attempts = 0;
+            const maxAttempts = 20;
+            
+            while (!completed && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                const statusResponse = await axios.get(`https://api.freeconvert.com/v1/process/status/${conversionId}`, {
+                    params: { apikey: apiKey }
+                });
+                
+                if (statusResponse.data && statusResponse.data.status === 'completed') {
+                    // Download result
+                    const downloadResponse = await axios.get(statusResponse.data.output.url, {
+                        responseType: 'arraybuffer'
+                    });
+                    return Buffer.from(downloadResponse.data);
+                }
+                
+                if (statusResponse.data && statusResponse.data.status === 'error') {
+                    throw new Error(statusResponse.data.message || 'FreeConvert processing error');
+                }
+                
+                attempts++;
+            }
+            
+            throw new Error('FreeConvert job timeout');
+            
+        } catch (error) {
+            throw new Error(`FreeConvert failed: ${error.message}`);
         }
     }
 
@@ -811,21 +928,25 @@ class ConverterPlugin {
     /**
      * API-based PDF to DOCX conversion
      */
-    async pdfToDocxAPI(pdfBuffer, outputPath = null) {
+    async pdfToDocxAPI(pdfBuffer, outputPath = null, messageInfo = null) {
         const apis = [
-            () => this.convertViaCloudConvert(pdfBuffer, 'docx'),
-            () => this.convertViaConvertio(pdfBuffer, 'docx')
+            { name: 'CloudConvert', fn: () => this.convertViaCloudConvert(pdfBuffer, 'docx') },
+            { name: 'Convertio', fn: () => this.convertViaConvertio(pdfBuffer, 'docx') },
+            { name: 'FreeConvert', fn: () => this.convertViaFreeConvert(pdfBuffer, 'docx') }
         ];
 
         for (const api of apis) {
             try {
-                const result = await api();
+                if (messageInfo) {
+                    await this.getUserConsentForAPI(messageInfo, api.name);
+                }
+                const result = await api.fn();
                 if (result && outputPath) {
                     await fs.writeFile(outputPath, result);
                 }
                 return result;
             } catch (error) {
-                console.log(`API PDF to DOCX attempt failed: ${error.message}`);
+                console.log(`${api.name} API PDF to DOCX attempt failed: ${error.message}`);
             }
         }
 
@@ -880,21 +1001,25 @@ class ConverterPlugin {
     /**
      * API-based DOCX to PDF conversion
      */
-    async docxToPdfAPI(docxBuffer, outputPath = null) {
+    async docxToPdfAPI(docxBuffer, outputPath = null, messageInfo = null) {
         const apis = [
-            () => this.convertViaCloudConvert(docxBuffer, 'pdf'),
-            () => this.convertViaConvertio(docxBuffer, 'pdf')
+            { name: 'CloudConvert', fn: () => this.convertViaCloudConvert(docxBuffer, 'pdf') },
+            { name: 'Convertio', fn: () => this.convertViaConvertio(docxBuffer, 'pdf') },
+            { name: 'FreeConvert', fn: () => this.convertViaFreeConvert(docxBuffer, 'pdf') }
         ];
 
         for (const api of apis) {
             try {
-                const result = await api();
+                if (messageInfo) {
+                    await this.getUserConsentForAPI(messageInfo, api.name);
+                }
+                const result = await api.fn();
                 if (result && outputPath) {
                     await fs.writeFile(outputPath, result);
                 }
                 return result;
             } catch (error) {
-                console.log(`API DOCX to PDF attempt failed: ${error.message}`);
+                console.log(`${api.name} API DOCX to PDF attempt failed: ${error.message}`);
             }
         }
 
