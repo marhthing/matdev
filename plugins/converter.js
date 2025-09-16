@@ -891,28 +891,28 @@ Just tag any document/text and use the target format command!
                 pdfText = 'PDF content could not be extracted (may contain images or be encrypted)';
             }
 
-            // Create a text-based image representation using Sharp
+            // Use Sharp to create a simple white image with text overlay
             const sharp = require('sharp');
-
-            // Create a simple text image as fallback
             const width = 800;
             const height = 1000;
-            const textLines = this.wrapText(pdfText.substring(0, 2000), 80); // Limit text and wrap
 
-            // Create SVG with text content
-            const svgContent = `
-                <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="100%" height="100%" fill="white"/>
-                    <text x="20" y="40" font-family="Arial, sans-serif" font-size="14" fill="black">
-                        ${textLines.slice(0, 60).map((line, i) => 
-                            `<tspan x="20" dy="${i === 0 ? 0 : 18}">${this.escapeXml(line)}</tspan>`
-                        ).join('')}
-                    </text>
-                    <text x="20" y="${height - 30}" font-family="Arial, sans-serif" font-size="12" fill="gray">
-                        Page ${pageNumber} - Text extracted from PDF
-                    </text>
-                </svg>
-            `;
+            // Clean and limit text
+            const cleanText = pdfText.replace(/[^\x20-\x7E\n]/g, ' ').substring(0, 1500);
+            const textLines = this.wrapText(cleanText, 70);
+            const displayLines = textLines.slice(0, 50);
+
+            // Create a clean SVG without problematic characters
+            const svgContent = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+<rect width="100%" height="100%" fill="white"/>
+<text x="20" y="40" font-family="Arial" font-size="14" fill="black">
+${displayLines.map((line, i) => {
+    const cleanLine = this.escapeXml(line.trim());
+    const yPos = 60 + (i * 18);
+    return `<tspan x="20" y="${yPos}">${cleanLine}</tspan>`;
+}).join('\n')}
+</text>
+<text x="20" y="${height - 30}" font-family="Arial" font-size="12" fill="gray">Page ${pageNumber} - Text extracted from PDF</text>
+</svg>`;
 
             // Convert SVG to PNG using Sharp
             const imageBuffer = await sharp(Buffer.from(svgContent))
@@ -930,33 +930,27 @@ Just tag any document/text and use the target format command!
         } catch (error) {
             console.error('PDF to image fallback error:', error);
 
-            // Final fallback - create a simple error image
+            // Create simple image using Sharp directly without SVG
             try {
-                const fileName = `error_pdf_${Date.now()}.png`;
+                const fileName = `simple_pdf_${Date.now()}.png`;
                 const outputDir = path.join(__dirname, '..', 'tmp');
                 const filePath = path.join(outputDir, fileName);
 
                 const sharp = require('sharp');
-                const errorSvg = `
-                    <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-                        <rect width="100%" height="100%" fill="#f8f9fa"/>
-                        <text x="200" y="120" text-anchor="middle" font-family="Arial" font-size="16" fill="#dc3545">
-                            PDF Conversion Not Available
-                        </text>
-                        <text x="200" y="150" text-anchor="middle" font-family="Arial" font-size="12" fill="#6c757d">
-                            This platform doesn't support PDF to image conversion
-                        </text>
-                        <text x="200" y="180" text-anchor="middle" font-family="Arial" font-size="12" fill="#6c757d">
-                            Try converting to text format instead
-                        </text>
-                    </svg>
-                `;
+                
+                // Create a simple white image
+                const imageBuffer = await sharp({
+                    create: {
+                        width: 400,
+                        height: 300,
+                        channels: 3,
+                        background: { r: 248, g: 249, b: 250 }
+                    }
+                })
+                .png()
+                .toBuffer();
 
-                const errorBuffer = await sharp(Buffer.from(errorSvg))
-                    .png()
-                    .toBuffer();
-
-                await fs.writeFile(filePath, errorBuffer);
+                await fs.writeFile(filePath, imageBuffer);
 
                 return {
                     success: true,
@@ -964,6 +958,7 @@ Just tag any document/text and use the target format command!
                     fileName: fileName
                 };
             } catch (finalError) {
+                console.error('Final fallback failed:', finalError);
                 return {
                     success: false,
                     error: 'PDF to image conversion not supported on this platform'
@@ -993,12 +988,15 @@ Just tag any document/text and use the target format command!
 
     // Helper function to escape XML special characters
     escapeXml(text) {
+        if (!text || typeof text !== 'string') return '';
         return text
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
+            .replace(/'/g, '&apos;')
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control characters
+            .trim();
     }
 
     async downloadFileRobust(fileMessage, type = 'direct', fullMessage = null) {
