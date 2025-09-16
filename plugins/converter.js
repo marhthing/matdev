@@ -134,9 +134,10 @@ class ModernConverterPlugin {
 
             if (result && result.success) {
                 console.log(`✅ Modern conversion complete: ${result.fileName}`);
-                await this.bot.messageHandler.sendDocument(messageInfo, result.filePath, {
-                    caption: `✅ Modern conversion complete\n📁 **${result.fileName}**\n🔧 Engine: 2024 Edition`,
-                    fileName: result.fileName
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    document: { url: result.filePath },
+                    fileName: result.fileName,
+                    caption: `✅ Modern conversion complete\n📁 **${result.fileName}**\n🔧 Engine: 2024 Edition`
                 });
 
                 // Cleanup temporary file
