@@ -436,38 +436,38 @@ Just tag any document/text and use the target format command!
     async convertPdfToImageSimple(pdfPath, pageNumber) {
         try {
             const fileName = `pdf_page_${pageNumber}_${Date.now()}.png`;
-            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            const outputDir = path.join(__dirname, '..', 'tmp');
             
-            await fs.ensureDir(path.dirname(filePath));
+            await fs.ensureDir(outputDir);
             
-            // Try using PDF conversion API
-            const formData = new (require('form-data'))();
-            formData.append('file', fs.createReadStream(pdfPath));
-            formData.append('page', pageNumber.toString());
-            formData.append('format', 'png');
+            // Use pdf-poppler for reliable PDF to image conversion
+            const poppler = require('pdf-poppler');
+            
+            const options = {
+                format: 'png',
+                out_dir: outputDir,
+                out_prefix: `pdf_page_${pageNumber}_${Date.now()}`,
+                page: pageNumber
+            };
 
-            const response = await axios.post('https://api.convertapi.com/convert/pdf/to/png', formData, {
-                headers: {
-                    ...formData.getHeaders(),
-                },
-                timeout: 15000,
-                responseType: 'arraybuffer'
-            });
-
-            if (response.data) {
-                await fs.writeFile(filePath, response.data);
+            const outputFiles = await poppler.convert(pdfPath, options);
+            
+            if (outputFiles && outputFiles.length > 0) {
+                // pdf-poppler returns the full path to the generated file
+                const generatedFile = outputFiles[0];
+                
                 return {
                     success: true,
-                    filePath: filePath,
-                    fileName: fileName
+                    filePath: generatedFile,
+                    fileName: path.basename(generatedFile)
                 };
             }
 
-            // Fallback: Try alternative method
+            // Fallback if no output files
             return await this.pdfToImageFallback(pdfPath, pageNumber);
 
         } catch (error) {
-            console.error('PDF to image simple conversion error:', error);
+            console.error('PDF to image conversion error:', error);
             // Try fallback method
             return await this.pdfToImageFallback(pdfPath, pageNumber);
         }
@@ -869,44 +869,41 @@ Just tag any document/text and use the target format command!
 
     async pdfToImageFallback(pdfPath, pageNumber) {
         try {
-            // Alternative approach using pdf2pic or similar
-            const response = await axios.post('https://api.pdf24.org/convert', {
-                inputFormat: 'pdf',
-                outputFormat: 'png',
-                page: pageNumber
-            }, {
-                timeout: 10000
-            });
+            // Try alternative approach with different options
+            const poppler = require('pdf-poppler');
+            const fileName = `fallback_pdf_page_${pageNumber}_${Date.now()}.jpeg`;
+            const outputDir = path.join(__dirname, '..', 'tmp');
+            
+            await fs.ensureDir(outputDir);
+            
+            const options = {
+                format: 'jpeg',
+                out_dir: outputDir,
+                out_prefix: `fallback_pdf_page_${pageNumber}_${Date.now()}`,
+                page: pageNumber,
+                scale: 1024
+            };
 
-            if (response.data && response.data.success) {
-                const fileName = `pdf_page_${pageNumber}_${Date.now()}.png`;
-                const filePath = path.join(__dirname, '..', 'tmp', fileName);
-                
-                // Download the converted image
-                const imageResponse = await axios.get(response.data.url, {
-                    responseType: 'arraybuffer'
-                });
-                
-                await fs.ensureDir(path.dirname(filePath));
-                await fs.writeFile(filePath, imageResponse.data);
-
+            const outputFiles = await poppler.convert(pdfPath, options);
+            
+            if (outputFiles && outputFiles.length > 0) {
                 return {
                     success: true,
-                    filePath: filePath,
-                    fileName: fileName
+                    filePath: outputFiles[0],
+                    fileName: path.basename(outputFiles[0])
                 };
             }
 
             return {
                 success: false,
-                error: 'PDF conversion service unavailable'
+                error: 'PDF conversion failed - file may be corrupted or encrypted'
             };
 
         } catch (error) {
             console.error('PDF to image fallback error:', error);
             return {
                 success: false,
-                error: 'Unable to convert PDF to image'
+                error: 'Unable to convert PDF to image - ensure file is a valid PDF'
             };
         }
     }
