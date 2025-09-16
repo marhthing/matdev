@@ -1050,12 +1050,44 @@ ${displayLines.map((line, i) => {
 
     async convertDocToPdf(docPath) {
         try {
-            // Use PDFKit to create PDF from DOC content
-            const fileName = `converted_${Date.now()}.pdf`;
+            const fileName = `doc_to_pdf_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
-            // Read DOC content (simplified - extract text)
-            const docContent = await fs.readFile(docPath, 'utf8').catch(() => 'Document content could not be extracted');
+            let docContent = '';
+            let title = 'Converted Document';
+
+            try {
+                // Try to extract content from DOCX using mammoth
+                const mammoth = require('mammoth');
+                const docBuffer = await fs.readFile(docPath);
+                
+                const result = await mammoth.extractRawText({ buffer: docBuffer });
+                docContent = result.value || 'Could not extract text from document';
+                
+                // Extract title from first line if available
+                const firstLine = docContent.split('\n')[0];
+                if (firstLine && firstLine.length < 100) {
+                    title = firstLine.trim();
+                    docContent = docContent.split('\n').slice(1).join('\n').trim();
+                }
+                
+            } catch (mammothError) {
+                console.warn('Mammoth extraction failed, trying fallback:', mammothError.message);
+                
+                // Fallback: Try reading as plain text (works for some simple DOC files)
+                try {
+                    const rawContent = await fs.readFile(docPath, 'utf8');
+                    // Clean up binary content from DOC files
+                    docContent = rawContent.replace(/[^\x20-\x7E\n\r]/g, ' ')
+                                         .replace(/\s+/g, ' ')
+                                         .trim();
+                    if (!docContent || docContent.length < 10) {
+                        docContent = 'This document contains formatting or binary content that cannot be extracted as plain text.';
+                    }
+                } catch (readError) {
+                    docContent = 'Document content could not be extracted. The file may be corrupted or in an unsupported format.';
+                }
+            }
 
             // Create PDF using PDFKit
             const PDFDocument = require('pdfkit');
@@ -1068,14 +1100,32 @@ ${displayLines.map((line, i) => {
             doc.pipe(stream);
 
             // Add title
-            doc.fontSize(16)
-               .text('Converted Document', 50, 50);
+            doc.fontSize(18)
+               .fillColor('#333333')
+               .text(title, 50, 50);
 
-            // Add content
+            // Add underline
+            doc.moveTo(50, 80)
+               .lineTo(550, 80)
+               .strokeColor('#007acc')
+               .lineWidth(2)
+               .stroke();
+
+            // Add content with proper formatting
             doc.fontSize(12)
-               .text(docContent, 50, 100, {
+               .fillColor('#000000')
+               .text(docContent, 50, 110, {
                    width: 500,
-                   align: 'left'
+                   align: 'justify',
+                   lineGap: 5
+               });
+
+            // Add footer
+            const pageHeight = doc.page.height;
+            doc.fontSize(10)
+               .fillColor('#666666')
+               .text(`Converted from DOC/DOCX by MATDEV Bot on ${new Date().toLocaleString()}`, 50, pageHeight - 50, {
+                   align: 'center'
                });
 
             doc.end();
@@ -1103,30 +1153,71 @@ ${displayLines.map((line, i) => {
 
     async convertPdfToDoc(pdfPath) {
         try {
-            // Use pdf2pic to extract text and create DOC
-            const fileName = `converted_${Date.now()}.docx`;
+            const fileName = `pdf_to_doc_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
-            // Try to extract PDF text using pdf-parse
+            // Extract PDF text using pdf-parse
             let pdfText = '';
+            let title = 'Converted from PDF';
+            
             try {
                 const pdfParse = require('pdf-parse');
                 const pdfBuffer = await fs.readFile(pdfPath);
                 const pdfData = await pdfParse(pdfBuffer);
                 pdfText = pdfData.text || 'Could not extract text from PDF';
+                
+                // Try to extract title from first meaningful line
+                const lines = pdfText.split('\n').filter(line => line.trim().length > 0);
+                if (lines.length > 0 && lines[0].length < 100) {
+                    title = lines[0].trim();
+                }
+                
             } catch (parseError) {
                 console.error('PDF parsing error:', parseError);
-                pdfText = 'PDF text extraction failed - content may contain images or be encrypted';
+                pdfText = 'PDF text extraction failed - content may contain images, be encrypted, or use unsupported encoding';
             }
 
-            // Create DOCX using a simple approach
+            // Create DOCX using officegen
             const officegen = require('officegen');
             const docx = officegen('docx');
 
-            // Add extracted text to document
-            const paragraph = docx.createP();
-            paragraph.addText('Converted from PDF\n\n');
-            paragraph.addText(pdfText);
+            // Set document properties
+            docx.creator = 'MATDEV Bot';
+            docx.title = title;
+            docx.subject = 'PDF to DOCX Conversion';
+
+            // Create title paragraph
+            const titleParagraph = docx.createP({ align: 'center' });
+            titleParagraph.addText(title, { 
+                font_size: 16, 
+                bold: true, 
+                color: '333333' 
+            });
+
+            // Add spacing
+            docx.createP();
+
+            // Split text into paragraphs and add them
+            const paragraphs = pdfText.split('\n\n');
+            
+            for (const paragraph of paragraphs) {
+                if (paragraph.trim()) {
+                    const p = docx.createP();
+                    p.addText(paragraph.trim(), { 
+                        font_size: 12,
+                        font_face: 'Arial'
+                    });
+                }
+            }
+
+            // Add footer
+            docx.createP();
+            const footerParagraph = docx.createP({ align: 'center' });
+            footerParagraph.addText(`Converted by MATDEV Bot on ${new Date().toLocaleString()}`, {
+                font_size: 10,
+                color: '666666',
+                italic: true
+            });
 
             // Save the document
             await new Promise((resolve, reject) => {
@@ -1147,17 +1238,29 @@ ${displayLines.map((line, i) => {
         } catch (error) {
             console.error('PDF to DOC conversion error:', error);
 
-            // Fallback: Create a simple text-based DOC
+            // Fallback: Create a simple text file with extracted content
             try {
-                const fallbackFileName = `converted_${Date.now()}.txt`;
+                const fallbackFileName = `pdf_to_text_${Date.now()}.txt`;
                 const fallbackPath = path.join(__dirname, '..', 'tmp', fallbackFileName);
 
-                await fs.writeFile(fallbackPath, 
-                    'PDF to DOC Conversion\n\n' +
-                    'The original PDF could not be fully converted.\n' +
-                    'This is a fallback text file.\n\n' +
-                    'Reason: ' + error.message
-                );
+                let fallbackContent = 'PDF to DOC Conversion\n';
+                fallbackContent += '=' * 50 + '\n\n';
+                
+                // Try to extract some content for the fallback
+                try {
+                    const pdfParse = require('pdf-parse');
+                    const pdfBuffer = await fs.readFile(pdfPath);
+                    const pdfData = await pdfParse(pdfBuffer);
+                    fallbackContent += pdfData.text || 'Could not extract text from PDF';
+                } catch (e) {
+                    fallbackContent += 'The PDF could not be processed. It may contain images, be encrypted, or use an unsupported format.\n\n';
+                    fallbackContent += `Error: ${error.message}`;
+                }
+
+                fallbackContent += '\n\n' + '-' * 50;
+                fallbackContent += `\nGenerated by MATDEV Bot on ${new Date().toLocaleString()}`;
+
+                await fs.writeFile(fallbackPath, fallbackContent);
 
                 return {
                     success: true,
