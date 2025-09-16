@@ -19,30 +19,18 @@ class ConverterPlugin {
     async init(bot) {
         this.bot = bot;
         try {
-            // Register multiple converter commands
-            this.bot.messageHandler.registerCommand('topdf', this.textToPdfCommand.bind(this), {
-                description: 'Convert text or message to PDF',
-                usage: `${config.PREFIX}topdf <text> OR reply to message with ${config.PREFIX}topdf`,
-                category: 'utility',
-                plugin: 'converter',
-                source: 'converter.js'
-            });
-
-            this.bot.messageHandler.registerCommand('pdftoimg', this.pdfToImageCommand.bind(this), {
-                description: 'Convert PDF to image (send PDF file)',
-                usage: `${config.PREFIX}pdftoimg [page_number] - Reply to PDF or send with command`,
-                category: 'utility',
-                plugin: 'converter',
-                source: 'converter.js'
-            });
-
-            this.bot.messageHandler.registerCommand('convert', this.universalConvertCommand.bind(this), {
-                description: 'Universal converter - specify input and output format',
-                usage: `${config.PREFIX}convert <from_format> <to_format> - Then send/reply with file`,
-                category: 'utility',
-                plugin: 'converter',
-                source: 'converter.js'
-            });
+            // Register simple format-based commands that auto-detect input
+            const outputFormats = ['pdf', 'doc', 'docx', 'txt', 'html', 'png', 'jpg', 'jpeg', 'img'];
+            
+            for (const format of outputFormats) {
+                this.bot.messageHandler.registerCommand(format, (messageInfo) => this.autoConvertCommand(format, messageInfo), {
+                    description: `Convert any file/text to ${format.toUpperCase()}`,
+                    usage: `${config.PREFIX}${format} - Send file or reply to message/file`,
+                    category: 'utility',
+                    plugin: 'converter',
+                    source: 'converter.js'
+                });
+            }
 
             this.bot.messageHandler.registerCommand('formats', this.listFormatsCommand.bind(this), {
                 description: 'List all supported conversion formats',
@@ -52,7 +40,7 @@ class ConverterPlugin {
                 source: 'converter.js'
             });
 
-            console.log('✅ Enhanced Converter plugin loaded');
+            console.log('✅ Smart Auto-Converter plugin loaded');
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize Converter plugin:', error);
@@ -61,85 +49,366 @@ class ConverterPlugin {
     }
 
     async listFormatsCommand(messageInfo) {
-        const formatsList = `📋 **Supported Conversion Formats**
+        const formatsList = `📋 **Smart Auto-Converter**
 
-**Input Formats:**
-${this.supportedFormats.input.map(f => `• ${f.toUpperCase()}`).join('\n')}
-
-**Output Formats:**
-${this.supportedFormats.output.map(f => `• ${f.toUpperCase()}`).join('\n')}
+**How to Use:**
+Just tag any document/text and use the target format command!
 
 **Available Commands:**
-• \`${config.PREFIX}topdf\` - Convert text to PDF
-• \`${config.PREFIX}pdftoimg\` - Convert PDF to image
-• \`${config.PREFIX}convert <from> <to>\` - Universal converter
+• \`${config.PREFIX}pdf\` - Convert to PDF
+• \`${config.PREFIX}doc\` - Convert to DOC
+• \`${config.PREFIX}docx\` - Convert to DOCX
+• \`${config.PREFIX}txt\` - Convert to text
+• \`${config.PREFIX}html\` - Convert to HTML
+• \`${config.PREFIX}png\` - Convert to PNG image
+• \`${config.PREFIX}jpg\` - Convert to JPG image
+• \`${config.PREFIX}img\` - Convert to image
 
 **Examples:**
-• \`${config.PREFIX}topdf Hello World\`
-• \`${config.PREFIX}pdftoimg\` (reply to PDF)
-• \`${config.PREFIX}convert pdf png\` (then send PDF)`;
+• Send a Word doc → \`${config.PREFIX}pdf\`
+• Send a PDF → \`${config.PREFIX}img\`
+• Reply to text message → \`${config.PREFIX}pdf\`
+• Send any image → \`${config.PREFIX}jpg\`
+
+**Auto-Detects:** TEXT, PDF, DOC, DOCX, HTML, Images`;
 
         await this.bot.messageHandler.reply(messageInfo, formatsList);
     }
 
-    async textToPdfCommand(messageInfo) {
+    async autoConvertCommand(targetFormat, messageInfo) {
         try {
-            // Check for quoted/replied message first
+            // Normalize target format
+            if (targetFormat === 'img') targetFormat = 'png';
+            
+            // Check for file in message or quoted message
+            const fileMessage = messageInfo.message?.documentMessage || 
+                              messageInfo.message?.imageMessage ||
+                              messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.documentMessage ||
+                              messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage;
+
+            // Check for text content (either command args or quoted message)
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
-
+            
             let textContent = '';
-            let title = '';
-
             if (quotedMessage) {
-                // Extract text from quoted message
                 if (quotedMessage.conversation) {
                     textContent = quotedMessage.conversation;
                 } else if (quotedMessage.extendedTextMessage?.text) {
                     textContent = quotedMessage.extendedTextMessage.text;
-                } else {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ The replied message does not contain text.');
-                    return;
                 }
-                title = `Message from ${new Date().toLocaleString()}`;
-            } else {
-                // Get text from command arguments
+            } else if (messageInfo.args.length > 0) {
                 textContent = messageInfo.args.join(' ').trim();
-                if (!textContent) {
-                    await this.bot.messageHandler.reply(messageInfo,
-                        '📄 Usage: `.pdf <text>` OR reply to a message with `.pdf`\n\n' +
-                        'Examples:\n• `.pdf Hello World`\n• `.pdf This is a longer text that will be converted to PDF`\n• Reply to any message and type `.pdf`');
-                    return;
-                }
-                title = 'Generated Document';
             }
 
-            // Check text length
-            if (textContent.length > 5000) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Text too long! Maximum 5000 characters.');
+            // Auto-detect input type and process
+            let inputFormat = 'unknown';
+            let filePath = null;
+
+            if (fileMessage) {
+                // Detect file format from mimetype or filename
+                inputFormat = this.detectFileFormat(fileMessage);
+                if (inputFormat === 'unknown') {
+                    await this.bot.messageHandler.reply(messageInfo, 
+                        `❌ Unsupported file format. Supported: PDF, DOC, DOCX, Images, HTML`);
+                    return;
+                }
+                filePath = await this.downloadFile(fileMessage);
+            } else if (textContent) {
+                inputFormat = 'text';
+            } else {
+                await this.bot.messageHandler.reply(messageInfo,
+                    `📁 **Convert to ${targetFormat.toUpperCase()}**\n\n` +
+                    `Send a file or text, or reply to a message/file with \`${config.PREFIX}${targetFormat}\`\n\n` +
+                    'Supported inputs: Text, PDF, DOC, DOCX, Images, HTML');
                 return;
             }
 
-            const pdfResult = await this.createPDF(title, textContent);
+            await this.bot.messageHandler.reply(messageInfo, 
+                `🔄 Converting ${inputFormat.toUpperCase()} to ${targetFormat.toUpperCase()}...`);
 
-            if (pdfResult.success) {
-                // Send the PDF file
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    document: { url: pdfResult.filePath },
-                    fileName: pdfResult.fileName,
-                    mimetype: 'application/pdf'
-                });
+            // Convert based on input and target formats
+            const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo);
+            
+            if (result.success) {
+                if (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg') {
+                    // Send as image
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        image: { url: result.filePath },
+                        caption: `✅ Converted to ${targetFormat.toUpperCase()}`
+                    });
+                } else {
+                    // Send as document
+                    const mimeTypes = {
+                        'pdf': 'application/pdf',
+                        'doc': 'application/msword',
+                        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'txt': 'text/plain',
+                        'html': 'text/html'
+                    };
 
-                // Clean up temp file
-                await fs.unlink(pdfResult.filePath).catch(() => {});
-
+                    await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                        document: { url: result.filePath },
+                        fileName: result.fileName,
+                        mimetype: mimeTypes[targetFormat] || 'application/octet-stream',
+                        caption: `✅ Converted to ${targetFormat.toUpperCase()}`
+                    });
+                }
+                
+                // Clean up temp files
+                await fs.unlink(result.filePath).catch(() => {});
+                if (filePath) await fs.unlink(filePath).catch(() => {});
             } else {
-                await this.bot.messageHandler.reply(messageInfo, `❌ ${pdfResult.error}`);
+                await this.bot.messageHandler.reply(messageInfo, `❌ ${result.error}`);
             }
 
         } catch (error) {
-            console.error('Error in pdf command:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating PDF.');
+            console.error(`Error in ${targetFormat} conversion:`, error);
+            await this.bot.messageHandler.reply(messageInfo, `❌ Error converting to ${targetFormat.toUpperCase()}.`);
+        }
+    }
+
+    detectFileFormat(fileMessage) {
+        const mimetype = fileMessage.mimetype || '';
+        const fileName = fileMessage.fileName || '';
+        
+        // PDF files
+        if (mimetype.includes('pdf') || fileName.toLowerCase().endsWith('.pdf')) {
+            return 'pdf';
+        }
+        
+        // Word documents
+        if (mimetype.includes('msword') || mimetype.includes('wordprocessingml') ||
+            fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) {
+            return fileName.toLowerCase().endsWith('.docx') ? 'docx' : 'doc';
+        }
+        
+        // Images
+        if (mimetype.startsWith('image/') || 
+            /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)) {
+            return 'image';
+        }
+        
+        // HTML files
+        if (mimetype.includes('html') || fileName.toLowerCase().endsWith('.html')) {
+            return 'html';
+        }
+        
+        // Text files
+        if (mimetype.includes('text') || fileName.toLowerCase().endsWith('.txt')) {
+            return 'text';
+        }
+        
+        return 'unknown';
+    }
+
+    async performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo) {
+        try {
+            // Handle text input conversions
+            if (inputFormat === 'text') {
+                if (targetFormat === 'pdf') {
+                    return await this.createPDF('Generated Document', textContent);
+                } else if (targetFormat === 'txt') {
+                    return await this.createTextFile(textContent);
+                } else if (targetFormat === 'html') {
+                    return await this.createHTMLFile('Generated HTML', textContent);
+                }
+            }
+            
+            // Handle file-based conversions
+            if (filePath) {
+                if (inputFormat === 'pdf' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
+                    const pageNumber = messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1;
+                    return await this.convertPdfToImageSimple(filePath, pageNumber);
+                } else if (inputFormat === 'pdf' && (targetFormat === 'doc' || targetFormat === 'docx')) {
+                    return await this.convertPdfToDoc(filePath);
+                } else if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'pdf') {
+                    return await this.convertDocToPdf(filePath);
+                } else if (inputFormat === 'image' && targetFormat === 'pdf') {
+                    return await this.convertImageToPdf(filePath);
+                } else if (inputFormat === 'image' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
+                    return await this.convertImageFormat(filePath, targetFormat);
+                }
+            }
+
+            return {
+                success: false,
+                error: `Conversion from ${inputFormat.toUpperCase()} to ${targetFormat.toUpperCase()} not supported yet`
+            };
+
+        } catch (error) {
+            console.error('Conversion error:', error);
+            return {
+                success: false,
+                error: 'Conversion failed'
+            };
+        }
+    }
+
+    async createTextFile(content) {
+        try {
+            const fileName = `text_${Date.now()}.txt`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            
+            await fs.ensureDir(path.dirname(filePath));
+            await fs.writeFile(filePath, content, 'utf8');
+            
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+        } catch (error) {
+            console.error('Text file creation error:', error);
+            return {
+                success: false,
+                error: 'Failed to create text file'
+            };
+        }
+    }
+
+    async createHTMLFile(title, content) {
+        try {
+            const fileName = `html_${Date.now()}.html`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            
+            const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1 { color: #333; }
+        p { margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <h1>${title}</h1>
+    <div>${content.replace(/\n/g, '<br>')}</div>
+</body>
+</html>`;
+            
+            await fs.ensureDir(path.dirname(filePath));
+            await fs.writeFile(filePath, html, 'utf8');
+            
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+        } catch (error) {
+            console.error('HTML file creation error:', error);
+            return {
+                success: false,
+                error: 'Failed to create HTML file'
+            };
+        }
+    }
+
+    async convertImageToPdf(imagePath) {
+        try {
+            const fileName = `image_to_pdf_${Date.now()}.pdf`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            
+            // Use PDFKit to create PDF from image
+            const PDFDocument = require('pdfkit');
+            const doc = new PDFDocument();
+            const stream = fs.createWriteStream(filePath);
+            doc.pipe(stream);
+            
+            // Add image to PDF
+            doc.image(imagePath, 50, 50, {
+                fit: [500, 700],
+                align: 'center',
+                valign: 'center'
+            });
+            
+            doc.end();
+            
+            // Wait for the stream to finish
+            await new Promise((resolve, reject) => {
+                stream.on('finish', resolve);
+                stream.on('error', reject);
+            });
+            
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+        } catch (error) {
+            console.error('Image to PDF conversion error:', error);
+            return {
+                success: false,
+                error: 'Failed to convert image to PDF'
+            };
+        }
+    }
+
+    async convertImageFormat(imagePath, targetFormat) {
+        try {
+            const fileName = `converted_${Date.now()}.${targetFormat}`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            
+            await fs.ensureDir(path.dirname(filePath));
+            
+            // Use sharp to convert image format
+            await sharp(imagePath)
+                .toFormat(targetFormat)
+                .toFile(filePath);
+            
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+        } catch (error) {
+            console.error('Image format conversion error:', error);
+            return {
+                success: false,
+                error: 'Failed to convert image format'
+            };
+        }
+    }
+
+    async convertPdfToImageSimple(pdfPath, pageNumber) {
+        try {
+            const fileName = `pdf_page_${pageNumber}_${Date.now()}.png`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+            
+            await fs.ensureDir(path.dirname(filePath));
+            
+            // Try using PDF conversion API
+            const formData = new (require('form-data'))();
+            formData.append('file', fs.createReadStream(pdfPath));
+            formData.append('page', pageNumber.toString());
+            formData.append('format', 'png');
+
+            const response = await axios.post('https://api.convertapi.com/convert/pdf/to/png', formData, {
+                headers: {
+                    ...formData.getHeaders(),
+                },
+                timeout: 15000,
+                responseType: 'arraybuffer'
+            });
+
+            if (response.data) {
+                await fs.writeFile(filePath, response.data);
+                return {
+                    success: true,
+                    filePath: filePath,
+                    fileName: fileName
+                };
+            }
+
+            // Fallback: Try alternative method
+            return await this.pdfToImageFallback(pdfPath, pageNumber);
+
+        } catch (error) {
+            console.error('PDF to image simple conversion error:', error);
+            // Try fallback method
+            return await this.pdfToImageFallback(pdfPath, pageNumber);
         }
     }
 
