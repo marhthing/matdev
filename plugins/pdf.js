@@ -2,9 +2,6 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 
-// PDF-specific libraries
-const puppeteer = require('puppeteer');
-
 class PDFConverterPlugin {
     constructor() {
         this.name = 'pdf';
@@ -12,18 +9,14 @@ class PDFConverterPlugin {
         this.version = '1.0.0';
         this.enabled = true;
         this.supportedFormats = {
-            input: ['text', 'doc', 'docx', 'html'],
+            input: ['text', 'image', 'jpg', 'png', 'jpeg', 'doc', 'docx', 'html'],
             output: ['pdf']
         };
-        this.browserInstance = null;
     }
 
     async init(bot) {
         this.bot = bot;
         try {
-            // Initialize reusable browser instance for performance
-            await this.initializeBrowser();
-
             // Register PDF command
             this.bot.messageHandler.registerCommand('pdf', (messageInfo) => this.convertToPdf(messageInfo), {
                 description: 'Convert text/documents to PDF',
@@ -41,27 +34,6 @@ class PDFConverterPlugin {
         }
     }
 
-    async initializeBrowser() {
-        try {
-            if (!this.browserInstance) {
-                console.log('🚀 Initializing Puppeteer browser instance...');
-                this.browserInstance = await puppeteer.launch({
-                    headless: 'new',
-                    args: [
-                        '--no-sandbox',
-                        '--disable-setuid-sandbox',
-                        '--disable-dev-shm-usage',
-                        '--disable-gpu',
-                        '--no-first-run'
-                    ]
-                });
-                console.log('✅ Browser instance ready');
-            }
-        } catch (error) {
-            console.warn('⚠️ Could not initialize Puppeteer browser:', error.message);
-            this.browserInstance = null;
-        }
-    }
 
     async convertToPdf(messageInfo) {
         try {
@@ -78,12 +50,16 @@ class PDFConverterPlugin {
             if (contextInfo?.quotedMessage) {
                 quotedContent = this.extractQuotedMessageContent(contextInfo.quotedMessage);
                 
-                // Check if quoted message is a document
+                // Check if quoted message is a document or image
                 if (contextInfo.quotedMessage.documentMessage) {
+                    quotedFile = contextInfo.quotedMessage;
+                } else if (contextInfo.quotedMessage.imageMessage) {
                     quotedFile = contextInfo.quotedMessage;
                 }
                 
-                console.log(`📝 Found quoted message - Type: ${quotedFile ? 'Document' : 'Text'}`);
+                const messageType = contextInfo.quotedMessage.imageMessage ? 'Image' : 
+                                   contextInfo.quotedMessage.documentMessage ? 'Document' : 'Text';
+                console.log(`📝 Found quoted message - Type: ${messageType}`);
             }
 
             // Extract any additional text after the .pdf command
@@ -113,16 +89,23 @@ class PDFConverterPlugin {
                 result = await this.convertTextToPdf(bodyContent);
             }
             else if (quotedFile && !quotedContent) {
-                // Case 4: Document file without text content
-                console.log('📄 Case 4: Document file conversion');
+                // Case 4: Document/Image file without text content
+                const isImage = contextInfo.quotedMessage.imageMessage;
+                const fileType = isImage ? 'Image' : 'Document';
+                console.log(`📄 Case 4: ${fileType} file conversion`);
                 
-                // Download and convert the document
+                // Download and convert the file
                 try {
                     const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedFile);
                     if (downloadedFile) {
-                        // For now, we'll handle document conversion in a future update
-                        // This would require document-to-PDF conversion logic
-                        result = { success: false, error: 'Document-to-PDF conversion will be added in doc.js plugin' };
+                        if (isImage) {
+                            // Convert image to PDF
+                            const customTitle = additionalText || null;
+                            result = await this.createImageToPdf(downloadedFile.filePath, customTitle);
+                        } else {
+                            // For documents, we'll handle conversion in a future update
+                            result = { success: false, error: 'Document-to-PDF conversion will be added in doc.js plugin' };
+                        }
                         
                         // Cleanup downloaded file
                         setTimeout(async () => {
@@ -134,8 +117,8 @@ class PDFConverterPlugin {
                         }, 10000);
                     }
                 } catch (downloadError) {
-                    console.error('Failed to download quoted document:', downloadError);
-                    result = { success: false, error: 'Failed to download document' };
+                    console.error(`Failed to download quoted ${fileType.toLowerCase()}:`, downloadError);
+                    result = { success: false, error: `Failed to download ${fileType.toLowerCase()}` };
                 }
             }
 
@@ -188,54 +171,9 @@ class PDFConverterPlugin {
         }
     }
 
-    // Modern PDF creation using Puppeteer
+    // PDF creation using PDFKit
     async createModernPDF(title, content) {
-        try {
-            console.log('🎯 Creating modern PDF using Puppeteer');
-
-            // Fallback to simple PDF if Puppeteer is not available
-            if (!this.browserInstance) {
-                console.log('🔄 Puppeteer not available, using simple PDF creation');
-                return await this.createSimpleTextPDF(title, content);
-            }
-
-            const html = this.generateModernHTML(title, content);
-            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.pdf` : `document_${Date.now()}.pdf`;
-            const filePath = path.join(__dirname, '..', 'tmp', fileName);
-
-            await fs.ensureDir(path.dirname(filePath));
-
-            const page = await this.browserInstance.newPage();
-            await page.setContent(html, { waitUntil: 'networkidle0' });
-
-            await page.pdf({
-                path: filePath,
-                format: 'A4',
-                printBackground: true,
-                margin: {
-                    top: '20mm',
-                    right: '15mm',
-                    bottom: '20mm',
-                    left: '15mm'
-                }
-            });
-
-            await page.close();
-
-            console.log(`✅ Modern PDF creation complete: ${fileName}`);
-            return {
-                success: true,
-                filePath: filePath,
-                fileName: fileName
-            };
-
-        } catch (error) {
-            console.error('Modern PDF creation error:', error);
-
-            // Fallback to simple PDF
-            console.log('🔄 Falling back to simple PDF creation...');
-            return await this.createSimpleTextPDF(title, content);
-        }
+        return await this.createSimpleTextPDF(title, content);
     }
 
     // Simple PDF creation using PDFKit
@@ -283,6 +221,69 @@ class PDFConverterPlugin {
         }
     }
 
+    // Image to PDF conversion using PDFKit
+    async createImageToPdf(imagePath, customTitle) {
+        try {
+            console.log('🖼️ Converting image to PDF');
+            
+            const PDFDocument = require('pdfkit');
+            const fileName = customTitle ? `${this.sanitizeFileName(customTitle)}_${Date.now()}.pdf` : `image_${Date.now()}.pdf`;
+            const filePath = path.join(__dirname, '..', 'tmp', fileName);
+
+            await fs.ensureDir(path.dirname(filePath));
+
+            return new Promise((resolve, reject) => {
+                const doc = new PDFDocument();
+                const stream = fs.createWriteStream(filePath);
+
+                doc.pipe(stream);
+
+                // Add title if provided
+                if (customTitle) {
+                    doc.fontSize(16).text(customTitle, { align: 'center' });
+                    doc.moveDown(2);
+                }
+
+                // Add image to PDF
+                try {
+                    // Get image dimensions and fit to page
+                    doc.image(imagePath, {
+                        fit: [500, 600],
+                        align: 'center',
+                        valign: 'center'
+                    });
+                } catch (imageError) {
+                    console.error('Error adding image to PDF:', imageError);
+                    reject({ success: false, error: 'Failed to add image to PDF' });
+                    return;
+                }
+
+                // Add small footer
+                doc.moveDown(2);
+                doc.fontSize(8).fillColor('gray').text(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
+
+                doc.end();
+
+                stream.on('finish', () => {
+                    console.log(`✅ Image to PDF conversion complete: ${fileName}`);
+                    resolve({
+                        success: true,
+                        filePath: filePath,
+                        fileName: fileName
+                    });
+                });
+
+                stream.on('error', (error) => {
+                    console.error('PDF stream error:', error);
+                    reject({ success: false, error: 'Failed to create PDF from image' });
+                });
+            });
+
+        } catch (error) {
+            console.error('Image to PDF conversion error:', error);
+            return { success: false, error: 'Failed to convert image to PDF' };
+        }
+    }
 
     // Helper functions
     generateModernHTML(title, content) {
@@ -384,6 +385,9 @@ class PDFConverterPlugin {
             if (quotedMessage.documentMessage) {
                 fileName = quotedMessage.documentMessage.fileName || 'document';
                 extension = path.extname(fileName) || this.getExtensionFromMimetype(quotedMessage.documentMessage.mimetype);
+            } else if (quotedMessage.imageMessage) {
+                extension = this.getExtensionFromMimetype(quotedMessage.imageMessage.mimetype) || '.jpg';
+                fileName = `image_${Date.now()}${extension}`;
             }
 
             if (!path.extname(fileName)) {
@@ -413,7 +417,12 @@ class PDFConverterPlugin {
             'application/msword': '.doc',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
             'text/plain': '.txt',
-            'text/html': '.html'
+            'text/html': '.html',
+            'image/jpeg': '.jpg',
+            'image/jpg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/webp': '.webp'
         };
         return mimetypeMap[mimetype] || '';
     }
