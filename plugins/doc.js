@@ -2,42 +2,41 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 
-class PDFConverterPlugin {
+class DOCConverterPlugin {
     constructor() {
-        this.name = 'pdf';
-        this.description = 'PDF converter - convert text/documents to PDF';
+        this.name = 'doc';
+        this.description = 'DOC converter - convert text/documents to DOC/DOCX';
         this.version = '1.0.0';
         this.enabled = true;
         this.supportedFormats = {
-            input: ['text', 'image', 'jpg', 'png', 'jpeg', 'doc', 'docx', 'html'],
-            output: ['pdf']
+            input: ['text', 'image', 'jpg', 'png', 'jpeg', 'pdf', 'html'],
+            output: ['doc', 'docx']
         };
     }
 
     async init(bot) {
         this.bot = bot;
         try {
-            // Register PDF command
-            this.bot.messageHandler.registerCommand('pdf', (messageInfo) => this.convertToPdf(messageInfo), {
-                description: 'Convert text/documents to PDF',
-                usage: `${config.PREFIX}pdf - Send text or reply to message/file`,
+            // Register DOC command
+            this.bot.messageHandler.registerCommand('doc', (messageInfo) => this.convertToDoc(messageInfo), {
+                description: 'Convert text/documents to DOC/DOCX',
+                usage: `${config.PREFIX}doc - Send text or reply to message/file`,
                 category: 'utility',
-                plugin: 'pdf',
-                source: 'pdf.js'
+                plugin: 'doc',
+                source: 'doc.js'
             });
 
-            console.log('✅ PDF Converter plugin loaded');
+            console.log('✅ DOC Converter plugin loaded');
             return true;
         } catch (error) {
-            console.error('❌ Failed to initialize PDF Converter plugin:', error);
+            console.error('❌ Failed to initialize DOC Converter plugin:', error);
             return false;
         }
     }
 
-
-    async convertToPdf(messageInfo) {
+    async convertToDoc(messageInfo) {
         try {
-            console.log('🔄 PDF conversion request');
+            console.log('🔄 DOC conversion request');
 
             let result = null;
             let quotedContent = null;
@@ -62,10 +61,10 @@ class PDFConverterPlugin {
                 console.log(`📝 Found quoted message - Type: ${messageType}`);
             }
 
-            // Extract any additional text after the .pdf command
+            // Extract any additional text after the .doc command
             const commandPrefix = require('../config').PREFIX;
             const additionalText = messageInfo.text ? 
-                messageInfo.text.replace(new RegExp(`^${commandPrefix}pdf\\s*`, 'i'), '').trim() : '';
+                messageInfo.text.replace(new RegExp(`^${commandPrefix}doc\\s*`, 'i'), '').trim() : '';
 
             // LOGIC IMPLEMENTATION:
             if (quotedContent && additionalText) {
@@ -73,20 +72,20 @@ class PDFConverterPlugin {
                 console.log('📝 Case 1: Quoted content as body, additional text as title');
                 bodyContent = quotedContent;
                 customTitle = additionalText;
-                result = await this.createModernPDF(customTitle, bodyContent);
+                result = await this.createModernDOC(customTitle, bodyContent);
             }
             else if (quotedContent && !additionalText) {
                 // Case 2: Tagged text/document + no additional text = quoted content is body, no custom title
                 console.log('📝 Case 2: Quoted content as body, no custom title');
                 bodyContent = quotedContent;
                 customTitle = null; // Let the system auto-extract title from content if available
-                result = await this.convertTextToPdf(bodyContent);
+                result = await this.convertTextToDoc(bodyContent);
             }
             else if (!quotedContent && additionalText) {
-                // Case 3: No tagged content + text after .pdf = that text becomes the body
+                // Case 3: No tagged content + text after .doc = that text becomes the body
                 console.log('📝 Case 3: Additional text as body');
                 bodyContent = additionalText;
-                result = await this.convertTextToPdf(bodyContent);
+                result = await this.convertTextToDoc(bodyContent);
             }
             else if (quotedFile && !quotedContent) {
                 // Case 4: Document/Image file without text content
@@ -99,12 +98,12 @@ class PDFConverterPlugin {
                     const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedFile);
                     if (downloadedFile) {
                         if (isImage) {
-                            // Convert image to PDF
+                            // Convert image to DOC
                             const customTitle = additionalText || null;
-                            result = await this.createImageToPdf(downloadedFile.filePath, customTitle);
+                            result = await this.createImageToDoc(downloadedFile.filePath, customTitle);
                         } else {
                             // For documents, we'll handle conversion in a future update
-                            result = { success: false, error: 'Document-to-PDF conversion will be added in doc.js plugin' };
+                            result = { success: false, error: 'Document-to-DOC conversion will be added later' };
                         }
                         
                         // Cleanup downloaded file
@@ -125,11 +124,11 @@ class PDFConverterPlugin {
             // No valid input found
             if (!result) {
                 return await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ No content found to convert to PDF.\n\n**Usage examples:**\n• Reply to text with \`.pdf\` (text becomes body)\n• Reply to text with \`.pdf My Title\` (text becomes body, "My Title" becomes title)\n• Send \`.pdf Hello World\` ("Hello World" becomes body)`);
+                    `❌ No content found to convert to DOC.\n\n**Usage examples:**\n• Reply to text with \`.doc\` (text becomes body)\n• Reply to text with \`.doc My Title\` (text becomes body, "My Title" becomes title)\n• Send \`.doc Hello World\` ("Hello World" becomes body)`);
             }
 
             if (result && result.success) {
-                console.log(`✅ PDF conversion complete: ${result.fileName}`);
+                console.log(`✅ DOC conversion complete: ${result.fileName}`);
                 await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                     document: { url: result.filePath },
                     fileName: result.fileName
@@ -145,190 +144,175 @@ class PDFConverterPlugin {
                 }, 5000);
             } else {
                 await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ PDF conversion failed: ${result?.error || 'Unknown error'}`);
+                    `❌ DOC conversion failed: ${result?.error || 'Unknown error'}`);
             }
 
         } catch (error) {
-            console.error('❌ PDF converter error:', error);
+            console.error('❌ DOC converter error:', error);
             await this.bot.messageHandler.reply(messageInfo, 
-                '❌ PDF conversion failed. Please try again.');
+                '❌ DOC conversion failed. Please try again.');
         }
     }
 
-
-    async convertTextToPdf(text) {
+    async convertTextToDoc(text) {
         try {
-            console.log('📝 Converting text to PDF using modern methods');
+            console.log('📝 Converting text to DOC using modern methods');
             const cleanText = this.removeEmojis(text);
             const title = this.extractTitleFromText(cleanText)?.title;
             const contentWithoutTitle = this.extractTitleFromText(cleanText)?.remainingContent || cleanText;
 
-            return await this.createModernPDF(title, contentWithoutTitle);
+            return await this.createModernDOC(title, contentWithoutTitle);
         } catch (error) {
-            console.error('Text to PDF conversion error:', error);
-            return { success: false, error: 'Failed to convert text to PDF' };
+            console.error('Text to DOC conversion error:', error);
+            return { success: false, error: 'Failed to convert text to DOC' };
         }
     }
 
-    // PDF creation using PDFKit
-    async createModernPDF(title, content) {
-        return await this.createSimpleTextPDF(title, content);
+    // DOC creation using officegen
+    async createModernDOC(title, content) {
+        return await this.createSimpleTextDOC(title, content);
     }
 
-    // Simple PDF creation using PDFKit
-    async createSimpleTextPDF(title, content) {
+    // Simple DOC creation using officegen
+    async createSimpleTextDOC(title, content) {
         try {
-            const PDFDocument = require('pdfkit');
-            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.pdf` : `document_${Date.now()}.pdf`;
+            const officegen = require('officegen');
+            const docx = officegen('docx');
+
+            docx.creator = 'MATDEV Bot';
+            docx.title = title || 'Document';
+            docx.subject = 'Document Conversion';
+
+            if (title) {
+                const titleParagraph = docx.createP({ align: 'center' });
+                titleParagraph.addText(title, { 
+                    font_size: 18, 
+                    bold: true, 
+                    color: '1a365d',
+                    font_face: 'Segoe UI'
+                });
+                docx.createP();
+            }
+
+            const paragraphs = content.split('\n\n');
+
+            for (const paragraph of paragraphs) {
+                if (paragraph.trim()) {
+                    const p = docx.createP();
+                    p.addText(paragraph.trim(), { 
+                        font_size: 12,
+                        font_face: 'Segoe UI',
+                        line_height: 1.5
+                    });
+                }
+            }
+
+            docx.createP();
+            const footerParagraph = docx.createP({ align: 'center' });
+            footerParagraph.addText(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, {
+                font_size: 8,
+                color: '9ca3af',
+                italic: true,
+                font_face: 'Segoe UI'
+            });
+
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.docx` : `document_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
 
-            return new Promise((resolve, reject) => {
-                const doc = new PDFDocument();
-                const stream = fs.createWriteStream(filePath);
-
-                doc.pipe(stream);
-
-                if (title) {
-                    doc.fontSize(16).text(title, { align: 'center' });
-                    doc.moveDown(2);
-                }
-                doc.fontSize(12).text(content);
-
-                // Add small footer
-                doc.moveDown(3);
-                doc.fontSize(8).fillColor('gray').text(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
-
-                doc.end();
-
-                stream.on('finish', () => {
-                    resolve({
-                        success: true,
-                        filePath: filePath,
-                        fileName: fileName
-                    });
-                });
-
-                stream.on('error', (error) => {
-                    reject({ success: false, error: 'Failed to create PDF' });
-                });
+            await new Promise((resolve, reject) => {
+                const out = fs.createWriteStream(filePath);
+                out.on('error', reject);
+                out.on('close', resolve);
+                docx.generate(out);
             });
+
+            console.log(`✅ DOC creation complete: ${fileName}`);
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+
         } catch (error) {
-            console.error('Simple PDF creation error:', error);
-            return { success: false, error: 'Failed to create PDF' };
+            console.error('Simple DOC creation error:', error);
+            return { success: false, error: 'Failed to create DOC' };
         }
     }
 
-    // Image to PDF conversion using PDFKit
-    async createImageToPdf(imagePath, customTitle) {
+    // Image to DOC conversion using officegen
+    async createImageToDoc(imagePath, customTitle) {
         try {
-            console.log('🖼️ Converting image to PDF');
+            console.log('🖼️ Converting image to DOC');
             
-            const PDFDocument = require('pdfkit');
-            const fileName = customTitle ? `${this.sanitizeFileName(customTitle)}_${Date.now()}.pdf` : `image_${Date.now()}.pdf`;
+            const officegen = require('officegen');
+            const docx = officegen('docx');
+
+            docx.creator = 'MATDEV Bot';
+            docx.title = customTitle || 'Image Document';
+            docx.subject = 'Image Conversion';
+
+            // Add title if provided
+            if (customTitle) {
+                const titleParagraph = docx.createP({ align: 'center' });
+                titleParagraph.addText(customTitle, { 
+                    font_size: 18, 
+                    bold: true, 
+                    color: '1a365d',
+                    font_face: 'Segoe UI'
+                });
+                docx.createP();
+            }
+
+            // Add image to DOC
+            try {
+                const imageParagraph = docx.createP({ align: 'center' });
+                imageParagraph.addImage(imagePath, {
+                    cx: 400,
+                    cy: 300
+                });
+            } catch (imageError) {
+                console.error('Error adding image to DOC:', imageError);
+                return { success: false, error: 'Failed to add image to DOC' };
+            }
+
+            // Add small footer
+            docx.createP();
+            const footerParagraph = docx.createP({ align: 'center' });
+            footerParagraph.addText(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, {
+                font_size: 8,
+                color: '9ca3af',
+                italic: true,
+                font_face: 'Segoe UI'
+            });
+
+            const fileName = customTitle ? `${this.sanitizeFileName(customTitle)}_${Date.now()}.docx` : `image_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await fs.ensureDir(path.dirname(filePath));
 
-            return new Promise((resolve, reject) => {
-                const doc = new PDFDocument();
-                const stream = fs.createWriteStream(filePath);
-
-                doc.pipe(stream);
-
-                // Add title if provided
-                if (customTitle) {
-                    doc.fontSize(16).text(customTitle, { align: 'center' });
-                    doc.moveDown(2);
-                }
-
-                // Add image to PDF
-                try {
-                    // Get image dimensions and fit to page
-                    doc.image(imagePath, {
-                        fit: [500, 600],
-                        align: 'center',
-                        valign: 'center'
-                    });
-                } catch (imageError) {
-                    console.error('Error adding image to PDF:', imageError);
-                    reject({ success: false, error: 'Failed to add image to PDF' });
-                    return;
-                }
-
-                // Add small footer
-                doc.moveDown(2);
-                doc.fontSize(8).fillColor('gray').text(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
-
-                doc.end();
-
-                stream.on('finish', () => {
-                    console.log(`✅ Image to PDF conversion complete: ${fileName}`);
-                    resolve({
-                        success: true,
-                        filePath: filePath,
-                        fileName: fileName
-                    });
-                });
-
-                stream.on('error', (error) => {
-                    console.error('PDF stream error:', error);
-                    reject({ success: false, error: 'Failed to create PDF from image' });
-                });
+            await new Promise((resolve, reject) => {
+                const out = fs.createWriteStream(filePath);
+                out.on('error', reject);
+                out.on('close', resolve);
+                docx.generate(out);
             });
 
+            console.log(`✅ Image to DOC conversion complete: ${fileName}`);
+            return {
+                success: true,
+                filePath: filePath,
+                fileName: fileName
+            };
+
         } catch (error) {
-            console.error('Image to PDF conversion error:', error);
-            return { success: false, error: 'Failed to convert image to PDF' };
+            console.error('Image to DOC conversion error:', error);
+            return { success: false, error: 'Failed to convert image to DOC' };
         }
     }
 
     // Helper functions
-    generateModernHTML(title, content) {
-        const htmlTitle = title || 'Document';
-        const htmlContent = content.replace(/\n/g, '<br>');
-
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.escapeHtml(htmlTitle)}</title>
-    <style>
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            line-height: 1.6; 
-            margin: 40px; 
-            color: #2c3e50;
-        }
-        h1 { 
-            color: #2c3e50; 
-            border-bottom: 2px solid #3498db; 
-            padding-bottom: 10px; 
-            text-align: center;
-        }
-        p { margin-bottom: 15px; }
-        .footer {
-            margin-top: 40px;
-            font-size: 10px;
-            color: #7f8c8d;
-            text-align: center;
-            border-top: 1px solid #ecf0f1;
-            padding-top: 10px;
-        }
-    </style>
-</head>
-<body>
-    ${title ? `<h1>${this.escapeHtml(title)}</h1>` : ''}
-    <p>${htmlContent}</p>
-    <div class="footer">
-        Generated by MATDEV Bot on ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
-    </div>
-</body>
-</html>`;
-    }
-
     extractQuotedMessageContent(quotedMessage) {
         try {
             if (quotedMessage.conversation) {
@@ -464,22 +448,14 @@ class PDFConverterPlugin {
     }
 
     async cleanup() {
-        if (this.browserInstance) {
-            try {
-                await this.browserInstance.close();
-                console.log('🧹 PDF Converter cleanup: Browser instance closed');
-            } catch (error) {
-                console.warn('⚠️ Browser cleanup warning:', error.message);
-            }
-        }
-        console.log('🧹 PDF Converter plugin cleanup completed');
+        console.log('🧹 DOC Converter plugin cleanup completed');
     }
 }
 
 // Export function for plugin initialization
 module.exports = {
     init: async (bot) => {
-        const plugin = new PDFConverterPlugin();
+        const plugin = new DOCConverterPlugin();
         await plugin.init(bot);
         return plugin;
     }
