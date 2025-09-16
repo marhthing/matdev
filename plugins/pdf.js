@@ -1,22 +1,19 @@
-const axios = require('axios');
 const fs = require('fs-extra');
 const path = require('path');
-const sharp = require('sharp');
 const config = require('../config');
 
 // PDF-specific libraries
-const { pdfToImg } = require('pdf-to-img');
 const puppeteer = require('puppeteer');
 
 class PDFConverterPlugin {
     constructor() {
         this.name = 'pdf';
-        this.description = 'PDF converter - convert text/documents to PDF or extract from PDF';
+        this.description = 'PDF converter - convert text/documents to PDF';
         this.version = '1.0.0';
         this.enabled = true;
         this.supportedFormats = {
-            input: ['text', 'pdf', 'doc', 'docx', 'html'],
-            output: ['pdf', 'txt', 'png', 'jpg', 'jpeg']
+            input: ['text', 'doc', 'docx', 'html'],
+            output: ['pdf']
         };
         this.browserInstance = null;
     }
@@ -27,26 +24,10 @@ class PDFConverterPlugin {
             // Initialize reusable browser instance for performance
             await this.initializeBrowser();
 
-            // Register PDF-specific commands
+            // Register PDF command
             this.bot.messageHandler.registerCommand('pdf', (messageInfo) => this.convertToPdf(messageInfo), {
                 description: 'Convert text/documents to PDF',
                 usage: `${config.PREFIX}pdf - Send text or reply to message/file`,
-                category: 'utility',
-                plugin: 'pdf',
-                source: 'pdf.js'
-            });
-
-            this.bot.messageHandler.registerCommand('pdftxt', (messageInfo) => this.pdfToText(messageInfo), {
-                description: 'Extract text from PDF',
-                usage: `${config.PREFIX}pdftxt - Reply to PDF file`,
-                category: 'utility',
-                plugin: 'pdf',
-                source: 'pdf.js'
-            });
-
-            this.bot.messageHandler.registerCommand('pdfimg', (messageInfo) => this.pdfToImage(messageInfo), {
-                description: 'Convert PDF to image',
-                usage: `${config.PREFIX}pdfimg [page] - Reply to PDF file`,
                 category: 'utility',
                 plugin: 'pdf',
                 source: 'pdf.js'
@@ -192,136 +173,6 @@ class PDFConverterPlugin {
         }
     }
 
-    async pdfToText(messageInfo) {
-        try {
-            console.log('🔄 PDF to text extraction request');
-
-            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
-            if (!contextInfo?.quotedMessage?.documentMessage) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file with this command.');
-            }
-
-            const quotedMessage = contextInfo.quotedMessage;
-            const fileMessage = quotedMessage.documentMessage;
-
-            if (!fileMessage.fileName?.toLowerCase().endsWith('.pdf')) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file.');
-            }
-
-            console.log(`📄 Processing PDF file: ${fileMessage.fileName}`);
-
-            // Download the PDF file
-            const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedMessage);
-            if (!downloadedFile) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to download PDF file.');
-            }
-
-            const result = await this.modernPdfToText(downloadedFile.filePath);
-
-            // Cleanup downloaded file
-            setTimeout(async () => {
-                try {
-                    await fs.unlink(downloadedFile.filePath);
-                } catch (e) {
-                    console.warn(`⚠️ Cleanup warning: ${e.message}`);
-                }
-            }, 10000);
-
-            if (result && result.success) {
-                console.log(`✅ PDF text extraction complete: ${result.fileName}`);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    document: { url: result.filePath },
-                    fileName: result.fileName,
-                    caption: `✅ Text extracted from PDF\n📁 **${result.fileName}**`
-                });
-
-                // Cleanup result file
-                setTimeout(async () => {
-                    try {
-                        await fs.unlink(result.filePath);
-                    } catch (e) {
-                        console.warn(`⚠️ Cleanup warning: ${e.message}`);
-                    }
-                }, 5000);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Failed to extract text from PDF: ${result?.error || 'Unknown error'}`);
-            }
-
-        } catch (error) {
-            console.error('❌ PDF to text error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ PDF text extraction failed. Please try again.');
-        }
-    }
-
-    async pdfToImage(messageInfo) {
-        try {
-            console.log('🔄 PDF to image conversion request');
-
-            const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
-            if (!contextInfo?.quotedMessage?.documentMessage) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file with this command.');
-            }
-
-            const quotedMessage = contextInfo.quotedMessage;
-            const fileMessage = quotedMessage.documentMessage;
-
-            if (!fileMessage.fileName?.toLowerCase().endsWith('.pdf')) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Please reply to a PDF file.');
-            }
-
-            console.log(`📄 Processing PDF file: ${fileMessage.fileName}`);
-
-            // Download the PDF file
-            const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedMessage);
-            if (!downloadedFile) {
-                return await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to download PDF file.');
-            }
-
-            const result = await this.modernPdfToImage(downloadedFile.filePath, 'png', messageInfo);
-
-            // Cleanup downloaded file
-            setTimeout(async () => {
-                try {
-                    await fs.unlink(downloadedFile.filePath);
-                } catch (e) {
-                    console.warn(`⚠️ Cleanup warning: ${e.message}`);
-                }
-            }, 10000);
-
-            if (result && result.success) {
-                console.log(`✅ PDF to image conversion complete: ${result.fileName}`);
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    image: { url: result.filePath },
-                    caption: `✅ PDF converted to image\n📁 **${result.fileName}**`
-                });
-
-                // Cleanup result file
-                setTimeout(async () => {
-                    try {
-                        await fs.unlink(result.filePath);
-                    } catch (e) {
-                        console.warn(`⚠️ Cleanup warning: ${e.message}`);
-                    }
-                }, 5000);
-            } else {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `❌ Failed to convert PDF to image: ${result?.error || 'Unknown error'}`);
-            }
-
-        } catch (error) {
-            console.error('❌ PDF to image error:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ PDF to image conversion failed. Please try again.');
-        }
-    }
 
     async convertTextToPdf(text) {
         try {
@@ -432,85 +283,6 @@ class PDFConverterPlugin {
         }
     }
 
-    // Modern PDF to Image using pdf-to-img
-    async modernPdfToImage(pdfPath, targetFormat, messageInfo) {
-        try {
-            console.log(`🎯 Modern PDF→Image conversion using pdf-to-img`);
-
-            const pageNumber = messageInfo.args && messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1;
-            console.log(`📄 Converting page ${pageNumber} to ${targetFormat.toUpperCase()}`);
-
-            const outputDir = path.join(__dirname, '..', 'tmp');
-            await fs.ensureDir(outputDir);
-
-            // Modern method: pdf-to-img with zero system dependencies
-            let pageIndex = 0;
-            let convertedBuffer = null;
-
-            for await (const image of pdfToImg(pdfPath, { scale: 1.5 })) {
-                if (++pageIndex === pageNumber) {
-                    convertedBuffer = image.buffer;
-                    break;
-                }
-            }
-
-            if (!convertedBuffer) {
-                throw new Error(`Page ${pageNumber} not found in PDF`);
-            }
-
-            const fileName = `pdf_page_${pageNumber}_${Date.now()}.${targetFormat}`;
-            const filePath = path.join(outputDir, fileName);
-
-            // Convert to target format using Sharp
-            if (targetFormat === 'png') {
-                await fs.writeFile(filePath, convertedBuffer);
-            } else {
-                // Convert PNG to JPG using Sharp
-                const jpegBuffer = await sharp(convertedBuffer)
-                    .jpeg({ quality: 90 })
-                    .toBuffer();
-                await fs.writeFile(filePath, jpegBuffer);
-            }
-
-            console.log(`✅ Modern PDF→Image complete: ${fileName}`);
-            return {
-                success: true,
-                filePath: filePath,
-                fileName: fileName
-            };
-
-        } catch (error) {
-            console.error('Modern PDF to image error:', error);
-            return { success: false, error: 'Failed to convert PDF to image' };
-        }
-    }
-
-    // Modern PDF to Text using pdf-parse
-    async modernPdfToText(pdfPath) {
-        try {
-            console.log('🎯 Modern PDF→Text extraction');
-
-            const pdfParse = require('pdf-parse');
-            const pdfBuffer = await fs.readFile(pdfPath);
-            const pdfData = await pdfParse(pdfBuffer);
-
-            const fileName = `extracted_text_${Date.now()}.txt`;
-            const filePath = path.join(__dirname, '..', 'tmp', fileName);
-
-            await fs.ensureDir(path.dirname(filePath));
-            await fs.writeFile(filePath, pdfData.text, 'utf8');
-
-            return {
-                success: true,
-                filePath: filePath,
-                fileName: fileName
-            };
-
-        } catch (error) {
-            console.error('Modern PDF to text error:', error);
-            return { success: false, error: 'Failed to extract text from PDF' };
-        }
-    }
 
     // Helper functions
     generateModernHTML(title, content) {
