@@ -48,14 +48,14 @@ class DOCConverterPlugin {
             const contextInfo = messageInfo.message?.extendedTextMessage?.contextInfo;
             if (contextInfo?.quotedMessage) {
                 quotedContent = this.extractQuotedMessageContent(contextInfo.quotedMessage);
-                
+
                 // Check if quoted message is a document or image
                 if (contextInfo.quotedMessage.documentMessage) {
                     quotedFile = contextInfo.quotedMessage;
                 } else if (contextInfo.quotedMessage.imageMessage) {
                     quotedFile = contextInfo.quotedMessage;
                 }
-                
+
                 const messageType = contextInfo.quotedMessage.imageMessage ? 'Image' : 
                                    contextInfo.quotedMessage.documentMessage ? 'Document' : 'Text';
                 console.log(`📝 Found quoted message - Type: ${messageType}`);
@@ -92,7 +92,7 @@ class DOCConverterPlugin {
                 const isImage = contextInfo.quotedMessage.imageMessage;
                 const fileType = isImage ? 'Image' : 'Document';
                 console.log(`📄 Case 4: ${fileType} file conversion`);
-                
+
                 // Download and convert the file
                 try {
                     const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedFile);
@@ -106,7 +106,7 @@ class DOCConverterPlugin {
                             const customTitle = additionalText || null;
                             result = await this.convertDocumentToDoc(downloadedFile.filePath, downloadedFile.fileName, customTitle);
                         }
-                        
+
                         // Cleanup downloaded file
                         setTimeout(async () => {
                             try {
@@ -217,8 +217,16 @@ class DOCConverterPlugin {
                 font_face: 'Segoe UI'
             });
 
-            // Clean title of any existing extensions before creating filename
-            const cleanTitle = title ? this.sanitizeFileName(title).replace(/\.(docx?|pdf|txt|html)$/i, '') : null;
+            // Clean title of any existing extensions and ensure no double extensions
+            let cleanTitle = title;
+            if (cleanTitle) {
+                // Remove any file extensions from the title first
+                cleanTitle = cleanTitle.replace(/\.(docx?|pdf|txt|html|doc)$/i, '');
+                // Remove any trailing numbers that might be timestamps
+                cleanTitle = cleanTitle.replace(/_\d+$/i, '');
+                // Sanitize the filename
+                cleanTitle = this.sanitizeFileName(cleanTitle);
+            }
             const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `document_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
@@ -248,7 +256,7 @@ class DOCConverterPlugin {
     async createImageToDoc(imagePath, customTitle) {
         try {
             console.log('🖼️ Converting image to DOC');
-            
+
             const officegen = require('officegen');
             const docx = officegen('docx');
 
@@ -319,25 +327,25 @@ class DOCConverterPlugin {
     async convertDocumentToDoc(filePath, originalFileName, customTitle = null) {
         try {
             console.log('📄 Converting document to DOC format');
-            
+
             const fileExtension = path.extname(originalFileName).toLowerCase();
-            
+
             // Handle different document types
             switch (fileExtension) {
                 case '.pdf':
                     return await this.convertPdfToDoc(filePath, originalFileName, customTitle);
-                
+
                 case '.txt':
                     return await this.convertTextFileToDoc(filePath, originalFileName, customTitle);
-                
+
                 case '.docx':
                     // If it's already DOCX, just rename/copy it
                     return await this.copyDocxFile(filePath, originalFileName, customTitle);
-                
+
                 case '.doc':
                     // If it's already DOC, just rename/copy it
                     return await this.copyDocFile(filePath, originalFileName, customTitle);
-                
+
                 default:
                     // For unknown formats, try to read as text
                     return await this.convertUnknownToDoc(filePath, originalFileName, customTitle);
@@ -352,22 +360,22 @@ class DOCConverterPlugin {
     async convertPdfToDoc(pdfPath, originalFileName, customTitle) {
         try {
             console.log('📄 Converting PDF to DOC');
-            
+
             // Try multiple PDF extraction methods
             let pdfText = '';
             let title = customTitle || path.basename(originalFileName, path.extname(originalFileName));
             let extractionMethod = 'unknown';
-            
+
             // Method 1: Try pdf-parse first
             try {
                 const pdfParse = require('pdf-parse');
                 const pdfBuffer = await require('fs-extra').readFile(pdfPath);
                 const pdfData = await pdfParse(pdfBuffer);
-                
+
                 if (pdfData.text && pdfData.text.trim().length > 10) {
                     pdfText = this.enhanceTextFormatting(pdfData.text.trim());
                     extractionMethod = 'pdf-parse';
-                    
+
                     // Try to extract title from first meaningful line if no custom title
                     if (!customTitle) {
                         const lines = pdfText.split('\n').filter(line => line.trim().length > 0);
@@ -379,15 +387,15 @@ class DOCConverterPlugin {
                             }
                         }
                     }
-                    
+
                     console.log(`✅ PDF text extracted via pdf-parse: ${pdfText.length} characters`);
                 } else {
                     throw new Error('Minimal text extracted from pdf-parse');
                 }
-                
+
             } catch (parseError) {
                 console.warn('pdf-parse failed, trying alternative methods:', parseError.message);
-                
+
                 // Method 2: Try to read as text (for text-based PDFs)
                 try {
                     const rawText = await fs.readFile(pdfPath, 'utf8');
@@ -403,20 +411,20 @@ class DOCConverterPlugin {
                 } catch (rawError) {
                     // Method 3: Create detailed processing report with actual file info
                     console.warn('All extraction methods failed, creating detailed report');
-                    
+
                     const stats = await fs.stat(pdfPath);
                     extractionMethod = 'detailed-report';
-                    
+
                     pdfText = `PDF Document Analysis Report\n\n`;
                     pdfText += `📄 Original File: ${originalFileName}\n`;
                     pdfText += `📏 File Size: ${this.formatFileSize(stats.size)}\n`;
                     pdfText += `📅 Processing Date: ${new Date().toLocaleString()}\n\n`;
-                    
+
                     pdfText += `🔍 ANALYSIS RESULTS:\n`;
                     pdfText += `• File Format: PDF Document\n`;
                     pdfText += `• Text Extraction: Limited (may contain images, forms, or complex layouts)\n`;
                     pdfText += `• Content Type: Mixed content document\n\n`;
-                    
+
                     pdfText += `📋 POSSIBLE CONTENT TYPES:\n`;
                     if (stats.size > 1024 * 1024) { // > 1MB
                         pdfText += `• Large document - likely contains images or high-quality graphics\n`;
@@ -426,40 +434,40 @@ class DOCConverterPlugin {
                     }
                     pdfText += `• May contain: Forms, Tables, Images, Charts, or Scanned Pages\n`;
                     pdfText += `• Document structure preserved but text extraction was limited\n\n`;
-                    
+
                     pdfText += `⚠️ EXTRACTION LIMITATIONS:\n`;
                     pdfText += `• This PDF uses advanced formatting that prevents direct text extraction\n`;
                     pdfText += `• Content may be image-based (scanned document)\n`;
                     pdfText += `• PDF may be password protected or use special encoding\n`;
                     pdfText += `• Complex layouts with embedded objects detected\n\n`;
-                    
+
                     pdfText += `💡 RECOMMENDATIONS:\n`;
                     pdfText += `• For better text extraction, try OCR tools for image-based PDFs\n`;
                     pdfText += `• Use specialized PDF editors for form-based documents\n`;
                     pdfText += `• Consider manual copying if the PDF is viewable but not extractable\n\n`;
-                    
+
                     pdfText += `🔧 Technical Details:\n`;
                     pdfText += `• pdf-parse error: ${parseError.message}\n`;
                     pdfText += `• Raw extraction: ${rawError.message}\n`;
                     pdfText += `• Fallback method: Detailed analysis report generated\n\n`;
-                    
+
                     pdfText += `This document was successfully converted to DOC format with available metadata and analysis.`;
-                    
+
                     title = customTitle || `${path.basename(originalFileName, '.pdf')} - Analysis Report`;
-                    
+
                     console.log(`✅ Created detailed PDF analysis report: ${pdfText.length} characters`);
                 }
             }
-            
+
             // Create the DOC with the extracted or generated content
             const result = await this.createTextDoc(pdfText, title, originalFileName);
-            
+
             if (result.success) {
                 console.log(`✅ PDF to DOC conversion complete using ${extractionMethod} method`);
             }
-            
+
             return result;
-            
+
         } catch (error) {
             console.error('PDF to DOC conversion error:', error);
             return { success: false, error: 'Failed to convert PDF to DOC' };
@@ -488,12 +496,12 @@ class DOCConverterPlugin {
     async convertTextFileToDoc(filePath, originalFileName, customTitle) {
         try {
             console.log('📄 Converting text file to DOC');
-            
+
             const textContent = await fs.readFile(filePath, 'utf8');
             const title = customTitle || path.basename(originalFileName, path.extname(originalFileName));
-            
+
             return await this.createTextDoc(textContent, title, originalFileName);
-            
+
         } catch (error) {
             console.error('Text to DOC conversion error:', error);
             return { success: false, error: 'Failed to convert text file to DOC' };
@@ -504,7 +512,7 @@ class DOCConverterPlugin {
     async copyDocxFile(filePath, originalFileName, customTitle) {
         try {
             console.log('📄 Copying DOCX file');
-            
+
             let fileName;
             if (customTitle) {
                 const cleanTitle = this.sanitizeFileName(customTitle).replace(/\.(docx?|pdf|txt|html)$/i, '');
@@ -513,17 +521,17 @@ class DOCConverterPlugin {
                 const baseName = path.basename(originalFileName, path.extname(originalFileName));
                 fileName = `${baseName}_${Date.now()}.docx`;
             }
-            
+
             const outputPath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.copy(filePath, outputPath);
-            
+
             return {
                 success: true,
                 filePath: outputPath,
                 fileName: fileName
             };
-            
+
         } catch (error) {
             console.error('DOCX copy error:', error);
             return { success: false, error: 'Failed to process DOCX file' };
@@ -534,7 +542,7 @@ class DOCConverterPlugin {
     async copyDocFile(filePath, originalFileName, customTitle) {
         try {
             console.log('📄 Copying DOC file');
-            
+
             let fileName;
             if (customTitle) {
                 const cleanTitle = this.sanitizeFileName(customTitle).replace(/\.(docx?|pdf|txt|html)$/i, '');
@@ -543,17 +551,17 @@ class DOCConverterPlugin {
                 const baseName = path.basename(originalFileName, path.extname(originalFileName));
                 fileName = `${baseName}_${Date.now()}.doc`;
             }
-            
+
             const outputPath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.copy(filePath, outputPath);
-            
+
             return {
                 success: true,
                 filePath: outputPath,
                 fileName: fileName
             };
-            
+
         } catch (error) {
             console.error('DOC copy error:', error);
             return { success: false, error: 'Failed to process DOC file' };
@@ -564,7 +572,7 @@ class DOCConverterPlugin {
     async convertUnknownToDoc(filePath, originalFileName, customTitle) {
         try {
             console.log('📄 Converting unknown format to DOC');
-            
+
             let content = '';
             try {
                 // Try to read as text first
@@ -576,10 +584,10 @@ class DOCConverterPlugin {
                 content += 'The original file format may not be supported for text extraction.\n\n';
                 content += `Converted on: ${new Date().toLocaleString()}`;
             }
-            
+
             const title = customTitle || path.basename(originalFileName, path.extname(originalFileName));
             return await this.createTextDoc(content, title, originalFileName);
-            
+
         } catch (error) {
             console.error('Unknown format to DOC conversion error:', error);
             return { success: false, error: 'Failed to convert unknown format to DOC' };
@@ -643,8 +651,16 @@ class DOCConverterPlugin {
                 font_face: 'Segoe UI'
             });
 
-            // Clean title of any existing extensions before creating filename
-            const cleanTitle = title ? this.sanitizeFileName(title).replace(/\.(docx?|pdf|txt|html)$/i, '') : null;
+            // Clean title of any existing extensions and ensure no double extensions
+            let cleanTitle = title;
+            if (cleanTitle) {
+                // Remove any file extensions from the title first
+                cleanTitle = cleanTitle.replace(/\.(docx?|pdf|txt|html|doc)$/i, '');
+                // Remove any trailing numbers that might be timestamps
+                cleanTitle = cleanTitle.replace(/_\d+$/i, '');
+                // Sanitize the filename
+                cleanTitle = this.sanitizeFileName(cleanTitle);
+            }
             const fileName = cleanTitle ? `${cleanTitle}_${Date.now()}.docx` : `converted_${Date.now()}.docx`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
