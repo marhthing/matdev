@@ -201,7 +201,7 @@ Just tag any document/text and use the target format command!
             }
 
             // Convert based on input and target formats (silent)
-            const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle);
+            const result = await this.performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle, fileMessage);
 
             if (result.success) {
                 if (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg') {
@@ -274,7 +274,7 @@ Just tag any document/text and use the target format command!
         return 'unknown';
     }
 
-    async performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle = '') {
+    async performConversion(inputFormat, targetFormat, filePath, textContent, messageInfo, customTitle = '', fileMessage = null) {
         try {
             // Handle text input conversions
             if (inputFormat === 'text') {
@@ -300,9 +300,9 @@ Just tag any document/text and use the target format command!
                     const pageNumber = messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1;
                     return await this.convertPdfToImageSimple(filePath, pageNumber);
                 } else if (inputFormat === 'pdf' && (targetFormat === 'doc' || targetFormat === 'docx')) {
-                    return await this.convertPdfToDoc(filePath);
+                    return await this.convertPdfToDoc(filePath, fileMessage?.fileName);
                 } else if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'pdf') {
-                    return await this.convertDocToPdf(filePath);
+                    return await this.convertDocToPdf(filePath, fileMessage?.fileName);
                 } else if (inputFormat === 'image' && targetFormat === 'pdf') {
                     return await this.convertImageToPdf(filePath);
                 } else if (inputFormat === 'image' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
@@ -1191,9 +1191,16 @@ ${displayLines.map((line, i) => {
         return await this.downloadFileRobust(fileMessage, 'direct');
     }
 
-    async convertDocToPdf(docPath) {
+    async convertDocToPdf(docPath, originalFileName = '') {
         try {
-            const fileName = `doc_to_pdf_${Date.now()}.pdf`;
+            let fileName;
+            if (originalFileName) {
+                // Use original filename without extension
+                const baseName = path.basename(originalFileName, path.extname(originalFileName));
+                fileName = `${baseName}.pdf`;
+            } else {
+                fileName = `doc_to_pdf_${Date.now()}.pdf`;
+            }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             let docContent = '';
@@ -1294,9 +1301,16 @@ ${displayLines.map((line, i) => {
         }
     }
 
-    async convertPdfToDoc(pdfPath) {
+    async convertPdfToDoc(pdfPath, originalFileName = '') {
         try {
-            const fileName = `pdf_to_doc_${Date.now()}.docx`;
+            let fileName;
+            if (originalFileName) {
+                // Use original filename without extension
+                const baseName = path.basename(originalFileName, path.extname(originalFileName));
+                fileName = `${baseName}.docx`;
+            } else {
+                fileName = `pdf_to_doc_${Date.now()}.docx`;
+            }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             // Extract PDF text using pdf-parse
