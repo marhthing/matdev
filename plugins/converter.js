@@ -112,7 +112,7 @@ class ModernConverterPlugin {
     async autoConvertCommand(targetFormat, messageInfo) {
         try {
             console.log(`🔄 Modern conversion request: target format = ${targetFormat}`);
-            
+
             let result = null;
             let quotedContent = null;
 
@@ -132,17 +132,17 @@ class ModernConverterPlugin {
             else if (contextInfo?.quotedMessage?.documentMessage || 
                      contextInfo?.quotedMessage?.imageMessage ||
                      contextInfo?.quotedMessage?.videoMessage) {
-                
+
                 const quotedMessage = contextInfo.quotedMessage;
                 const fileMessage = quotedMessage.documentMessage || quotedMessage.imageMessage || quotedMessage.videoMessage;
-                
+
                 if (fileMessage) {
                     console.log(`📄 Processing quoted file: ${fileMessage.fileName || 'media file'}`);
-                    
+
                     // Download the quoted file
                     const tempDir = path.join(__dirname, '..', 'tmp');
                     await fs.ensureDir(tempDir);
-                    
+
                     try {
                         const downloadedFile = await this.downloadQuotedMedia(messageInfo, quotedMessage);
                         if (downloadedFile) {
@@ -152,7 +152,7 @@ class ModernConverterPlugin {
                                 targetFormat, 
                                 messageInfo
                             );
-                            
+
                             // Cleanup downloaded file
                             setTimeout(async () => {
                                 try {
@@ -173,7 +173,7 @@ class ModernConverterPlugin {
             else if (messageInfo.text) {
                 const commandPrefix = require('../config').PREFIX;
                 const textContent = messageInfo.text.replace(new RegExp(`^${commandPrefix}${targetFormat}\\s*`, 'i'), '').trim();
-                
+
                 if (textContent) {
                     console.log('📝 Processing current message text with modern engine');
                     result = await this.convertTextToFormat(textContent, targetFormat);
@@ -205,17 +205,17 @@ class ModernConverterPlugin {
             } else {
                 // Cleanup temp files on failure
                 await this.cleanupTempFiles();
-                
+
                 await this.bot.messageHandler.reply(messageInfo, 
                     `❌ Modern conversion failed: ${result?.error || 'Unknown error'}`);
             }
 
         } catch (error) {
             console.error('❌ Modern converter error:', error);
-            
+
             // Cleanup any temporary files if conversion failed
             await this.cleanupTempFiles();
-            
+
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ Conversion failed with modern engine. Please try again.');
         }
@@ -225,23 +225,24 @@ class ModernConverterPlugin {
         try {
             console.log(`📝 Converting text to ${targetFormat} using modern methods`);
             const cleanText = this.removeEmojis(text);
-            const title = this.extractTitleFromText(cleanText)?.title || 'Generated Document';
+            const title = this.extractTitleFromText(cleanText)?.title;
+            const contentWithoutTitle = this.extractTitleFromText(cleanText)?.remainingContent || cleanText;
 
             switch (targetFormat.toLowerCase()) {
                 case 'pdf':
-                    return await this.createModernPDF(title, cleanText);
+                    return await this.createModernPDF(title, contentWithoutTitle);
                 case 'txt':
-                    return await this.createTextFile(cleanText);
+                    return await this.createTextFile(contentWithoutTitle, title);
                 case 'html':
-                    return await this.createHTMLFile(title, cleanText);
+                    return await this.createHTMLFile(title, contentWithoutTitle);
                 case 'doc':
                 case 'docx':
-                    return await this.createModernDocFile(title, cleanText, 'docx');
+                    return await this.createModernDocFile(title, contentWithoutTitle, 'docx');
                 case 'png':
                 case 'jpg':
                 case 'jpeg':
                 case 'img':
-                    return await this.createModernTextImage(title, cleanText, targetFormat === 'img' ? 'png' : targetFormat);
+                    return await this.createModernTextImage(title, contentWithoutTitle, targetFormat === 'img' ? 'png' : targetFormat);
                 default:
                     return { success: false, error: `Text to ${targetFormat} conversion not supported` };
             }
@@ -260,27 +261,27 @@ class ModernConverterPlugin {
             if (inputFormat === 'pdf' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg' || targetFormat === 'img')) {
                 return await this.modernPdfToImage(filePath, targetFormat === 'img' ? 'png' : targetFormat, messageInfo);
             }
-            
+
             if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'pdf') {
                 return await this.modernDocxToPdf(filePath, fileName);
             }
-            
+
             if ((inputFormat === 'doc' || inputFormat === 'docx') && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg' || targetFormat === 'img')) {
                 return await this.modernDocxToImage(filePath, fileName, targetFormat === 'img' ? 'png' : targetFormat);
             }
-            
+
             if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'txt') {
                 return await this.modernDocxToText(filePath);
             }
-            
+
             if ((inputFormat === 'doc' || inputFormat === 'docx') && targetFormat === 'html') {
                 return await this.modernDocxToHtml(filePath);
             }
-            
+
             if (inputFormat === 'pdf' && targetFormat === 'txt') {
                 return await this.modernPdfToText(filePath);
             }
-            
+
             if (inputFormat === 'image' && (targetFormat === 'png' || targetFormat === 'jpg' || targetFormat === 'jpeg')) {
                 return await this.modernImageConversion(filePath, targetFormat);
             }
@@ -300,7 +301,7 @@ class ModernConverterPlugin {
     async modernPdfToImage(pdfPath, targetFormat, messageInfo) {
         try {
             console.log(`🎯 Modern PDF→Image conversion using pdf-to-img (zero dependencies)`);
-            
+
             const pageNumber = messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1;
             console.log(`📄 Converting page ${pageNumber} to ${targetFormat.toUpperCase()}`);
 
@@ -345,7 +346,7 @@ class ModernConverterPlugin {
 
         } catch (error) {
             console.error('Modern PDF to image error:', error);
-            
+
             // Fallback to enhanced method if pdf-to-img fails
             console.log('🔄 Falling back to enhanced text extraction method...');
             return await this.enhancedPdfToImageFallback(pdfPath, messageInfo.args[0] ? parseInt(messageInfo.args[0]) : 1);
@@ -356,9 +357,9 @@ class ModernConverterPlugin {
     async modernDocxToPdf(docxPath, fileName) {
         try {
             console.log(`🎯 Modern DOCX→PDF using LibreOffice engine`);
-            
+
             const docxBuffer = await fs.readFile(docxPath);
-            
+
             // Convert using LibreOffice engine (highest quality)
             const pdfBuffer = await new Promise((resolve, reject) => {
                 libre.convert(docxBuffer, '.pdf', undefined, (err, done) => {
@@ -371,7 +372,7 @@ class ModernConverterPlugin {
                 fileName.replace(/\.(docx?|doc)$/i, '.pdf') : 
                 `document_${Date.now()}.pdf`;
             const outputPath = path.join(__dirname, '..', 'tmp', outputFileName);
-            
+
             await fs.ensureDir(path.dirname(outputPath));
             await fs.writeFile(outputPath, pdfBuffer);
 
@@ -384,7 +385,7 @@ class ModernConverterPlugin {
 
         } catch (error) {
             console.error('Modern DOCX to PDF error:', error);
-            
+
             // Fallback to HTML-based method
             console.log('🔄 Falling back to HTML-based PDF generation...');
             return await this.docxToHtmlToPdfFallback(docxPath, fileName);
@@ -395,7 +396,7 @@ class ModernConverterPlugin {
     async modernDocxToImage(docxPath, fileName, targetFormat) {
         try {
             console.log(`🎯 Modern DOCX→Image pipeline: DOCX → PDF → ${targetFormat.toUpperCase()}`);
-            
+
             // Step 1: Modern DOCX → PDF
             const pdfResult = await this.modernDocxToPdf(docxPath, fileName);
             if (!pdfResult.success) {
@@ -406,13 +407,13 @@ class ModernConverterPlugin {
 
             // Step 2: Modern PDF → Image  
             const imageResult = await this.modernPdfToImage(pdfResult.filePath, targetFormat, { args: ['1'] });
-            
+
             // Clean up intermediate PDF
             console.log(`🗑️ Cleaning up intermediate PDF...`);
             await fs.unlink(pdfResult.filePath).catch((err) => {
                 console.warn(`⚠️ Could not delete intermediate PDF: ${err.message}`);
             });
-            
+
             if (!imageResult.success) {
                 throw new Error('PDF to image conversion failed');
             }
@@ -422,7 +423,7 @@ class ModernConverterPlugin {
 
         } catch (error) {
             console.error('Modern DOCX to image error:', error);
-            
+
             // Fallback to Puppeteer HTML method
             console.log('🔄 Falling back to Puppeteer HTML method...');
             return await this.docxToHtmlToImageFallback(docxPath, fileName, targetFormat);
@@ -433,13 +434,13 @@ class ModernConverterPlugin {
     async modernDocxToText(docxPath) {
         try {
             console.log(`🎯 Modern DOCX→Text using mammoth library`);
-            
+
             const result = await mammoth.extractRawText({ path: docxPath });
             const text = result.value;
-            
+
             const fileName = `extracted_text_${Date.now()}.txt`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, text, 'utf8');
 
@@ -460,7 +461,7 @@ class ModernConverterPlugin {
     async modernDocxToHtml(docxPath) {
         try {
             console.log(`🎯 Modern DOCX→HTML using mammoth with styling`);
-            
+
             const result = await mammoth.convertToHtml({ 
                 path: docxPath,
                 styleMap: [
@@ -469,24 +470,24 @@ class ModernConverterPlugin {
                     "p[style-name='Heading 2'] => h3"
                 ]
             });
-            
+
             // Extract title from the content
             const titleMatch = result.value.match(/<p><strong>([^<]+)<\/strong><\/p>/);
-            const extractedTitle = titleMatch ? titleMatch[1] : 'Converted Document';
-            
+            const extractedTitle = titleMatch ? titleMatch[1] : null;
+
             // Clean up the content - remove duplicate timestamps and title repetition
             let cleanContent = result.value;
-            
+
             // Remove duplicate "Generated by MATDEV Bot" lines
             cleanContent = cleanContent.replace(/<p>Generated by MATDEV Bot on [^<]+<\/p>/g, '');
             cleanContent = cleanContent.replace(/<p><em>Converted by MATDEV Bot on [^<]+<\/em><\/p>/g, '');
-            
+
             const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${extractedTitle}</title>
+    <title>${extractedTitle ? this.escapeHtml(extractedTitle) : 'Converted Document'}</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; margin: 40px; }
         h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
@@ -499,10 +500,10 @@ class ModernConverterPlugin {
     ${cleanContent}
 </body>
 </html>`;
-            
+
             const fileName = `document_${Date.now()}.html`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, html, 'utf8');
 
@@ -523,14 +524,14 @@ class ModernConverterPlugin {
     async modernImageConversion(imagePath, targetFormat) {
         try {
             console.log(`🎯 Modern image conversion using Sharp: → ${targetFormat.toUpperCase()}`);
-            
+
             const fileName = `converted_${Date.now()}.${targetFormat}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
 
             const sharpInstance = sharp(imagePath);
-            
+
             if (targetFormat === 'jpg' || targetFormat === 'jpeg') {
                 await sharpInstance.jpeg({ quality: 90 }).toFile(filePath);
             } else if (targetFormat === 'png') {
@@ -554,28 +555,28 @@ class ModernConverterPlugin {
     async createModernPDF(title, content) {
         try {
             console.log(`🎯 Creating modern PDF using Puppeteer`);
-            
+
             if (!this.browserInstance) {
                 await this.initializeBrowser();
             }
 
             const html = this.generateModernHTML(title, content);
-            const fileName = `${this.sanitizeFileName(title)}_${Date.now()}.pdf`;
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.pdf` : `document_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
 
             if (this.browserInstance) {
                 const page = await this.browserInstance.newPage();
                 await page.setContent(html, { waitUntil: 'networkidle0' });
-                
+
                 await page.pdf({
                     path: filePath,
                     format: 'A4',
                     margin: { top: '1in', bottom: '1in', left: '0.7in', right: '0.7in' },
                     printBackground: true
                 });
-                
+
                 await page.close();
             } else {
                 throw new Error('Browser not available');
@@ -590,7 +591,7 @@ class ModernConverterPlugin {
 
         } catch (error) {
             console.error('Modern PDF creation error:', error);
-            
+
             // Fallback to simple text PDF
             return await this.createSimpleTextPDF(title, content);
         }
@@ -606,10 +607,10 @@ class ModernConverterPlugin {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.escapeHtml(title)}</title>
+    <title>${this.escapeHtml(title || 'Document')}</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        
+
         body { 
             font-family: 'Inter', 'Segoe UI', Arial, sans-serif; 
             line-height: 1.7; 
@@ -618,13 +619,13 @@ class ModernConverterPlugin {
             padding: 0;
             background: #fff;
         }
-        
+
         .document { 
             max-width: 800px; 
             margin: 0 auto; 
             padding: 40px;
         }
-        
+
         h1 { 
             color: #1a365d; 
             border-bottom: 3px solid #3182ce; 
@@ -633,14 +634,14 @@ class ModernConverterPlugin {
             font-size: 28px;
             font-weight: 700;
         }
-        
+
         p { 
             margin-bottom: 18px; 
             text-align: justify; 
             font-size: 14px;
             line-height: 1.8;
         }
-        
+
         .footer { 
             margin-top: 40px; 
             padding-top: 10px;
@@ -653,7 +654,7 @@ class ModernConverterPlugin {
 </head>
 <body>
     <div class="document">
-        <h1>${this.escapeHtml(title)}</h1>
+        ${title ? `<h1>${this.escapeHtml(title)}</h1>` : ''}
         ${formattedContent}
         <div class="footer">MATDEV Bot</div>
     </div>
@@ -675,16 +676,16 @@ class ModernConverterPlugin {
             // Try to extract text from the PDF and create a document-like image
             let pdfText = '';
             let extractionStatus = 'success';
-            
+
             try {
                 console.log(`📄 Attempting enhanced PDF text extraction from ${pdfPath}`);
                 const pdfParse = require('pdf-parse');
                 const pdfBuffer = await fs.readFile(pdfPath);
                 const pdfData = await pdfParse(pdfBuffer);
                 pdfText = pdfData.text || '';
-                
+
                 console.log(`📝 Extracted text length: ${pdfText.length} characters`);
-                
+
                 if (!pdfText || pdfText.trim().length < 10) {
                     console.log('⚠️ Minimal text extracted, using enhanced fallback content');
                     pdfText = 'Document Conversion Complete\n\nYour document has been successfully processed using the modern conversion engine.\n\nThis document may contain:\n• Rich formatting and styling\n• Images and graphics\n• Tables and complex layouts\n• Special fonts and typography\n\nThe content has been preserved and converted with the latest 2024 methods.';
@@ -694,7 +695,7 @@ class ModernConverterPlugin {
                     extractionStatus = 'success';
                     console.log(`✅ Enhanced text processing complete`);
                 }
-                
+
             } catch (parseError) {
                 console.error('PDF text extraction failed:', parseError.message);
                 pdfText = 'Modern Document Conversion Complete\n\nYour document has been successfully processed using our 2024 conversion engine.\n\nNote: Advanced formatting preserved in original document structure.\n\nEngine: pdf-to-img + LibreOffice + Puppeteer + Sharp';
@@ -709,7 +710,7 @@ class ModernConverterPlugin {
 
             const processedText = this.preprocessTextForDisplay(pdfText, contentWidth);
             const paragraphs = this.splitIntoParagraphs(processedText);
-            
+
             let statusMessage = 'Modern Engine - Document Converted';
             let statusColor = '#2e7d32';
             if (extractionStatus === 'minimal_content') {
@@ -750,7 +751,7 @@ class ModernConverterPlugin {
     async docxToHtmlToPdfFallback(docxPath, fileName) {
         try {
             console.log('🔄 DOCX → HTML → PDF fallback using Puppeteer');
-            
+
             // Convert DOCX to HTML
             const htmlResult = await this.modernDocxToHtml(docxPath);
             if (!htmlResult.success) {
@@ -770,16 +771,16 @@ class ModernConverterPlugin {
             if (this.browserInstance) {
                 const page = await this.browserInstance.newPage();
                 const htmlContent = await fs.readFile(htmlResult.filePath, 'utf8');
-                
+
                 await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-                
+
                 await page.pdf({
                     path: outputPath,
                     format: 'A4',
                     margin: { top: '1in', bottom: '1in', left: '0.7in', right: '0.7in' },
                     printBackground: true
                 });
-                
+
                 await page.close();
             } else {
                 // Final fallback if no browser available
@@ -798,10 +799,10 @@ class ModernConverterPlugin {
 
         } catch (error) {
             console.error('DOCX to HTML to PDF fallback error:', error);
-            
+
             // Cleanup any temp files created during failed conversion
             await this.cleanupTempFiles();
-            
+
             // Ultimate fallback: create a simple text-based PDF
             return await this.createSimpleDocxFallbackPDF(docxPath, fileName);
         }
@@ -810,7 +811,7 @@ class ModernConverterPlugin {
     async createSimpleDocxFallbackPDF(docxPath, fileName) {
         try {
             console.log('🔄 Creating simple DOCX fallback PDF using text extraction');
-            
+
             // Extract text from DOCX
             const textResult = await this.modernDocxToText(docxPath);
             if (!textResult.success) {
@@ -822,14 +823,14 @@ class ModernConverterPlugin {
 
             const title = 'Converted Document';
             const pdfResult = await this.createSimpleTextPDF(title, textContent);
-            
+
             if (pdfResult.success && fileName) {
                 // Check if the source file actually exists before renaming
                 if (await fs.pathExists(pdfResult.filePath)) {
                     // Rename the file to match original
                     const newFileName = fileName.replace(/\.(docx?|doc)$/i, '.pdf');
                     const newPath = path.join(path.dirname(pdfResult.filePath), newFileName);
-                    
+
                     try {
                         await fs.rename(pdfResult.filePath, newPath);
                         pdfResult.filePath = newPath;
@@ -854,7 +855,7 @@ class ModernConverterPlugin {
     async docxToHtmlToImageFallback(docxPath, fileName, targetFormat) {
         try {
             console.log('🔄 DOCX → HTML → Image fallback using Puppeteer');
-            
+
             // Convert DOCX to HTML
             const htmlResult = await this.modernDocxToHtml(docxPath);
             if (!htmlResult.success) {
@@ -874,17 +875,17 @@ class ModernConverterPlugin {
             if (this.browserInstance) {
                 const page = await this.browserInstance.newPage();
                 const htmlContent = await fs.readFile(htmlResult.filePath, 'utf8');
-                
+
                 await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
                 await page.setViewport({ width: 850, height: 1100 });
-                
+
                 await page.screenshot({
                     path: outputPath,
                     type: targetFormat === 'jpg' ? 'jpeg' : 'png',
                     quality: targetFormat === 'jpg' ? 90 : undefined,
                     fullPage: true
                 });
-                
+
                 await page.close();
             }
 
@@ -908,7 +909,7 @@ class ModernConverterPlugin {
     detectFormat(fileName) {
         if (!fileName) return 'unknown';
         const ext = path.extname(fileName).toLowerCase();
-        
+
         const formatMap = {
             '.pdf': 'pdf',
             '.doc': 'doc', 
@@ -919,7 +920,7 @@ class ModernConverterPlugin {
             '.jpg': 'image',
             '.jpeg': 'image'
         };
-        
+
         return formatMap[ext] || 'unknown';
     }
 
@@ -933,10 +934,10 @@ class ModernConverterPlugin {
         const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
         if (lines.length > 0) {
             let firstLine = lines[0];
-            
+
             // Remove **bold** markdown if present
             firstLine = firstLine.replace(/^\*\*(.+)\*\*$/, '$1');
-            
+
             // Check if it looks like a title
             if (firstLine.length <= 100 && firstLine.length >= 3 && !firstLine.includes('Generated by') && !firstLine.includes('Converted by')) {
                 return {
@@ -986,7 +987,7 @@ class ModernConverterPlugin {
     splitIntoParagraphs(text) {
         const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
         const result = [];
-        
+
         for (const para of paragraphs) {
             const lines = this.wrapTextAdvanced(para.trim(), 85);
             result.push({
@@ -995,13 +996,13 @@ class ModernConverterPlugin {
                 isEmpty: para.trim().length === 0
             });
         }
-        
+
         return result.slice(0, 15);
     }
 
     wrapTextAdvanced(text, lineLength) {
         if (!text) return [''];
-        
+
         const words = text.split(' ');
         const lines = [];
         let currentLine = '';
@@ -1020,7 +1021,7 @@ class ModernConverterPlugin {
                 }
             }
         }
-        
+
         if (currentLine) lines.push(currentLine);
         return lines.length > 0 ? lines : [''];
     }
@@ -1029,54 +1030,54 @@ class ModernConverterPlugin {
         let yPosition = margin + 20;
         const lineHeight = 20;
         const paragraphSpacing = 25;
-        
+
         let contentElements = [];
-        
+
         // Modern header design
         contentElements.push(`
             <rect x="${margin}" y="${margin}" width="${contentWidth}" height="40" fill="#f8f9fa" stroke="${statusColor}" stroke-width="2" rx="8"/>
             <text x="${margin + 15}" y="${margin + 18}" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="bold" fill="${statusColor}">${this.escapeXml(statusMessage)}</text>
             <text x="${margin + 15}" y="${margin + 32}" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#666">Page ${pageNumber} • MATDEV Bot</text>
         `);
-        
+
         yPosition += 70;
-        
+
         const contentHeight = Math.min(height - yPosition - margin, paragraphs.length * 100);
         contentElements.push(`
             <rect x="${margin}" y="${yPosition}" width="${contentWidth}" height="${contentHeight}" fill="#ffffff" stroke="#e0e0e0" stroke-width="1" rx="4"/>
         `);
-        
+
         yPosition += 25;
-        
+
         for (let i = 0; i < Math.min(paragraphs.length, 12); i++) {
             const paragraph = paragraphs[i];
-            
+
             if (yPosition > height - margin - 50) break;
-            
+
             for (let j = 0; j < Math.min(paragraph.lines.length, 4); j++) {
                 const line = paragraph.lines[j];
                 if (!line.trim()) continue;
-                
+
                 const fontSize = j === 0 && i === 0 ? 13 : 12;
                 const fontWeight = j === 0 && paragraph.lines.length > 1 ? 'bold' : 'normal';
-                
+
                 contentElements.push(`
                     <text x="${margin + 20}" y="${yPosition}" font-family="Georgia, serif" font-size="${fontSize}" font-weight="${fontWeight}" fill="#2c3e50">${this.escapeXml(line)}</text>
                 `);
-                
+
                 yPosition += lineHeight;
-                
+
                 if (yPosition > height - margin - 30) break;
             }
-            
+
             yPosition += paragraphSpacing;
         }
-        
+
         const footerY = height - margin + 10;
         contentElements.push(`
             <text x="${width/2}" y="${footerY}" font-family="Segoe UI, Arial, sans-serif" font-size="8" fill="#9e9e9e" text-anchor="middle">MATDEV Bot - ${new Date().toLocaleDateString()}</text>
         `);
-        
+
         return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
             <rect width="100%" height="100%" fill="#fafafa"/>
             <defs>
@@ -1097,7 +1098,7 @@ class ModernConverterPlugin {
                 const safeTitle = customTitle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
                 fileName = `${safeTitle}_${Date.now()}.txt`;
             } else {
-                fileName = `text_${Date.now()}.txt`;
+                fileName = `document_${Date.now()}.txt`;
             }
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
@@ -1118,9 +1119,9 @@ class ModernConverterPlugin {
     async createHTMLFile(title, content) {
         try {
             const html = this.generateModernHTML(title, content);
-            const fileName = `${this.sanitizeFileName(title)}_${Date.now()}.html`;
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.html` : `document_${Date.now()}.html`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, html, 'utf8');
 
@@ -1145,18 +1146,19 @@ class ModernConverterPlugin {
             docx.title = title;
             docx.subject = 'Document Conversion';
 
-            const titleParagraph = docx.createP({ align: 'center' });
-            titleParagraph.addText(title, { 
-                font_size: 18, 
-                bold: true, 
-                color: '1a365d',
-                font_face: 'Segoe UI'
-            });
-
-            docx.createP();
+            if (title) {
+                const titleParagraph = docx.createP({ align: 'center' });
+                titleParagraph.addText(title, { 
+                    font_size: 18, 
+                    bold: true, 
+                    color: '1a365d',
+                    font_face: 'Segoe UI'
+                });
+                docx.createP();
+            }
 
             const paragraphs = content.split('\n\n');
-            
+
             for (const paragraph of paragraphs) {
                 if (paragraph.trim()) {
                     const p = docx.createP();
@@ -1177,7 +1179,7 @@ class ModernConverterPlugin {
                 font_face: 'Segoe UI'
             });
 
-            const fileName = `${this.sanitizeFileName(title)}_${Date.now()}.${format}`;
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.${format}` : `document_${Date.now()}.${format}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             await new Promise((resolve, reject) => {
@@ -1202,14 +1204,14 @@ class ModernConverterPlugin {
     async createModernTextImage(title, content, targetFormat) {
         try {
             console.log(`🎨 Creating modern text image: ${targetFormat}`);
-            
+
             const width = 850;
             const height = 1100;
             const margin = 60;
-            
+
             const processedText = this.preprocessTextForDisplay(content, width - margin * 2);
             const paragraphs = this.splitIntoParagraphs(processedText);
-            
+
             const svgContent = this.createEnhancedDocumentSVG({
                 width, height, margin, 
                 contentWidth: width - margin * 2,
@@ -1220,7 +1222,7 @@ class ModernConverterPlugin {
                 extractionStatus: 'success'
             });
 
-            const fileName = `text_image_${Date.now()}.${targetFormat}`;
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.${targetFormat}` : `document_${Date.now()}.${targetFormat}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
 
             const imageBuffer = await sharp(Buffer.from(svgContent))
@@ -1253,27 +1255,29 @@ class ModernConverterPlugin {
         // Simple fallback if Puppeteer fails
         try {
             const PDFDocument = require('pdfkit');
-            const fileName = `${this.sanitizeFileName(title)}_${Date.now()}.pdf`;
+            const fileName = title ? `${this.sanitizeFileName(title)}_${Date.now()}.pdf` : `document_${Date.now()}.pdf`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
-            
+
             return new Promise((resolve, reject) => {
                 const doc = new PDFDocument();
                 const stream = fs.createWriteStream(filePath);
-                
+
                 doc.pipe(stream);
-                
-                doc.fontSize(16).text(title, { align: 'center' });
-                doc.moveDown(2);
+
+                if (title) {
+                    doc.fontSize(16).text(title, { align: 'center' });
+                    doc.moveDown(2);
+                }
                 doc.fontSize(12).text(content);
-                
+
                 // Add small footer
                 doc.moveDown(3);
                 doc.fontSize(8).fillColor('gray').text(`MATDEV Bot - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
-                
+
                 doc.end();
-                
+
                 stream.on('finish', () => {
                     resolve({
                         success: true,
@@ -1281,7 +1285,7 @@ class ModernConverterPlugin {
                         fileName: fileName
                     });
                 });
-                
+
                 stream.on('error', (error) => {
                     reject({ success: false, error: 'Failed to create PDF' });
                 });
@@ -1295,14 +1299,14 @@ class ModernConverterPlugin {
     async modernPdfToText(pdfPath) {
         try {
             console.log('🎯 Modern PDF→Text extraction');
-            
+
             const pdfParse = require('pdf-parse');
             const pdfBuffer = await fs.readFile(pdfPath);
             const pdfData = await pdfParse(pdfBuffer);
-            
+
             const fileName = `extracted_text_${Date.now()}.txt`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
-            
+
             await fs.ensureDir(path.dirname(filePath));
             await fs.writeFile(filePath, pdfData.text, 'utf8');
 
@@ -1327,33 +1331,33 @@ class ModernConverterPlugin {
             if (quotedMessage.conversation) {
                 return quotedMessage.conversation;
             }
-            
+
             if (quotedMessage.extendedTextMessage?.text) {
                 return quotedMessage.extendedTextMessage.text;
             }
-            
+
             if (quotedMessage.imageMessage?.caption) {
                 return quotedMessage.imageMessage.caption;
             }
-            
+
             if (quotedMessage.videoMessage?.caption) {
                 return quotedMessage.videoMessage.caption;
             }
-            
+
             if (quotedMessage.documentMessage?.caption) {
                 return quotedMessage.documentMessage.caption;
             }
-            
+
             // Handle list messages
             if (quotedMessage.listMessage?.description) {
                 return quotedMessage.listMessage.description;
             }
-            
+
             // Handle template messages
             if (quotedMessage.templateMessage?.hydratedTemplate?.hydratedContentText) {
                 return quotedMessage.templateMessage.hydratedTemplate.hydratedContentText;
             }
-            
+
             return null;
         } catch (error) {
             console.error('Error extracting quoted message content:', error);
@@ -1367,7 +1371,7 @@ class ModernConverterPlugin {
     async downloadQuotedMedia(messageInfo, quotedMessage) {
         try {
             const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-            
+
             // Create a message object for download
             const messageToDownload = {
                 key: {
@@ -1412,7 +1416,7 @@ class ModernConverterPlugin {
 
             const tempDir = path.join(__dirname, '..', 'tmp');
             const filePath = path.join(tempDir, fileName);
-            
+
             await fs.writeFile(filePath, buffer);
 
             return {
@@ -1468,15 +1472,15 @@ class ModernConverterPlugin {
             if (await fs.pathExists(tmpDir)) {
                 const files = await fs.readdir(tmpDir);
                 const now = Date.now();
-                
+
                 for (const file of files) {
                     const filePath = path.join(tmpDir, file);
                     const stats = await fs.stat(filePath);
-                    
+
                     // Remove files older than 10 minutes or with recent timestamp in name
                     const isOld = (now - stats.mtime.getTime()) > (10 * 60 * 1000);
                     const hasRecentTimestamp = file.includes(now.toString().substring(0, 10));
-                    
+
                     if (isOld || hasRecentTimestamp) {
                         await fs.unlink(filePath);
                         console.log(`🗑️ Cleaned up temp file: ${file}`);
