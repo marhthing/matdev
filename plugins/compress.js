@@ -33,7 +33,7 @@ class CompressPlugin {
         };
 
         // Fixed FPS for all outputs (WhatsApp optimization)
-        this.targetFPS = 25;
+        this.targetFPS = 23.976;
 
         // File size constraints for 1-1.5 minute videos
         this.targetFileSize = { min: 8, max: 10 }; // Target: 8-10 MB total for 1-1.5 min videos
@@ -255,7 +255,7 @@ class CompressPlugin {
                          `📊 Original: ${(originalSize / (1024 * 1024)).toFixed(2)} MB\n` +
                          `📊 Compressed: ${sizeMB} MB\n` +
                          `📈 Savings: ${compressionRatio}%\n` +
-                         `⚙️ Settings: ${videoInfo.fps}→25 FPS (smart conversion), CRF quality, ${optimalBitrate.audio}k audio\n` +
+                         `⚙️ Settings: ${videoInfo.fps}→23.976 FPS (smart conversion), CRF quality, ${optimalBitrate.audio}k audio\n` +
                          `🎛️ Mode: ${compressionModeInfo[optimalBitrate.compressionMode] || 'Standard'}`;
 
             // Add specific warnings based on compression mode
