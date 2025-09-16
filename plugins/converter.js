@@ -729,6 +729,97 @@ class ModernConverterPlugin {
         }
     }
 
+    async docxToHtmlToPdfFallback(docxPath, fileName) {
+        try {
+            console.log('🔄 DOCX → HTML → PDF fallback using Puppeteer');
+            
+            // Convert DOCX to HTML
+            const htmlResult = await this.modernDocxToHtml(docxPath);
+            if (!htmlResult.success) {
+                throw new Error('DOCX to HTML conversion failed');
+            }
+
+            // Convert HTML to PDF using Puppeteer
+            if (!this.browserInstance) {
+                await this.initializeBrowser();
+            }
+
+            const outputFileName = fileName ? 
+                fileName.replace(/\.(docx?|doc)$/i, '.pdf') : 
+                `document_${Date.now()}.pdf`;
+            const outputPath = path.join(__dirname, '..', 'tmp', outputFileName);
+
+            if (this.browserInstance) {
+                const page = await this.browserInstance.newPage();
+                const htmlContent = await fs.readFile(htmlResult.filePath, 'utf8');
+                
+                await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+                
+                await page.pdf({
+                    path: outputPath,
+                    format: 'A4',
+                    margin: { top: '1in', bottom: '1in', left: '0.7in', right: '0.7in' },
+                    printBackground: true
+                });
+                
+                await page.close();
+            } else {
+                // Final fallback if no browser available
+                throw new Error('Browser not available for PDF generation');
+            }
+
+            // Cleanup HTML file
+            await fs.unlink(htmlResult.filePath).catch(() => {});
+
+            console.log(`✅ DOCX → HTML → PDF fallback complete: ${outputFileName}`);
+            return {
+                success: true,
+                filePath: outputPath,
+                fileName: outputFileName
+            };
+
+        } catch (error) {
+            console.error('DOCX to HTML to PDF fallback error:', error);
+            
+            // Ultimate fallback: create a simple text-based PDF
+            return await this.createSimpleDocxFallbackPDF(docxPath, fileName);
+        }
+    }
+
+    async createSimpleDocxFallbackPDF(docxPath, fileName) {
+        try {
+            console.log('🔄 Creating simple DOCX fallback PDF using text extraction');
+            
+            // Extract text from DOCX
+            const textResult = await this.modernDocxToText(docxPath);
+            if (!textResult.success) {
+                throw new Error('Could not extract text from DOCX');
+            }
+
+            const textContent = await fs.readFile(textResult.filePath, 'utf8');
+            await fs.unlink(textResult.filePath).catch(() => {}); // Cleanup temp text file
+
+            const title = 'Converted Document';
+            const pdfResult = await this.createSimpleTextPDF(title, textContent);
+            
+            if (pdfResult.success && fileName) {
+                // Rename the file to match original
+                const newFileName = fileName.replace(/\.(docx?|doc)$/i, '.pdf');
+                const newPath = path.join(path.dirname(pdfResult.filePath), newFileName);
+                
+                await fs.rename(pdfResult.filePath, newPath);
+                pdfResult.filePath = newPath;
+                pdfResult.fileName = newFileName;
+            }
+
+            return pdfResult;
+
+        } catch (error) {
+            console.error('Simple DOCX fallback PDF error:', error);
+            return { success: false, error: 'Failed to convert DOCX to PDF using fallback methods' };
+        }
+    }
+
     async docxToHtmlToImageFallback(docxPath, fileName, targetFormat) {
         try {
             console.log('🔄 DOCX → HTML → Image fallback using Puppeteer');
