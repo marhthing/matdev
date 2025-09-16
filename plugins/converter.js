@@ -14,7 +14,7 @@
  */
 
 const config = require('../config');
-const FileConverter = require('../converter.js');
+const FileConverter = require('../lib/converter.js');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const fs = require('fs').promises;
 
