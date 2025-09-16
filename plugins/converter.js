@@ -80,6 +80,8 @@ Just tag any document/text and use the target format command!
             // Normalize target format
             if (targetFormat === 'img') targetFormat = 'png';
             
+            // Clean converter - no debug logging needed
+
             // Check for quoted message first (like compress.js does)
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                 messageInfo.message?.quotedMessage;
@@ -101,31 +103,67 @@ Just tag any document/text and use the target format command!
             let filePath = null;
             let fileMessage = null;
 
-            // Check for documents, images, videos in quoted message
-            if (quotedMessage) {
+            // Check for direct file attachments FIRST (this is what user is sending)
+            if (messageInfo.message?.documentMessage) {
+                fileMessage = messageInfo.message.documentMessage;
+                inputFormat = this.detectFileFormat(fileMessage);
+                console.log('🔍 Found direct document:', { fileName: fileMessage.fileName, mimetype: fileMessage.mimetype, detectedFormat: inputFormat });
+            } else if (messageInfo.message?.imageMessage) {
+                fileMessage = messageInfo.message.imageMessage;
+                inputFormat = 'image';
+                console.log('🔍 Found direct image');
+            } else if (messageInfo.message?.videoMessage) {
+                fileMessage = messageInfo.message.videoMessage;
+                inputFormat = 'video';
+                console.log('🔍 Found direct video');
+            }
+            
+            // If no direct attachment, check for quoted message
+            if (!fileMessage && quotedMessage) {
+                
                 if (quotedMessage.documentMessage) {
                     fileMessage = quotedMessage.documentMessage;
                     inputFormat = this.detectFileFormat(fileMessage);
+                    console.log('🔍 Found quoted document:', { fileName: fileMessage.fileName, mimetype: fileMessage.mimetype, detectedFormat: inputFormat });
+                } else if (quotedMessage.documentWithCaptionMessage) {
+                    // Handle documents sent with captions (PDF with .doc caption)
+                    fileMessage = quotedMessage.documentWithCaptionMessage.message?.documentMessage;
+                    if (fileMessage) {
+                        inputFormat = this.detectFileFormat(fileMessage);
+                    }
                 } else if (quotedMessage.imageMessage) {
                     fileMessage = quotedMessage.imageMessage;
                     inputFormat = 'image';
+                    console.log('🔍 Found quoted image');
                 } else if (quotedMessage.videoMessage) {
                     fileMessage = quotedMessage.videoMessage;
                     inputFormat = 'video';
+                    console.log('🔍 Found quoted video');
                 }
-            } 
-            
-            // Check for direct file attachments
-            if (!fileMessage) {
-                if (messageInfo.message?.documentMessage) {
-                    fileMessage = messageInfo.message.documentMessage;
+            }
+
+            // Check if this is a document sent with caption in context (different structure)
+            if (!fileMessage && messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
+                const contextQuoted = messageInfo.message.extendedTextMessage.contextInfo.quotedMessage;
+                
+                if (contextQuoted.documentMessage) {
+                    fileMessage = contextQuoted.documentMessage;
                     inputFormat = this.detectFileFormat(fileMessage);
-                } else if (messageInfo.message?.imageMessage) {
-                    fileMessage = messageInfo.message.imageMessage;
+                    console.log('🔍 Found context quoted document:', { fileName: fileMessage.fileName, mimetype: fileMessage.mimetype, detectedFormat: inputFormat });
+                } else if (contextQuoted.documentWithCaptionMessage) {
+                    // Handle documents sent with captions
+                    fileMessage = contextQuoted.documentWithCaptionMessage.message?.documentMessage;
+                    if (fileMessage) {
+                        inputFormat = this.detectFileFormat(fileMessage);
+                    }
+                } else if (contextQuoted.imageMessage) {
+                    fileMessage = contextQuoted.imageMessage;
                     inputFormat = 'image';
-                } else if (messageInfo.message?.videoMessage) {
-                    fileMessage = messageInfo.message.videoMessage;
+                    console.log('🔍 Found context quoted image');
+                } else if (contextQuoted.videoMessage) {
+                    fileMessage = contextQuoted.videoMessage;
                     inputFormat = 'video';
+                    console.log('🔍 Found context quoted video');
                 }
             }
 
@@ -136,7 +174,10 @@ Just tag any document/text and use the target format command!
                         `📁 **Supported formats:** PDF, DOC, DOCX, Images, HTML, Text`);
                     return;
                 }
-                filePath = await this.downloadFileRobust(fileMessage, quotedMessage ? 'quoted' : 'direct');
+                // For documentWithCaptionMessage, we need to pass the full quoted message structure
+                const downloadType = quotedMessage ? 'quoted' : 'direct';
+                const fullMessageForDownload = quotedMessage ? quotedMessage : { documentMessage: fileMessage };
+                filePath = await this.downloadFileRobust(fileMessage, downloadType, fullMessageForDownload);
             } else if (textContent) {
                 inputFormat = 'text';
             } else {
@@ -870,7 +911,7 @@ Just tag any document/text and use the target format command!
         }
     }
 
-    async downloadFileRobust(fileMessage, type = 'direct') {
+    async downloadFileRobust(fileMessage, type = 'direct', fullMessage = null) {
         try {
             const fileName = fileMessage.fileName || `temp_file_${Date.now()}`;
             const filePath = path.join(__dirname, '..', 'tmp', fileName);
@@ -879,10 +920,24 @@ Just tag any document/text and use the target format command!
             
             let buffer;
             
-            if (type === 'quoted') {
-                // For quoted messages, use the more complex download method
+            if (type === 'quoted' && fullMessage) {
+                // For quoted messages with full structure (like documentWithCaptionMessage)
                 const { downloadMediaMessage } = require('baileys');
-                buffer = await downloadMediaMessage(fileMessage, 'buffer', {}, {
+                
+                // Create proper message structure for download
+                const messageToDownload = {
+                    key: {}, // Will be filled by Baileys
+                    message: fullMessage
+                };
+                
+                buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                    logger: console,
+                    reuploadRequest: this.bot.sock.updateMediaMessage
+                });
+            } else if (type === 'quoted') {
+                // For simple quoted documents
+                const { downloadMediaMessage } = require('baileys');
+                buffer = await downloadMediaMessage({ documentMessage: fileMessage }, 'buffer', {}, {
                     logger: console,
                     reuploadRequest: this.bot.sock.updateMediaMessage
                 });
