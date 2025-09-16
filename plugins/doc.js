@@ -395,16 +395,17 @@ class DOCConverterPlugin {
     generateSafeFilename(baseName) {
         let cleanName = baseName || 'document';
         
-        // Remove any existing extensions
-        cleanName = cleanName.replace(/\.(docx?|pdf|txt|html)$/i, '');
+        // Remove ALL existing extensions (anywhere in filename, not just at end)
+        cleanName = cleanName.replace(/\.(docx?|pdf|txt|html)/gi, '');
         
-        // Remove timestamp patterns
-        cleanName = cleanName.replace(/_\d+$/i, '');
+        // Remove ALL timestamp patterns (not just at end)
+        cleanName = cleanName.replace(/_\d+/g, '');
         
         // Sanitize filename - only allow safe characters
         cleanName = cleanName
             .replace(/[^a-zA-Z0-9\s\-_]/g, '')
             .replace(/\s+/g, '_')
+            .replace(/_+/g, '_') // Replace multiple underscores with single
             .substring(0, 50)
             .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
         
