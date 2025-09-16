@@ -945,6 +945,7 @@ Just tag any document/text and use the target format command!
 
     async pdfToImageFallback(pdfPath, pageNumber) {
         try {
+            console.log(`🔄 PDF to image fallback - processing ${pdfPath}`);
             const fileName = `fallback_pdf_page_${pageNumber}_${Date.now()}.png`;
             const outputDir = path.join(__dirname, '..', 'tmp');
             const filePath = path.join(outputDir, fileName);
@@ -956,23 +957,28 @@ Just tag any document/text and use the target format command!
             let extractionStatus = 'success';
             
             try {
+                console.log(`📄 Attempting PDF text extraction from ${pdfPath}`);
                 const pdfParse = require('pdf-parse');
                 const pdfBuffer = await fs.readFile(pdfPath);
                 const pdfData = await pdfParse(pdfBuffer);
                 pdfText = pdfData.text || '';
                 
+                console.log(`📝 Extracted text length: ${pdfText.length} characters`);
+                
                 // If no text extracted or very little text
                 if (!pdfText || pdfText.trim().length < 10) {
+                    console.log('⚠️ Minimal text extracted, using fallback content');
                     pdfText = 'Document converted successfully.\n\nThis PDF may contain images, special formatting, or complex layout that cannot be displayed as plain text.\n\nThe original document content has been preserved in the PDF format.';
                     extractionStatus = 'minimal_content';
                 } else {
                     // Clean and prepare text for display
                     pdfText = pdfText.trim();
                     extractionStatus = 'success';
+                    console.log(`✅ Text extraction successful - first 100 chars: ${pdfText.substring(0, 100)}...`);
                 }
                 
             } catch (parseError) {
-                console.warn('PDF text extraction failed:', parseError.message);
+                console.error('PDF text extraction failed:', parseError.message);
                 pdfText = 'Document converted successfully.\n\nThe content from your original document has been processed and saved.\n\nSome formatting may not be visible in this text representation, but the document conversion was completed.';
                 extractionStatus = 'extraction_failed';
             }
@@ -982,52 +988,67 @@ Just tag any document/text and use the target format command!
             const width = 800;
             const height = 1000;
 
-            // Clean and limit text for display
-            const cleanText = pdfText.replace(/[^\x20-\x7E\n\r\t]/g, ' ').substring(0, 2000);
-            const textLines = this.wrapText(cleanText, 65);
-            const displayLines = textLines.slice(0, 45);
+            // Clean and limit text for display - be more aggressive with cleaning
+            const cleanText = pdfText
+                .replace(/[^\x20-\x7E\n\r\t]/g, ' ') // Remove non-printable chars
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim()
+                .substring(0, 3000); // Increase limit for more content
+                
+            const textLines = this.wrapText(cleanText, 75); // Increase line length
+            const displayLines = textLines.slice(0, 50); // Show more lines
 
             // Create status message based on extraction result
-            let statusMessage = 'Document converted to image';
+            let statusMessage = 'Document Content Extracted Successfully';
             if (extractionStatus === 'minimal_content') {
-                statusMessage = 'Document converted - Complex formatting detected';
+                statusMessage = 'Document Converted - Limited Text Content';
             } else if (extractionStatus === 'extraction_failed') {
-                statusMessage = 'Document converted - Text extraction limited';
+                statusMessage = 'Document Converted - Text Extraction Failed';
             }
 
-            // Create a clean SVG without problematic characters
+            console.log(`🎨 Creating image with ${displayLines.length} lines of text`);
+
+            // Create a clean SVG with better formatting
             const svgContent = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
 <rect width="100%" height="100%" fill="white"/>
-<rect x="10" y="10" width="${width-20}" height="40" fill="#f0f8ff" stroke="#007acc" stroke-width="1" rx="5"/>
-<text x="20" y="35" font-family="Arial" font-size="12" fill="#007acc" font-weight="bold">${this.escapeXml(statusMessage)}</text>
-<text x="20" y="70" font-family="Arial" font-size="14" fill="black">
+<rect x="10" y="10" width="${width-20}" height="50" fill="#f0f8ff" stroke="#007acc" stroke-width="1" rx="5"/>
+<text x="20" y="35" font-family="Arial" font-size="14" fill="#007acc" font-weight="bold">${this.escapeXml(statusMessage)}</text>
+<text x="20" y="55" font-family="Arial" font-size="12" fill="#666">Page ${pageNumber} • Generated by MATDEV Bot</text>
+<rect x="10" y="70" width="${width-20}" height="${height-90}" fill="#fafafa" stroke="#ddd" stroke-width="1" rx="3"/>
+<text x="25" y="95" font-family="Courier, monospace" font-size="11" fill="black">
 ${displayLines.map((line, i) => {
     const cleanLine = this.escapeXml(line.trim());
-    const yPos = 90 + (i * 18);
-    return `<tspan x="20" y="${yPos}">${cleanLine}</tspan>`;
+    const yPos = 110 + (i * 16);
+    return `<tspan x="25" y="${yPos}">${cleanLine}</tspan>`;
 }).join('\n')}
 </text>
-<text x="20" y="${height - 30}" font-family="Arial" font-size="10" fill="#666">Generated by MATDEV Bot • Page ${pageNumber}</text>
 </svg>`;
 
             // Convert SVG to PNG using Sharp
-            const imageBuffer = await sharp(Buffer.from(svgContent))
-                .png()
-                .toBuffer();
+            try {
+                const imageBuffer = await sharp(Buffer.from(svgContent))
+                    .png()
+                    .toBuffer();
 
-            await fs.writeFile(filePath, imageBuffer);
+                await fs.writeFile(filePath, imageBuffer);
+                console.log(`✅ Successfully created image: ${filePath}`);
 
-            return {
-                success: true,
-                filePath: filePath,
-                fileName: fileName
-            };
+                return {
+                    success: true,
+                    filePath: filePath,
+                    fileName: fileName
+                };
+            } catch (sharpError) {
+                console.error('Sharp SVG conversion failed:', sharpError.message);
+                throw sharpError; // Let it fall through to final fallback
+            }
 
         } catch (error) {
             console.error('PDF to image fallback error:', error);
 
-            // Create simple success image using Sharp directly without SVG
+            // Final fallback: Create simple success image
             try {
+                console.log('🔄 Using final fallback method...');
                 const fileName = `doc_converted_${Date.now()}.png`;
                 const outputDir = path.join(__dirname, '..', 'tmp');
                 const filePath = path.join(outputDir, fileName);
@@ -1038,19 +1059,19 @@ ${displayLines.map((line, i) => {
                 const width = 600;
                 const height = 400;
                 
-                const successSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-<rect width="100%" height="100%" fill="#f8f9fa"/>
-<rect x="50" y="50" width="${width-100}" height="${height-100}" fill="white" stroke="#28a745" stroke-width="2" rx="10"/>
-<circle cx="${width/2}" cy="150" r="30" fill="#28a745"/>
-<text x="${width/2}" y="160" font-family="Arial" font-size="24" fill="white" text-anchor="middle">✓</text>
-<text x="${width/2}" y="220" font-family="Arial" font-size="18" fill="#333" text-anchor="middle" font-weight="bold">Document Converted Successfully</text>
-<text x="${width/2}" y="250" font-family="Arial" font-size="14" fill="#666" text-anchor="middle">Your DOC file has been converted to image format</text>
-<text x="${width/2}" y="280" font-family="Arial" font-size="12" fill="#999" text-anchor="middle">Complex formatting preserved in conversion process</text>
-</svg>`;
+                // Create basic colored rectangle instead of SVG
+                const colorBuffer = Buffer.alloc(width * height * 3);
+                for (let i = 0; i < colorBuffer.length; i += 3) {
+                    colorBuffer[i] = 248;     // R
+                    colorBuffer[i + 1] = 249; // G  
+                    colorBuffer[i + 2] = 250; // B
+                }
 
-                const imageBuffer = await sharp(Buffer.from(successSvg))
-                    .png()
-                    .toBuffer();
+                const imageBuffer = await sharp(colorBuffer, {
+                    raw: { width, height, channels: 3 }
+                })
+                .png()
+                .toBuffer();
 
                 await fs.writeFile(filePath, imageBuffer);
 
@@ -1468,46 +1489,70 @@ ${displayLines.map((line, i) => {
 
     async convertDocToImageViaPdf(docPath, originalFileName = '', targetFormat = 'png') {
         try {
-            console.log(`🔄 Converting DOC to ${targetFormat.toUpperCase()} via PDF intermediate step...`);
+            console.log(`🔄 Starting DOC to ${targetFormat.toUpperCase()} conversion via PDF...`);
+            console.log(`📁 Source file: ${docPath}`);
+            console.log(`📄 Original filename: ${originalFileName || 'Unknown'}`);
             
             // Step 1: Convert DOC/DOCX to PDF
+            console.log(`📝 Step 1: Converting DOC/DOCX to PDF...`);
             const pdfResult = await this.convertDocToPdf(docPath, originalFileName);
             
             if (!pdfResult.success) {
+                console.error(`❌ Step 1 failed: ${pdfResult.error || 'Unknown error'}`);
                 return {
                     success: false,
                     error: 'Failed to convert document to PDF in intermediate step'
                 };
             }
+            
+            console.log(`✅ Step 1 complete: PDF created at ${pdfResult.filePath}`);
 
             // Step 2: Convert the generated PDF to image
+            console.log(`🖼️ Step 2: Converting PDF to ${targetFormat.toUpperCase()} image...`);
             const pageNumber = 1; // Default to first page
             const imageResult = await this.convertPdfToImageSimple(pdfResult.filePath, pageNumber);
             
             // Clean up the intermediate PDF file
-            await fs.unlink(pdfResult.filePath).catch(() => {});
+            console.log(`🗑️ Cleaning up intermediate PDF file...`);
+            await fs.unlink(pdfResult.filePath).catch((err) => {
+                console.warn(`⚠️ Could not delete intermediate PDF: ${err.message}`);
+            });
             
             if (!imageResult.success) {
+                console.error(`❌ Step 2 failed: ${imageResult.error || 'Unknown error'}`);
                 return {
                     success: false,
                     error: 'Failed to convert PDF to image in final step'
                 };
             }
+            
+            console.log(`✅ Step 2 complete: Image created at ${imageResult.filePath}`);
 
-            // If target format is different from PNG, convert it
+            // Step 3: Convert format if needed
             if (targetFormat !== 'png') {
+                console.log(`🔄 Step 3: Converting PNG to ${targetFormat.toUpperCase()}...`);
                 const finalResult = await this.convertImageFormat(imageResult.filePath, targetFormat);
                 
                 // Clean up the intermediate PNG file
-                await fs.unlink(imageResult.filePath).catch(() => {});
+                console.log(`🗑️ Cleaning up intermediate PNG file...`);
+                await fs.unlink(imageResult.filePath).catch((err) => {
+                    console.warn(`⚠️ Could not delete intermediate PNG: ${err.message}`);
+                });
+                
+                if (finalResult.success) {
+                    console.log(`✅ Step 3 complete: Final ${targetFormat.toUpperCase()} created at ${finalResult.filePath}`);
+                } else {
+                    console.error(`❌ Step 3 failed: ${finalResult.error || 'Unknown error'}`);
+                }
                 
                 return finalResult;
             }
 
+            console.log(`✅ DOC to ${targetFormat.toUpperCase()} conversion completed successfully!`);
             return imageResult;
 
         } catch (error) {
-            console.error('DOC to image via PDF conversion error:', error);
+            console.error('❌ DOC to image via PDF conversion error:', error);
             return {
                 success: false,
                 error: 'Failed to convert document to image'
