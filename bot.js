@@ -606,7 +606,8 @@ class MATDEV {
             this.sock = makeWASocket({
                 auth: state,
                 logger: baileyLogger, // Minimal logger to prevent conflicts
-                browser: ['MATDEV', 'Desktop', '1.0.0'],
+                version: [2, 3000, 1027934701], // Fix for 405 error - WhatsApp version mismatch
+                browser: ['Chrome (Linux)', '', ''],
                 defaultQueryTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
                 markOnlineOnConnect: false, // Stay discreet
