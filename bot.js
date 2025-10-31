@@ -605,7 +605,6 @@ class MATDEV {
 
             this.sock = makeWASocket({
                 auth: state,
-                printQRInTerminal: true, // Enable QR display for authentication
                 logger: baileyLogger, // Minimal logger to prevent conflicts
                 browser: ['MATDEV', 'Desktop', '1.0.0'],
                 defaultQueryTimeoutMs: 60000,
