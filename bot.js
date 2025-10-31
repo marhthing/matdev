@@ -534,16 +534,18 @@ class MATDEV {
             // Check if we should validate/clear old session files on startup issues
             if (this.reconnectAttempts > 0 && this.initialConnection) {
                 logger.info('🔍 Validating session files after startup issues...');
-                const sessionPath = path.join(__dirname, 'session');
-                const sessionExists = await fs.pathExists(sessionPath);
+                const sessionAuthPath = path.join(__dirname, 'session', 'auth');
+                const sessionExists = await fs.pathExists(sessionAuthPath);
 
                 if (sessionExists) {
-                    const files = await fs.readdir(sessionPath);
+                    const files = await fs.readdir(sessionAuthPath);
                     if (files.length === 0) {
-                        logger.info('📁 Empty session directory detected');
+                        logger.info('📁 Empty session/auth directory detected - QR code will be shown');
                     } else {
-                        logger.info(`📁 Found ${files.length} session files`);
+                        logger.info(`📁 Found ${files.length} auth files in session/auth`);
                     }
+                } else {
+                    logger.info('📁 No session/auth directory - QR code will be shown');
                 }
             }
 
