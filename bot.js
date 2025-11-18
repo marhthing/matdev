@@ -607,7 +607,7 @@ class MATDEV {
                 auth: state,
                 logger: baileyLogger, // Minimal logger to prevent conflicts
                 version: [2, 3000, 1027934701], // Fix for 405 error - WhatsApp version mismatch
-                browser: ['Chrome (Linux)', '', ''],
+                browser: ['MATDEV', 'Desktop', '1.0'],
                 defaultQueryTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
                 markOnlineOnConnect: false, // Stay discreet
