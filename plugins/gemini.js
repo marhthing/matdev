@@ -97,7 +97,7 @@ class GeminiPlugin {
             try {
                 // Initialize Gemini AI
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
                 // Generate response
                 const result = await model.generateContent(prompt);
