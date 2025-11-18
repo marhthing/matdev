@@ -64,7 +64,7 @@ class ImageToTextPlugin {
 
             try {
                 // Download the image
-                const { downloadMediaMessage } = require('baileys');
+                const { downloadMediaMessage } = require('@whiskeysockets/baileys');
                 let messageToDownload;
                 
                 if (quotedMessage) {

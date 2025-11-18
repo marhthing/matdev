@@ -7,7 +7,7 @@ const Groq = require('groq-sdk');
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 class GroqPlugin {
     constructor() {

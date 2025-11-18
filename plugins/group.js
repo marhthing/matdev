@@ -1674,7 +1674,7 @@ class GroupPlugin {
         }
 
         try {
-            const { downloadMediaMessage } = require('baileys');
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
             const { chat_jid, sender_jid } = messageInfo;
 
             // Get group metadata to check admin status

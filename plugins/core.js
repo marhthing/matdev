@@ -1332,7 +1332,7 @@ class CorePlugin {
      */
     async setBotProfilePicture(messageInfo) {
         try {
-            const { downloadMediaMessage } = require('baileys');
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
             let imageMessage = null;
             let messageToDownload = null;

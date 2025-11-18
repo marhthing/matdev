@@ -9,7 +9,7 @@ const Utils = require('../lib/utils');
 const JIDUtils = require('../lib/jid-utils');
 const fs = require('fs-extra');
 const path = require('path');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 const utils = new Utils();
 

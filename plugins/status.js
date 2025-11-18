@@ -1128,7 +1128,7 @@ class StatusPlugin {
      */
     async extractStatusMedia(messageOrQuoted) {
         try {
-            const { downloadMediaMessage } = require('baileys');
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
             // Handle both direct message and quoted message formats
             let messageContent, messageKey;

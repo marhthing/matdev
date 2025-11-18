@@ -108,7 +108,7 @@ class SavePlugin {
      */
     async extractAnyMedia(quotedMessage) {
         try {
-            const { downloadMediaMessage } = require('baileys');
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
             // Handle different message structures
             let messageContent = quotedMessage.message || quotedMessage;

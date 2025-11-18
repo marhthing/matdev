@@ -9,7 +9,7 @@ const JIDUtils = require('../lib/jid-utils');
 const fs = require('fs-extra');
 const path = require('path');
 const moment = require('moment-timezone');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 const utils = new Utils();
 

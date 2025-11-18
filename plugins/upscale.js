@@ -1,7 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const axios = require('axios');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const config = require('../config');
 
 class UpscalePlugin {

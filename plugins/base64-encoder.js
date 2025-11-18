@@ -221,7 +221,7 @@ class Base64EncoderPlugin {
 
             // Handle quoted message media
             if (quotedMessage) {
-                const { downloadMediaMessage } = require('baileys');
+                const { downloadMediaMessage } = require('@whiskeysockets/baileys');
                 
                 // Determine media type and get media object
                 if (quotedMessage.imageMessage) {
@@ -263,7 +263,7 @@ class Base64EncoderPlugin {
             }
             // Handle current message media
             else if (currentMedia) {
-                const { downloadMediaMessage } = require('baileys');
+                const { downloadMediaMessage } = require('@whiskeysockets/baileys');
                 
                 if (messageInfo.message.imageMessage) {
                     mediaType = 'image';

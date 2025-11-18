@@ -93,7 +93,7 @@ class HashGeneratorPlugin {
 
             try {
                 // Download the document
-                const { downloadMediaMessage } = require('baileys');
+                const { downloadMediaMessage } = require('@whiskeysockets/baileys');
                 const buffer = await downloadMediaMessage(
                     { message: quotedMessage },
                     'buffer',

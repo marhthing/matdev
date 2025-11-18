@@ -5,7 +5,7 @@
  */
 
 const QrReader = require('qrcode-reader');
-const { downloadMediaMessage } = require('baileys');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');

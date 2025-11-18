@@ -6,7 +6,7 @@
  * @version 1.0.0
  */
 
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay } = require('baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const chalk = require('chalk');
 const qrcode = require('qrcode-terminal');
@@ -122,7 +122,7 @@ class MATDEV {
             logger.info('📦 Checking dependencies...');
 
             const requiredPackages = [
-                'baileys',
+                '@whiskeysockets/baileys',
                 '@hapi/boom',
                 'chalk',
                 'qrcode-terminal',
