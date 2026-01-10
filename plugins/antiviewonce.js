@@ -96,13 +96,17 @@ class AntiViewOncePlugin {
 
             // Check for view once in different possible structures
             if (quotedMessage?.viewOnceMessage) {
-                // Direct view once message
+                // Direct view once message (old format)
                 viewOnceMessage = quotedMessage;
-                // console.log(`🔍 Found direct view once message in reply`);
+            } else if (quotedMessage?.viewOnceMessageV2) {
+                // Direct view once message (new format)
+                viewOnceMessage = { viewOnceMessage: quotedMessage.viewOnceMessageV2 };
             } else if (quotedMessage?.message?.viewOnceMessage) {
-                // Nested view once message
+                // Nested view once message (old format)
                 viewOnceMessage = quotedMessage.message;
-                // console.log(`🔍 Found nested view once message in reply`);
+            } else if (quotedMessage?.message?.viewOnceMessageV2) {
+                // Nested view once message (new format)
+                viewOnceMessage = { viewOnceMessage: quotedMessage.message.viewOnceMessageV2 };
             } else if (quotedMessage) {
                 // Check if this is a forwarded view once (from .save)
                 // When view once is forwarded, it loses the viewOnceMessage wrapper

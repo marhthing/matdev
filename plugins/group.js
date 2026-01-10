@@ -1057,7 +1057,7 @@ class GroupPlugin {
 
             for (const participantJid of participants) {
                 // Get display name for participant
-                let displayName = participantJid;
+                let displayName = String(participantJid);
                 if (displayName.includes('@lid')) {
                     displayName = displayName.split('@')[0];
                 } else if (displayName.includes('@s.whatsapp.net')) {
