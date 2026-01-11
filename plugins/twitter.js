@@ -50,13 +50,13 @@ class TwitterPlugin {
         try {
             let url = messageInfo.args.join(' ').trim();
             if (!url) {
-                // Try to extract quoted message from raw WhatsApp message object
+                // Try to extract quoted message from raw WhatsApp message object (check both possible locations)
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                       messageInfo.message?.quotedMessage;
                 if (quotedMessage) {
-                    // Use Pinterest's extractUrlFromObject for Twitter URLs
+                    // Use a local recursive extraction function for Twitter URLs
                     const twUrlRegex = /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/[0-9]+/i;
-                    url = require('./pinterest').extractUrlFromObject(quotedMessage, twUrlRegex) || '';
+                    url = this.extractTwitterUrlFromObject(quotedMessage, twUrlRegex) || '';
                 }
             }
             
@@ -125,6 +125,26 @@ class TwitterPlugin {
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while processing the Twitter URL');
         }
+    }
+
+    /**
+     * Recursively search for a Twitter URL in any string field of an object
+     */
+    extractTwitterUrlFromObject(obj, twUrlRegex) {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const key in obj) {
+            if (typeof obj[key] === 'string') {
+                const match = obj[key].match(twUrlRegex);
+                if (match) {
+                    // Trim trailing punctuation or whitespace
+                    return match[0].replace(/[.,;!?"]+$/, '');
+                }
+            } else if (typeof obj[key] === 'object') {
+                const found = this.extractTwitterUrlFromObject(obj[key], twUrlRegex);
+                if (found) return found;
+            }
+        }
+        return null;
     }
 
     /**
@@ -273,7 +293,10 @@ class TwitterPlugin {
                 responseType: 'stream',
                 timeout: 30000,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Connection': 'keep-alive',
                 },
                 maxContentLength: this.maxFileSize
             });

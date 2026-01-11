@@ -1,26 +1,28 @@
 /**
  * MATDEV Sticker Plugin
- * Convert images and videos to stickers
+ * Convert images and videos to stickers (2025 Updated)
  */
 
 const fs = require('fs-extra');
 const path = require('path');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const config = require('../config');
+const sharp = require('sharp');
+const ffmpeg = require('fluent-ffmpeg');
 
 class StickerPlugin {
     constructor() {
         this.name = 'sticker';
         this.description = 'Convert images and videos to stickers';
-        this.version = '1.0.0';
+        this.version = '2.0.0';
     }
 
     async init(bot) {
         this.bot = bot;
         this.registerCommands();
 
-        // Ensure media directory exists
-        await fs.ensureDir(path.join(process.cwd(), 'session', 'media'));
+        // Ensure temp directory exists
+        await fs.ensureDir(path.join(process.cwd(), 'tmp'));
 
         console.log('✅ Sticker plugin loaded');
     }
@@ -33,6 +35,14 @@ class StickerPlugin {
             plugin: 'sticker',
             source: 'sticker.js'
         });
+
+        this.bot.messageHandler.registerCommand('s', this.stickerCommand.bind(this), {
+            description: 'Convert image/video to sticker (shortcut)',
+            usage: `${config.PREFIX}s (reply to image/video)`,
+            category: 'media',
+            plugin: 'sticker',
+            source: 'sticker.js'
+        });
     }
 
     /**
@@ -40,17 +50,13 @@ class StickerPlugin {
      */
     async stickerCommand(messageInfo) {
         try {
-            // Import wa-sticker-formatter
-            const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-            
             let messageToDownload = null;
             let isImage = false;
             let isVideo = false;
 
-            // Check if this is an image/video with .sticker as caption
+            // Check if this is a direct image/video with .sticker/.s as caption
             const directImage = messageInfo.message?.imageMessage;
             const directVideo = messageInfo.message?.videoMessage;
-            
             
             if (directImage || directVideo) {
                 // Direct image/video with .sticker caption
@@ -62,269 +68,244 @@ class StickerPlugin {
                     message: messageInfo.message
                 };
             } else {
-                // Check for quoted message using the same simple approach as photoCommand
+                // Check for quoted message
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                       messageInfo.message?.quotedMessage;
                 
                 if (!quotedMessage) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Reply to an image/video or send media with caption');
                     return;
                 }
 
                 // Check if quoted message is image or video
-                isImage = quotedMessage.imageMessage;
-                isVideo = quotedMessage.videoMessage;
+                isImage = !!quotedMessage.imageMessage;
+                isVideo = !!quotedMessage.videoMessage;
                 
                 if (!isImage && !isVideo) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an image/video or send image/video with .sticker as caption.');
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Reply to an image/video only');
                     return;
                 }
 
-                // Use the downloadMedia method like photoCommand does - create proper message structure
-                const messageToProcess = {
-                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage?.key || 
-                         messageInfo.key, // fallback to current message key
+                messageToDownload = {
+                    key: messageInfo.message?.extendedTextMessage?.contextInfo?.key || messageInfo.key,
                     message: quotedMessage
                 };
-
-                const mediaResult = await this.downloadMedia(messageToProcess, isImage ? 'imageMessage' : 'videoMessage');
-                
-                if (!mediaResult || !mediaResult.buffer) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Unable to process media. Please try again.');
-                    return;
-                }
-
-                // Create proper WhatsApp sticker using wa-sticker-formatter
-                
-                // Configure sticker options based on media type
-                const stickerOptions = {
-                    pack: config.BOT_NAME || 'MATDEV',
-                    author: config.BOT_NAME || 'MATDEV', 
-                    type: StickerTypes.FULL,
-                    categories: ['🤖'], // Bot category
-                    quality: isVideo ? 60 : 90 // Lower quality for videos to meet size limits
-                };
-
-                // For video stickers, add specific handling
-                if (isVideo) {
-                    // console.log('🎬 Processing video sticker with optimized settings...');
-                    // Additional options for video processing can be added here
-                } else {
-                    // console.log('🖼️ Processing image sticker...');
-                }
-                
-                const sticker = new Sticker(mediaResult.buffer, stickerOptions);
-
-                // Convert to proper WebP format with embedded metadata
-                const stickerBuffer = await sticker.toBuffer();
-                
-                if (!stickerBuffer || stickerBuffer.length === 0) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ Failed to create sticker. Please try again.');
-                    return;
-                }
-
-                console.log('✅ Sticker');
-
-                // Send the properly formatted sticker
-                await this.bot.sock.sendMessage(messageInfo.sender, {
-                    sticker: stickerBuffer
-                });
-                
-                // console.log('✅ Sticker sent successfully');
-                return;
             }
 
-            // Download media using Baileys directly for non-quoted messages
-            const buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
-                logger: console,
-                reuploadRequest: this.bot.sock.updateMediaMessage
-            });
+            // Download media
+            let buffer;
+            try {
+                buffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
+                    logger: console,
+                    reuploadRequest: this.bot.sock.updateMediaMessage
+                });
+            } catch (downloadError) {
+                console.error('Download error:', downloadError);
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media');
+                return;
+            }
 
             if (!buffer || buffer.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media. Please try again.');
+                await this.bot.messageHandler.reply(messageInfo, '❌ Empty media buffer');
                 return;
             }
 
-            // Validate image buffer before creating sticker
+            // Process and send sticker
+            let stickerBuffer;
             if (isImage) {
-                let processedBuffer = buffer;
-                try {
-                    // Check if buffer is a valid JPEG/PNG
-                    const fileType = await import('file-type');
-                    const type = await fileType.fileTypeFromBuffer(buffer);
-                    if (!type || (type.mime !== 'image/jpeg' && type.mime !== 'image/png')) {
-                        throw new Error('Unsupported or corrupt image format.');
-                    }
-                    // If image is too large, resize it to max 512x512 (WhatsApp sticker size)
-                    if (type.mime === 'image/jpeg' || type.mime === 'image/png') {
-                        const sharp = require('sharp');
-                        try {
-                            processedBuffer = await sharp(buffer)
-                                .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
-                                .toFormat(type.ext)
-                                .toBuffer();
-                        } catch (sharpErr) {
-                            // Fallback: try to re-encode as PNG using jimp
-                            try {
-                                const Jimp = require('jimp');
-                                const jimpImg = await Jimp.read(buffer);
-                                jimpImg.resize(512, Jimp.AUTO);
-                                processedBuffer = await jimpImg.getBufferAsync(Jimp.MIME_PNG);
-                            } catch (jimpErr) {
-                                await this.bot.messageHandler.reply(messageInfo, '❌ The image is corrupt or not a supported format (JPEG/PNG).');
-                                return;
-                            }
-                        }
-                    }
-                } catch (err) {
-                    await this.bot.messageHandler.reply(messageInfo, '❌ The image is corrupt or not a supported format (JPEG/PNG).');
-                    return;
-                }
-                buffer = processedBuffer;
-            }
-
-            // Create proper WhatsApp sticker using wa-sticker-formatter
-            
-            // Configure sticker options based on media type
-            const stickerOptions = {
-                pack: config.BOT_NAME || 'MATDEV',
-                author: config.BOT_NAME || 'MATDEV', 
-                type: StickerTypes.FULL,
-                categories: ['🤖'], // Bot category
-                quality: isVideo ? 60 : 90 // Lower quality for videos to meet size limits
-            };
-
-            // For video stickers, add specific handling
-            if (isVideo) {
-                // console.log('🎬 Processing video sticker with optimized settings...');
-                // Additional options for video processing can be added here
+                stickerBuffer = await this.imageToSticker(buffer);
             } else {
-                // console.log('🖼️ Processing image sticker...');
+                stickerBuffer = await this.videoToSticker(buffer);
             }
-            
-            const sticker = new Sticker(buffer, stickerOptions);
 
-            // Convert to proper WebP format with embedded metadata
-            const stickerBuffer = await sticker.toBuffer();
-            
-            if (!stickerBuffer || stickerBuffer.length === 0) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to create sticker. Please try again.');
+            if (!stickerBuffer) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Failed to create sticker');
                 return;
             }
 
-            console.log('✅ Sticker');
-
-            // Send the properly formatted sticker
-            await this.bot.sock.sendMessage(messageInfo.sender, {
+            // Send sticker
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
                 sticker: stickerBuffer
             });
-            
-            // console.log('✅ Sticker sent successfully');
+
+            console.log('✅ Sticker sent');
 
         } catch (error) {
-            console.error('❌ Sticker creation error:', error);
-            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker. Please try again with a smaller image or shorter video (max 6 seconds).');
+            console.error('❌ Sticker error:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker');
         }
     }
 
     /**
-     * Download media with multiple fallback methods
+     * Convert image to WebP sticker format
      */
-    async downloadMedia(message, messageType) {
-        let mediaBuffer = null;
-        let mediaInfo = {};
-
+    async imageToSticker(imageBuffer) {
         try {
-            // Method 1: Try to get from cached files in session/media folder
-            const messageId = message.key?.id;
-            if (messageId) {
-                const mediaDir = path.join(process.cwd(), 'session', 'media');
-                const files = await fs.readdir(mediaDir).catch(() => []);
+            // Convert to WebP with proper sticker dimensions (512x512 max)
+            const webpBuffer = await sharp(imageBuffer)
+                .resize(512, 512, {
+                    fit: 'contain',
+                    background: { r: 0, g: 0, b: 0, alpha: 0 }
+                })
+                .webp({
+                    quality: 100,
+                    lossless: false
+                })
+                .toBuffer();
 
-                // Look for files that contain the message ID
-                const mediaFile = files.find(file => file.includes(messageId));
-                if (mediaFile) {
-                    const filePath = path.join(mediaDir, mediaFile);
-
-                    const stats = await fs.stat(filePath);
-                    if (stats.size > 0) {
-                        mediaBuffer = await fs.readFile(filePath);
-                        mediaInfo = {
-                            filename: mediaFile,
-                            size: stats.size,
-                            source: 'session_cache'
-                        };
-                    }
-                }
-            }
-
-            // Method 2: Try database archived media if session cache failed
-            if (!mediaBuffer && messageId && this.bot.database && typeof this.bot.database.getArchivedMedia === 'function') {
-                const archivedMedia = await this.bot.database.getArchivedMedia(messageId);
-                if (archivedMedia && archivedMedia.buffer && archivedMedia.buffer.length > 0) {
-                    mediaBuffer = archivedMedia.buffer;
-                    mediaInfo = {
-                        filename: archivedMedia.filename || `media_${messageId}`,
-                        size: archivedMedia.buffer.length,
-                        source: 'database_archive'
-                    };
-                }
-            }
-
-            // Method 3: Direct baileys download as last resort
-            if (!mediaBuffer) {
-                try {
-                    // Ensure we pass the correct message structure to downloadMediaMessage
-                    const messageToDownload = message.message ? message : { message: message };
-                    mediaBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {}, {
-                        logger: console,
-                        reuploadRequest: this.bot.sock.updateMediaMessage
-                    });
-
-                    if (mediaBuffer) {
-                        mediaInfo = {
-                            filename: `direct_${Date.now()}`,
-                            size: mediaBuffer.length,
-                            source: 'direct_download'
-                        };
-                    }
-                } catch (directError) {
-                    console.log(`❌ Direct download failed: ${directError.message}`);
-                }
-            }
-
-            if (!mediaBuffer) {
-                throw new Error('All download methods failed');
-            }
-
-            // Get media type info from the original message object
-            const messageContent = message.message || message;
-            const actualMediaType = Object.keys(messageContent).find(type => ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(type));
-            
-            if (actualMediaType && messageContent[actualMediaType]) {
-                const mediaMessage = messageContent[actualMediaType];
-                mediaInfo.mimetype = mediaMessage.mimetype;
-                mediaInfo.caption = mediaMessage.caption;
-                mediaInfo.seconds = mediaMessage.seconds;
-                mediaInfo.fileLength = mediaMessage.fileLength;
-            } else if (messageType && message.message && message.message[messageType]) {
-                // Fallback if actualMediaType extraction fails
-                const mediaMessage = message.message[messageType];
-                mediaInfo.mimetype = mediaMessage.mimetype;
-                mediaInfo.caption = mediaMessage.caption;
-                mediaInfo.seconds = mediaMessage.seconds;
-                mediaInfo.fileLength = mediaMessage.fileLength;
-            }
-
-            return { buffer: mediaBuffer, info: mediaInfo };
+            return webpBuffer;
 
         } catch (error) {
-            console.error(`❌ Media download failed:`, error);
-            throw new Error(`Unable to process media: ${error.message}`);
+            console.error('Image processing error:', error);
+            
+            // Fallback: try with lower quality
+            try {
+                return await sharp(imageBuffer)
+                    .resize(512, 512, {
+                        fit: 'contain',
+                        background: { r: 0, g: 0, b: 0, alpha: 0 }
+                    })
+                    .webp({ quality: 75 })
+                    .toBuffer();
+            } catch (fallbackError) {
+                console.error('Image fallback failed:', fallbackError);
+                return null;
+            }
         }
     }
 
+    /**
+     * Convert video to animated WebP sticker format
+     */
+    async videoToSticker(videoBuffer) {
+        return new Promise(async (resolve, reject) => {
+            const tmpDir = path.join(process.cwd(), 'tmp');
+            const inputPath = path.join(tmpDir, `input_${Date.now()}.mp4`);
+            const outputPath = path.join(tmpDir, `output_${Date.now()}.webp`);
+
+            try {
+                // Write video buffer to temp file
+                await fs.writeFile(inputPath, videoBuffer);
+
+                // Convert video to WebP using ffmpeg
+                ffmpeg(inputPath)
+                    .outputOptions([
+                        '-vcodec libwebp',
+                        '-vf scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:-1:-1:color=0x00000000',
+                        '-loop 0',
+                        '-preset default',
+                        '-an',
+                        '-vsync 0',
+                        '-s 512:512'
+                    ])
+                    .toFormat('webp')
+                    .on('end', async () => {
+                        try {
+                            const stickerBuffer = await fs.readFile(outputPath);
+                            
+                            // Cleanup
+                            await fs.unlink(inputPath).catch(() => {});
+                            await fs.unlink(outputPath).catch(() => {});
+                            
+                            resolve(stickerBuffer);
+                        } catch (readError) {
+                            await fs.unlink(inputPath).catch(() => {});
+                            await fs.unlink(outputPath).catch(() => {});
+                            reject(readError);
+                        }
+                    })
+                    .on('error', async (err) => {
+                        await fs.unlink(inputPath).catch(() => {});
+                        await fs.unlink(outputPath).catch(() => {});
+                        
+                        // If ffmpeg fails, try fallback: extract first frame as static sticker
+                        try {
+                            const frameBuffer = await this.extractFirstFrame(videoBuffer);
+                            if (frameBuffer) {
+                                resolve(await this.imageToSticker(frameBuffer));
+                            } else {
+                                reject(err);
+                            }
+                        } catch (fallbackError) {
+                            reject(err);
+                        }
+                    })
+                    .save(outputPath);
+
+            } catch (error) {
+                await fs.unlink(inputPath).catch(() => {});
+                await fs.unlink(outputPath).catch(() => {});
+                reject(error);
+            }
+        });
+    }
+
+    /**
+     * Extract first frame from video as fallback
+     */
+    async extractFirstFrame(videoBuffer) {
+        return new Promise(async (resolve, reject) => {
+            const tmpDir = path.join(process.cwd(), 'tmp');
+            const inputPath = path.join(tmpDir, `frame_input_${Date.now()}.mp4`);
+            const outputPath = path.join(tmpDir, `frame_output_${Date.now()}.png`);
+
+            try {
+                await fs.writeFile(inputPath, videoBuffer);
+
+                ffmpeg(inputPath)
+                    .screenshots({
+                        count: 1,
+                        folder: tmpDir,
+                        filename: path.basename(outputPath)
+                    })
+                    .on('end', async () => {
+                        try {
+                            const frameBuffer = await fs.readFile(outputPath);
+                            await fs.unlink(inputPath).catch(() => {});
+                            await fs.unlink(outputPath).catch(() => {});
+                            resolve(frameBuffer);
+                        } catch (readError) {
+                            await fs.unlink(inputPath).catch(() => {});
+                            await fs.unlink(outputPath).catch(() => {});
+                            reject(readError);
+                        }
+                    })
+                    .on('error', async (err) => {
+                        await fs.unlink(inputPath).catch(() => {});
+                        await fs.unlink(outputPath).catch(() => {});
+                        reject(err);
+                    });
+
+            } catch (error) {
+                await fs.unlink(inputPath).catch(() => {});
+                await fs.unlink(outputPath).catch(() => {});
+                reject(error);
+            }
+        });
+    }
+
     async cleanup() {
+        // Clean up old temp files
+        const tmpDir = path.join(process.cwd(), 'tmp');
+        try {
+            const files = await fs.readdir(tmpDir);
+            const now = Date.now();
+            
+            for (const file of files) {
+                if (file.includes('input_') || file.includes('output_') || file.includes('frame_')) {
+                    const filePath = path.join(tmpDir, file);
+                    const stats = await fs.stat(filePath);
+                    
+                    // Delete files older than 1 hour
+                    if (now - stats.mtimeMs > 3600000) {
+                        await fs.unlink(filePath).catch(() => {});
+                    }
+                }
+            }
+        } catch (error) {
+            // Ignore cleanup errors
+        }
+        
         console.log('🧹 Sticker plugin cleanup completed');
     }
 }
