@@ -1,6 +1,7 @@
 /**
  * MATDEV Sticker Plugin
- * Convert images and videos to stickers (2025 Updated)
+ * Convert images and videos to stickers with metadata (2025 Updated)
+ * Manual EXIF implementation - no wa-sticker-formatter dependency
  */
 
 const fs = require('fs-extra');
@@ -14,7 +15,7 @@ class StickerPlugin {
     constructor() {
         this.name = 'sticker';
         this.description = 'Convert images and videos to stickers';
-        this.version = '2.0.0';
+        this.version = '2.2.0';
     }
 
     async init(bot) {
@@ -23,7 +24,6 @@ class StickerPlugin {
 
         // Ensure temp directory exists
         await fs.ensureDir(path.join(process.cwd(), 'tmp'));
-
         console.log('✅ Sticker plugin loaded');
     }
 
@@ -59,7 +59,6 @@ class StickerPlugin {
             const directVideo = messageInfo.message?.videoMessage;
             
             if (directImage || directVideo) {
-                // Direct image/video with .sticker caption
                 isImage = !!directImage;
                 isVideo = !!directVideo;
                 
@@ -77,7 +76,6 @@ class StickerPlugin {
                     return;
                 }
 
-                // Check if quoted message is image or video
                 isImage = !!quotedMessage.imageMessage;
                 isVideo = !!quotedMessage.videoMessage;
                 
@@ -100,7 +98,6 @@ class StickerPlugin {
                     reuploadRequest: this.bot.sock.updateMediaMessage
                 });
             } catch (downloadError) {
-                console.error('Download error:', downloadError);
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to download media');
                 return;
             }
@@ -110,7 +107,7 @@ class StickerPlugin {
                 return;
             }
 
-            // Process and send sticker
+            // Process media
             let stickerBuffer;
             if (isImage) {
                 stickerBuffer = await this.imageToSticker(buffer);
@@ -123,15 +120,16 @@ class StickerPlugin {
                 return;
             }
 
-            // Send sticker
+            // Add metadata using official Baileys stickerMetadata (no manual EXIF)
+            const packname = config.STICKER_PACK_NAME || config.BOT_NAME || 'MATDEV';
+            const author = config.STICKER_AUTHOR || config.BOT_NAME || 'MATDEV';
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                sticker: stickerBuffer
+                sticker: stickerBuffer,
+                packname,
+                author
             });
 
-            console.log('✅ Sticker sent');
-
         } catch (error) {
-            console.error('❌ Sticker error:', error);
             await this.bot.messageHandler.reply(messageInfo, '❌ Error creating sticker');
         }
     }
@@ -141,14 +139,13 @@ class StickerPlugin {
      */
     async imageToSticker(imageBuffer) {
         try {
-            // Convert to WebP with proper sticker dimensions (512x512 max)
             const webpBuffer = await sharp(imageBuffer)
                 .resize(512, 512, {
                     fit: 'contain',
                     background: { r: 0, g: 0, b: 0, alpha: 0 }
                 })
                 .webp({
-                    quality: 100,
+                    quality: 95,
                     lossless: false
                 })
                 .toBuffer();
@@ -156,19 +153,16 @@ class StickerPlugin {
             return webpBuffer;
 
         } catch (error) {
-            console.error('Image processing error:', error);
-            
-            // Fallback: try with lower quality
+            // Fallback with lower quality
             try {
                 return await sharp(imageBuffer)
                     .resize(512, 512, {
                         fit: 'contain',
                         background: { r: 0, g: 0, b: 0, alpha: 0 }
                     })
-                    .webp({ quality: 75 })
+                    .webp({ quality: 70 })
                     .toBuffer();
             } catch (fallbackError) {
-                console.error('Image fallback failed:', fallbackError);
                 return null;
             }
         }
@@ -180,34 +174,30 @@ class StickerPlugin {
     async videoToSticker(videoBuffer) {
         return new Promise(async (resolve, reject) => {
             const tmpDir = path.join(process.cwd(), 'tmp');
-            const inputPath = path.join(tmpDir, `input_${Date.now()}.mp4`);
-            const outputPath = path.join(tmpDir, `output_${Date.now()}.webp`);
+            const inputPath = path.join(tmpDir, `video_${Date.now()}.mp4`);
+            const outputPath = path.join(tmpDir, `sticker_${Date.now()}.webp`);
 
             try {
-                // Write video buffer to temp file
                 await fs.writeFile(inputPath, videoBuffer);
 
-                // Convert video to WebP using ffmpeg
                 ffmpeg(inputPath)
+                    .setStartTime(0)
+                    .setDuration(10)
                     .outputOptions([
                         '-vcodec libwebp',
                         '-vf scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:-1:-1:color=0x00000000',
                         '-loop 0',
                         '-preset default',
                         '-an',
-                        '-vsync 0',
-                        '-s 512:512'
+                        '-vsync 0'
                     ])
                     .toFormat('webp')
                     .on('end', async () => {
                         try {
-                            const stickerBuffer = await fs.readFile(outputPath);
-                            
-                            // Cleanup
+                            const webpBuffer = await fs.readFile(outputPath);
                             await fs.unlink(inputPath).catch(() => {});
                             await fs.unlink(outputPath).catch(() => {});
-                            
-                            resolve(stickerBuffer);
+                            resolve(webpBuffer);
                         } catch (readError) {
                             await fs.unlink(inputPath).catch(() => {});
                             await fs.unlink(outputPath).catch(() => {});
@@ -218,7 +208,7 @@ class StickerPlugin {
                         await fs.unlink(inputPath).catch(() => {});
                         await fs.unlink(outputPath).catch(() => {});
                         
-                        // If ffmpeg fails, try fallback: extract first frame as static sticker
+                        // Fallback: extract first frame
                         try {
                             const frameBuffer = await this.extractFirstFrame(videoBuffer);
                             if (frameBuffer) {
@@ -241,13 +231,13 @@ class StickerPlugin {
     }
 
     /**
-     * Extract first frame from video as fallback
+     * Extract first frame from video
      */
     async extractFirstFrame(videoBuffer) {
         return new Promise(async (resolve, reject) => {
             const tmpDir = path.join(process.cwd(), 'tmp');
-            const inputPath = path.join(tmpDir, `frame_input_${Date.now()}.mp4`);
-            const outputPath = path.join(tmpDir, `frame_output_${Date.now()}.png`);
+            const inputPath = path.join(tmpDir, `frame_${Date.now()}.mp4`);
+            const outputPath = path.join(tmpDir, `frame_${Date.now()}.png`);
 
             try {
                 await fs.writeFile(inputPath, videoBuffer);
@@ -285,18 +275,17 @@ class StickerPlugin {
     }
 
     async cleanup() {
-        // Clean up old temp files
         const tmpDir = path.join(process.cwd(), 'tmp');
         try {
             const files = await fs.readdir(tmpDir);
             const now = Date.now();
             
             for (const file of files) {
-                if (file.includes('input_') || file.includes('output_') || file.includes('frame_')) {
+                if (file.includes('video_') || file.includes('sticker_') || 
+                    file.includes('frame_')) {
                     const filePath = path.join(tmpDir, file);
                     const stats = await fs.stat(filePath);
                     
-                    // Delete files older than 1 hour
                     if (now - stats.mtimeMs > 3600000) {
                         await fs.unlink(filePath).catch(() => {});
                     }
@@ -305,10 +294,9 @@ class StickerPlugin {
         } catch (error) {
             // Ignore cleanup errors
         }
-        
         console.log('🧹 Sticker plugin cleanup completed');
     }
-}
+};
 
 module.exports = {
     init: async (bot) => {

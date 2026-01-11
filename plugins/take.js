@@ -84,35 +84,22 @@ class TakePlugin {
                 return;
             }
 
-            // Use wa-sticker-formatter to properly embed metadata
-            const { Sticker, StickerTypes } = require('wa-sticker-formatter');
-
-            // Configure sticker options with custom metadata
-            const stickerOptions = {
-                pack: packname,
-                author: author,
-                type: StickerTypes.FULL,
-                categories: ['🤖'],
-                quality: 90
-            };
-
-            // Check if original was animated and preserve that
-            if (quotedMessage.stickerMessage.isAnimated) {
-                stickerOptions.animated = true;
-            }
-
-            // Create sticker with embedded metadata
-            const sticker = new Sticker(mediaResult.buffer, stickerOptions);
-            const stickerBuffer = await sticker.toBuffer();
-
+            // Use the downloaded sticker buffer (already in WebP format)
+            let stickerBuffer = mediaResult.buffer;
             if (!stickerBuffer || stickerBuffer.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Failed to process sticker with metadata.');
                 return;
             }
 
-            // Send the sticker with embedded metadata
-            await this.bot.sock.sendMessage(messageInfo.sender, {
-                sticker: stickerBuffer
+            // Send sticker with metadata (same as .sticker command)
+            await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                sticker: stickerBuffer,
+                stickerMetadata: {
+                    packname: packname,
+                    author: author
+                },
+                packname: packname,
+                author: author
             });
 
         } catch (error) {
