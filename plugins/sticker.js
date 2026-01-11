@@ -139,28 +139,27 @@ class StickerPlugin {
      */
     async imageToSticker(imageBuffer) {
         try {
+            // Lower quality for WhatsApp sticker size compliance
             const webpBuffer = await sharp(imageBuffer)
                 .resize(512, 512, {
                     fit: 'contain',
                     background: { r: 0, g: 0, b: 0, alpha: 0 }
                 })
                 .webp({
-                    quality: 95,
+                    quality: 65, // Lowered from 95 for smaller file size
                     lossless: false
                 })
                 .toBuffer();
-
             return webpBuffer;
-
         } catch (error) {
-            // Fallback with lower quality
+            // Fallback with even lower quality
             try {
                 return await sharp(imageBuffer)
                     .resize(512, 512, {
                         fit: 'contain',
                         background: { r: 0, g: 0, b: 0, alpha: 0 }
                     })
-                    .webp({ quality: 70 })
+                    .webp({ quality: 50 })
                     .toBuffer();
             } catch (fallbackError) {
                 return null;
@@ -182,10 +181,10 @@ class StickerPlugin {
 
                 ffmpeg(inputPath)
                     .setStartTime(0)
-                    .setDuration(10)
+                    .setDuration(6) // Lowered max duration for WhatsApp compliance
                     .outputOptions([
                         '-vcodec libwebp',
-                        '-vf scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:-1:-1:color=0x00000000',
+                        '-vf scale=512:512:force_original_aspect_ratio=decrease,fps=10,pad=512:512:-1:-1:color=0x00000000', // Lowered fps
                         '-loop 0',
                         '-preset default',
                         '-an',
