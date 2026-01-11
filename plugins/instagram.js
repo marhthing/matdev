@@ -20,7 +20,7 @@ class InstagramPlugin {
         
         // File size limits (WhatsApp limits)
         this.videoSizeLimit = 2 * 1024 * 1024 * 1024; // 2GB
-        this.videoMediaLimit = 16 * 1024 * 1024; // 16MB (for inline video)
+        this.videoMediaLimit = 30 * 1024 * 1024; // 30MB (for inline video)
         this.imageSizeLimit = 5 * 1024 * 1024; // 5MB for images
     }
 
@@ -148,13 +148,13 @@ class InstagramPlugin {
         try {
             let url = messageInfo.args.join(' ').trim();
             if (!url) {
-                // Try to extract quoted message from raw WhatsApp message object
+                // Try to extract quoted message from raw WhatsApp message object (check both possible locations)
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
                                       messageInfo.message?.quotedMessage;
                 if (quotedMessage) {
-                    // Use Pinterest's extractUrlFromObject for Instagram URLs
+                    // Use a local recursive extraction function for Instagram URLs
                     const igUrlRegex = /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/[a-zA-Z0-9_-]+/i;
-                    url = require('./pinterest').extractUrlFromObject(quotedMessage, igUrlRegex) || '';
+                    url = this.extractInstagramUrlFromObject(quotedMessage, igUrlRegex) || '';
                 }
             }
             
@@ -333,6 +333,26 @@ class InstagramPlugin {
             await this.bot.messageHandler.reply(messageInfo, 
                 '❌ An error occurred while processing the Instagram media');
         }
+    }
+
+    /**
+     * Recursively search for an Instagram URL in any string field of an object
+     */
+    extractInstagramUrlFromObject(obj, igUrlRegex) {
+        if (!obj || typeof obj !== 'object') return null;
+        for (const key in obj) {
+            if (typeof obj[key] === 'string') {
+                const match = obj[key].match(igUrlRegex);
+                if (match) {
+                    // Trim trailing punctuation or whitespace
+                    return match[0].replace(/[.,;!?"]+$/, '');
+                }
+            } else if (typeof obj[key] === 'object') {
+                const found = this.extractInstagramUrlFromObject(obj[key], igUrlRegex);
+                if (found) return found;
+            }
+        }
+        return null;
     }
 }
 

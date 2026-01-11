@@ -193,9 +193,7 @@ class FacebookPlugin {
                 // Only check raw WhatsApp quoted message object (no fallback)
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 if (quotedMessage) {
-                    console.log('[FB DEBUG] QuotedMessage object:', JSON.stringify(quotedMessage));
                     url = this.extractFacebookUrlFromObject(quotedMessage) || '';
-                    console.log('[FB DEBUG] Extracted URL from quotedMessage:', url);
                 }
             }
             
