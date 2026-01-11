@@ -145,6 +145,44 @@ class StickerPlugin {
                 return;
             }
 
+            // Validate image buffer before creating sticker
+            if (isImage) {
+                let processedBuffer = buffer;
+                try {
+                    // Check if buffer is a valid JPEG/PNG
+                    const fileType = await import('file-type');
+                    const type = await fileType.fileTypeFromBuffer(buffer);
+                    if (!type || (type.mime !== 'image/jpeg' && type.mime !== 'image/png')) {
+                        throw new Error('Unsupported or corrupt image format.');
+                    }
+                    // If image is too large, resize it to max 512x512 (WhatsApp sticker size)
+                    if (type.mime === 'image/jpeg' || type.mime === 'image/png') {
+                        const sharp = require('sharp');
+                        try {
+                            processedBuffer = await sharp(buffer)
+                                .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+                                .toFormat(type.ext)
+                                .toBuffer();
+                        } catch (sharpErr) {
+                            // Fallback: try to re-encode as PNG using jimp
+                            try {
+                                const Jimp = require('jimp');
+                                const jimpImg = await Jimp.read(buffer);
+                                jimpImg.resize(512, Jimp.AUTO);
+                                processedBuffer = await jimpImg.getBufferAsync(Jimp.MIME_PNG);
+                            } catch (jimpErr) {
+                                await this.bot.messageHandler.reply(messageInfo, '❌ The image is corrupt or not a supported format (JPEG/PNG).');
+                                return;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ The image is corrupt or not a supported format (JPEG/PNG).');
+                    return;
+                }
+                buffer = processedBuffer;
+            }
+
             // Create proper WhatsApp sticker using wa-sticker-formatter
             
             // Configure sticker options based on media type

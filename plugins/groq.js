@@ -8,6 +8,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { execFile } = require('child_process');
 
 class GroqPlugin {
     constructor() {
@@ -93,7 +94,7 @@ class GroqPlugin {
         if (!apiKey) {
             throw new Error('No API found, use .setenv GROQ_API_KEY=<key>');
         }
-        return new Groq({ 
+        return new Groq({
             apiKey,
             defaultHeaders: {
                 "Groq-Model-Version": "latest"
@@ -110,10 +111,10 @@ class GroqPlugin {
 
             let prompt = messageInfo.args.join(' ').trim();
             let contextText = '';
-            
+
             // Check if replying to a message
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+                messageInfo.message?.quotedMessage;
 
             if (quotedMessage) {
                 // Extract text from quoted message
@@ -126,7 +127,7 @@ class GroqPlugin {
                 } else if (quotedMessage.videoMessage?.caption) {
                     contextText = quotedMessage.videoMessage.caption;
                 }
-                
+
                 // If replying to a message but no additional prompt, use a default
                 if (!prompt && contextText) {
                     prompt = 'Please analyze or respond to this message:';
@@ -134,11 +135,11 @@ class GroqPlugin {
             }
 
             if (!prompt && !contextText) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a message or reply to any message.\nUsage: .groq <your message> OR reply to any message with .groq');
                 return;
             }
-            
+
             // Combine context and prompt
             const fullPrompt = contextText ? `${prompt}\n\nMessage to analyze: "${contextText}"` : prompt;
 
@@ -207,11 +208,11 @@ class GroqPlugin {
             const groq = this.getGroqClient();
 
             let text = messageInfo.args.join(' ').trim();
-            
+
             // If no direct text provided, check if replying to a message
             if (!text) {
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                    messageInfo.message?.quotedMessage;
+                    messageInfo.message?.quotedMessage;
 
                 if (quotedMessage) {
                     // Extract text from quoted message
@@ -228,7 +229,7 @@ class GroqPlugin {
             }
 
             if (!text) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide text to convert or reply to a message.\nUsage: .tts <text> OR reply to any text message with .tts');
                 return;
             }
@@ -239,41 +240,49 @@ class GroqPlugin {
             }
 
             try {
-                // Use Groq TTS API with latest format from documentation
+                // Use Groq TTS API with latest model/voice
                 const response = await groq.audio.speech.create({
-                    model: "playai-tts",
-                    voice: "Fritz-PlayAI",
+                    model: "canopylabs/orpheus-v1-english",
+                    voice: "troy",
                     input: text,
-                    response_format: "mp3"
+                    response_format: "wav"
                 });
-
-                // Get the audio buffer properly
                 const buffer = Buffer.from(await response.arrayBuffer());
-                const audioPath = path.join(this.tempDir, `tts_${Date.now()}.mp3`);
-                
-                // Write the buffer to file
-                await fs.writeFile(audioPath, buffer);
-
-                // Verify file was created successfully
-                const fileExists = await fs.pathExists(audioPath);
+                const wavPath = path.join(this.tempDir, `tts_${Date.now()}.wav`);
+                await fs.writeFile(wavPath, buffer);
+                const fileExists = await fs.pathExists(wavPath);
                 if (!fileExists) {
                     throw new Error('Failed to create audio file');
                 }
-
-                // Send as voice note with proper audio options
-                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
-                    audio: fs.readFileSync(audioPath),
-                    mimetype: 'audio/mp4',
-                    ptt: true
+                // Convert WAV to OGG/Opus using ffmpeg
+                const oggPath = path.join(this.tempDir, `tts_${Date.now()}.ogg`);
+                await new Promise((resolve, reject) => {
+                    execFile('ffmpeg', [
+                        '-y',
+                        '-i', wavPath,
+                        '-c:a', 'libopus',
+                        '-b:a', '48k',
+                        '-vbr', 'on',
+                        oggPath
+                    ], (error, stdout, stderr) => {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            resolve();
+                        }
+                    });
                 });
-
-                // Delete temp file immediately after sending
-                await fs.remove(audioPath);
-
+                // Send as WhatsApp voice note (PTT)
+                await this.bot.sock.sendMessage(messageInfo.chat_jid, {
+                    audio: fs.readFileSync(oggPath),
+                    mimetype: 'audio/ogg; codecs=opus',
+                    ptt: true,
+                    fileName: 'speech.ogg'
+                });
+                await fs.remove(wavPath);
+                await fs.remove(oggPath);
             } catch (error) {
                 console.error('TTS processing error:', error);
-                
-                // Only show error messages when something actually fails
                 if (error.message && error.message.includes('model_terms_required')) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ TTS model requires terms acceptance. Admin must accept terms at https://console.groq.com/playground?model=playai-tts');
                 } else if (error.message && error.message.includes('quota')) {
@@ -303,7 +312,7 @@ class GroqPlugin {
             const groq = this.getGroqClient();
 
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+                messageInfo.message?.quotedMessage;
 
             if (!quotedMessage) {
                 await this.bot.messageHandler.reply(messageInfo, '❌ Please reply to an audio message.');
@@ -324,8 +333,8 @@ class GroqPlugin {
 
                 // Download audio using the proper message structure
                 const audioBuffer = await downloadMediaMessage(
-                    messageToDownload, 
-                    'buffer', 
+                    messageToDownload,
+                    'buffer',
                     {}
                 );
 
@@ -358,9 +367,9 @@ class GroqPlugin {
 
             } catch (error) {
                 console.error('STT processing error:', error);
-                
+
                 let errorMessage = '❌ Error transcribing audio.';
-                
+
                 if (error.message && error.message.includes('No message present')) {
                     errorMessage = '❌ Unable to download audio. Please try replying to the audio message again.';
                 } else if (error.message && error.message.includes('quota')) {
@@ -370,7 +379,7 @@ class GroqPlugin {
                 } else if (error.message && error.message.includes('No speech detected')) {
                     errorMessage = '❌ No speech detected in the audio file.';
                 }
-                
+
                 await this.bot.messageHandler.reply(messageInfo, errorMessage);
             }
 
@@ -394,10 +403,10 @@ class GroqPlugin {
             let question = messageInfo.args.join(' ').trim();
             let messageToDownload = null;
             let currentImage = null;
-            
+
             // Check if this is an image with .ask as caption (like sticker command)
             const directImage = messageInfo.message?.imageMessage;
-            
+
             if (directImage) {
                 // Direct image with .ask <question> caption
                 currentImage = directImage;
@@ -408,10 +417,10 @@ class GroqPlugin {
             } else {
                 // Check for quoted message
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                    messageInfo.message?.quotedMessage;
+                    messageInfo.message?.quotedMessage;
 
                 if (!quotedMessage || !quotedMessage.imageMessage) {
-                    await this.bot.messageHandler.reply(messageInfo, 
+                    await this.bot.messageHandler.reply(messageInfo,
                         '❌ Send an image with .ask <question> as caption or reply to an image with .ask <question>');
                     return;
                 }
@@ -441,7 +450,7 @@ class GroqPlugin {
                 const base64Image = imageBuffer.toString('base64');
                 const mimeType = currentImage.mimetype || 'image/jpeg';
 
-                    // Analyze with Groq Vision using correct model
+                // Analyze with Groq Vision using correct model
                 const completion = await groq.chat.completions.create({
                     messages: [
                         {
@@ -502,10 +511,10 @@ class GroqPlugin {
 
             let messageToDownload = null;
             let currentImage = null;
-            
+
             // Check if this is an image with .describe as caption (like sticker command)
             const directImage = messageInfo.message?.imageMessage;
-            
+
             if (directImage) {
                 // Direct image with .describe caption
                 currentImage = directImage;
@@ -516,7 +525,7 @@ class GroqPlugin {
             } else {
                 // Check for quoted message
                 const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                    messageInfo.message?.quotedMessage;
+                    messageInfo.message?.quotedMessage;
 
                 if (!quotedMessage || !quotedMessage.imageMessage) {
                     await this.bot.messageHandler.reply(messageInfo, '❌ Send an image with .describe as caption or reply to an image with .describe');
@@ -607,10 +616,10 @@ class GroqPlugin {
 
             let prompt = messageInfo.args.join(' ').trim();
             let contextText = '';
-            
+
             // Check if replying to a message
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+                messageInfo.message?.quotedMessage;
 
             if (quotedMessage) {
                 // Extract text from quoted message
@@ -623,7 +632,7 @@ class GroqPlugin {
                 } else if (quotedMessage.videoMessage?.caption) {
                     contextText = quotedMessage.videoMessage.caption;
                 }
-                
+
                 // If replying to a message but no additional prompt, use a default
                 if (!prompt && contextText) {
                     prompt = 'Please provide a comprehensive analysis with web search for this:';
@@ -631,17 +640,17 @@ class GroqPlugin {
             }
 
             if (!prompt && !contextText) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a question or reply to any message.\nUsage: .compound <your question> OR reply to any message with .compound');
                 return;
             }
-            
+
             // Combine context and prompt
             const fullPrompt = contextText ? `${prompt}\n\nContent to analyze: "${contextText}"` : prompt;
 
             // Check if the prompt contains URLs for website visiting
             const hasURL = /https?:\/\/[^\s]+/.test(fullPrompt);
-            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo, 
+            const thinkingMsg = await this.bot.messageHandler.reply(messageInfo,
                 hasURL ? '🌐 Launching browsers and analyzing website...' : '🤖 Launching browser automation for deep research...');
 
             try {
@@ -681,7 +690,7 @@ class GroqPlugin {
                     text: '❌ Error with Compound AI. Falling back to standard model...',
                     edit: thinkingMsg.key
                 });
-                
+
                 // Fallback to standard model
                 return this.groqChatCommand(messageInfo);
             }
@@ -774,10 +783,10 @@ class GroqPlugin {
 
             let prompt = messageInfo.args.join(' ').trim();
             let contextText = '';
-            
+
             // Check if replying to a message
             const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
-                                messageInfo.message?.quotedMessage;
+                messageInfo.message?.quotedMessage;
 
             if (quotedMessage) {
                 // Extract text from quoted message
@@ -790,7 +799,7 @@ class GroqPlugin {
                 } else if (quotedMessage.videoMessage?.caption) {
                     contextText = quotedMessage.videoMessage.caption;
                 }
-                
+
                 // If replying to a message but no additional prompt, use a default
                 if (!prompt && contextText) {
                     prompt = 'Analyze what tools or steps would be needed for this task:';
@@ -798,11 +807,11 @@ class GroqPlugin {
             }
 
             if (!prompt && !contextText) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a request or reply to any message.\nUsage: .tools <your request> OR reply to any message with .tools');
                 return;
             }
-            
+
             // Combine context and prompt
             const fullPrompt = contextText ? `${prompt}\n\nTask to analyze: "${contextText}"` : prompt;
 
@@ -841,7 +850,7 @@ class GroqPlugin {
                     text: '❌ Error with Tool AI. Falling back to standard model...',
                     edit: thinkingMsg.key
                 });
-                
+
                 // Fallback to standard model
                 return this.groqChatCommand(messageInfo);
             }
@@ -879,12 +888,12 @@ class GroqPlugin {
                 const models = data.data || [];
 
                 let modelsList = '📋 *Available Groq Models:*\n\n';
-                
+
                 // Group models by type
                 const chatModels = models.filter(m => m.id.includes('llama') || m.id.includes('gpt') || m.id.includes('qwen') || m.id.includes('kimi'));
                 const systemModels = models.filter(m => m.id.includes('compound'));
                 const audioModels = models.filter(m => m.id.includes('whisper') || m.id.includes('tts'));
-                
+
                 if (chatModels.length > 0) {
                     modelsList += '*🤖 Chat Models:*\n';
                     chatModels.slice(0, 8).forEach(model => {
@@ -919,7 +928,7 @@ class GroqPlugin {
 
             } catch (apiError) {
                 console.error('Models API error:', apiError);
-                
+
                 // Fallback to hardcoded list
                 const fallbackList = `📋 *Available Groq Commands:*\n\n*💬 Text AI:*\n• .groq - Basic chat (llama-3.3-70b)\n• .search - Advanced AI with browser automation (up to 10 browsers) & web search\n• .reason - Complex reasoning & math (GPT-OSS 120B)\n\n*🎵 Audio:*\n• .tts - Text to speech\n• .stt - Speech to text\n\n*👁️ Vision:*\n• .ask - Analyze or describe images\n\n*🤖 Pro tip: .search launches multiple browsers for comprehensive research!*\n*🎯 Streamlined for efficiency - each command has unique capabilities!*`;
 
@@ -946,7 +955,7 @@ class GroqPlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a problem to solve.\nUsage: .reason <complex problem>');
                 return;
             }
@@ -972,11 +981,11 @@ class GroqPlugin {
             const reasoning = completion.choices[0]?.message?.reasoning;
 
             let finalResponse = `🧠 *Advanced Reasoning Result:*\n\n`;
-            
+
             if (reasoning) {
                 finalResponse += `💭 *Thinking Process:*\n${reasoning}\n\n`;
             }
-            
+
             finalResponse += `✅ *Solution:*\n${response}`;
 
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {
@@ -997,7 +1006,7 @@ class GroqPlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a problem to think about.\nUsage: .think <problem>');
                 return;
             }
@@ -1039,7 +1048,7 @@ class GroqPlugin {
         try {
             const prompt = messageInfo.args.join(' ').trim();
             if (!prompt) {
-                await this.bot.messageHandler.reply(messageInfo, 
+                await this.bot.messageHandler.reply(messageInfo,
                     '❌ Please provide a problem to solve.\nUsage: .solve <math problem>');
                 return;
             }
@@ -1065,11 +1074,11 @@ class GroqPlugin {
             const reasoning = completion.choices[0]?.message?.reasoning;
 
             let finalResponse = `🧮 *Mathematical Solution:*\n\n`;
-            
+
             if (reasoning) {
                 finalResponse += `📝 *Step-by-step Work:*\n${reasoning}\n\n`;
             }
-            
+
             finalResponse += `✅ *Final Answer:*\n${response}`;
 
             await this.bot.sock.sendMessage(messageInfo.chat_jid, {

@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Twitter/X Downloader Plugin
  * Download Twitter/X videos, images, and GIFs
@@ -50,10 +49,15 @@ class TwitterPlugin {
     async downloadTwitter(messageInfo) {
         try {
             let url = messageInfo.args.join(' ').trim();
-            
-            // Check if it's a reply to a message
-            if (!url && messageInfo.quoted?.text) {
-                url = messageInfo.quoted.text;
+            if (!url) {
+                // Try to extract quoted message from raw WhatsApp message object
+                const quotedMessage = messageInfo.message?.extendedTextMessage?.contextInfo?.quotedMessage ||
+                                      messageInfo.message?.quotedMessage;
+                if (quotedMessage) {
+                    // Use Pinterest's extractUrlFromObject for Twitter URLs
+                    const twUrlRegex = /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+\/status\/[0-9]+/i;
+                    url = require('./pinterest').extractUrlFromObject(quotedMessage, twUrlRegex) || '';
+                }
             }
             
             if (!url) {
