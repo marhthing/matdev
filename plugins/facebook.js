@@ -28,7 +28,7 @@ class FacebookPlugin {
         
         // File size limits (WhatsApp limits)
         this.videoSizeLimit = 2 * 1024 * 1024 * 1024; // 2GB
-        this.videoMediaLimit = 16 * 1024 * 1024; // 16MB (for inline video)
+        this.videoMediaLimit = 30 * 1024 * 1024; // 30MB (for inline video)
     }
 
     /**
