@@ -47,7 +47,14 @@ class CorePlugin {
             source: 'core.js'
         });
 
-
+        // Alive command
+        this.bot.messageHandler.registerCommand('alive', this.aliveCommand.bind(this), {
+            description: "Check if the bot is alive and show uptime",
+            usage: `${config.PREFIX}alive`,
+            category: 'core',
+            plugin: 'core',
+            source: 'core.js'
+        });
 
         // Menu command (enhanced system info menu)
         this.bot.messageHandler.registerCommand('menu', this.menuCommand.bind(this), {
@@ -57,7 +64,6 @@ class CorePlugin {
             plugin: 'core',
             source: 'core.js'
         });
-
 
         // JID command
         this.bot.messageHandler.registerCommand('jid', this.jidCommand.bind(this), {
@@ -83,8 +89,6 @@ class CorePlugin {
 
         // Update commands moved to system plugin
 
-
-
         // Permission management commands (owner only)
         this.bot.messageHandler.registerCommand('permissions', this.permissionsCommand.bind(this), {
             description: 'Manage user permissions (allow/disallow commands)',
@@ -92,7 +96,6 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
-
 
         // Group LID registration command
         this.bot.messageHandler.registerCommand('rg', this.registerGroupLidCommand.bind(this), {
@@ -125,8 +128,6 @@ class CorePlugin {
             ownerOnly: true
         });
 
-        
-
         // Stats command - manual status report
         this.bot.messageHandler.registerCommand('stats', this.statsCommand.bind(this), {
             description: 'Get bot statistics manually',
@@ -136,7 +137,6 @@ class CorePlugin {
             plugin: 'core',
             source: 'core.js'
         });
-
 
         // Sticker command binding commands (owner only)
         this.bot.messageHandler.registerCommand('setcmd', this.setStickerCommand.bind(this), {
@@ -304,6 +304,21 @@ class CorePlugin {
     }
 
     /**
+     * Alive command handler
+     */
+    async aliveCommand(messageInfo) {
+        try {
+            const utils = require('../lib/utils');
+            const utilsInstance = new utils();
+            const uptime = utilsInstance.formatUptime(Date.now() - this.bot.startTime);
+            const reply = `I'm alive\nUptime: ${uptime}`;
+            await this.bot.messageHandler.reply(messageInfo, reply);
+        } catch (error) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Error displaying alive status.');
+        }
+    }
+
+    /**
      * Status command handler
      */
     async statusCommand(messageInfo) {
@@ -390,7 +405,6 @@ class CorePlugin {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error retrieving JID information.');
         }
     }
-
 
     /**
      * Enhanced menu command with modern styling
@@ -702,8 +716,6 @@ class CorePlugin {
             await this.bot.messageHandler.reply(messageInfo, '❌ Error during broadcast.');
         }
     }
-
-
 
     /**
      * Permissions command handler (handles subcommands: allow, disallow, or view)
