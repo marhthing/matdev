@@ -218,9 +218,24 @@ class GroupPlugin {
     }
 
     /**
+     * Helper: Check if sender is allowed
+     */
+    isAllowedUser(senderJid) {
+        const ownerJid = this.bot.sock.user?.id;
+        // You can add allowed JIDs here
+        const allowedUsers = [ownerJid, ...(this.bot.config.ALLOWED_USERS || [])];
+        return allowedUsers.includes(senderJid);
+    }
+
+    /**
      * Unified tag command - handles both everyone and admin tagging
      */
     async tagCommand(messageInfo) {
+        // Only allow outgoing messages from owner or allowed users
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return; // Ignore silently or reply with error
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -241,6 +256,10 @@ class GroupPlugin {
      * Tag everyone in the group
      */
     async tagEveryone(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
 
@@ -315,6 +334,10 @@ class GroupPlugin {
      * Tag only group admins
      */
     async tagAdmins(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         try {
             const { args, chat_jid, sender_jid } = messageInfo;
 
@@ -389,6 +412,10 @@ class GroupPlugin {
      * Kick user from group (admin only)
      */
     async kickUser(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -509,6 +536,10 @@ class GroupPlugin {
      * Add user to group (admin only)
      */
     async addUser(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -801,6 +832,10 @@ class GroupPlugin {
      * Promote user to admin (admin only)
      */
     async promoteUser(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -914,6 +949,10 @@ class GroupPlugin {
      * Demote user from admin (admin only)
      */
     async demoteUser(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1178,6 +1217,10 @@ class GroupPlugin {
      * Lock group - restrict messaging to admins only (admin only)
      */
     async lockGroup(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1228,6 +1271,10 @@ class GroupPlugin {
      * Unlock group - allow everyone to send messages (admin only)
      */
     async unlockGroup(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1287,6 +1334,10 @@ class GroupPlugin {
      * Greeting control command
      */
     async greetingCommand(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1398,6 +1449,10 @@ class GroupPlugin {
      * Group info command - show group information and statistics
      */
     async groupInfoCommand(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1459,6 +1514,10 @@ class GroupPlugin {
      * Set group name command (admin only)
      */
     async setGroupNameCommand(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1518,6 +1577,10 @@ class GroupPlugin {
      * Set group description command (admin only)
      */
     async setGroupDescCommand(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group
@@ -1577,6 +1640,10 @@ class GroupPlugin {
      * Get group invite link command (admin only)
      */
     async getGroupLinkCommand(messageInfo) {
+        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+            return;
+        }
+
         // Check if this is a group chat
         if (!messageInfo.is_group) {
             return; // Silently ignore if not in group

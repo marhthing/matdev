@@ -96,14 +96,33 @@ class CorePlugin {
             category: 'admin',
             ownerOnly: true
         });
+        // Short aliases for permission management
+        this.bot.messageHandler.registerCommand('allow', this.allowCommand.bind(this), {
+            description: 'Allow user to use a command (short form)',
+            usage: `${config.PREFIX}allow <jid> <cmd> | ${config.PREFIX}allow <cmd> (reply to user)`,
+            category: 'admin',
+            ownerOnly: true
+        });
+        this.bot.messageHandler.registerCommand('disallow', this.disallowCommand.bind(this), {
+            description: 'Disallow user from using a command (short form)',
+            usage: `${config.PREFIX}disallow <jid> <cmd> | ${config.PREFIX}disallow <cmd> (reply to user)`,
+            category: 'admin',
+            ownerOnly: true
+        });
+        this.bot.messageHandler.registerCommand('pm', this.pmCommand.bind(this), {
+            description: 'Show permissions for a user (short form)',
+            usage: `${config.PREFIX}pm <jid> | ${config.PREFIX}pm (reply to user)`,
+            category: 'admin',
+            ownerOnly: true
+        });
 
         // Group LID registration command
-        this.bot.messageHandler.registerCommand('rg', this.registerGroupLidCommand.bind(this), {
-            description: 'Register your LID for this group (one-time only)',
-            usage: `${config.PREFIX}rg`,
-            category: 'group',
-            groupOnly: true
-        });
+        // this.bot.messageHandler.registerCommand('rg', this.registerGroupLidCommand.bind(this), {
+        //     description: 'Register your LID for this group (one-time only)',
+        //     usage: `${config.PREFIX}rg`,
+        //     category: 'group',
+        //     groupOnly: true
+        // });
 
         // Group LID management commands (owner only)
         this.bot.messageHandler.registerCommand('clearlid', this.clearGroupLidCommand.bind(this), {
@@ -318,7 +337,7 @@ class CorePlugin {
         }
     }
 
-    /**
+    /** 
      * Status command handler
      */
     async statusCommand(messageInfo) {
@@ -778,11 +797,26 @@ class CorePlugin {
 
                     const success = await this.bot.database.addPermission(targetJid, command);
 
+                    let displayName = targetJid.split('@')[0];
+                    // Try to get name from WhatsApp profile if possible
+                    if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
+                        try {
+                            const name = await this.bot.sock.getName(targetJid);
+                            if (name) displayName = name;
+                        } catch (e) {}
+                    } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
+                        try {
+                            const waInfo = await this.bot.sock.onWhatsApp(targetJid);
+                            if (waInfo && waInfo[0] && waInfo[0].notify) {
+                                displayName = waInfo[0].notify;
+                            }
+                        } catch (e) {}
+                    }
+
                     if (success) {
-                        const displayJid = targetJid.split('@')[0];
                         const contextText = messageInfo.is_group ? ' (from quoted message)' : ' (from this chat)';
                         await this.bot.messageHandler.reply(messageInfo,
-                            `✅ User ${displayJid}${contextText} can now use .${command}`);
+                            `✅ User ${displayName}${contextText} can now use .${command}`);
                     } else {
                         await this.bot.messageHandler.reply(messageInfo,
                             '❌ Failed to add permission. User may already have this permission.');
@@ -809,10 +843,25 @@ class CorePlugin {
 
                 const success = await this.bot.database.addPermission(jid, command);
 
+                let displayName = jid.split('@')[0];
+                // Try to get name from WhatsApp profile if possible
+                if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
+                    try {
+                        const name = await this.bot.sock.getName(jid);
+                        if (name) displayName = name;
+                    } catch (e) {}
+                } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
+                    try {
+                        const waInfo = await this.bot.sock.onWhatsApp(jid);
+                        if (waInfo && waInfo[0] && waInfo[0].notify) {
+                            displayName = waInfo[0].notify;
+                        }
+                    } catch (e) {}
+                }
+
                 if (success) {
-                    const displayJid = jid.split('@')[0];
                     await this.bot.messageHandler.reply(messageInfo,
-                        `✅ User ${displayJid} can now use .${command}`);
+                        `✅ User ${displayName} can now use .${command}`);
                 } else {
                     await this.bot.messageHandler.reply(messageInfo,
                         '❌ Failed to add permission. User may already have this permission.');
@@ -921,6 +970,128 @@ class CorePlugin {
     }
 
     /**
+     * Short form: .allow <jid> <cmd> or .allow <cmd> (reply to user)
+     */
+    async allowCommand(messageInfo) {
+        const { args } = messageInfo;
+        let targetJid = null;
+        let command = null;
+        if (args.length === 1) {
+            command = args[0].replace('.', '').toLowerCase();
+            // Private: use chat_jid, Group: use quoted participant
+            if (!messageInfo.is_group) {
+                targetJid = messageInfo.chat_jid;
+            } else {
+                const quotedParticipant = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) targetJid = quotedParticipant;
+            }
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Reply to a user or specify JID.');
+                return;
+            }
+        } else if (args.length >= 2) {
+            let jid = args[0];
+            command = args[1].replace('.', '').toLowerCase();
+            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
+            targetJid = jid;
+        } else {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .allow <jid> <cmd> or .allow <cmd> (reply to user)');
+            return;
+        }
+        const success = await this.bot.database.addPermission(targetJid, command);
+        let displayName = targetJid.split('@')[0];
+        // Try to get name from WhatsApp profile if possible
+        if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
+            try {
+                const name = await this.bot.sock.getName(targetJid);
+                if (name) displayName = name;
+            } catch (e) {}
+        } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
+            try {
+                const waInfo = await this.bot.sock.onWhatsApp(targetJid);
+                if (waInfo && waInfo[0] && waInfo[0].notify) {
+                    displayName = waInfo[0].notify;
+                }
+            } catch (e) {}
+        }
+        if (success) {
+            await this.bot.messageHandler.reply(messageInfo, `✅ User ${displayName} can now use .${command}`);
+        } else {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to add permission. User may already have this permission.');
+        }
+    }
+    /**
+     * Short form: .disallow <jid> <cmd> or .disallow <cmd> (reply to user)
+     */
+    async disallowCommand(messageInfo) {
+        const { args } = messageInfo;
+        let targetJid = null;
+        let command = null;
+        if (args.length === 1) {
+            command = args[0].replace('.', '').toLowerCase();
+            if (!messageInfo.is_group) {
+                targetJid = messageInfo.chat_jid;
+            } else {
+                const quotedParticipant = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) targetJid = quotedParticipant;
+            }
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Reply to a user or specify JID.');
+                return;
+            }
+        } else if (args.length >= 2) {
+            let jid = args[0];
+            command = args[1].replace('.', '').toLowerCase();
+            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
+            targetJid = jid;
+        } else {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .disallow <jid> <cmd> or .disallow <cmd> (reply to user)');
+            return;
+        }
+        const success = await this.bot.database.removePermission(targetJid, command);
+        if (success) {
+            const displayJid = targetJid.split('@')[0];
+            await this.bot.messageHandler.reply(messageInfo, `✅ Removed .${command} permission from ${displayJid}`);
+        } else {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to remove permission. User may not have this permission.');
+        }
+    }
+    /**
+     * Short form: .pm <jid> or .pm (reply to user)
+     */
+    async pmCommand(messageInfo) {
+        const { args } = messageInfo;
+        let targetJid = null;
+        if (args.length === 0) {
+            if (!messageInfo.is_group) {
+                targetJid = messageInfo.chat_jid;
+            } else {
+                const quotedParticipant = messageInfo.message?.extendedTextMessage?.contextInfo?.participant;
+                if (quotedParticipant) targetJid = quotedParticipant;
+            }
+            if (!targetJid) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Reply to a user or specify JID.');
+                return;
+            }
+        } else {
+            let jid = args[0];
+            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
+            targetJid = jid;
+        }
+        const userPermissions = this.bot.database.getUserPermissions(targetJid);
+        const displayJid = targetJid.split('@')[0];
+        if (!userPermissions || userPermissions.length === 0) {
+            await this.bot.messageHandler.reply(messageInfo, `📋 User ${displayJid} has no permissions.`);
+        } else {
+            let permissionsText = `*📋 PERMISSIONS FOR ${displayJid}*\n\n`;
+            userPermissions.forEach(cmd => {
+                permissionsText += `• .${cmd}\n`;
+            });
+            await this.bot.messageHandler.reply(messageInfo, permissionsText.trim());
+        }
+    }
+
+    /**
      * Register Group LID command handler (.rg)
      * Only works in groups and only when no group LID is registered yet
      */
@@ -935,7 +1106,8 @@ class CorePlugin {
 
             // Check if a group LID is already registered
             if (this.bot.database.isGroupLidRegistered()) {
-                // Silent - LID already registered, do nothing
+                await this.bot.messageHandler.reply(messageInfo,
+                    '❌ A LID is already registered for this group. Use .clearlid to clear before registering a new one.');
                 return;
             }
 
