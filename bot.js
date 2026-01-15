@@ -733,13 +733,14 @@ const proceedWithPairingCode = async () => {
             // QR code logic
             this.connectWithQRCode = async (rl) => {
                 const { useMultiFileAuthState, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+                const { default: pino } = require('pino');
                 const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'session', 'auth'));
                 const version = (await fetchLatestBaileysVersion()).version;
                 this.sock = makeWASocket({
                     auth: state,
                     version,
                     browser: ['MATDEV', 'Desktop', '1.0'],
-                    logger: { level: 'silent' }
+                    logger: pino({ level: 'silent' })
                 });
                 this.setupEventHandlers(saveCreds);
                 rl.close();
