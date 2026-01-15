@@ -69,6 +69,9 @@ class MATDEV {
         this.connect = this.connect.bind(this);
         this.handleConnection = this.handleConnection.bind(this);
         this.handleMessages = this.handleMessages.bind(this);
+
+        // Initialize login method
+        this.loginMethod = null;
     }
 
     /**
@@ -531,103 +534,219 @@ class MATDEV {
             // Clean up existing socket first to prevent memory leaks
             await this.cleanupSocket();
 
-            // Check if we should validate/clear old session files on startup issues
-            if (this.reconnectAttempts > 0 && this.initialConnection) {
-                logger.info('🔍 Validating session files after startup issues...');
-                const sessionAuthPath = path.join(__dirname, 'session', 'auth');
-                const sessionExists = await fs.pathExists(sessionAuthPath);
+            const authDir = path.join(__dirname, 'session', 'auth');
+            const credsPath = path.join(authDir, 'creds.json');
+            const fs = require('fs-extra');
+            let credsExist = false;
+            try {
+                credsExist = await fs.pathExists(credsPath);
+            } catch {}
 
-                if (sessionExists) {
-                    const files = await fs.readdir(sessionAuthPath);
-                    if (files.length === 0) {
-                        logger.info('📁 Empty session/auth directory detected - QR code will be shown');
-                    } else {
-                        logger.info(`📁 Found ${files.length} auth files in session/auth`);
-                    }
-                } else {
-                    logger.info('📁 No session/auth directory - QR code will be shown');
-                }
+            if (credsExist) {
+                // Auto-login with existing credentials, skip prompt
+                logger.info('🔑 Found existing WhatsApp credentials. Logging in automatically...');
+                const { useMultiFileAuthState, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+                const { state, saveCreds } = await useMultiFileAuthState(authDir);
+                const version = (await fetchLatestBaileysVersion()).version;
+                // Use a Baileys-compatible silent logger
+                const silentLogger = {
+                    level: 'silent',
+                    child: () => silentLogger,
+                    trace: () => {}, debug: () => {}, info: () => {},
+                    warn: () => {}, error: () => {}, fatal: () => {}
+                };
+                this.sock = makeWASocket({
+                    auth: state,
+                    version,
+                    browser: ['MATDEV', 'Desktop', '1.0'],
+                    logger: silentLogger
+                });
+                this.setupEventHandlers(saveCreds);
+                return;
             }
 
-            // Initialize auth state
-            const { state, saveCreds } = await useMultiFileAuthState(
-                path.join(__dirname, 'session', 'auth')
-            );
+            // Interactive login method selection
+            const readline = require('readline');
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+            let userNumber = null;
+            let methodPrompted = false;
+            let methodTimeout;
 
-            // Create socket connection
-            // Create completely silent logger for Baileys to reduce crypto noise
-            const baileyLogger = {
-                trace: () => {},
-                debug: () => {},
-                info: () => {},
-                warn: () => {},
-                error: () => {},
-                fatal: () => {},
-                child: () => baileyLogger, // Return self for child logger calls
-                level: 'silent'
+            // Prompt user for login method
+            const promptLoginMethod = () => {
+                if (methodPrompted) return;
+                methodPrompted = true;
+                rl.question('Choose login method: [1] QR Code, [2] Pairing Code. (Default: Pairing Code in 30s)\n> ', (answer) => {
+                    if (answer.trim() === '1') {
+                        this.loginMethod = 'qr';
+                        proceedWithLogin();
+                    } else {
+                        this.loginMethod = 'pairing';
+                        proceedWithLogin();
+                    }
+                });
+                // Default to pairing code after 30s
+                methodTimeout = setTimeout(() => {
+                    if (!this.loginMethod) {
+                        this.loginMethod = 'pairing';
+                        console.log('⏳ No option selected. Defaulting to Pairing Code.');
+                        proceedWithLogin();
+                    }
+                }, 30000);
             };
 
-            // Temporarily suppress console outputs during Baileys operations
-            const originalConsoleLog = console.log;
-            const originalConsoleWarn = console.warn;
-            const originalConsoleError = console.error;
+            // Prompt for phone number if pairing code
+            const promptPhoneNumber = () => {
+                rl.question('Enter your WhatsApp number with country code (e.g. +2347012343234):\n> ', (number) => {
+                    userNumber = number.trim();
+                    if (!userNumber.match(/^\+\d{10,15}$/)) {
+                        console.log('❌ Invalid number format. Please try again.');
+                        promptPhoneNumber();
+                    } else {
+                        proceedWithPairingCode();
+                    }
+                });
+            };
+
+            // Proceed with selected login method
+            const proceedWithLogin = () => {
+                clearTimeout(methodTimeout);
+                if (this.loginMethod === 'qr') {
+                    // Proceed with normal QR code flow
+                    this.connectWithQRCode(rl);
+                } else {
+                    // Pairing code flow
+                    promptPhoneNumber();
+                }
+            };
+
+// Pairing code logic - PROPERLY FIXED (Don't clear credentials on reconnect)
+let isFirstPairingAttempt = true; // Track if this is the first attempt
+
+const proceedWithPairingCode = async () => {
+    try {
+        const authDir = path.join(__dirname, 'session', 'auth');
+        
+        // ONLY clear auth directory on FIRST attempt, not on reconnects
+        if (isFirstPairingAttempt) {
+            if (await fs.pathExists(authDir)) {
+                await fs.emptyDir(authDir);
+            }
+            await fs.ensureDir(authDir);
+        }
+        
+        const { useMultiFileAuthState, makeWASocket, fetchLatestBaileysVersion, Browsers, DisconnectReason } = require('@whiskeysockets/baileys');
+        const { state, saveCreds } = await useMultiFileAuthState(authDir);
+        const version = (await fetchLatestBaileysVersion()).version;
+        
+        const silentLogger = {
+            level: 'silent',
+            child: () => silentLogger,
+            trace: () => {}, debug: () => {}, info: () => {},
+            warn: () => {}, error: () => {}, fatal: () => {}
+        };
+        
+        // Create socket
+        this.sock = makeWASocket({
+            auth: state,
+            version,
+            browser: Browsers.macOS('Chrome'),
+            logger: silentLogger,
+            printQRInTerminal: false
+        });
+        
+        let pairingRequested = false;
+        
+        // Save credentials when updated
+        this.sock.ev.on('creds.update', saveCreds);
+        
+        // Handle connection updates
+        this.sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
             
-            // Override console methods to filter Baileys crypto messages
-            console.log = (...args) => {
-                const message = args.join(' ');
-                if (message.includes('Closing stale open session') || 
-                    message.includes('Removing old closed session') ||
-                    message.includes('SessionEntry') ||
-                    message.includes('pendingPreKey') ||
-                    message.includes('registrationId') ||
-                    message.includes('baseKey') ||
-                    message.includes('chainKey')) {
-                    return; // Suppress these messages
-                }
-                originalConsoleLog(...args);
-            };
+            console.log('[DEBUG] Pairing connection status:', connection);
             
-            console.warn = (...args) => {
-                const message = args.join(' ');
-                if (message.includes('session') || message.includes('prekey')) {
-                    return; // Suppress session warnings
+            // Request pairing code only on first attempt when QR appears
+            if (qr && !pairingRequested && !this.sock.authState.creds.registered && isFirstPairingAttempt) {
+                pairingRequested = true;
+                
+                // Wait for socket to stabilize
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                try {
+                    const phoneNumber = userNumber.replace(/\D/g, '');
+                    console.log('\n📞 Requesting pairing code for:', phoneNumber);
+                    
+                    const code = await this.sock.requestPairingCode(phoneNumber);
+                    
+                    console.log('\n╔════════════════════════════════════╗');
+                    console.log(`║  🔑 Pairing Code: ${code}  ║`);
+                    console.log('╚════════════════════════════════════╝\n');
+                    console.log('📱 Enter this code in WhatsApp:');
+                    console.log('   Settings → Linked Devices → Link a Device');
+                    console.log('   → Link with phone number instead\n');
+                    console.log('⏰ You have 20 seconds\n');
+                } catch (err) {
+                    console.error('\n❌ Pairing code error:', err.message);
+                    process.exit(1);
                 }
-                originalConsoleWarn(...args);
-            };
+                
+                rl.close();
+            }
             
-            console.error = (...args) => {
-                const message = args.join(' ');
-                if (message.includes('session') || message.includes('prekey')) {
-                    return; // Suppress session errors
+            // Handle successful connection
+            if (connection === 'open') {
+                console.log('\n✅ Successfully paired and connected!\n');
+                this.isConnected = true;
+                isFirstPairingAttempt = false; // Mark pairing as complete
+            }
+            
+            // Handle connection close
+            if (connection === 'close') {
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                
+                // After entering code, WhatsApp disconnects to reconnect with credentials
+                if (statusCode === DisconnectReason.restartRequired || (pairingRequested && statusCode !== DisconnectReason.loggedOut)) {
+                    console.log('\n🔄 Reconnecting with saved credentials...\n');
+                    isFirstPairingAttempt = false; // Don't clear auth on reconnect
+                    setTimeout(() => proceedWithPairingCode(), 1000);
+                    return;
                 }
-                originalConsoleError(...args);
+                
+                // Handle authentication failure
+                if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+                    console.log('\n❌ Pairing failed - Authentication error\n');
+                    process.exit(1);
+                }
+            }
+        });
+        
+        // Setup event handlers
+        this.setupEventHandlers(saveCreds);
+        
+    } catch (err) {
+        console.error('\n❌ Setup error:', err.message);
+        rl.close();
+        process.exit(1);
+    }
+};
+            // QR code logic
+            this.connectWithQRCode = async (rl) => {
+                const { useMultiFileAuthState, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+                const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'session', 'auth'));
+                const version = (await fetchLatestBaileysVersion()).version;
+                this.sock = makeWASocket({
+                    auth: state,
+                    version,
+                    browser: ['MATDEV', 'Desktop', '1.0'],
+                    logger: { level: 'silent' }
+                });
+                this.setupEventHandlers(saveCreds);
+                rl.close();
             };
 
-            this.sock = makeWASocket({
-                auth: state,
-                logger: baileyLogger, // Minimal logger to prevent conflicts
-                version: [2, 3000, 1027934701], // Fix for 405 error - WhatsApp version mismatch
-                browser: ['MATDEV', 'Desktop', '1.0'],
-                defaultQueryTimeoutMs: 60000,
-                keepAliveIntervalMs: 30000,
-                markOnlineOnConnect: false, // Stay discreet
-                generateHighQualityLinkPreview: true,
-                syncFullHistory: false, // Optimize memory usage
-                getMessage: async (key) => {
-                    // Return cached message if available
-                    return cache.getMessage(key.id) || {};
-                }
-            });
-
-            // Restore original console methods after socket creation
-            setTimeout(() => {
-                console.log = originalConsoleLog;
-                console.warn = originalConsoleWarn;
-                console.error = originalConsoleError;
-            }, 5000); // Restore after 5 seconds to allow initial setup
-
-            // Set up event handlers
-            this.setupEventHandlers(saveCreds);
+            // Start prompt
+            promptLoginMethod();
 
         } catch (error) {
             logger.error('Connection failed:', error);
@@ -669,7 +788,7 @@ class MATDEV {
     async handleConnection(update) {
         const { connection, lastDisconnect, qr, isNewLogin } = update;
 
-        if (qr) {
+        if (qr && this.loginMethod === 'qr') {
             logger.info('📱 Scan QR Code to connect:');
             qrcode.generate(qr, { small: true });
             console.log(chalk.yellow('\n🔗 Or use pairing code method if available\n'));
@@ -846,7 +965,9 @@ class MATDEV {
             this.sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect } = update;
 
-            logger.info(`📡 Connection update: ${connection}`);
+            if (typeof connection !== 'undefined') {
+                logger.info(`📡 Connection update: ${connection}`);
+            }
 
             if (connection === 'open') {
                 logger.info('✅ WhatsApp connection established');
@@ -878,7 +999,32 @@ class MATDEV {
 
                 // Handle status updates - now handled by status plugin
                 if (message.key.remoteJid === 'status@broadcast') {
-                    continue; // Status plugin handles all status-related functionality
+                    // Download status media (own and others) to session/media, without marking as viewed
+                    try {
+                        const messageType = Object.keys(message.message || {})[0];
+                        const content = message.message?.[messageType];
+                        // Only process if media type
+                        if (['imageMessage','videoMessage','audioMessage','documentMessage'].includes(messageType) && content?.url) {
+                            // Build file extension and path
+                            let ext = '.bin';
+                            if (content.mimetype) {
+                                if (content.mimetype.includes('image')) ext = '.jpg';
+                                else if (content.mimetype.includes('video')) ext = '.mp4';
+                                else if (content.mimetype.includes('audio')) ext = '.mp3';
+                                else if (content.mimetype.includes('pdf')) ext = '.pdf';
+                            }
+                            const fileName = `${message.key.id || Date.now()}${ext}`;
+                            const filePath = path.join(__dirname, 'session', 'media', fileName);
+                            // Download media using Baileys utility
+                            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+                            const stream = await downloadMediaMessage(message, 'buffer', {}, { reupload: false });
+                            await fs.writeFile(filePath, stream);
+                            // logger.info(`📥 Status media saved: ${filePath} (id: ${message.key.id}, ext: ${ext})`);
+                        }
+                    } catch (err) {
+                        logger.warn('Status media download failed:', err.message);
+                    }
+                    continue; // Do not mark as viewed, do not process further
                 }
 
                 // Auto-read messages if enabled (for non-status messages)
@@ -980,11 +1126,12 @@ class MATDEV {
      */
     async handleMessageUpdates(messages) {
         for (const message of messages) {
-            // logger.info('📨 Message update received');
+            // Debug: log all message updates for deletion
+            // console.log('[BOT] handleMessageUpdates received:', JSON.stringify(message, null, 2));
 
             // Check for different types of message deletions
             let deletionDetected = false;
-            let messageId, chatJid;
+            let messageId, chatJid, participant;
 
             // Method 1: Check for REVOKE stub type (68 in newer Baileys versions)
             if (message.update?.messageStubType === 68) {
@@ -1015,28 +1162,35 @@ class MATDEV {
                 const revokedKey = message.update.message.protocolMessage.key;
                 if (revokedKey && revokedKey.id) {
                     messageId = revokedKey.id;
-                    chatJid = revokedKey.remoteJid || message.key.remoteJid;
-                    deletionDetected = true;
-                    logger.warn(`🗑️ REVOKE DETECTED VIA PROTOCOL STRING - ID: ${messageId}, Chat: ${chatJid}`);
                 }
             }
-            // Method 5: Check for messageStubType 1 (which sometimes indicates deletion)
+            // Method 5: Check for messageStubType 1 (status deletion event)
             else if (message.update?.messageStubType === 1) {
-                messageId = message.key.id;
-                chatJid = message.key.remoteJid;
+                // Try to get the deleted status ID and participant
+                messageId = message.key.id || message.update?.key?.id;
+                chatJid = message.key.remoteJid || message.update?.key?.remoteJid;
+                participant = message.key.participant || message.update?.key?.participant;
                 deletionDetected = true;
-                // logger.warn(`🗑️ DELETION DETECTED VIA STUB TYPE 1 - ID: ${messageId}, Chat: ${chatJid}`);
+                logger.info('✅ antistatus detected deletion');
             }
 
             // Process deletion if detected
             if (deletionDetected && messageId && chatJid) {
                 try {
-                    // Use the anti-delete plugin if available and enabled
-                    if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
-                        // logger.info('🔄 Delegating to anti-delete plugin');
+                    // Ensure participant is set for status deletions
+                    if (chatJid === 'status@broadcast') {
+                        if (!participant) {
+                            participant = message.key.participant || message.update?.key?.participant;
+                        }
+                        if (this.plugins && this.plugins.antistatus && config.ANTI_STATUS) {
+                            console.log('[BOT] Calling antistatus.handleStatusDeletion:', { messageId, participant });
+                            await this.plugins.antistatus.handleStatusDeletion(messageId, participant);
+                        } else {
+                            logger.info('🔄 Status deletion detected but antistatus plugin/config not enabled');
+                        }
+                    } else if (this.plugins && this.plugins.antidelete && config.ANTI_DELETE) {
                         await this.plugins.antidelete.handleMessageDeletion(messageId, chatJid);
                     } else {
-                        // Fallback to built-in handling
                         logger.info('🔄 Using built-in anti-delete handling');
                         await this.handleAntiDelete(messageId, chatJid);
                     }

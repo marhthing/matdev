@@ -1,4 +1,3 @@
-
 /**
  * MATDEV Configuration
  * Environment-based configuration with intelligent defaults
@@ -137,6 +136,7 @@ const config = {
     STATUS_REACT_DELAY: process.env.STATUS_REACT_DELAY || 'nodelay', // 'delay' or 'nodelay'
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
     REJECT_CALLS: process.env.REJECT_CALLS === 'true' || false,
+    ANTI_STATUS: process.env.ANTI_STATUS === 'true',
 
     // Performance Settings
     MAX_CONCURRENT_MESSAGES: parseInt(process.env.MAX_CONCURRENT_MESSAGES) || 5,

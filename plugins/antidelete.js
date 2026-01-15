@@ -239,10 +239,13 @@ class AntiDeletePlugin {
                     }
 
                     // Get saved default destination or fallback to bot owner chat
-                    // Ensure we send to owner private chat, not the chat where deletion occurred
-                    const config = require('../config');
-                    const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                    // console.log(`📤 ANTI-DELETE: Sending text alert to: ${targetJid}`);
+                    let targetJid = this.bot.database.getData('antiDeleteDefaultDestination');
+                    if (!targetJid) {
+                        targetJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                    }
+                    if (targetJid === 'ANTI_DELETE_SAME_CHAT') {
+                        targetJid = chatJid;
+                    }
 
                     await this.bot.sock.sendMessage(targetJid, mediaMessage);
                     console.log(`📎 Recovered and sent deleted ${archivedMessage.message_type}`);
@@ -266,9 +269,13 @@ class AntiDeletePlugin {
                 }
             } else {
                 // For text messages, use the previous styling with contextInfo tagging
-                const config = require('../config');
-                const targetJid = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                // console.log(`📤 ANTI-DELETE: Sending styled deleted text to: ${targetJid}`);
+                let targetJid = this.bot.database.getData('antiDeleteDefaultDestination');
+                if (!targetJid) {
+                    targetJid = `${config.OWNER_NUMBER}@s.whatsapp.net`;
+                }
+                if (targetJid === 'ANTI_DELETE_SAME_CHAT') {
+                    targetJid = chatJid;
+                }
 
                 // Restore original message tagging format
                 const alertText = archivedMessage.content || 'deletedMessage';
@@ -345,13 +352,18 @@ class AntiDeletePlugin {
                 // No argument provided - show status and destination
                 const currentStatus = config.ANTI_DELETE ? 'ON' : 'OFF';
                 const currentDestination = this.bot.database.getData('antiDeleteDefaultDestination') || `${config.OWNER_NUMBER}@s.whatsapp.net`;
-                const destinationNumber = currentDestination.split('@')[0];
+                const destinationNumber = currentDestination === 'ANTI_DELETE_SAME_CHAT' ? 'Same Chat (p)' : currentDestination.split('@')[0];
 
                 await this.bot.messageHandler.reply(messageInfo,
                     `🗑️ *Anti-Delete Status:* ${currentStatus}\n` +
                     `📤 *Default Destination:* ${destinationNumber}\n\n` +
                     `Use \`${config.PREFIX}delete on\` or \`${config.PREFIX}delete off\` to toggle.\n` +
-                    `Use \`${config.PREFIX}delete <jid>\` to set destination.`);
+                    `Use \`${config.PREFIX}delete <jid>\` to set destination.\n` +
+                    `Use \`${config.PREFIX}delete p\` to send deleted messages to the same chat.`);
+            } else if (firstArg === 'p') {
+                // Set to send deleted messages to the same chat
+                this.bot.database.setData('antiDeleteDefaultDestination', 'ANTI_DELETE_SAME_CHAT');
+                await this.bot.messageHandler.reply(messageInfo, '✅ Deleted messages will now be sent to the same chat where they were deleted.');
             } else {
                 // This is setting the default destination
                 let newDefaultJid = args[0];

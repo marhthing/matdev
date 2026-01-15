@@ -203,7 +203,7 @@ class StatusPlugin {
 
             if (action === 'off') {
                 // Turn off status features
-                this.statusSettings.enabled = false;
+                this.statusSettings.enabled = false; // Turn status monitoring OFF
                 this.statusSettings.autoDownload = false;
                 this.saveStatusSettings();
 
