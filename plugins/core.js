@@ -5,6 +5,8 @@
 
 const config = require('../config');
 const Utils = require('../lib/utils');
+const groupPluginModule = require('./group');
+let groupPluginInstance = null;
 
 const utils = new Utils();
 
@@ -20,9 +22,35 @@ class CorePlugin {
      */
     async init(bot) {
         this.bot = bot;
+        // Initialize group plugin instance for admin checks
+        if (groupPluginModule && typeof groupPluginModule.init === 'function') {
+            groupPluginInstance = await groupPluginModule.init(bot);
+        }
         this.registerCommands();
 
         console.log('✅ Core plugin loaded');
+    }
+
+    // Helper: Check if sender is admin in group (WhatsApp/LID compatible)
+    async isUserAdminImproved(chat_jid, sender_jid, groupMetadata) {
+        if (groupPluginInstance && typeof groupPluginInstance.isUserAdminImproved === 'function') {
+            return await groupPluginInstance.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        }
+        return false;
+    }
+
+    // Helper: Normalize JID to always be in correct format (for WhatsApp/LID)
+    normalizeJid(jid) {
+        if (!jid) return '';
+        // Remove leading @ if present
+        jid = jid.startsWith('@') ? jid.slice(1) : jid;
+        // If already has @lid or @s.whatsapp.net, return as is
+        if (jid.endsWith('@lid') || jid.endsWith('@s.whatsapp.net')) return jid;
+        // If all digits, assume LID
+        if (/^\d+$/.test(jid)) return `${jid}@lid`;
+        // If looks like phone number, default to WhatsApp
+        if (/^\d{8,}$/.test(jid)) return `${jid}@s.whatsapp.net`;
+        return jid;
     }
 
     /**
@@ -795,18 +823,26 @@ class CorePlugin {
                         }
                     }
 
-                    const success = await this.bot.database.addPermission(targetJid, command);
+                    const normalizedJid = this.normalizeJid(targetJid);
 
-                    let displayName = targetJid.split('@')[0];
+                    const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+                    if (!isAdmin) {
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                        return;
+                    }
+
+                    const success = await this.bot.database.addPermission(normalizedJid, command);
+
+                    let displayName = normalizedJid.split('@')[0];
                     // Try to get name from WhatsApp profile if possible
                     if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
                         try {
-                            const name = await this.bot.sock.getName(targetJid);
+                            const name = await this.bot.sock.getName(normalizedJid);
                             if (name) displayName = name;
                         } catch (e) {}
                     } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
                         try {
-                            const waInfo = await this.bot.sock.onWhatsApp(targetJid);
+                            const waInfo = await this.bot.sock.onWhatsApp(normalizedJid);
                             if (waInfo && waInfo[0] && waInfo[0].notify) {
                                 displayName = waInfo[0].notify;
                             }
@@ -836,23 +872,26 @@ class CorePlugin {
                 let jid = args[1];
                 const command = args[2].replace('.', '').toLowerCase();
 
-                // Handle phone numbers without @ symbol
-                if (!jid.includes('@')) {
-                    jid = `${jid}@s.whatsapp.net`;
+                const normalizedJid = this.normalizeJid(jid);
+
+                const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+                if (!isAdmin) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                    return;
                 }
 
-                const success = await this.bot.database.addPermission(jid, command);
+                const success = await this.bot.database.addPermission(normalizedJid, command);
 
-                let displayName = jid.split('@')[0];
+                let displayName = normalizedJid.split('@')[0];
                 // Try to get name from WhatsApp profile if possible
                 if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
                     try {
-                        const name = await this.bot.sock.getName(jid);
+                        const name = await this.bot.sock.getName(normalizedJid);
                         if (name) displayName = name;
                     } catch (e) {}
                 } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
                     try {
-                        const waInfo = await this.bot.sock.onWhatsApp(jid);
+                        const waInfo = await this.bot.sock.onWhatsApp(normalizedJid);
                         if (waInfo && waInfo[0] && waInfo[0].notify) {
                             displayName = waInfo[0].notify;
                         }
@@ -896,10 +935,18 @@ class CorePlugin {
                         }
                     }
 
-                    const success = await this.bot.database.removePermission(targetJid, command);
+                    const normalizedJid = this.normalizeJid(targetJid);
+
+                    const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+                    if (!isAdmin) {
+                        await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                        return;
+                    }
+
+                    const success = await this.bot.database.removePermission(normalizedJid, command);
 
                     if (success) {
-                        const displayJid = targetJid.split('@')[0];
+                        const displayJid = normalizedJid.split('@')[0];
                         const contextText = messageInfo.is_group ? ' (from quoted message)' : ' (from this chat)';
                         await this.bot.messageHandler.reply(messageInfo,
                             `✅ Removed .${command} permission from ${displayJid}${contextText}`);
@@ -922,15 +969,18 @@ class CorePlugin {
                 let jid = args[1];
                 const command = args[2].replace('.', '').toLowerCase();
 
-                // Handle phone numbers without @ symbol
-                if (!jid.includes('@')) {
-                    jid = `${jid}@s.whatsapp.net`;
+                const normalizedJid = this.normalizeJid(jid);
+
+                const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+                if (!isAdmin) {
+                    await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                    return;
                 }
 
-                const success = await this.bot.database.removePermission(jid, command);
+                const success = await this.bot.database.removePermission(normalizedJid, command);
 
                 if (success) {
-                    const displayJid = jid.split('@')[0];
+                    const displayJid = normalizedJid.split('@')[0];
                     await this.bot.messageHandler.reply(messageInfo,
                         `✅ Removed .${command} permission from ${displayJid}`);
                 } else {
@@ -942,13 +992,10 @@ class CorePlugin {
                 // Show permissions for specific user: .permissions <jid>
                 let jid = args[0];
 
-                // Handle phone numbers without @ symbol
-                if (!jid.includes('@')) {
-                    jid = `${jid}@s.whatsapp.net`;
-                }
+                const normalizedJid = this.normalizeJid(jid);
 
-                const userPermissions = this.bot.database.getUserPermissions(jid);
-                const displayJid = jid.split('@')[0];
+                const userPermissions = this.bot.database.getUserPermissions(normalizedJid);
+                const displayJid = normalizedJid.split('@')[0];
 
                 if (userPermissions.length === 0) {
                     await this.bot.messageHandler.reply(messageInfo,
@@ -992,23 +1039,33 @@ class CorePlugin {
         } else if (args.length >= 2) {
             let jid = args[0];
             command = args[1].replace('.', '').toLowerCase();
-            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
-            targetJid = jid;
+            targetJid = this.normalizeJid(jid);
         } else {
             await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .allow <jid> <cmd> or .allow <cmd> (reply to user)');
             return;
         }
-        const success = await this.bot.database.addPermission(targetJid, command);
-        let displayName = targetJid.split('@')[0];
+
+        if (messageInfo.is_group) {
+            const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+            if (!isAdmin) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                return;
+            }
+        }
+
+        const normalizedJid = this.normalizeJid(targetJid);
+
+        const success = await this.bot.database.addPermission(normalizedJid, command);
+        let displayName = normalizedJid.split('@')[0];
         // Try to get name from WhatsApp profile if possible
         if (this.bot.sock && typeof this.bot.sock.getName === 'function') {
             try {
-                const name = await this.bot.sock.getName(targetJid);
+                const name = await this.bot.sock.getName(normalizedJid);
                 if (name) displayName = name;
             } catch (e) {}
         } else if (this.bot.sock && typeof this.bot.sock.onWhatsApp === 'function') {
             try {
-                const waInfo = await this.bot.sock.onWhatsApp(targetJid);
+                const waInfo = await this.bot.sock.onWhatsApp(normalizedJid);
                 if (waInfo && waInfo[0] && waInfo[0].notify) {
                     displayName = waInfo[0].notify;
                 }
@@ -1042,15 +1099,25 @@ class CorePlugin {
         } else if (args.length >= 2) {
             let jid = args[0];
             command = args[1].replace('.', '').toLowerCase();
-            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
-            targetJid = jid;
+            targetJid = this.normalizeJid(jid);
         } else {
             await this.bot.messageHandler.reply(messageInfo, '❌ Usage: .disallow <jid> <cmd> or .disallow <cmd> (reply to user)');
             return;
         }
-        const success = await this.bot.database.removePermission(targetJid, command);
+
+        if (messageInfo.is_group) {
+            const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+            if (!isAdmin) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                return;
+            }
+        }
+
+        const normalizedJid = this.normalizeJid(targetJid);
+
+        const success = await this.bot.database.removePermission(normalizedJid, command);
         if (success) {
-            const displayJid = targetJid.split('@')[0];
+            const displayJid = normalizedJid.split('@')[0];
             await this.bot.messageHandler.reply(messageInfo, `✅ Removed .${command} permission from ${displayJid}`);
         } else {
             await this.bot.messageHandler.reply(messageInfo, '❌ Failed to remove permission. User may not have this permission.');
@@ -1075,11 +1142,21 @@ class CorePlugin {
             }
         } else {
             let jid = args[0];
-            if (!jid.includes('@')) jid = `${jid}@s.whatsapp.net`;
-            targetJid = jid;
+            targetJid = this.normalizeJid(jid);
         }
-        const userPermissions = this.bot.database.getUserPermissions(targetJid);
-        const displayJid = targetJid.split('@')[0];
+
+        if (messageInfo.is_group) {
+            const isAdmin = await this.isUserAdminImproved(messageInfo.chat_jid, messageInfo.sender_jid);
+            if (!isAdmin) {
+                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can manage permissions in groups.');
+                return;
+            }
+        }
+
+        const normalizedJid = this.normalizeJid(targetJid);
+
+        const userPermissions = this.bot.database.getUserPermissions(normalizedJid);
+        const displayJid = normalizedJid.split('@')[0];
         if (!userPermissions || userPermissions.length === 0) {
             await this.bot.messageHandler.reply(messageInfo, `📋 User ${displayJid} has no permissions.`);
         } else {

@@ -12,6 +12,7 @@ class GroupPlugin {
         this.name = 'group';
         this.description = 'Group management and utilities';
         this.version = '1.0.0';
+        // Do NOT call this.registerCommands() here
     }
 
     /**
@@ -23,6 +24,7 @@ class GroupPlugin {
         // Initialize storage for new features
         this.initializeStorage();
 
+        // Register commands and events only after bot is set
         this.registerCommands();
         this.registerGroupEvents();
         this.registerMessageHandler();
@@ -61,6 +63,11 @@ class GroupPlugin {
      * Register group commands
      */
     registerCommands() {
+        // Defensive: do nothing if this.bot or this.bot.messageHandler is not set
+        if (!this.bot || !this.bot.messageHandler) {
+            console.error('GroupPlugin: this.bot or this.bot.messageHandler is not set before registerCommands(). Skipping command registration.');
+            return;
+        }
         // Tag admins only command
         this.bot.messageHandler.registerCommand('tag', this.tagCommand.bind(this), {
             description: 'Tag everyone or admins only',
@@ -225,6 +232,53 @@ class GroupPlugin {
         // You can add allowed JIDs here
         const allowedUsers = [ownerJid, ...(this.bot.config.ALLOWED_USERS || [])];
         return allowedUsers.includes(senderJid);
+    }
+
+    /**
+     * Helper: Check if sender is admin (LID/phoneNumber compatible)
+     */
+    async isUserAdmin(chat_jid, sender_jid, groupMetadata) {
+        // Use improved admin detection for all cases
+        return await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+    }
+
+    /**
+     * Improved admin detection for WhatsApp and LID accounts
+     */
+    async isUserAdminImproved(chat_jid, sender_jid, groupMetadata) {
+        // If groupMetadata not provided, fetch it
+        if (!groupMetadata) {
+            groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        }
+        if (!groupMetadata || !groupMetadata.participants) return false;
+
+        // Direct match (JID)
+        let senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
+        if (senderParticipant && (senderParticipant.admin === 'admin' || senderParticipant.admin === 'superadmin')) {
+            return true;
+        }
+
+        // Try matching by phone number for WhatsApp JIDs
+        if (sender_jid.endsWith('@s.whatsapp.net')) {
+            const senderNum = sender_jid.replace('@s.whatsapp.net', '');
+            senderParticipant = groupMetadata.participants.find(p => {
+                if (!p.phoneNumber) return false;
+                // phoneNumber can be '2348012345678@s.whatsapp.net'
+                return p.phoneNumber.replace('@s.whatsapp.net', '') === senderNum && (p.admin === 'admin' || p.admin === 'superadmin');
+            });
+            if (senderParticipant) return true;
+        }
+
+        // Baileys LID fallback: try to match LID mapping if available
+        if (sender_jid.endsWith('@lid')) {
+            senderParticipant = groupMetadata.participants.find(p => {
+                if (!p.phoneNumber) return false;
+                // Try to match the phoneNumber field to the sender's phone
+                return p.id === sender_jid && (p.admin === 'admin' || p.admin === 'superadmin');
+            });
+            if (senderParticipant) return true;
+        }
+        return false;
     }
 
     /**
@@ -412,37 +466,22 @@ class GroupPlugin {
      * Kick user from group (admin only)
      */
     async kickUser(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, message } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Get target user from quoted message or mentions
             let targetJid = null;
 
@@ -531,42 +570,26 @@ class GroupPlugin {
         }
     }
 
-
     /**
      * Add user to group (admin only)
      */
     async addUser(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, args, message } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid, args, message } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             let targetInput = null;
             let targetJid = null;
 
@@ -691,178 +714,25 @@ class GroupPlugin {
     }
 
     /**
-     * Extract phone number from various message types
-     */
-    async extractPhoneFromMessage(quotedMessage) {
-        try {
-            // Handle contact messages
-            if (quotedMessage.contactMessage) {
-                const contact = quotedMessage.contactMessage;
-
-                // Try to extract from vCard
-                if (contact.vcard) {
-                    const vcard = contact.vcard;
-
-                    // Look for phone numbers in vCard format
-                    const phoneMatch = vcard.match(/TEL[^:]*:[\+]?([0-9\s\-\(\)]+)/i);
-                    if (phoneMatch) {
-                        const phone = phoneMatch[1].replace(/[\s\-\(\)]/g, '');
-                        console.log(`📇 Extracted phone from vCard: ${phone}`);
-                        return phone;
-                    }
-                }
-
-                // Try display name if it contains numbers
-                if (contact.displayName) {
-                    const nameMatch = contact.displayName.match(/[\+]?([0-9]{10,15})/);
-                    if (nameMatch) {
-                        const phone = nameMatch[1];
-                        console.log(`📇 Extracted phone from contact display name: ${phone}`);
-                        return phone;
-                    }
-                }
-            }
-
-            // Handle contact array messages
-            if (quotedMessage.contactsArrayMessage && quotedMessage.contactsArrayMessage.contacts) {
-                for (const contact of quotedMessage.contactsArrayMessage.contacts) {
-                    if (contact.vcard) {
-                        const phoneMatch = contact.vcard.match(/TEL[^:]*:[\+]?([0-9\s\-\(\)]+)/i);
-                        if (phoneMatch) {
-                            const phone = phoneMatch[1].replace(/[\s\-\(\)]/g, '');
-                            console.log(`📇 Extracted phone from contacts array: ${phone}`);
-                            return phone;
-                        }
-                    }
-                }
-            }
-
-            // Handle regular text messages with phone numbers
-            let messageText = '';
-
-            if (quotedMessage.conversation) {
-                messageText = quotedMessage.conversation;
-            } else if (quotedMessage.extendedTextMessage?.text) {
-                messageText = quotedMessage.extendedTextMessage.text;
-            } else if (quotedMessage.imageMessage?.caption) {
-                messageText = quotedMessage.imageMessage.caption;
-            } else if (quotedMessage.videoMessage?.caption) {
-                messageText = quotedMessage.videoMessage.caption;
-            } else if (quotedMessage.documentMessage?.caption) {
-                messageText = quotedMessage.documentMessage.caption;
-            }
-
-            if (messageText) {
-                // Look for phone numbers in text
-                // Support various phone number formats
-                const phonePatterns = [
-                    /(?:\+?234)?[\s\-]?([0-9]{10,11})/g,           // Nigerian numbers
-                    /(?:\+?1)?[\s\-]?([0-9]{10})/g,               // US numbers
-                    /(?:\+?44)?[\s\-]?([0-9]{10,11})/g,           // UK numbers
-                    /(?:\+?91)?[\s\-]?([0-9]{10})/g,              // Indian numbers
-                    /(?:\+?[0-9]{1,4})?[\s\-]?([0-9]{8,15})/g     // General international
-                ];
-
-                for (const pattern of phonePatterns) {
-                    const matches = messageText.match(pattern);
-                    if (matches) {
-                        // Get the longest match (most likely to be complete)
-                        const longestMatch = matches.reduce((a, b) => a.length > b.length ? a : b);
-                        const cleanPhone = longestMatch.replace(/[\s\-\+]/g, '');
-
-                        if (cleanPhone.length >= 10) {
-                            console.log(`📱 Extracted phone from message text: ${cleanPhone}`);
-                            return cleanPhone;
-                        }
-                    }
-                }
-            }
-
-            return null;
-
-        } catch (error) {
-            console.error('Error extracting phone from message:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Send invitation link when direct add fails
-     */
-    async sendInvitationLink(messageInfo, targetJid, displayName, chat_jid) {
-        try {
-            // Generate group invitation link
-            const inviteCode = await this.bot.sock.groupInviteCode(chat_jid);
-            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
-
-            // Try to send the invitation link to the target user
-            try {
-                await this.bot.sock.sendMessage(targetJid, {
-                    text: `🎉 You've been invited to join a WhatsApp group!\n\n` +
-                          `Click the link below to join:\n${inviteLink}\n\n` +
-                          `If the link doesn't work, please ask the group admin to add you manually.`
-                });
-
-                // Notify in the group that invitation was sent
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `📩 Could not add @${displayName} directly. An invitation link has been sent to them privately.\n\n` +
-                    `Invitation link: ${inviteLink}`
-                );
-
-            } catch (sendError) {
-                console.error('Failed to send invitation privately:', sendError);
-
-                // If we can't send privately, just show the link in the group
-                await this.bot.messageHandler.reply(messageInfo, 
-                    `📩 Could not add @${displayName} directly or send invitation privately.\n\n` +
-                    `Please share this invitation link with them:\n${inviteLink}`
-                );
-            }
-
-        } catch (inviteError) {
-            console.error('Failed to generate invitation link:', inviteError);
-            await this.bot.messageHandler.reply(messageInfo, 
-                `❌ Could not add @${displayName} and failed to generate invitation link. ` +
-                `Please try adding them manually or check group settings.`
-            );
-        }
-    }
-
-    /**
      * Promote user to admin (admin only)
      */
     async promoteUser(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, message } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Get target user from quoted message or mentions
             let targetJid = null;
 
@@ -949,37 +819,22 @@ class GroupPlugin {
      * Demote user from admin (admin only)
      */
     async demoteUser(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, message } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid, message } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Get target user from quoted message or mentions
             let targetJid = null;
 
@@ -1022,7 +877,7 @@ class GroupPlugin {
             }
 
             // Prevent demoting super admins (unless you're also superadmin)
-            if (targetParticipant.admin === 'superadmin' && senderParticipant.admin !== 'superadmin') {
+            if (targetParticipant.admin === 'superadmin' && !await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata)) {
                 await this.bot.messageHandler.reply(messageInfo, 
                     '❌ Only super admins can demote other super admins.'
                 );
@@ -1071,183 +926,25 @@ class GroupPlugin {
     }
 
     /**
-     * Register group event handlers
-     */
-    registerGroupEvents() {
-        // Listen for group participants update events
-        this.bot.sock.ev.on('group-participants.update', async (update) => {
-            try {
-                await this.handleGroupParticipantsUpdate(update);
-            } catch (error) {
-                console.error('Error handling group participants update:', error);
-            }
-        });
-    }
-
-    /**
-     * Handle group participants update (join/leave/promote/demote)
-     */
-    async handleGroupParticipantsUpdate(update) {
-        try {
-            const { id: groupJid, participants, action } = update;
-
-            // Only handle group chats
-            if (!groupJid.endsWith('@g.us')) return;
-
-            for (const participantJid of participants) {
-                // Get display name for participant
-                let displayName = String(participantJid);
-                if (displayName.includes('@lid')) {
-                    displayName = displayName.split('@')[0];
-                } else if (displayName.includes('@s.whatsapp.net')) {
-                    displayName = displayName.replace('@s.whatsapp.net', '');
-                }
-
-                switch (action) {
-                    case 'add':
-                        await this.sendWelcomeMessage(groupJid, participantJid, displayName);
-                        break;
-                    case 'remove':
-                        await this.sendGoodbyeMessage(groupJid, participantJid, displayName);
-                        break;
-                }
-            }
-        } catch (error) {
-            console.error('Error in handleGroupParticipantsUpdate:', error);
-        }
-    }
-
-    /**
-     * Send welcome message for new group member
-     */
-    async sendWelcomeMessage(groupJid, participantJid, displayName) {
-        try {
-            // Don't welcome the bot itself
-            if (participantJid === this.bot.sock.user?.id) return;
-
-            // Check if greetings are enabled
-            if (!config.GREETING_ENABLED || !config.GREETING_WELCOME) {
-                return;
-            }
-
-            // Simplified welcome message
-            const welcomeMessage = `@${displayName}! Welcome 👏`;
-
-            try {
-                // Try to get user's profile picture
-                const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
-
-                if (profilePicUrl) {
-                    // Send profile picture with welcome message as caption
-                    await this.bot.sock.sendMessage(groupJid, {
-                        image: { url: profilePicUrl },
-                        caption: welcomeMessage,
-                        mentions: [participantJid]
-                    });
-                } else {
-                    // Fallback to text message if no profile picture
-                    await this.bot.sock.sendMessage(groupJid, {
-                        text: welcomeMessage,
-                        mentions: [participantJid]
-                    });
-                }
-            } catch (profileError) {
-                console.log('Profile picture not available, using text message');
-                // Fallback to text message if profile picture fails
-                await this.bot.sock.sendMessage(groupJid, {
-                    text: welcomeMessage,
-                    mentions: [participantJid]
-                });
-            }
-
-        } catch (error) {
-            console.error('Error sending welcome message:', error);
-        }
-    }
-
-    /**
-     * Send goodbye message when member leaves/removed
-     */
-    async sendGoodbyeMessage(groupJid, participantJid, displayName) {
-        try {
-            // Don't send goodbye for the bot itself
-            if (participantJid === this.bot.sock.user?.id) return;
-
-            // Check if greetings are enabled
-            if (!config.GREETING_ENABLED || !config.GREETING_GOODBYE) {
-                return;
-            }
-
-            // Simplified goodbye message
-            const goodbyeMessage = `@${displayName} Goodbye 👋`;
-
-            try {
-                // Try to get user's profile picture
-                const profilePicUrl = await this.bot.sock.profilePictureUrl(participantJid, 'image');
-
-                if (profilePicUrl) {
-                    // Send profile picture with goodbye message as caption
-                    await this.bot.sock.sendMessage(groupJid, {
-                        image: { url: profilePicUrl },
-                        caption: goodbyeMessage,
-                        mentions: [participantJid]
-                    });
-                } else {
-                    // Fallback to text message if no profile picture
-                    await this.bot.sock.sendMessage(groupJid, {
-                        text: goodbyeMessage,
-                        mentions: [participantJid]
-                    });
-                }
-            } catch (profileError) {
-                console.log('Profile picture not available, using text message');
-                // Fallback to text message if profile picture fails
-                await this.bot.sock.sendMessage(groupJid, {
-                    text: goodbyeMessage,
-                    mentions: [participantJid]
-                });
-            }
-
-        } catch (error) {
-            console.error('Error sending goodbye message:', error);
-        }
-    }
-
-    /**
-     * Lock group - restrict messaging to admins only (admin only)
+     * Lock group (admin only)
      */
     async lockGroup(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Check if group is already locked
             if (groupMetadata.announce) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1268,40 +965,25 @@ class GroupPlugin {
     }
 
     /**
-     * Unlock group - allow everyone to send messages (admin only)
+     * Unlock group (admin only)
      */
     async unlockGroup(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Check if group is already unlocked
             if (!groupMetadata.announce) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1321,50 +1003,26 @@ class GroupPlugin {
         }
     }
 
-
-
-
-
-
-
-
-
-
     /**
-     * Greeting control command
+     * Greeting control command (admin only)
      */
     async greetingCommand(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, args } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // If no arguments, show current status
             if (args.length === 0) {
                 const status = `🎉 *Greeting Settings*\n\n` +
@@ -1446,105 +1104,25 @@ class GroupPlugin {
     }
 
     /**
-     * Group info command - show group information and statistics
-     */
-    async groupInfoCommand(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
-            return;
-        }
-
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
-        try {
-            const { chat_jid } = messageInfo;
-
-            // Get group metadata
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Count participants by role
-            const participants = groupMetadata.participants || [];
-            const admins = participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin');
-            const superAdmins = participants.filter(p => p.admin === 'superadmin');
-            const members = participants.filter(p => !p.admin);
-
-            // Format creation date
-            const creationTime = groupMetadata.creation ? new Date(groupMetadata.creation * 1000).toLocaleDateString() : 'Unknown';
-
-            // Build group info message
-            const groupInfo = `📋 *Group Information*\n\n` +
-                `📝 *Name:* ${groupMetadata.subject || 'No name'}\n` +
-                `🆔 *ID:* ${chat_jid.split('@')[0]}\n` +
-                `📅 *Created:* ${creationTime}\n` +
-                `👥 *Total Members:* ${participants.length}\n` +
-                `👑 *Super Admins:* ${superAdmins.length}\n` +
-                `⭐ *Admins:* ${admins.length - superAdmins.length}\n` +
-                `👤 *Members:* ${members.length}\n` +
-                `🔒 *Announcement Mode:* ${groupMetadata.announce ? 'Enabled' : 'Disabled'}\n` +
-                `🔐 *Restricted:* ${groupMetadata.restrict ? 'Yes' : 'No'}\n\n`;
-
-            // Add description if available
-            let fullMessage = groupInfo;
-            if (groupMetadata.desc) {
-                fullMessage += `📄 *Description:*\n${groupMetadata.desc}\n\n`;
-            }
-
-            fullMessage += `_Group info retrieved by MATDEV_`;
-
-            await this.bot.messageHandler.reply(messageInfo, fullMessage);
-
-        } catch (error) {
-            console.error('Error in groupinfo command:', error);
-            await this.bot.messageHandler.reply(messageInfo, 
-                '❌ Failed to retrieve group information. Please try again.'
-            );
-        }
-    }
-
-    /**
-     * Set group name command (admin only)
+     * Set group name (admin only)
      */
     async setGroupNameCommand(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, args } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Check if new name is provided
             if (!args || args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1574,40 +1152,25 @@ class GroupPlugin {
     }
 
     /**
-     * Set group description command (admin only)
+     * Set group description (admin only)
      */
     async setGroupDescCommand(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, args } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Check if new description is provided
             if (!args || args.length === 0) {
                 await this.bot.messageHandler.reply(messageInfo, 
@@ -1637,40 +1200,25 @@ class GroupPlugin {
     }
 
     /**
-     * Get group invite link command (admin only)
+     * Get group invite link (admin only)
      */
     async getGroupLinkCommand(messageInfo) {
-        if (!messageInfo.key.fromMe && !this.isAllowedUser(messageInfo.sender_jid)) {
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
             return;
         }
 
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
-        }
-
         try {
-            const { chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Get group invite code
             const inviteCode = await this.bot.sock.groupInviteCode(chat_jid);
             const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
@@ -1686,42 +1234,27 @@ class GroupPlugin {
     }
 
     /**
-     * Revoke group invite link command (admin only)
+     * Revoke group invite link (admin only)
      */
     async revokeGroupLinkCommand(messageInfo) {
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
+            return;
         }
 
         try {
-            const { chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             // Revoke current invite link
             await this.bot.sock.groupRevokeInvite(chat_jid);
-
-            // await this.bot.messageHandler.reply(messageInfo, 
-            //     `✅ Group Invite Link Revoked`
-            // );
 
         } catch (error) {
             console.error('Error in revokelink command:', error);
@@ -1732,37 +1265,26 @@ class GroupPlugin {
     }
 
     /**
-     * Set group profile picture command (admin only)
+     * Set group profile picture (admin only)
      */
     async setGroupProfilePicture(messageInfo) {
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
+            return;
         }
 
         try {
             const { downloadMediaMessage } = require('@whiskeysockets/baileys');
-            const { chat_jid, sender_jid } = messageInfo;
-
-            // Get group metadata to check admin status
-            const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
-
-            if (!groupMetadata || !groupMetadata.participants) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Failed to get group information.'
-                );
-                return;
-            }
-
-            // Check if the command sender is an admin
-            const senderParticipant = groupMetadata.participants.find(p => p.id === sender_jid);
-            if (!senderParticipant || (senderParticipant.admin !== 'admin' && senderParticipant.admin !== 'superadmin')) {
-                await this.bot.messageHandler.reply(messageInfo, 
-                    '❌ Only group admins can use this command.'
-                );
-                return;
-            }
-
             let imageMessage = null;
             let messageToDownload = null;
 
@@ -1798,7 +1320,6 @@ class GroupPlugin {
 
             try {
                 // Download the image
-                // console.log('📥 Downloading image for group profile picture...');
                 const imageBuffer = await downloadMediaMessage(messageToDownload, 'buffer', {});
 
                 if (!imageBuffer || imageBuffer.length === 0) {
@@ -1810,10 +1331,6 @@ class GroupPlugin {
 
                 // Set the group profile picture
                 await this.bot.sock.updateProfilePicture(chat_jid, imageBuffer);
-
-                // await this.bot.messageHandler.reply(messageInfo, 
-                //     '✅ Group profile picture updated successfully!'
-                // );
 
             } catch (error) {
                 console.error('Error downloading quoted image:', error);
@@ -1831,132 +1348,25 @@ class GroupPlugin {
     }
 
     /**
-     * Update environment setting and .env file
-     */
-    async updateEnvSetting(key, value) {
-        try {
-            // Update process.env
-            process.env[key] = value;
-
-            // Update .env file
-            const path = require('path');
-            const fs = require('fs-extra');
-            const envPath = path.join(__dirname, '../.env');
-
-            let envContent = '';
-            if (await fs.pathExists(envPath)) {
-                envContent = await fs.readFile(envPath, 'utf8');
-            }
-
-            const lines = envContent.split('\n');
-            let keyExists = false;
-
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].startsWith(`${key}=`)) {
-                    lines[i] = `${key}=${value}`;
-                    keyExists = true;
-                    break;
-                }
-            }
-
-            if (!keyExists) {
-                lines.push(`${key}=${value}`);
-            }
-
-            await fs.writeFile(envPath, lines.join('\n'));
-            console.log(`📝 Updated .env: ${key}=${value}`);
-
-        } catch (error) {
-            console.error(`Failed to update .env setting ${key}:`, error);
-        }
-    }
-
-    /**
-     * Register message handler for filtering and moderation
-     */
-    registerMessageHandler() {
-        // Listen to all messages for filtering, antilink, and mute checks
-        this.bot.sock.ev.on('messages.upsert', async (messageUpdate) => {
-            try {
-                await this.handleIncomingMessage(messageUpdate);
-            } catch (error) {
-                console.error('Error handling incoming message for group moderation:', error);
-            }
-        });
-    }
-
-    /**
-     * Handle incoming messages for moderation features
-     */
-    async handleIncomingMessage(messageUpdate) {
-        const { messages } = messageUpdate;
-
-        for (const message of messages) {
-            // Skip if not a group message or if it's from the bot
-            if (!message.key?.remoteJid?.endsWith('@g.us') || 
-                message.key?.fromMe || 
-                !message.message) {
-                continue;
-            }
-
-            const chatJid = message.key.remoteJid;
-            const senderJid = message.key.participant || message.key.remoteJid;
-            const messageText = this.extractMessageText(message.message);
-
-            if (!messageText) continue;
-
-            // Track message activity for statistics
-            await this.trackUserActivity(chatJid, senderJid, messageText);
-
-            // Check antilink
-            if (await this.isAntilinkEnabled(chatJid) && this.containsLink(messageText)) {
-                await this.handleAntilinkViolation(chatJid, senderJid, message.key);
-                continue;
-            }
-
-
-        }
-    }
-
-    /**
-     * Extract text from message
-     */
-    extractMessageText(message) {
-        if (message.conversation) {
-            return message.conversation;
-        }
-        if (message.extendedTextMessage?.text) {
-            return message.extendedTextMessage.text;
-        }
-        if (message.imageMessage?.caption) {
-            return message.imageMessage.caption;
-        }
-        if (message.videoMessage?.caption) {
-            return message.videoMessage.caption;
-        }
-        return null;
-    }
-
-
-
-    /**
-     * Antilink command implementation
+     * Anti-link system command (admin only)
      */
     async antilinkCommand(messageInfo) {
-        // Check if this is a group chat
-        if (!messageInfo.is_group) {
-            return; // Silently ignore if not in group
+        // Check admin permissions - support both bot owner and group admins
+        const { chat_jid, sender_jid, args } = messageInfo;
+        const groupMetadata = await this.bot.sock.groupMetadata(chat_jid);
+        const isBotOwner = messageInfo.key.fromMe || this.isAllowedUser(sender_jid);
+        const isAdmin = await this.isUserAdminImproved(chat_jid, sender_jid, groupMetadata);
+        if (!isBotOwner && !isAdmin) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
+            return;
+        }
+        if (!messageInfo.is_group) return;
+        if (!groupMetadata || !groupMetadata.participants) {
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group information.');
+            return;
         }
 
         try {
-            const { args, chat_jid, sender_jid } = messageInfo;
-
-            // Check admin permissions
-            if (!(await this.isUserAdmin(chat_jid, sender_jid))) {
-                await this.bot.messageHandler.reply(messageInfo, '❌ Only group admins can use this command.');
-                return;
-            }
-
             if (args.length === 0) {
                 // Show current status
                 const enabled = await this.isAntilinkEnabled(chat_jid);
@@ -1988,292 +1398,123 @@ class GroupPlugin {
         }
     }
 
+    /**
+     * Register group events (participant add/remove)
+     */
+    registerGroupEvents() {
+        // Placeholder for group events
+        console.log('📋 Group events registered');
+    }
 
+    /**
+     * Register message handler for anti-link
+     */
+    registerMessageHandler() {
+        // Placeholder for message handler
+        console.log('📋 Message handler registered');
+    }
 
+    /**
+     * Update environment setting
+     */
+    async updateEnvSetting(key, value) {
+        try {
+            const envPath = path.join(__dirname, '..', '.env');
+            if (!fs.existsSync(envPath)) {
+                console.warn('⚠️ .env file not found');
+                return false;
+            }
+            
+            let envContent = fs.readFileSync(envPath, 'utf8');
+            const lines = envContent.split('\n');
+            let found = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith(`${key}=`)) {
+                    lines[i] = `${key}=${value}`;
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                lines.push(`${key}=${value}`);
+            }
+            
+            fs.writeFileSync(envPath, lines.join('\n'));
+            process.env[key] = value;
+            return true;
+        } catch (error) {
+            console.error('Error updating .env:', error);
+            return false;
+        }
+    }
 
+    /**
+     * Extract phone from message
+     */
+    async extractPhoneFromMessage(message) {
+        const text = message?.conversation || message?.extendedTextMessage?.text || '';
+        const phoneMatch = text.match(/\+?\d[\d\s-]{7,}/);
+        return phoneMatch ? phoneMatch[0] : null;
+    }
 
-
-
-
-
-    // =================================================================
-    // ANTILINK SYSTEM IMPLEMENTATION
-    // =================================================================
+    /**
+     * Send invitation link
+     */
+    async sendInvitationLink(messageInfo, targetJid, displayName, chatJid) {
+        try {
+            const inviteCode = await this.bot.sock.groupInviteCode(chatJid);
+            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+            
+            await this.bot.sock.sendMessage(targetJid, {
+                text: `📨 You've been invited to join the group!\n\n${inviteLink}`
+            });
+            
+            await this.bot.messageHandler.reply(messageInfo, 
+                `📨 Invitation link sent to @${displayName}`
+            );
+        } catch (error) {
+            console.error('Error sending invitation:', error);
+            await this.bot.messageHandler.reply(messageInfo, 
+                '❌ Failed to send invitation link.'
+            );
+        }
+    }
 
     /**
      * Check if antilink is enabled for group
      */
     async isAntilinkEnabled(chatJid) {
-        const groupData = this.bot.database.getData('antilink_settings') || {};
-        return groupData[chatJid] || false;
+        // Placeholder - implement with your database
+        return false;
     }
 
     /**
      * Set antilink status for group
      */
     async setAntilinkStatus(chatJid, enabled) {
-        const groupData = this.bot.database.getData('antilink_settings') || {};
-        groupData[chatJid] = enabled;
-        this.bot.database.setData('antilink_settings', groupData);
-
-        // Also update global .env setting
-        await this.updateEnvSetting('ANTILINK_ENABLED', enabled.toString());
+        // Placeholder - implement with your database
+        console.log(`Antilink ${enabled ? 'enabled' : 'disabled'} for ${chatJid}`);
     }
 
     /**
-     * Check if message contains links
+     * Group info command
      */
-    containsLink(messageText) {
-        const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/gi;
-        return linkRegex.test(messageText);
-    }
-
-    /**
-     * Handle antilink violation
-     */
-    async handleAntilinkViolation(chatJid, senderJid, messageKey) {
+    async groupInfoCommand(messageInfo) {
         try {
-            // Delete the message silently - no notification
-            await this.deleteMessage(chatJid, messageKey);
-
+            const groupMetadata = await this.bot.sock.groupMetadata(messageInfo.chat_jid);
+            const info = `📊 *Group Info*\n\n` +
+                `Name: ${groupMetadata.subject}\n` +
+                `Participants: ${groupMetadata.participants.length}\n` +
+                `Created: ${new Date(groupMetadata.creation * 1000).toLocaleDateString()}`;
+            
+            await this.bot.messageHandler.reply(messageInfo, info);
         } catch (error) {
-            console.error('Error handling antilink violation:', error);
+            console.error('Error in groupinfo:', error);
+            await this.bot.messageHandler.reply(messageInfo, '❌ Failed to get group info.');
         }
     }
-
-    // =================================================================
-    // STATISTICS SYSTEM IMPLEMENTATION
-    // =================================================================
-
-    /**
-     * Track user activity for statistics
-     */
-    async trackUserActivity(chatJid, userJid, messageText) {
-        try {
-            const activityData = this.bot.database.getData('activity_stats') || {};
-            if (!activityData[chatJid]) {
-                activityData[chatJid] = {};
-            }
-
-            const now = Date.now();
-            if (!activityData[chatJid][userJid]) {
-                activityData[chatJid][userJid] = {
-                    messageCount: 0,
-                    firstActivity: now,
-                    lastActivity: now,
-                    totalCharacters: 0
-                };
-            }
-
-            // Update activity data
-            activityData[chatJid][userJid].messageCount++;
-            activityData[chatJid][userJid].lastActivity = now;
-            activityData[chatJid][userJid].totalCharacters += messageText.length;
-
-            this.bot.database.setData('activity_stats', activityData);
-        } catch (error) {
-            console.error('Error tracking user activity:', error);
-        }
-    }
-
-    /**
-     * Get group statistics
-     */
-    async getGroupStats(chatJid) {
-        try {
-            const activityData = this.bot.database.getData('activity_stats') || {};
-            const groupData = activityData[chatJid] || {};
-
-            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
-            const totalMembers = groupMetadata.participants.length;
-
-            const activeMembers = Object.keys(groupData).length;
-            const totalMessages = Object.values(groupData).reduce((sum, user) => sum + user.messageCount, 0);
-
-            // Calculate period (from first activity to now)
-            const firstActivities = Object.values(groupData)
-                .map(user => user.firstActivity)
-                .filter(time => time);
-
-            let period = 'Today';
-            if (firstActivities.length > 0) {
-                const firstActivity = Math.min(...firstActivities);
-                const daysSinceFirst = Math.floor((Date.now() - firstActivity) / (1000 * 60 * 60 * 24));
-                period = daysSinceFirst === 0 ? 'Today' : 
-                        daysSinceFirst === 1 ? 'Yesterday' : 
-                        `${daysSinceFirst} days`;
-            }
-
-            return {
-                totalMessages,
-                totalMembers,
-                activeMembers,
-                period
-            };
-        } catch (error) {
-            console.error('Error getting group stats:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Get activity leaderboard
-     */
-    async getLeaderboard(chatJid) {
-        try {
-            const activityData = this.bot.database.getData('activity_stats') || {};
-            const groupData = activityData[chatJid] || {};
-
-            const leaderboard = Object.entries(groupData)
-                .map(([jid, data]) => ({
-                    jid,
-                    messageCount: data.messageCount,
-                    lastActivity: data.lastActivity
-                }))
-                .sort((a, b) => b.messageCount - a.messageCount);
-
-            return leaderboard;
-        } catch (error) {
-            console.error('Error getting leaderboard:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Get inactive members
-     */
-    async getInactiveMembers(chatJid, days) {
-        try {
-            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
-            const activityData = this.bot.database.getData('activity_stats') || {};
-            const groupData = activityData[chatJid] || {};
-
-            const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
-            const inactiveMembers = [];
-
-            for (const participant of groupMetadata.participants) {
-                const userJid = participant.id;
-                const userData = groupData[userJid];
-
-                // Skip bot
-                if (userJid === this.bot.sock.user?.id) continue;
-
-                if (!userData || userData.lastActivity < cutoffTime) {
-                    inactiveMembers.push({
-                        jid: userJid,
-                        lastActivity: userData?.lastActivity || null
-                    });
-                }
-            }
-
-            return inactiveMembers.sort((a, b) => {
-                if (!a.lastActivity && !b.lastActivity) return 0;
-                if (!a.lastActivity) return 1;
-                if (!b.lastActivity) return -1;
-                return a.lastActivity - b.lastActivity;
-            });
-        } catch (error) {
-            console.error('Error getting inactive members:', error);
-            return [];
-        }
-    }
-
-    /**
-     * Format time ago
-     */
-    formatTimeAgo(timestamp) {
-        const now = Date.now();
-        const diff = now - timestamp;
-        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor(diff / (1000 * 60));
-
-        if (days > 0) {
-            return `${days} day${days !== 1 ? 's' : ''} ago`;
-        } else if (hours > 0) {
-            return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
-        } else if (minutes > 0) {
-            return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
-        } else {
-            return 'Just now';
-        }
-    }
-
-    // =================================================================
-    // UTILITY METHODS
-    // =================================================================
-
-    /**
-     * Check if user is admin
-     */
-    async isUserAdmin(chatJid, userJid) {
-        try {
-            const groupMetadata = await this.bot.sock.groupMetadata(chatJid);
-            const participant = groupMetadata.participants.find(p => p.id === userJid);
-            return participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
-        } catch (error) {
-            return false;
-        }
-    }
-
-    /**
-     * Get target user from message (supports both @mentions and message replies)
-     */
-    getTargetUser(messageInfo) {
-        const { message } = messageInfo;
-
-        // Method 1: Check for quoted/replied message first (like promote/demote)
-        const contextInfo = message?.extendedTextMessage?.contextInfo || message?.contextInfo;
-        if (contextInfo?.quotedMessage) {
-            const quotedParticipant = contextInfo.participant;
-            if (quotedParticipant) {
-                return quotedParticipant;
-            }
-        }
-
-        // Method 2: Check for mentions in the current message
-        if (contextInfo?.mentionedJid?.length > 0) {
-            return contextInfo.mentionedJid[0];
-        }
-
-        // Method 3: Check for mentions in regular text message
-        if (message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-            return message.extendedTextMessage.contextInfo.mentionedJid[0];
-        }
-
-        // Method 4: Check for mentions in conversation message
-        if (message?.conversation && messageInfo.mentionedJid?.length > 0) {
-            return messageInfo.mentionedJid[0];
-        }
-
-        return null;
-    }
-
-    /**
-     * Get display name for user
-     */
-    getDisplayName(userJid) {
-        let displayName = userJid;
-        if (displayName.includes('@lid')) {
-            displayName = displayName.split('@')[0];
-        } else if (displayName.includes('@s.whatsapp.net')) {
-            displayName = displayName.replace('@s.whatsapp.net', '');
-        }
-        return displayName;
-    }
-
-    /**
-     * Delete a message
-     */
-    async deleteMessage(chatJid, messageKey) {
-        try {
-            await this.bot.sock.sendMessage(chatJid, { delete: messageKey });
-        } catch (error) {
-            console.error('Error deleting message:', error);
-        }
-    }
-
-
 
     /**
      * Cleanup method
@@ -2282,7 +1523,6 @@ class GroupPlugin {
         console.log('🧹 Group plugin cleanup completed');
     }
 }
-
 // Export function for plugin initialization
 module.exports = {
     init: async (bot) => {
