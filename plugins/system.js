@@ -55,6 +55,13 @@ class SystemPlugin {
             ownerOnly: true
         });
 
+        // Presence command
+        this.bot.messageHandler.registerCommand('presence', this.presenceCommand.bind(this), {
+            description: 'Set bot presence: online/offline',
+            usage: `${config.PREFIX}presence <online|offline>` ,
+            category: 'system',
+            ownerOnly: true
+        });
 
         // Update command (handles both check and now)
         this.bot.messageHandler.registerCommand('update', this.updateCommand.bind(this), {
@@ -467,7 +474,35 @@ class SystemPlugin {
         }
     }
 
-
+    /**
+     * Presence control command: .presence online/offline
+     */
+    async presenceCommand(messageInfo) {
+        const { args, senderJid } = messageInfo;
+        if (!args[0] || !['online', 'offline'].includes(args[0].toLowerCase())) {
+            await this.bot.messageHandler.reply(messageInfo, 'Usage: .presence <online|offline>');
+            return;
+        }
+        const mode = args[0].toLowerCase();
+        const envPath = path.join(__dirname, '../.env');
+        let envContent = await fs.readFile(envPath, 'utf8');
+        // Update or add ALWAYS_ONLINE in .env
+        if (/^ALWAYS_ONLINE=/m.test(envContent)) {
+            envContent = envContent.replace(/^ALWAYS_ONLINE=.*/m, `ALWAYS_ONLINE=${mode === 'online' ? 'true' : 'false'}`);
+        } else {
+            envContent = `ALWAYS_ONLINE=${mode === 'online' ? 'true' : 'false'}\n` + envContent;
+        }
+        await fs.writeFile(envPath, envContent);
+        // Update config in memory
+        require('../config');
+        // Restart presence keeper
+        if (mode === 'online') {
+            this.bot.stopPresenceKeeper();
+        } else {
+            this.bot.startPresenceKeeper();
+        }
+        await this.bot.messageHandler.reply(messageInfo, `Presence mode set to *${mode}*.`);
+    }
 
     /**
      * Set environment variable command

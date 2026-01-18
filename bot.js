@@ -72,6 +72,8 @@ class MATDEV {
 
         // Initialize login method
         this.loginMethod = null;
+
+        this.presenceInterval = null;
     }
 
     /**
@@ -158,7 +160,32 @@ class MATDEV {
         }
     }
 
-    
+    /**
+     * Start or stop the presence keeper based on config.ALWAYS_ONLINE
+     */
+    startPresenceKeeper() {
+        this.stopPresenceKeeper();
+        if (config.ALWAYS_ONLINE === false) {
+            // Appear offline: send 'unavailable' every 8 seconds
+            this.presenceInterval = setInterval(() => {
+                if (this.sock && this.isConnected) {
+                    this.sock.sendPresenceUpdate('unavailable').catch(() => {});
+                }
+            }, 8000);
+            // Send immediately on start
+            if (this.sock && this.isConnected) {
+                this.sock.sendPresenceUpdate('unavailable').catch(() => {});
+            }
+        }
+        // If ALWAYS_ONLINE is true, do nothing (default Baileys behavior)
+    }
+
+    stopPresenceKeeper() {
+        if (this.presenceInterval) {
+            clearInterval(this.presenceInterval);
+            this.presenceInterval = null;
+        }
+    }
 
     /**
      * Display startup banner
@@ -797,6 +824,7 @@ const proceedWithPairingCode = async () => {
 
         if (connection === 'close') {
             this.isConnected = false;
+            this.stopPresenceKeeper(); // Stop presence keeper on disconnect
             const statusCode = lastDisconnect?.error?.output?.statusCode;
 
             // Handle different disconnect reasons properly
@@ -907,6 +935,7 @@ const proceedWithPairingCode = async () => {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this.initialConnection = false; // Mark as no longer initial connection
+            this.startPresenceKeeper(); // Start presence keeper on connect
             logger.info('🟢 Session established successfully - preserving authentication');
 
             logger.success('✅ Successfully connected to WhatsApp!');

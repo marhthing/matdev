@@ -137,6 +137,7 @@ const config = {
     ANTI_DELETE: process.env.ANTI_DELETE === 'true' || true,
     REJECT_CALLS: process.env.REJECT_CALLS === 'true' || false,
     ANTI_STATUS: process.env.ANTI_STATUS === 'true',
+    ALWAYS_ONLINE: process.env.ALWAYS_ONLINE === 'true' || false,
 
     // Performance Settings
     MAX_CONCURRENT_MESSAGES: parseInt(process.env.MAX_CONCURRENT_MESSAGES) || 5,
